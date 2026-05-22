@@ -3,6 +3,7 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 package(
     default_testonly = True,
@@ -19,6 +20,16 @@ cc_test(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
+    ],
+)
+
+py_test(
+    name = "integration/simple_test_py",
+    srcs = ["integration/simple_test.py"],
+    main = "integration/simple_test.py",
+    deps = [
+        "//src/api/python:peregrine",
+        "//testing/pybase",
     ],
 )
 

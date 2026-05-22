@@ -53,10 +53,10 @@ constexpr bool IsCompleted(const Status s) { return s != Status::kInProgress; }
 
 // Per-peer transport request.
 struct Request final {
-  Op op;
-  Byte* laddr;  // in this local process
-  Byte* raddr;  // in the remote peer process
-  size_t len;
+  Op op = Op::kWrite;
+  Byte* laddr = nullptr;  // in this local process
+  Byte* raddr = nullptr;  // in the remote peer process
+  size_t len = 0;
 
   // Returns true iff the request is valid.
   constexpr bool IsValid() const {
