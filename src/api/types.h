@@ -65,12 +65,6 @@ struct Request final {
 
   // Returns a string representation of the transport request.
   std::string ToString() const;
-
-  // Returns true iff the two requests are identical in all fields.
-  friend bool operator==(const Request& a, const Request& b) {
-    return a.op == b.op && a.laddr == b.laddr && a.raddr == b.raddr &&
-           a.len == b.len;
-  }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Request& r) {

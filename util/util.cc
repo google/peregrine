@@ -15,10 +15,11 @@
 
 namespace peregrine::util {
 
+namespace {
 using port_t = uint16_t;
 
-namespace {
 port_t GenPort(absl::BitGen& bitgen, const port_t min, const port_t max) {
+  DCHECK_LE(min, max);
   return absl::Uniform<port_t>(absl::IntervalClosed, bitgen, min, max);
 }
 

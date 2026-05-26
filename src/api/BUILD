@@ -1,7 +1,9 @@
 # Only for public API.
 
+load("@nanobind_bazel//:build_defs.bzl", "nanobind_extension")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 package(default_visibility = [
     # TODO(yongx): make the visibility public
@@ -55,5 +57,25 @@ cc_test(
     deps = [
         ":transport_util",
         "@googletest//:gtest_main",
+    ],
+)
+
+nanobind_extension(
+    name = "peregrine",
+    srcs = ["python/binding.cc"],
+    features = ["-use_header_modules"],
+    deps = [
+        ":transport",
+        ":transport_util",
+        ":types",
+    ],
+)
+
+py_test(
+    name = "python/binding_test",
+    srcs = ["python/binding_test.py"],
+    deps = [
+        ":peregrine",
+        "//testing/pybase",
     ],
 )

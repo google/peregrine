@@ -2,77 +2,71 @@ import ctypes
 import datetime
 import time
 from google3.testing.pybase import googletest
-from src.api.python import peregrine
+from src.api import peregrine as pg
+
+_TIMEOUT = datetime.timedelta(seconds=10)
+_INTERVAL = datetime.timedelta(milliseconds=100)
 
 
 class SimpleTest(googletest.TestCase):
 
-  @classmethod
-  def wait_for_completion(
-      cls,
-      transport: peregrine.Transport,
-      handle: peregrine.Handle,
-      timeout=datetime.timedelta(seconds=1),
-      check_interval=datetime.timedelta(milliseconds=10),
-  ):
-    """Polls the transport handle until completion, throwing on timeout or failure."""
-    start_time = time.time()
-    while time.time() - start_time < timeout.total_seconds():
-      status = transport.poll(handle)
-      if peregrine.is_completed(status):
-        if status != peregrine.Status.SUCCESS:
-          raise RuntimeError(f"Transport failed with status: {status}")
+  def setUp(self):
+    super().setUp()
+    self.peer = "localhost:12345"
+    self.transport = pg.create_transport()
+
+  def wait_for_completion(self, handle: pg.Handle) -> None:
+    end_time = time.time() + _TIMEOUT.total_seconds()
+    while time.time() < end_time:
+      status = self.transport.poll(handle)
+      if not pg.is_completed(status):
+        time.sleep(_INTERVAL.total_seconds())
+      elif status == pg.Status.SUCCESS:
         return
-      time.sleep(check_interval.total_seconds())
-    raise TimeoutError("Transport operation timed out")
+      else:
+        self.fail(f"Transport failed: {status!r}")
+    else:
+      self.fail("Transport timed out")
 
   def test_read(self):
-    # Precondition: no single byte matches initially.
-    payload = b"Hello, Peregrine Read Integration!"
-    lbuf = ctypes.create_string_buffer(len(payload))
-    rbuf = ctypes.create_string_buffer(payload)
+    # Precondition: local buf doesn't match the expected data.
+    data = b"Peregrine Read Integration!"
+    rbuf = ctypes.create_string_buffer(data)
+    lbuf = ctypes.create_string_buffer(len(data))
+    self.assertNotEqual(lbuf.raw, data)
 
-    self.assertNotEqual(lbuf.raw, rbuf.raw)
+    # Initiate read (self <- peer) and wait for completion.
+    req = pg.Request(
+        op=pg.Op.READ,
+        laddr=ctypes.addressof(lbuf),
+        raddr=ctypes.addressof(rbuf),
+        len=len(data),
+    )
+    handle = self.transport.post(self.peer, req)
+    self.wait_for_completion(handle)
 
-    # Initiate C++ Read Operation (self <- peer)
-    transport = peregrine.create_transport()
-    req = peregrine.Request()
-    req.op = peregrine.Op.READ
-    req.laddr = ctypes.addressof(lbuf)
-    req.raddr = ctypes.addressof(rbuf)
-    req.len = len(payload)
-
-    handle = transport.post("localhost:1234", req)
-
-    # Wait for processing
-    self.wait_for_completion(transport, handle)
-
-    # Post-condition: lbuf has successfully matched rbuf
-    self.assertEqual(lbuf.raw[: len(payload)], payload)
+    # Post-condition: local buf matches the expected data.
+    self.assertEqual(lbuf.raw, data)
 
   def test_write(self):
-    # Precondition: no single byte matches initially.
-    payload = b"Hello, Peregrine Write Integration!"
-    lbuf = ctypes.create_string_buffer(payload)
-    rbuf = ctypes.create_string_buffer(len(payload))
+    # Precondition: remote buf doesn't match the expected data.
+    data = b"Peregrine Write Integration!"
+    lbuf = ctypes.create_string_buffer(data)
+    rbuf = ctypes.create_string_buffer(len(data))
+    self.assertNotEqual(rbuf.raw, data)
 
-    self.assertNotEqual(lbuf.raw, rbuf.raw)
+    # Initiate write (self -> peer) and wait for completion.
+    req = pg.Request(
+        op=pg.Op.WRITE,
+        laddr=ctypes.addressof(lbuf),
+        raddr=ctypes.addressof(rbuf),
+        len=len(data),
+    )
+    handle = self.transport.post(self.peer, req)
+    self.wait_for_completion(handle)
 
-    # Initiate C++ Write Operation (self -> peer)
-    transport = peregrine.create_transport()
-    req = peregrine.Request()
-    req.op = peregrine.Op.WRITE
-    req.laddr = ctypes.addressof(lbuf)
-    req.raddr = ctypes.addressof(rbuf)
-    req.len = len(payload)
-
-    handle = transport.post("localhost:1234", req)
-
-    # Wait for processing
-    self.wait_for_completion(transport, handle)
-
-    # Post-condition: rbuf has successfully matched lbuf
-    self.assertEqual(rbuf.raw[: len(payload)], payload)
+    # Post-condition: remote buf matches the expected data.
+    self.assertEqual(rbuf.raw, data)
 
 
 if __name__ == "__main__":

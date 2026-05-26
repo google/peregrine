@@ -15,24 +15,37 @@ namespace {
 
 NB_MODULE(peregrine, m) {
   namespace nb = nanobind;
+  using namespace nb::literals;  // NOLINT
 
-  // Bind Op enum
+  // Bind `Handle`
+  nb::class_<Handle>(m, "Handle")
+      .def(nb::init<uint32_t>())
+      .def("value", [](const Handle& h) { return h.value(); });
+
+  // Bind `Op` enum
   nb::enum_<Op>(m, "Op").value("READ", Op::kRead).value("WRITE", Op::kWrite);
 
-  // Bind Status enum
+  // Bind `Status` enum and helper functions
   nb::enum_<Status>(m, "Status")
       .value("IN_PROGRESS", Status::kInProgress)
       .value("SUCCESS", Status::kSuccess)
       .value("FAILURE", Status::kFailure);
 
-  // Bind Handle
-  nb::class_<Handle>(m, "Handle")
-      .def(nb::init<uint32_t>())
-      .def("value", [](const Handle& h) { return h.value(); });
+  m.def("is_in_progress", &IsInProgress);
+  m.def("is_completed", &IsCompleted);
 
-  // Bind Request struct
+  // Bind `Request` struct
   nb::class_<Request>(m, "Request")
       .def(nb::init<>())
+      .def(
+          "__init__",
+          [](Request* r, Op op, uintptr_t laddr, uintptr_t raddr, size_t len) {
+            new (r) Request{.op = op,
+                            .laddr = reinterpret_cast<Byte*>(laddr),
+                            .raddr = reinterpret_cast<Byte*>(raddr),
+                            .len = len};
+          },
+          "op"_a, "laddr"_a, "raddr"_a, "len"_a)
       .def_rw("op", &Request::op)
       .def_prop_rw(
           "laddr",
@@ -48,39 +61,33 @@ NB_MODULE(peregrine, m) {
           })
       .def_rw("len", &Request::len)
       .def("is_valid", &Request::IsValid)
-      .def("__eq__", [](const Request& a, const Request& b) { return a == b; })
       .def("__str__", &Request::ToString)
       .def("__repr__", &Request::ToString);
 
-  // Bind Transport interface
+  // Bind `Transport` interface and functions
   nb::class_<Transport>(m, "Transport")
       .def(
           "post",
-          [](Transport& t, Endpoint peer, const Request& request) {
-            auto result = t.Post(peer, request);
-            if (!result.ok()) {
+          [](Transport& t, absl::string_view peer, const Request& request) {
+            if (const auto result = t.Post(peer, request); !result.ok()) {
               throw std::runtime_error(result.status().ToString());
+            } else {
+              return result.value();
             }
-            return result.value();
           },
           nb::arg("peer"), nb::arg("request"))
       .def(
           "poll",
           [](Transport& t, Handle handle) {
-            auto result = t.Poll(handle);
-            if (!result.ok()) {
+            if (const auto result = t.Poll(handle); !result.ok()) {
               throw std::runtime_error(result.status().ToString());
+            } else {
+              return result.value();
             }
-            return result.value();
           },
           nb::arg("handle"));
 
-  // Bind CreateTransport function
   m.def("create_transport", &CreateTransport);
-
-  // Bind Status helper functions
-  m.def("is_in_progress", &IsInProgress);
-  m.def("is_completed", &IsCompleted);
 }
 
 }  // namespace

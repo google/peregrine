@@ -17,8 +17,7 @@ class Transport {
   // If successful, returns a `handle` which uniquely identifies the request
   // within this process. Otherwise, returns an error status. Once the `handle`
   // is returned, it is the caller's responsibility to keep the local/remote
-  // memories pointed by the `request.{laddr,raddr}` valid until the request
-  // is completely served.
+  // memories specified by the `request` valid until it is completely served.
   virtual absl::StatusOr<Handle> Post(Endpoint peer,
                                       const Request& request) = 0;
 

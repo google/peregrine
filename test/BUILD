@@ -28,7 +28,7 @@ py_test(
     srcs = ["integration/simple_test.py"],
     main = "integration/simple_test.py",
     deps = [
-        "//src/api/python:peregrine",
+        "//src/api:peregrine",
         "//testing/pybase",
     ],
 )
