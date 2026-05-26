@@ -15,25 +15,28 @@
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/types.h"
+#include "src/internal/util/util.h"
 
 namespace peregrine::testing {
 namespace {
 
 using ::testing::Each;
-using ::testing::ElementsAreArray;
 using ::testing::Eq;
-using ::testing::Not;
+using ::testing::Ne;
+using ::testing::Pointwise;
 
 constexpr Endpoint kPeer = "peer_hostname";
-constexpr Byte kLocalByte = 1;
-constexpr Byte kRemoteByte = 2;
-static_assert(kLocalByte != kRemoteByte);
+constexpr Byte kByteA = 1;
+constexpr Byte kByteB = 2;
+static_assert(kByteA != kByteB);
 constexpr size_t kLen = 1024;
 
-class UserProcess final {
+class UserApplication final {
  public:
-  explicit UserProcess(const Byte v) : data_(kLen, v), transport_() {}
-  absl::Span<Byte> Data() { return absl::MakeSpan(data_); }
+  explicit UserApplication(const Byte v) : data_(kLen, v), transport_() {}
+  Byte* DataPtr() { return data_.data(); }
+  size_t DataSize() const { return data_.size(); }
+  absl::Span<const Byte> Data() const { return absl::MakeConstSpan(data_); }
   Transport& GetTransport() { return transport_; }
 
  private:
@@ -43,88 +46,88 @@ class UserProcess final {
 
 class TransportImplTest : public ::testing::Test {
  protected:
-  TransportImplTest() : local_(kLocalByte), remote_(kRemoteByte) {
-    CHECK_NE(kLocalByte, kRemoteByte);
-  }
-
-  Request MakeRequest(const Op op) {
-    const auto l = local_.Data();
-    const auto r = remote_.Data();
-    DCHECK_EQ(l.size(), r.size());
-    return Request{
-        .op = op,
-        .laddr = l.data(),
-        .raddr = r.data(),
-        .len = l.size(),
-    };
+  TransportImplTest() : a_(kByteA), b_(kByteB) {
+    CHECK_EQ(a_.DataSize(), b_.DataSize());
+    CHECK_NE(a_.Data(), b_.Data());
   }
 
   static std::string Info(const Request& req, const Handle h, const Status s) {
-    return absl::StrFormat("TransportImplTest: %s handle = 0x%x, status = %v",
-                           ToString(req.op), h.value(), s);
+    return absl::StrFormat(
+        "TransportImplTest: %s handle = 0x%x, status = %s @ thread #%s",
+        ToString(req.op), h.value(), ToString(s), ThreadId());
   }
 
  protected:
-  UserProcess local_;
-  UserProcess remote_;
+  UserApplication a_;
+  UserApplication b_;
 };
 
 TEST_F(TransportImplTest, Read) {
-  ASSERT_THAT(local_.Data(), Not(ElementsAreArray(remote_.Data())));
+  ASSERT_THAT(a_.Data(), Pointwise(Ne(), b_.Data()));
 
   // Use one thread to emulate a local process.
-  std::thread local([this]() {
-    Transport& t = local_.GetTransport();
-    const Request& req = MakeRequest(Op::kRead);
+  std::thread a([this]() {
+    Transport& t = a_.GetTransport();
+    const Request req = {
+        .op = Op::kRead,
+        .laddr = a_.DataPtr(),
+        .raddr = b_.DataPtr(),
+        .len = a_.DataSize(),
+    };
     ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(kPeer, req));
     while (true) {
       ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
       LOG(INFO) << Info(req, h, s);
       if (IsCompleted(s)) break;
-      absl::SleepFor(absl::Milliseconds(100));
+      absl::SleepFor(absl::Seconds(1));
     }
   });
 
   // Use another thread to emulate a remote process.
-  std::thread remote([]() {
+  std::thread b([]() {
     // TODO(yongx): nothing needed yet.
   });
 
   absl::SleepFor(absl::Seconds(1));
-  local.join();
-  remote.join();
+  a.join();
+  b.join();
 
-  EXPECT_THAT(local_.Data(), ElementsAreArray(remote_.Data()));
-  EXPECT_THAT(local_.Data(), Each(Eq(kRemoteByte)));
+  EXPECT_THAT(a_.Data(), Pointwise(Eq(), b_.Data()));
+  EXPECT_THAT(a_.Data(), Each(Eq(kByteB)));
 }
 
 TEST_F(TransportImplTest, Write) {
-  ASSERT_THAT(remote_.Data(), Not(ElementsAreArray(local_.Data())));
+  ASSERT_THAT(b_.Data(), Pointwise(Ne(), a_.Data()));
 
   // Use one thread to emulate a local process.
-  std::thread local([this]() {
-    Transport& t = local_.GetTransport();
-    const Request req = MakeRequest(Op::kWrite);
+  std::thread a([this]() {
+    Transport& t = a_.GetTransport();
+    const Request req = {
+        .op = Op::kWrite,
+        .laddr = a_.DataPtr(),
+        .raddr = b_.DataPtr(),
+        .len = a_.DataSize(),
+    };
     ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(kPeer, req));
     while (true) {
       ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
       LOG(INFO) << Info(req, h, s);
       if (IsCompleted(s)) break;
-      absl::SleepFor(absl::Milliseconds(100));
+      absl::SleepFor(absl::Seconds(1));
     }
   });
 
   // Use another thread to emulate a remote process.
-  std::thread remote([]() {
+  std::thread b([]() {
     // TODO(yongx): nothing needed yet.
   });
 
   absl::SleepFor(absl::Seconds(1));
-  local.join();
-  remote.join();
+  a.join();
+  b.join();
 
-  EXPECT_THAT(remote_.Data(), ElementsAreArray(local_.Data()));
-  EXPECT_THAT(remote_.Data(), Each(Eq(kLocalByte)));
+  EXPECT_THAT(b_.Data(), Pointwise(Eq(), a_.Data()));
+  EXPECT_THAT(b_.Data(), Each(Eq(kByteA)));
 }
 
 }  // namespace

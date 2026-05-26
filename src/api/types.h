@@ -37,6 +37,10 @@ enum class Op : uint8_t {
 // Returns a string representation of the transport operation.
 std::string ToString(Op op);
 
+inline std::ostream& operator<<(std::ostream& os, const Op op) {
+  return os << ToString(op);
+}
+
 // Transport operation status.
 enum class Status : int {
   kInProgress = 1,
@@ -50,6 +54,13 @@ constexpr bool IsInProgress(const Status s) { return s == Status::kInProgress; }
 // Returns true iff the transport operation is already completed,
 // either successfully or with failure.
 constexpr bool IsCompleted(const Status s) { return s != Status::kInProgress; }
+
+// Returns a string representation of the transport operation status.
+std::string ToString(Status s);
+
+inline std::ostream& operator<<(std::ostream& os, const Status s) {
+  return os << ToString(s);
+}
 
 // Per-peer transport request.
 struct Request final {

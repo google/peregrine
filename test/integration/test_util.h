@@ -13,18 +13,24 @@
 
 namespace peregrine::integration_test {
 
-// This class emulates a user process that can send and receive data.
+// This class emulates a user application that can send and receive data.
 // It is thread-compatible but not thread-safe.
-class UserProcess final {
+class UserApplication final {
  public:
   // Constructor.
-  UserProcess(const size_t len, const Byte byte)
+  UserApplication(const size_t len, const Byte byte)
       : data_(len, byte), transport_(CreateTransport()) {
     CHECK_NE(transport_, nullptr);  // Crash OK
   }
 
+  // Returns the data pointer.
+  Byte* DataPtr() { return data_.data(); }
+
+  // Returns the data size.
+  size_t DataSize() const { return data_.size(); }
+
   // Returns the data buffer.
-  absl::Span<Byte> Data() { return absl::MakeSpan(data_); }
+  absl::Span<const Byte> Data() const { return absl::MakeConstSpan(data_); }
 
   // Returns the transport.
   Transport& GetTransport() { return *transport_; }

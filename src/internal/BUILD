@@ -53,6 +53,7 @@ cc_test(
         ":transport_impl",
         "//src/api:transport",
         "//src/api:types",
+        "//src/internal/util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",

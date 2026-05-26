@@ -19,27 +19,16 @@ using ::testing::Ne;
 using ::testing::Pointwise;
 
 constexpr Endpoint kPeer = "peer_hostname";
-constexpr Byte kLocalByte = 0x05;
-constexpr Byte kRemoteByte = 0x0e;
-static_assert(kLocalByte != kRemoteByte);
+constexpr Byte kByteA = 0x0a;
+constexpr Byte kByteB = 0x0b;
+static_assert(kByteA != kByteB);
 static constexpr size_t kLen = 128 * 1024;
 
 class SimpleTest : public testing::Test {
  protected:
-  SimpleTest() : local_(kLen, kLocalByte), remote_(kLen, kRemoteByte) {
-    CHECK_NE(kLocalByte, kRemoteByte);
-  }
-
-  Request MakeRequest(const Op op) {
-    const auto l = local_.Data();
-    const auto r = remote_.Data();
-    DCHECK_EQ(l.size(), r.size());
-    return Request{
-        .op = op,
-        .laddr = l.data(),
-        .raddr = r.data(),
-        .len = l.size(),
-    };
+  SimpleTest() : l_(kLen, kByteA), r_(kLen, kByteB) {
+    CHECK_EQ(l_.DataSize(), r_.DataSize());
+    CHECK_NE(l_.Data(), r_.Data());
   }
 
   void WaitForCompletion(Transport& t, const Handle h) {
@@ -49,47 +38,57 @@ class SimpleTest : public testing::Test {
         EXPECT_EQ(s, Status::kSuccess);
         break;
       }
-      absl::SleepFor(absl::Milliseconds(10));
+      absl::SleepFor(absl::Milliseconds(100));
     }
   }
 
  protected:
-  UserProcess local_;
-  UserProcess remote_;
+  UserApplication l_;
+  UserApplication r_;
 };
 
 TEST_F(SimpleTest, Read) {
   // Pre-condition: no single local byte is equal to the remote.
-  ASSERT_THAT(local_.Data(), Pointwise(Ne(), remote_.Data()));
+  ASSERT_THAT(l_.Data(), Pointwise(Ne(), r_.Data()));
 
   // Local: post a read request.
-  Transport& lt = local_.GetTransport();
-  const Request& req = MakeRequest(Op::kRead);
+  Transport& lt = l_.GetTransport();
+  const Request& req = {
+      .op = Op::kRead,
+      .laddr = l_.DataPtr(),
+      .raddr = r_.DataPtr(),
+      .len = l_.DataSize(),
+  };
   ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(kPeer, req));
 
   // Local: wait for the transport to finish processing the request.
   WaitForCompletion(lt, h);
 
   // Post-condition: all the local bytes are equal to the remote.
-  EXPECT_THAT(local_.Data(), Pointwise(Eq(), remote_.Data()));
-  EXPECT_THAT(local_.Data(), Each(Eq(kRemoteByte)));
+  EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
+  EXPECT_THAT(l_.Data(), Each(Eq(kByteB)));
 }
 
 TEST_F(SimpleTest, Write) {
   // Pre-condition: no single remote byte is equal to the local.
-  ASSERT_THAT(remote_.Data(), Pointwise(Ne(), local_.Data()));
+  ASSERT_THAT(r_.Data(), Pointwise(Ne(), l_.Data()));
 
   // Local: post a write request.
-  Transport& lt = local_.GetTransport();
-  const Request& req = MakeRequest(Op::kWrite);
+  Transport& lt = l_.GetTransport();
+  const Request& req = {
+      .op = Op::kWrite,
+      .laddr = l_.DataPtr(),
+      .raddr = r_.DataPtr(),
+      .len = l_.DataSize(),
+  };
   ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(kPeer, req));
 
   // Local: wait for the transport to finish processing the request.
   WaitForCompletion(lt, h);
 
   // Post-condition: all the remote bytes are equal to the local.
-  EXPECT_THAT(remote_.Data(), Pointwise(Eq(), local_.Data()));
-  EXPECT_THAT(remote_.Data(), Each(Eq(kLocalByte)));
+  EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
+  EXPECT_THAT(r_.Data(), Each(Eq(kByteA)));
 }
 
 }  // namespace

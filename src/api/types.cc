@@ -18,6 +18,19 @@ std::string ToString(const Op op) {
   }
 }
 
+std::string ToString(const Status s) {
+  switch (s) {
+    case Status::kInProgress:
+      return "InProgress";
+    case Status::kSuccess:
+      return "Success";
+    case Status::kFailure:
+      return "Failure";
+    default:
+      DCHECK(false) << "Unreachable";
+  }
+}
+
 std::string Request::ToString() const {
   return absl::StrFormat(
       "Request(op: %s, local_addr: %p, remote_addr: %p, len: %d)",

@@ -8,17 +8,24 @@ namespace {
 
 TEST(TransportOp, ToString) {
   EXPECT_EQ(ToString(Op::kRead), "Read");
+  LOG(INFO) << "Op: " << Op::kRead;
+
   EXPECT_EQ(ToString(Op::kWrite), "Write");
+  LOG(INFO) << "Op: " << Op::kWrite;
 }
 
 TEST(TransportStatus, Values) {
   EXPECT_TRUE(IsInProgress(Status::kInProgress));
-  EXPECT_FALSE(IsInProgress(Status::kSuccess));
-  EXPECT_FALSE(IsInProgress(Status::kFailure));
-
   EXPECT_FALSE(IsCompleted(Status::kInProgress));
+  LOG(INFO) << "Status: " << Status::kInProgress;
+
   EXPECT_TRUE(IsCompleted(Status::kSuccess));
+  EXPECT_FALSE(IsInProgress(Status::kSuccess));
+  LOG(INFO) << "Status: " << Status::kSuccess;
+
   EXPECT_TRUE(IsCompleted(Status::kFailure));
+  EXPECT_FALSE(IsInProgress(Status::kFailure));
+  LOG(INFO) << "Status: " << Status::kFailure;
 }
 
 TEST(TransportRequest, Validity) {
