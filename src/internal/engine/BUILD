@@ -10,6 +10,7 @@ cc_library(
         "//src/api:types",
         "//src/internal:assumptions",
         "//src/internal:coding_style",
+        "//src/internal/base:endpoint",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",

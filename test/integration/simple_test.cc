@@ -4,6 +4,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/api/transport.h"
@@ -18,7 +19,7 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
-constexpr Endpoint kPeer = "peer_hostname";
+constexpr absl::string_view kPeer = "127.0.0.1:12345";
 constexpr Byte kByteA = 0x0a;
 constexpr Byte kByteB = 0x0b;
 static_assert(kByteA != kByteB);

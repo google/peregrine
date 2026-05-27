@@ -5,6 +5,7 @@
 #include <string>
 
 #include "absl/hash/hash.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "src/internal/assumptions.h"
@@ -14,7 +15,7 @@
 namespace peregrine {
 
 // This class represents a network endpoint, which is a combination of
-// an IPv{4,6} address and a port number. All fields are immutable.
+// an IPv{4,6} address and a port number.
 //
 // `Endpoint` is used to uniquely identifies a process, whose control channel
 // listens on it.
@@ -24,6 +25,9 @@ class Endpoint final {
  public:
   // Creates from a string, eg. "127.0.0.1:12345" or "[::1]:12345".
   static absl::StatusOr<Endpoint> Create(absl::string_view ipaddr_port);
+
+  // Default constructor.
+  Endpoint() : ipaddr_(""), port_(0) { DCHECK(!IsValid()); }
 
   // Constructs from an IP address and a port number.
   Endpoint(absl::string_view ipaddr, port_t port)
@@ -74,8 +78,8 @@ class Endpoint final {
   std::string ToString() const;
 
  private:
-  const std::string ipaddr_;
-  const port_t port_;
+  std::string ipaddr_;
+  port_t port_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Endpoint& e) {

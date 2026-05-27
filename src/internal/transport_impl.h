@@ -1,11 +1,15 @@
 #ifndef PEREGRINE_SRC_INTERNAL_TRANSPORT_IMPL_H_
 #define PEREGRINE_SRC_INTERNAL_TRANSPORT_IMPL_H_
 
+#include <string_view>
+
+#include "absl/base/optimization.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
+#include "absl/strings/str_cat.h"
 #include "src/api/transport.h"
 #include "src/api/types.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/engine/engine.h"
 
 namespace peregrine {
@@ -23,12 +27,18 @@ class TransportImpl final : public Transport {
   // within this process. Otherwise, returns an error status. Once the `handle`
   // is returned, it is the caller's responsibility to keep the local/remote
   // memories specified by the `request` valid until it is completely served.
-  absl::StatusOr<Handle> Post(Endpoint peer, const Request& request) override {
-    if (!request.IsValid()) {
+  absl::StatusOr<Handle> Post(std::string_view peer,
+                              const Request& request) override {
+    const absl::StatusOr<Endpoint> endpoint = Endpoint::Create(peer);
+    if ABSL_PREDICT_FALSE (!endpoint.ok()) {
       return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid %s", request.ToString()));
+          absl::StrCat("Invalid peer endpoint ", peer));
     }
-    return engine_.Enqueue(peer, request);
+    if ABSL_PREDICT_FALSE (!request.IsValid()) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("Invalid ", request.ToString()));
+    }
+    return engine_.Enqueue(endpoint.value(), request);
   }
 
   // Polls the status of the transport request identified by the `handle`.

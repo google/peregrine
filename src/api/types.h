@@ -11,17 +11,6 @@
 
 namespace peregrine {
 
-// `Endpoint` uniquely identifies a process.
-// It is often sufficient to use a string of
-//
-//   - `ip:port` ("127.0.0.1:9999"), or
-//   - `hostname:port` ("localhost:9999")
-//
-// to represent such a process, whose control channel listens on it. Even the
-// `port` can be omitted if it is well-known by the communicating processes.
-using Endpoint = absl::string_view;
-using EndpointStr = std::string;
-
 // `Byte` is an 8-bit unit of data.
 using Byte = uint8_t;
 

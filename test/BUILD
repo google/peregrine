@@ -18,6 +18,7 @@ cc_test(
         "//src/api:transport",
         "//src/api:types",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],

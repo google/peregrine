@@ -15,6 +15,7 @@
 #include "absl/synchronization/mutex.h"
 #include "src/api/types.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/coding_style.h"
 
 namespace peregrine {
@@ -37,7 +38,7 @@ class Engine {
   ~Engine();
 
   // Enqueues a valid transport request.
-  absl::StatusOr<Handle> Enqueue(Endpoint peer, const Request& request);
+  absl::StatusOr<Handle> Enqueue(const Endpoint& peer, const Request& request);
 
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);
@@ -53,7 +54,7 @@ class Engine {
   bool hasWork() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
   // Processes a single transport request.
-  void processOne(Endpoint peer, const Request& request)
+  void processOne(const Endpoint& peer, const Request& request)
       ABSL_LOCKS_EXCLUDED(mu_);
 
   // Runs in a worker thread to grab and process transport requests.
@@ -62,7 +63,7 @@ class Engine {
  private:
   struct Entry {
     Handle handle;
-    EndpointStr peer;
+    Endpoint peer;
     Request req;
   };
 

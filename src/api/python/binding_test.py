@@ -57,7 +57,7 @@ class BindTest(googletest.TestCase):
         raddr=ctypes.addressof(rbuf),
         len=512,
     )
-    handle = transport.post("localhost:12345", req)
+    handle = transport.post("127.0.0.1:12345", req)
     self.assertIsInstance(handle, pg.Handle)
 
     status = transport.poll(handle)

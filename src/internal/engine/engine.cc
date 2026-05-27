@@ -2,7 +2,6 @@
 #include "src/internal/engine/engine.h"
 
 #include <cstring>
-#include <string>
 #include <utility>
 
 #include "absl/log/check.h"
@@ -12,6 +11,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "src/api/types.h"
+#include "src/internal/base/endpoint.h"
 
 namespace peregrine {
 
@@ -71,7 +71,7 @@ Engine::~Engine() {
 }
 
 // A trivial implementation assuming the peer is in the same address space.
-void Engine::processOne(const Endpoint peer, const Request& request) {
+void Engine::processOne(const Endpoint& peer, const Request& request) {
   switch (request.op) {
     case Op::kRead:  // self <- peer
       std::memcpy(request.laddr, request.raddr, request.len);
@@ -84,7 +84,7 @@ void Engine::processOne(const Endpoint peer, const Request& request) {
   }
 }
 
-absl::StatusOr<Handle> Engine::Enqueue(const Endpoint peer,
+absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
                                        const Request& request) {
   DCHECK(request.IsValid());
 
@@ -95,7 +95,7 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint peer,
     return AlreadyExistsError(handle);
   }
 
-  reqs_.emplace_back(handle, std::string(peer), request);
+  reqs_.emplace_back(handle, peer, request);
   return handle;
 }
 

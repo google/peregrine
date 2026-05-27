@@ -39,10 +39,12 @@ cc_library(
     deps = [
         "//src/api:transport",
         "//src/api:types",
+        "//src/internal/base:endpoint",
         "//src/internal/engine",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/strings",
     ],
 )
 
@@ -57,6 +59,7 @@ cc_test(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",

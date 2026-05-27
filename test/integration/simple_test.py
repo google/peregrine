@@ -12,7 +12,7 @@ class SimpleTest(googletest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.peer = "localhost:12345"
+    self.peer = "127.0.0.1:12345"
     self.transport = pg.create_transport()
 
   def wait_for_completion(self, handle: pg.Handle) -> None:
