@@ -18,3 +18,25 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "test_util",
+    testonly = True,
+    srcs = ["test_util.cc"],
+    hdrs = ["test_util.h"],
+    deps = [
+        "//src/internal/base:types",
+        "//util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
+cc_test(
+    name = "test_util_test",
+    srcs = ["test_util_test.cc"],
+    deps = [
+        ":test_util",
+        "@googletest//:gtest_main",
+    ],
+)

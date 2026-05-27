@@ -6,14 +6,10 @@
 
 #include "gtest/gtest.h"
 #include "absl/strings/string_view.h"
+#include "src/internal/util/test_util.h"
 
 namespace peregrine::testing {
 namespace {
-
-constexpr absl::string_view kIPv4AnyAddr = "0.0.0.0";
-constexpr absl::string_view kIPv4Localhost = "127.0.0.1";
-constexpr absl::string_view kIPv6AnyAddr = "::";
-constexpr absl::string_view kIPv6Localhost = "::1";
 
 TEST(IpUtilTest, AddressFamily) {
   EXPECT_EQ(AddressFamily(kIPv4AnyAddr), AF_INET);

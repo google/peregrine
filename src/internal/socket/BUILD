@@ -20,6 +20,7 @@ cc_test(
     srcs = ["ip_util_test.cc"],
     deps = [
         ":ip_util",
+        "//src/internal/util:test_util",
         "@abseil-cpp//absl/strings:string_view",
         "@googletest//:gtest_main",
     ],
