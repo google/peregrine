@@ -1,8 +1,12 @@
 #ifndef PEREGRINE_SRC_INTERNAL_UTIL_TEST_UTIL_H_
 #define PEREGRINE_SRC_INTERNAL_UTIL_TEST_UTIL_H_
 
+#include <memory>
+
 #include "absl/strings/string_view.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/socket_tcp.h"
+#include "src/internal/socket/socket_udp.h"
 
 namespace peregrine::testing {
 
@@ -23,6 +27,14 @@ port_t TestOnly_FindFreeTcpPort(int family);
 // Finds an unused UDP port in the given address `family`.
 // Return a non-zero port if successful, otherwise crashes.
 port_t TestOnly_FindFreeUdpPort(int family);
+
+// Creates a TCP socket in the given address `family`.
+// Return a non-null socket if successful, otherwise crashes.
+std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family);
+
+// Creates a UDP socket in the given address `family`.
+// Return a non-null socket if successful, otherwise crashes.
+std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family);
 
 }  // namespace peregrine::testing
 
