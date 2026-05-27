@@ -10,10 +10,9 @@
 namespace peregrine::testing {
 namespace {
 
-// ip addresses
 constexpr absl::string_view kIPv4AnyAddr = "0.0.0.0";
-constexpr absl::string_view kIPv6AnyAddr = "::";
 constexpr absl::string_view kIPv4Localhost = "127.0.0.1";
+constexpr absl::string_view kIPv6AnyAddr = "::";
 constexpr absl::string_view kIPv6Localhost = "::1";
 
 TEST(IpUtilTest, AddressFamily) {
