@@ -7,6 +7,8 @@
 #include <string>
 #include <type_traits>
 
+#include "src/internal/base/types.h"
+
 namespace peregrine {
 
 // Returns true iff the integer is a power of two.
@@ -17,7 +19,7 @@ constexpr bool IsPowerOfTwo(T n) {
 }
 
 // Returns the total length of the `n` buffers.
-size_t TotalLength(const struct iovec* iov, int n);
+size_t TotalLength(const IoVec* iov, int n);
 
 // Returns the thread id where this function is called.
 std::string ThreadId();

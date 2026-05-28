@@ -2,49 +2,49 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
 
 #include <cerrno>
 #include <cstring>
 #include <string>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "src/internal/base/types.h"
 
 namespace peregrine {
 
-int AddressFamily(ipaddr_t ip) {
-  if (IsIPv4Addr(ip)) return AF_INET;
-  if (IsIPv6Addr(ip)) return AF_INET6;
-  return AF_UNSPEC;
+namespace {
+absl::Status InvalidArgumentError(const absl::string_view msg,
+                                  const absl::string_view arg) {
+  return absl::InvalidArgumentError(absl::StrCat(msg, " ", arg));
 }
 
-bool IsIPv4Addr(const ipaddr_t ip) {
-  struct in_addr addr;
-  return inet_pton(AF_INET, std::string(ip).c_str(), &addr) == 1;
+std::string InetNtopError() {
+  return absl::StrFormat("inet_ntop failed: errno=%d (%s)", errno,
+                         std::strerror(errno));
 }
+}  // namespace
 
-bool IsIPv6Addr(const ipaddr_t ip) {
-  struct in6_addr addr;
-  return inet_pton(AF_INET6, std::string(ip).c_str(), &addr) == 1;
-}
-
-struct in_addr ParseIPv4Addr(const ipaddr_t ip) {
-  struct in_addr addr;
+absl::StatusOr<ipv4_t> ParseIPv4Addr(absl::string_view ip) {
+  ipv4_t addr;
   if (inet_pton(AF_INET, std::string(ip).c_str(), &addr) == 1) {
     return addr;
   } else {
-    return {.s_addr = INADDR_ANY};
+    return InvalidArgumentError("invalid ipv4 addr ", ip);
   }
 }
 
-struct in6_addr ParseIPv6Addr(const ipaddr_t ip) {
-  struct in6_addr addr;
+absl::StatusOr<ipv6_t> ParseIPv6Addr(const absl::string_view ip) {
+  ipv6_t addr;
   if (inet_pton(AF_INET6, std::string(ip).c_str(), &addr) == 1) {
     return addr;
   } else {
-    return IN6ADDR_ANY_INIT;
+    return InvalidArgumentError("invalid ipv6 addr ", ip);
   }
 }
 
@@ -63,8 +63,7 @@ std::string ToString(const struct sockaddr_storage& ss) {
       return absl::StrCat("[", addr, "]:", ntohs(sa->sin6_port));
     }
   }
-  return absl::StrFormat("inet_ntop failed: errno=%d(%s)", errno,
-                         std::strerror(errno));
+  return InetNtopError();
 }
 }  // namespace
 
@@ -79,21 +78,21 @@ std::string ToIpAddrPortString(const struct sockaddr_storage& ss) {
   }
 }
 
-struct sockaddr_in BuildIPv4Sockaddr(const ipaddr_t ip, const port_t port) {
-  DCHECK(IsIPv4Addr(ip));
+struct sockaddr_in BuildIPv4Sockaddr(const IpAddr& ip, const port_t port) {
+  DCHECK(IsIPv4(ip));
   return sockaddr_in{
       .sin_family = AF_INET,
       .sin_port = htons(port),
-      .sin_addr = ParseIPv4Addr(ip),
+      .sin_addr = std::get<ipv4_t>(ip),
   };
 }
 
-struct sockaddr_in6 BuildIPv6Sockaddr(const ipaddr_t ip, const port_t port) {
-  DCHECK(IsIPv6Addr(ip));
+struct sockaddr_in6 BuildIPv6Sockaddr(const IpAddr& ip, const port_t port) {
+  DCHECK(IsIPv6(ip));
   return sockaddr_in6{
       .sin6_family = AF_INET6,
       .sin6_port = htons(port),
-      .sin6_addr = ParseIPv6Addr(ip),
+      .sin6_addr = std::get<ipv6_t>(ip),
   };
 }
 

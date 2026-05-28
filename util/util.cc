@@ -18,9 +18,10 @@ namespace peregrine::util {
 namespace {
 using port_t = uint16_t;
 
-port_t GenPort(absl::BitGen& bitgen, const port_t min, const port_t max) {
-  DCHECK_LE(min, max);
-  return absl::Uniform<port_t>(absl::IntervalClosed, bitgen, min, max);
+template <port_t kMin, port_t kMax>
+port_t GenPort(absl::BitGen& bitgen) {
+  static_assert(kMin <= kMax);
+  return absl::Uniform<port_t>(absl::IntervalClosed, bitgen, kMin, kMax);
 }
 
 int Bind(const int fd, const int family, const port_t port) {
@@ -73,7 +74,7 @@ port_t FindFreePort(const int family, const bool tcp) {
     // Bind the socket to a randomly chosen port.
     constexpr port_t kMinPort = 10'000;
     constexpr port_t kMaxPort = 65'535;
-    const port_t port = GenPort(bitgen, kMinPort, kMaxPort);
+    const port_t port = GenPort<kMinPort, kMaxPort>(bitgen);
     if (Bind(fd, family, port) < 0) {
       close(fd);
       continue;
@@ -89,8 +90,8 @@ port_t FindFreePort(const int family, const bool tcp) {
       continue;
     }
 
-    // For TCP, check that the socket can be used for listening.
-    if (tcp && listen(fd, /*backlog=*/100) < 0) {
+    // Check that the tcp socket can listen.
+    if (tcp && listen(fd, SOMAXCONN) < 0) {
       close(fd);
       continue;
     }

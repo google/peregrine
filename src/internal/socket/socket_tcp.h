@@ -36,14 +36,14 @@ class TcpSocket final : public SocketBase {
   ~TcpSocket();
 
   // Listens on the local `ip:port`.
-  absl::Status Listen(ipaddr_t ip, port_t port) const;
+  absl::Status Listen(const IpAddr& ip, port_t port) const;
 
   // Accepts a new connection by this listening socket. Returns the new spawn
   // socket file descriptor if successful. Otherwise, returns an error status.
   absl::StatusOr<int> Accept() const;
 
   // Connects to the peer `ip:port`.
-  absl::Status Connect(ipaddr_t ip, port_t port);
+  absl::Status Connect(const IpAddr& ip, port_t port);
 
   // Sends `len` bytes of data from the `buf`. Returns OK if all the data has
   // been sent successfully. Otherwise, returns an error status.

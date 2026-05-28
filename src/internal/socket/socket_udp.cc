@@ -67,29 +67,29 @@ UdpSocket::~UdpSocket() {
 }
 
 namespace {
-auto BindV4(int fd, ipaddr_t ip, port_t port) {
+auto BindV4(int fd, const IpAddr& ip, port_t port) {
   const struct sockaddr_in sa = BuildIPv4Sockaddr(ip, port);
   return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto BindV6(int fd, ipaddr_t ip, port_t port) {
+auto BindV6(int fd, const IpAddr& ip, port_t port) {
   const struct sockaddr_in6 sa = BuildIPv6Sockaddr(ip, port);
   return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV4(int fd, ipaddr_t ip, port_t port) {
+auto ConnectV4(int fd, const IpAddr& ip, port_t port) {
   const struct sockaddr_in sa = BuildIPv4Sockaddr(ip, port);
   return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV6(int fd, ipaddr_t ip, port_t port) {
+auto ConnectV6(int fd, const IpAddr& ip, port_t port) {
   const struct sockaddr_in6 sa = BuildIPv6Sockaddr(ip, port);
   return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 }  // namespace
 
-absl::Status UdpSocket::Bind(ipaddr_t ip, port_t port) const {
-  const auto bind = IsIPv4Addr(ip) ? BindV4 : BindV6;
+absl::Status UdpSocket::Bind(const IpAddr& ip, port_t port) const {
+  const auto bind = IsIPv4(ip) ? BindV4 : BindV6;
   if (bind(fd_, ip, port) < 0) {
     return InternalError("bind");
   } else {
@@ -98,8 +98,8 @@ absl::Status UdpSocket::Bind(ipaddr_t ip, port_t port) const {
   }
 }
 
-absl::Status UdpSocket::Connect(ipaddr_t ip, port_t port) {
-  const auto connect = IsIPv4Addr(ip) ? ConnectV4 : ConnectV6;
+absl::Status UdpSocket::Connect(const IpAddr& ip, port_t port) {
+  const auto connect = IsIPv4(ip) ? ConnectV4 : ConnectV6;
   if (connect(fd_, ip, port) < 0) {
     return InternalError("connect");
   } else {
@@ -140,7 +140,7 @@ absl::StatusOr<size_t> UdpSocket::Recv(Byte* const buf,
   }
 }
 
-absl::Status UdpSocket::SendV(const iovec_t* const iov, const int n,
+absl::Status UdpSocket::SendV(const IoVec* const iov, const int n,
                               const size_t len) const {
   DCHECK(connected_);
   DCHECK_GE(len, 1);
@@ -155,7 +155,7 @@ absl::Status UdpSocket::SendV(const iovec_t* const iov, const int n,
   }
 }
 
-absl::StatusOr<size_t> UdpSocket::RecvV(const iovec_t* const iov, const int n,
+absl::StatusOr<size_t> UdpSocket::RecvV(const IoVec* const iov, const int n,
                                         const size_t len) const {
   DCHECK(connected_);
   DCHECK_GE(len, 1);

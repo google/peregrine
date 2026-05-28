@@ -14,6 +14,7 @@
 #include "absl/synchronization/notification.h"
 #include "src/api/types.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/ip_util.h"
 #include "src/internal/util/test_util.h"
 
 namespace peregrine::testing {
@@ -32,7 +33,8 @@ template <int kFamily>
 class UdpSocketTest : public ::testing::Test {
  protected:
   UdpSocketTest()
-      : ip_(kFamily == AF_INET ? kIPv4Localhost : kIPv6Localhost),
+      : ip_(kFamily == AF_INET ? IpAddr(ParseIPv4Addr(kIPv4Localhost).value())
+                               : IpAddr(ParseIPv6Addr(kIPv6Localhost).value())),
         send_port_(TestOnly_FindFreeUdpPort(kFamily)),
         recv_port_(TestOnly_FindFreeUdpPort(kFamily)),
         send_socket_(TestOnly_CreateUdpSocket(kFamily)),
@@ -46,7 +48,7 @@ class UdpSocketTest : public ::testing::Test {
   }
 
  protected:
-  const ipaddr_t ip_;
+  const IpAddr ip_;
   const port_t send_port_;
   const port_t recv_port_;
   const std::unique_ptr<UdpSocket> send_socket_;

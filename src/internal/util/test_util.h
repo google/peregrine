@@ -11,7 +11,7 @@
 namespace peregrine::testing {
 
 // end of file
-inline constexpr iovec_t kEoF = {};
+inline constexpr IoVec kEoF = {};
 static_assert(kEoF.iov_base == nullptr && kEoF.iov_len == 0);
 
 // ip addresses

@@ -32,10 +32,10 @@ class UdpSocket final : public SocketBase {
   ~UdpSocket();
 
   // Binds to the local `ip:port`.
-  absl::Status Bind(ipaddr_t ip, port_t port) const;
+  absl::Status Bind(const IpAddr& ip, port_t port) const;
 
   // Connects to the peer `ip:port`.
-  absl::Status Connect(ipaddr_t ip, port_t port);
+  absl::Status Connect(const IpAddr& ip, port_t port);
 
   // Sends `len` bytes of data from the `buf`. Returns OK if all the data has
   // been sent successfully. Otherwise, returns an error status.
@@ -47,11 +47,11 @@ class UdpSocket final : public SocketBase {
 
   // Sends `len` bytes of data from `n` `iov` buffers. Returns OK if all the
   // data has been sent successfully. Otherwise, returns an error status.
-  absl::Status SendV(const iovec_t* iov, int n, size_t len) const;
+  absl::Status SendV(const IoVec* iov, int n, size_t len) const;
 
   // Receives at most `len` bytes of data into `n` `iov` buffers. Returns the
   // number of bytes received if successful. Otherwise, returns an error status.
-  absl::StatusOr<size_t> RecvV(const iovec_t* iov, int n, size_t len) const;
+  absl::StatusOr<size_t> RecvV(const IoVec* iov, int n, size_t len) const;
 
   // Returns a self/peer address pair string of the socket.
   std::string ToString() const;

@@ -8,30 +8,30 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
-#include "src/internal/socket/ip_util.h"
 
 namespace peregrine {
 
 // This class represents a network endpoint, which is a combination of
-// an IPv{4,6} address and a port number.
+// an IPv{4,6} address and a port number. It is used to uniquely identifies
+// a process, whose control channel listens on the `ip:port`.
 //
-// `Endpoint` is used to uniquely identifies a process, whose control channel
-// listens on it.
-//
-// It is thread-safe.
+// It is thread-compatible and but not thread-safe.
 class Endpoint final {
  public:
   // Creates from a string, eg. "127.0.0.1:12345" or "[::1]:12345".
   static absl::StatusOr<Endpoint> Create(absl::string_view ipaddr_port);
 
-  // Default constructor.
-  Endpoint() : ipaddr_(""), port_(0) { DCHECK(!IsValid()); }
+  // Default constructor creates an invalid endpoint.
+  Endpoint() : ipaddr_(), port_(0) { DCHECK(!IsValid()); }
 
-  // Constructs from an IP address and a port number.
-  Endpoint(absl::string_view ipaddr, port_t port)
-      : ipaddr_(ipaddr), port_(port) {}
+  // Constructor for ipv4.
+  Endpoint(ipv4_t ip4, port_t port) : ipaddr_(ip4), port_(port) {}
+
+  // Constructor for ipv6.
+  Endpoint(ipv6_t ip6, port_t port) : ipaddr_(ip6), port_(port) {}
 
   // Allows copy constructor and copy assignment.
   Endpoint(const Endpoint& e) = default;
@@ -44,41 +44,50 @@ class Endpoint final {
   // Destructor.
   ~Endpoint() = default;
 
-  // Returns the IP address of the endpoint.
-  ipaddr_t IpAddr() const { return ipaddr_; };
+  // Returns the ip address of the endpoint.
+  IpAddr GetIpAddr() const { return ipaddr_; };
 
   // Returns the port of the endpoint.
   port_t Port() const { return port_; };
 
   // Returns true iff the endpoint is valid.
-  bool IsValid() const {
-    return (1 <= port_ && port_ <= 65535) &&
-           (IsIPv4Addr(ipaddr_) || IsIPv6Addr(ipaddr_));
-  }
+  bool IsValid() const { return 1 <= port_ && port_ <= 65535; }
 
   // Equality operator.
-  friend constexpr bool operator==(const Endpoint& a, const Endpoint& b) {
-    return a.ipaddr_ == b.ipaddr_ && a.port_ == b.port_;
+  friend bool operator==(const Endpoint& a, const Endpoint& b);
+
+  // Returns the hash signature of the endpoint.
+  HashValue Hash() const {
+    static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
+    return Hash(*this);
   }
 
   // Returns the hash signature of the endpoint.
-  HashValue Hash() const { return Hash(*this); }
-
-  // Returns the hash signature of the endpoint.
-  static HashValue Hash(const Endpoint& e) { return absl::Hash<Endpoint>{}(e); }
-
-  // Returns the hash value of the endpoint.
-  template <typename H>
-  friend H AbslHashValue(H h, const Endpoint& e) {
+  static HashValue Hash(const Endpoint& e) {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
-    return H::combine(std::move(h), e.ipaddr_, e.port_);
+    return absl::Hash<Endpoint>{}(e);
   }
 
   // Returns a string representation of the endpoint.
   std::string ToString() const;
 
  private:
-  std::string ipaddr_;
+  // Returns the hash value of the endpoint.
+  template <typename H>
+  friend H AbslHashValue(H h, const Endpoint& e) {
+    static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
+    if (IsIPv4(e.ipaddr_)) {
+      const ipv4_t& ip4 = std::get<ipv4_t>(e.ipaddr_);
+      return H::combine(std::move(h), ip4.s_addr, e.port_);
+    } else {
+      const ipv6_t& ip6 = std::get<ipv6_t>(e.ipaddr_);
+      const auto v = absl::MakeConstSpan(ip6.s6_addr, sizeof(ip6.s6_addr));
+      return H::combine(std::move(h), v, e.port_);
+    }
+  }
+
+ private:
+  IpAddr ipaddr_;
   port_t port_;
 };
 

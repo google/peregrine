@@ -14,6 +14,7 @@
 #include "absl/synchronization/notification.h"
 #include "src/api/types.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/ip_util.h"
 #include "src/internal/util/test_util.h"
 
 namespace peregrine::testing {
@@ -34,7 +35,9 @@ class TcpSocketTest : public ::testing::Test {
 
  protected:
   TcpSocketTest()
-      : listen_ip_(kFamily == AF_INET ? kIPv4Localhost : kIPv6Localhost),
+      : listen_ip_(kFamily == AF_INET
+                       ? IpAddr(ParseIPv4Addr(kIPv4Localhost).value())
+                       : IpAddr(ParseIPv6Addr(kIPv6Localhost).value())),
         listen_port_(TestOnly_FindFreeTcpPort(kFamily)),
         listen_socket_(TestOnly_CreateTcpSocket(kFamily)),
         connect_socket_(TestOnly_CreateTcpSocket(kFamily)) {
@@ -44,7 +47,7 @@ class TcpSocketTest : public ::testing::Test {
   }
 
  protected:
-  const ipaddr_t listen_ip_;
+  const IpAddr listen_ip_;
   const port_t listen_port_;
   const std::unique_ptr<TcpSocket> listen_socket_;
   const std::unique_ptr<TcpSocket> connect_socket_;

@@ -74,22 +74,22 @@ TcpSocket::~TcpSocket() {
 }
 
 namespace {
-auto BindV4(int fd, ipaddr_t ip, port_t port) {
+auto BindV4(int fd, const IpAddr& ip, port_t port) {
   const struct sockaddr_in sa = BuildIPv4Sockaddr(ip, port);
   return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto BindV6(int fd, ipaddr_t ip, port_t port) {
+auto BindV6(int fd, const IpAddr& ip, port_t port) {
   const struct sockaddr_in6 sa = BuildIPv6Sockaddr(ip, port);
   return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV4(int fd, ipaddr_t ip, port_t port) {
+auto ConnectV4(int fd, const IpAddr& ip, port_t port) {
   const struct sockaddr_in sa = BuildIPv4Sockaddr(ip, port);
   return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV6(int fd, ipaddr_t ip, port_t port) {
+auto ConnectV6(int fd, const IpAddr& ip, port_t port) {
   const struct sockaddr_in6 sa = BuildIPv6Sockaddr(ip, port);
   return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
@@ -107,13 +107,13 @@ auto AcceptV6(int fd) {
 }
 }  // namespace
 
-absl::Status TcpSocket::Listen(ipaddr_t ip, port_t port) const {
+absl::Status TcpSocket::Listen(const IpAddr& ip, port_t port) const {
   int opt = 1;  // enable
   if (const auto status = SetOption(fd_, SO_REUSEADDR, &opt, sizeof(opt));
       !status.ok()) {
     return status;
   }
-  const auto bind = IsIPv4Addr(ip) ? BindV4 : BindV6;
+  const auto bind = IsIPv4(ip) ? BindV4 : BindV6;
   if (bind(fd_, ip, port) < 0) {
     return InternalError("bind");
   } else if (::listen(fd_, SOMAXCONN) < 0) {
@@ -135,8 +135,8 @@ absl::StatusOr<int> TcpSocket::Accept() const {
   }
 }
 
-absl::Status TcpSocket::Connect(ipaddr_t ip, port_t port) {
-  const auto connect = IsIPv4Addr(ip) ? ConnectV4 : ConnectV6;
+absl::Status TcpSocket::Connect(const IpAddr& ip, port_t port) {
+  const auto connect = IsIPv4(ip) ? ConnectV4 : ConnectV6;
   if (connect(fd_, ip, port) < 0) {
     return InternalError("connect");
   } else {

@@ -6,6 +6,8 @@
 #include <string>
 #include <thread>  // NOLINT
 
+#include "src/internal/base/types.h"
+
 namespace peregrine {
 
 std::string ThreadId() {
@@ -14,10 +16,10 @@ std::string ThreadId() {
   return ss.str();
 }
 
-size_t TotalLength(const struct iovec* const iov, const int n) {
+size_t TotalLength(const IoVec* const iov, const int n) {
   return std::accumulate(
       iov, iov + n, size_t{0},
-      [](size_t sum, const struct iovec& v) { return sum + v.iov_len; });
+      [](size_t sum, const IoVec& v) { return sum + v.iov_len; });
 }
 
 }  // namespace peregrine
