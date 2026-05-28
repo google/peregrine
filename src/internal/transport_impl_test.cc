@@ -15,7 +15,7 @@
 #include "src/internal/util/util.h"
 #include "src/util/app.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 namespace {
 
 using ::testing::Eq;
@@ -113,4 +113,4 @@ TEST_F(TransportImplTest, Write) {
 }
 
 }  // namespace
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing

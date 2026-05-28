@@ -12,7 +12,7 @@
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 // This class represents a network endpoint, which is a combination of
 // an IPv{4,6} address and a port number. It is used to uniquely identifies
@@ -95,6 +95,6 @@ inline std::ostream& operator<<(std::ostream& os, const Endpoint& e) {
   return os << e.ToString();
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_BASE_ENDPOINT_H_

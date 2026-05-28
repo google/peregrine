@@ -17,7 +17,7 @@
 #include "src/internal/socket/ip_util.h"
 #include "src/internal/util/test_util.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 namespace {
 
 TEST(UdpSocketTest, Move) {
@@ -137,4 +137,4 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
 }
 
 }  // namespace
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing

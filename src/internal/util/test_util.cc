@@ -9,7 +9,7 @@
 #include "src/internal/socket/socket_udp.h"
 #include "src/util/util.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 
 port_t TestOnly_FindFreeTcpPort(int family) {
   const port_t port = util::FindFreePort(family, /*kTcp=*/true);
@@ -47,4 +47,4 @@ std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family) {
   return socket;
 }
 
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing

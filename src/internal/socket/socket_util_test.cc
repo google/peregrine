@@ -10,7 +10,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 namespace {
 
 TEST(SocketUtilTest, Basic) {
@@ -48,4 +48,4 @@ TEST(SocketUtilTest, Basic) {
 }
 
 }  // namespace
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing

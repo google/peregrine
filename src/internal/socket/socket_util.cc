@@ -18,7 +18,7 @@
 #include "absl/strings/str_format.h"
 #include "src/internal/socket/ip_util.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 namespace {
 std::string Error(std::string_view msg) {
@@ -112,4 +112,4 @@ absl::Status SetNonBlockingMode(int fd) {
   return SetBlockingMode(fd, /*nonblocking=*/true);
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal

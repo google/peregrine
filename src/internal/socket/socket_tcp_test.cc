@@ -17,7 +17,7 @@
 #include "src/internal/socket/ip_util.h"
 #include "src/internal/util/test_util.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 namespace {
 
 TEST(TcpSocketTest, Move) {
@@ -131,4 +131,4 @@ TEST_F(TcpIPv6SocketTest, BigData) {
 }
 
 }  // namespace
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing

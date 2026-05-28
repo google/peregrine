@@ -9,7 +9,7 @@
 #include "absl/status/status.h"
 #include "src/internal/base/types.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 namespace {
 
 using ::absl::StatusCode::kInvalidArgument;
@@ -74,4 +74,4 @@ TEST(EndpointTest, Hash) {
 }
 
 }  // namespace
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing

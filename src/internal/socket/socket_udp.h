@@ -17,7 +17,7 @@
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_base.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 // This class wraps a UDP/IPv{4,6} socket for unreliable network communications.
 // It is movable but not copyable.
@@ -66,6 +66,6 @@ inline std::ostream& operator<<(std::ostream& os, const UdpSocket& s) {
   return os << s.ToString();
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_UDP_H_

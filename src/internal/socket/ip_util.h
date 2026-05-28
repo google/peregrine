@@ -9,7 +9,7 @@
 #include "absl/status/statusor.h"
 #include "src/internal/base/types.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 // Parses the `ip` address and returns an `in_addr` struct if successful.
 // Otherwise, returns an error status.
@@ -30,6 +30,6 @@ struct sockaddr_in BuildIPv4Sockaddr(const IpAddr& ip, port_t port);
 // REQUIRE: `ip` is an IPv6 address.
 struct sockaddr_in6 BuildIPv6Sockaddr(const IpAddr& ip, port_t port);
 
-}  // namespace peregrine
+}  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_SOCKET_IP_UTIL_H_

@@ -12,7 +12,7 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/engine/engine.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 // This lightweight class implements the transport API. It delegates all the
 // heavy work to its `engine`. In other words, this class serves as a thin
@@ -53,6 +53,6 @@ class TransportImpl final : public Transport {
   Engine engine_;
 };
 
-}  // namespace peregrine
+}  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_TRANSPORT_IMPL_H_

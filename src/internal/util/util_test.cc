@@ -3,7 +3,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 namespace {
 
 TEST(UtilTest, IsPowerOfTwo) {
@@ -31,4 +31,4 @@ TEST(UtilTest, ThreadId) {
 }
 
 }  // namespace
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing

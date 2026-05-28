@@ -7,7 +7,7 @@
 #include "absl/log/check.h"
 #include "src/internal/socket/socket_util.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 // This class provides common functionalities for TCP/UDP sockets.
 // It is not intended to be instantiated directly.
@@ -78,6 +78,6 @@ class SocketBase {
   bool connected_;
 };
 
-}  // namespace peregrine
+}  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_BASE_H_

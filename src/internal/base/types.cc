@@ -12,7 +12,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 namespace {
 std::string InetNtopError() {
@@ -47,4 +47,4 @@ std::string ToString(const IpAddr& ip) {
                     : ToIPv6String(std::get<ipv6_t>(ip));
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal

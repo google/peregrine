@@ -26,7 +26,7 @@
 #include "src/internal/socket/socket_util.h"
 #include "src/internal/util/util.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 constexpr std::string_view kUdpPrefix = "udp socket: ";
 
@@ -178,4 +178,4 @@ std::string UdpSocket::ToString() const {
   return absl::StrCat(kUdpPrefix, AddrPortPair(fd_));
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal

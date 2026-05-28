@@ -4,7 +4,7 @@
 
 #include "gtest/gtest.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 namespace {
 
 TEST(TestUtilTest, TcpPort) {
@@ -34,4 +34,4 @@ TEST(TestUtilTest, UdpSocket) {
 }
 
 }  // namespace
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing

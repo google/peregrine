@@ -8,7 +8,7 @@
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_udp.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 
 // end of file
 inline constexpr IoVec kEoF = {};
@@ -36,6 +36,6 @@ std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family);
 // Return a non-null socket if successful, otherwise crashes.
 std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family);
 
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing
 
 #endif  // PEREGRINE_SRC_INTERNAL_UTIL_TEST_UTIL_H_

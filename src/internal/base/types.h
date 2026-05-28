@@ -9,7 +9,7 @@
 #include <string>
 #include <variant>
 
-namespace peregrine {
+namespace peregrine::internal {
 
 // hash value
 using HashValue = uint64_t;
@@ -49,6 +49,6 @@ std::string ToIPv6String(const ipv6_t& ip6);
 // Returns a string representation of the ip (v4 or v6) address.
 std::string ToString(const IpAddr& ip);
 
-}  // namespace peregrine
+}  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_BASE_TYPES_H_

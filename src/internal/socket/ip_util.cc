@@ -16,7 +16,7 @@
 #include "absl/strings/str_format.h"
 #include "src/internal/base/types.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 namespace {
 absl::Status InvalidArgumentError(const std::string_view msg,
@@ -96,4 +96,4 @@ struct sockaddr_in6 BuildIPv6Sockaddr(const IpAddr& ip, const port_t port) {
   };
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal

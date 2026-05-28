@@ -8,7 +8,7 @@
 
 #include "src/internal/base/types.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 std::string ThreadId() {
   std::stringstream ss;
@@ -22,4 +22,4 @@ size_t TotalLength(const IoVec* const iov, const int n) {
       [](size_t sum, const IoVec& v) { return sum + v.iov_len; });
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal

@@ -25,7 +25,7 @@
 #include "src/internal/socket/ip_util.h"
 #include "src/internal/socket/socket_util.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 constexpr std::string_view kTcpPrefix = "tcp socket: ";
 
@@ -202,4 +202,4 @@ std::string TcpSocket::ToString() const {
   return absl::StrCat(kTcpPrefix, AddrPortPair(fd_));
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal

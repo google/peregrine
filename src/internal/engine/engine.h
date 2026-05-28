@@ -18,7 +18,7 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/coding_style.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 // This class takes variable-sized transport requests, splits each of them into
 // fixed-sized chunks, and schedules their execution on workers. Factors like
@@ -77,6 +77,6 @@ class Engine {
   std::vector<std::jthread> threads_;  // must be last to be destroyed first.
 };
 
-}  // namespace peregrine
+}  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_ENGINE_ENGINE_H_

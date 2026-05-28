@@ -10,7 +10,7 @@ namespace peregrine {
 
 // Creates a new transport instance.
 inline std::unique_ptr<Transport> CreateTransport() {
-  return std::make_unique<TransportImpl>();
+  return std::make_unique<internal::TransportImpl>();
 }
 
 }  // namespace peregrine

@@ -12,7 +12,7 @@
 #include "src/internal/base/types.h"
 #include "src/internal/util/test_util.h"
 
-namespace peregrine::testing {
+namespace peregrine::internal::testing {
 namespace {
 
 using ::absl::StatusCode::kInvalidArgument;
@@ -77,4 +77,4 @@ TEST(IpUtilTest, BuildIPv6Sockaddr) {
 }
 
 }  // namespace
-}  // namespace peregrine::testing
+}  // namespace peregrine::internal::testing

@@ -9,7 +9,7 @@
 
 #include "src/internal/base/types.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 // Returns true iff the integer is a power of two.
 template <typename T>
@@ -24,6 +24,6 @@ size_t TotalLength(const IoVec* iov, int n);
 // Returns the thread id where this function is called.
 std::string ThreadId();
 
-}  // namespace peregrine
+}  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_UTIL_UTIL_H_

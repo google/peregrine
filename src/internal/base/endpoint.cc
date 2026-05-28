@@ -13,7 +13,7 @@
 #include "src/internal/base/types.h"
 #include "src/internal/socket/ip_util.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 namespace {
 absl::Status InvalidArgumentError(const std::string_view msg,
@@ -85,4 +85,4 @@ std::string Endpoint::ToString() const {
   }
 };
 
-}  // namespace peregrine
+}  // namespace peregrine::internal

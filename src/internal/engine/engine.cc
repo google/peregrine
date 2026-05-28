@@ -13,7 +13,7 @@
 #include "src/api/types.h"
 #include "src/internal/base/endpoint.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 namespace {
 absl::Status AlreadyExistsError(const Handle h) {
@@ -112,4 +112,4 @@ absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
   return s;
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal

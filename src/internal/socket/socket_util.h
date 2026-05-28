@@ -10,7 +10,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 
-namespace peregrine {
+namespace peregrine::internal {
 
 // Creates a new socket.
 // Returns its file descriptor if successful, or an error status otherwise.
@@ -52,6 +52,6 @@ inline bool WouldBlock() { return errno == EAGAIN || errno == EWOULDBLOCK; }
 // Returns true iff the socket connect operation is in progress.
 inline bool InProgress() { return errno == EINPROGRESS; }
 
-}  // namespace peregrine
+}  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_UTIL_H_
