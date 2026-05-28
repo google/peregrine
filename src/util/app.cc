@@ -1,4 +1,4 @@
-#include "test/integration/test_util.h"
+#include "src/util/app.h"
 
 #include <algorithm>
 
@@ -6,11 +6,11 @@
 #include "absl/random/random.h"
 #include "src/api/types.h"
 
-namespace peregrine::integration_test {
+namespace peregrine::util {
 
-void UserApplication::ClearData() { std::fill(data_.begin(), data_.end(), 0); }
+void App::ClearData() { std::fill(data_.begin(), data_.end(), 0); }
 
-void UserApplication::GenData() {
+void App::GenData() {
   absl::BitGen bitgen;
   for (int i = 0; i < data_.size(); ++i) {
     data_[i] = absl::Uniform<Byte>(absl::IntervalClosed, bitgen, 0x01, 0xff);
@@ -18,4 +18,4 @@ void UserApplication::GenData() {
   }
 }
 
-}  // namespace peregrine::integration_test
+}  // namespace peregrine::util

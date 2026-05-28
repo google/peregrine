@@ -31,7 +31,7 @@ cc_library(
         "//src/internal/base:types",
         "//src/internal/socket:socket_tcp",
         "//src/internal/socket:socket_udp",
-        "//util",
+        "//src/util",
         "@abseil-cpp//absl/log:check",
     ],
 )

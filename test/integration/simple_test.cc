@@ -4,11 +4,12 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/log/check.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/api/transport.h"
 #include "src/api/types.h"
-#include "test/integration/test_util.h"
+#include "src/util/app.h"
 
 namespace peregrine::integration_test {
 namespace {
@@ -18,11 +19,13 @@ using ::testing::Ne;
 using ::testing::Pointwise;
 
 constexpr std::string_view kPeer = "127.0.0.1:12345";
-constexpr size_t kLen = 128 * 1024;
+constexpr size_t kSize = 128 * 1024;
 
 class SimpleTest : public testing::Test {
  protected:
-  SimpleTest() : l_(kLen), r_(kLen) {}
+  SimpleTest() : l_(kSize), r_(kSize) {
+    DCHECK_EQ(l_.DataSize(), r_.DataSize());
+  }
 
   void WaitForCompletion(Transport& t, const Handle h) {
     while (true) {
@@ -36,8 +39,8 @@ class SimpleTest : public testing::Test {
   }
 
  protected:
-  UserApplication l_;
-  UserApplication r_;
+  util::App l_;
+  util::App r_;
 };
 
 TEST_F(SimpleTest, Read) {

@@ -1,7 +1,6 @@
 # For integration tests only.
 # Unit tests should be put in `/peregrine/src`.
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:py_test.bzl", "py_test")
 
@@ -14,9 +13,10 @@ cc_test(
     name = "integration/simple_test",
     srcs = ["integration/simple_test.cc"],
     deps = [
-        ":integration/test_util",
         "//src/api:transport",
         "//src/api:types",
+        "//src/util:app",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
@@ -29,19 +29,5 @@ py_test(
     deps = [
         "//src/api:peregrine",
         "//testing/pybase",
-    ],
-)
-
-cc_library(
-    name = "integration/test_util",
-    srcs = ["integration/test_util.cc"],
-    hdrs = ["integration/test_util.h"],
-    deps = [
-        "//src/api:transport",
-        "//src/api:transport_util",
-        "//src/api:types",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/random",
-        "@abseil-cpp//absl/types:span",
     ],
 )

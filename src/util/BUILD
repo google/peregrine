@@ -9,6 +9,29 @@ package(default_visibility = [
 ])
 
 cc_library(
+    name = "app",
+    srcs = ["app.cc"],
+    hdrs = ["app.h"],
+    deps = [
+        "//src/api:transport",
+        "//src/api:transport_util",
+        "//src/api:types",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "app_test",
+    srcs = ["app_test.cc"],
+    deps = [
+        ":app",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],

@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_TEST_INTEGRATION_TEST_UTIL_H_
-#define PEREGRINE_TEST_INTEGRATION_TEST_UTIL_H_
+#ifndef PEREGRINE_SRC_UTIL_APP_H_
+#define PEREGRINE_SRC_UTIL_APP_H_
 
 #include <cstddef>
 #include <memory>
@@ -11,15 +11,15 @@
 #include "src/api/transport_util.h"
 #include "src/api/types.h"
 
-namespace peregrine::integration_test {
+namespace peregrine::util {
 
 // This class emulates a user application that can send and receive data.
 // It is thread-compatible but not thread-safe.
-class UserApplication final {
+class App final {
  public:
   // Constructor.
-  UserApplication(const size_t len)
-      : data_(len), transport_(CreateTransport()) {
+  App(size_t size) : data_(size), transport_(CreateTransport()) {
+    DCHECK_GT(size, 0);
     CHECK_NE(transport_, nullptr);  // Crash OK
   }
 
@@ -46,6 +46,6 @@ class UserApplication final {
   std::unique_ptr<Transport> transport_;
 };
 
-}  // namespace peregrine::integration_test
+}  // namespace peregrine::util
 
-#endif  // PEREGRINE_TEST_INTEGRATION_TEST_UTIL_H_
+#endif  // PEREGRINE_SRC_UTIL_APP_H_

@@ -1,24 +1,19 @@
-#include "src/internal/transport_impl.h"
-
-#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <string_view>
 #include <thread>  // NOLINT
-#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/random/random.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/types.h"
 #include "src/internal/util/util.h"
+#include "src/util/app.h"
 
 namespace peregrine::testing {
 namespace {
@@ -28,32 +23,13 @@ using ::testing::Ne;
 using ::testing::Pointwise;
 
 constexpr std::string_view kPeer = "127.0.0.1:12345";
-constexpr size_t kLen = 1024;
-
-class UserApplication final {
- public:
-  explicit UserApplication() : data_(kLen), transport_() {}
-  Byte* DataPtr() { return data_.data(); }
-  size_t DataSize() const { return data_.size(); }
-  absl::Span<const Byte> Data() const { return absl::MakeConstSpan(data_); }
-  Transport& GetTransport() { return transport_; }
-  void ClearData() { std::fill(data_.begin(), data_.end(), 0); }
-  void GenData() {
-    absl::BitGen bitgen;
-    for (int i = 0; i < data_.size(); ++i) {
-      data_[i] = absl::Uniform<Byte>(absl::IntervalClosed, bitgen, 0x01, 0xff);
-      DCHECK_NE(data_[i], 0);
-    }
-  }
-
- private:
-  std::vector<Byte> data_;
-  TransportImpl transport_;
-};
+constexpr size_t kSize = 1024;
 
 class TransportImplTest : public ::testing::Test {
  protected:
-  TransportImplTest() : a_(), b_() { CHECK_EQ(a_.DataSize(), b_.DataSize()); }
+  TransportImplTest() : a_(kSize), b_(kSize) {
+    DCHECK_EQ(a_.DataSize(), b_.DataSize());
+  }
 
   static std::string Info(const Request& req, const Handle h, const Status s) {
     return absl::StrFormat(
@@ -62,8 +38,8 @@ class TransportImplTest : public ::testing::Test {
   }
 
  protected:
-  UserApplication a_;
-  UserApplication b_;
+  util::App a_;
+  util::App b_;
 };
 
 TEST_F(TransportImplTest, Read) {

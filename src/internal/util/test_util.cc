@@ -7,7 +7,7 @@
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_udp.h"
-#include "util/util.h"
+#include "src/util/util.h"
 
 namespace peregrine::testing {
 

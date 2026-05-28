@@ -52,16 +52,14 @@ cc_test(
     name = "transport_impl_test",
     srcs = ["transport_impl_test.cc"],
     deps = [
-        ":transport_impl",
         "//src/api:transport",
         "//src/api:types",
         "//src/internal/util",
+        "//src/util:app",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )

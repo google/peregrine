@@ -1,7 +1,7 @@
-#ifndef PEREGRINE_UTIL_UTIL_H_
-#define PEREGRINE_UTIL_UTIL_H_
+#ifndef PEREGRINE_SRC_UTIL_UTIL_H_
+#define PEREGRINE_SRC_UTIL_UTIL_H_
 
-#include <stdint.h>
+#include <cstdint>
 
 namespace peregrine::util {
 
@@ -12,4 +12,4 @@ uint16_t FindFreePort(int family, bool tcp);
 
 }  // namespace peregrine::util
 
-#endif  // PEREGRINE_UTIL_UTIL_H_
+#endif  // PEREGRINE_SRC_UTIL_UTIL_H_
