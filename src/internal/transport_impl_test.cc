@@ -1,5 +1,6 @@
 #include "src/internal/transport_impl.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <string_view>
@@ -10,6 +11,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/random/random.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -21,24 +23,28 @@
 namespace peregrine::testing {
 namespace {
 
-using ::testing::Each;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
 constexpr std::string_view kPeer = "127.0.0.1:12345";
-constexpr Byte kByteA = 1;
-constexpr Byte kByteB = 2;
-static_assert(kByteA != kByteB);
 constexpr size_t kLen = 1024;
 
 class UserApplication final {
  public:
-  explicit UserApplication(const Byte v) : data_(kLen, v), transport_() {}
+  explicit UserApplication() : data_(kLen), transport_() {}
   Byte* DataPtr() { return data_.data(); }
   size_t DataSize() const { return data_.size(); }
   absl::Span<const Byte> Data() const { return absl::MakeConstSpan(data_); }
   Transport& GetTransport() { return transport_; }
+  void ClearData() { std::fill(data_.begin(), data_.end(), 0); }
+  void GenData() {
+    absl::BitGen bitgen;
+    for (int i = 0; i < data_.size(); ++i) {
+      data_[i] = absl::Uniform<Byte>(absl::IntervalClosed, bitgen, 0x01, 0xff);
+      DCHECK_NE(data_[i], 0);
+    }
+  }
 
  private:
   std::vector<Byte> data_;
@@ -47,10 +53,7 @@ class UserApplication final {
 
 class TransportImplTest : public ::testing::Test {
  protected:
-  TransportImplTest() : a_(kByteA), b_(kByteB) {
-    CHECK_EQ(a_.DataSize(), b_.DataSize());
-    CHECK_NE(a_.Data(), b_.Data());
-  }
+  TransportImplTest() : a_(), b_() { CHECK_EQ(a_.DataSize(), b_.DataSize()); }
 
   static std::string Info(const Request& req, const Handle h, const Status s) {
     return absl::StrFormat(
@@ -64,6 +67,8 @@ class TransportImplTest : public ::testing::Test {
 };
 
 TEST_F(TransportImplTest, Read) {
+  a_.ClearData();
+  b_.GenData();
   ASSERT_THAT(a_.Data(), Pointwise(Ne(), b_.Data()));
 
   // Use one thread to emulate a local process.
@@ -94,10 +99,11 @@ TEST_F(TransportImplTest, Read) {
   b.join();
 
   EXPECT_THAT(a_.Data(), Pointwise(Eq(), b_.Data()));
-  EXPECT_THAT(a_.Data(), Each(Eq(kByteB)));
 }
 
 TEST_F(TransportImplTest, Write) {
+  a_.GenData();
+  b_.ClearData();
   ASSERT_THAT(b_.Data(), Pointwise(Ne(), a_.Data()));
 
   // Use one thread to emulate a local process.
@@ -128,7 +134,6 @@ TEST_F(TransportImplTest, Write) {
   b.join();
 
   EXPECT_THAT(b_.Data(), Pointwise(Eq(), a_.Data()));
-  EXPECT_THAT(b_.Data(), Each(Eq(kByteA)));
 }
 
 }  // namespace

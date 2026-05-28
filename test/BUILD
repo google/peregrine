@@ -17,7 +17,6 @@ cc_test(
         ":integration/test_util",
         "//src/api:transport",
         "//src/api:types",
-        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
@@ -35,12 +34,14 @@ py_test(
 
 cc_library(
     name = "integration/test_util",
+    srcs = ["integration/test_util.cc"],
     hdrs = ["integration/test_util.h"],
     deps = [
         "//src/api:transport",
         "//src/api:transport_util",
         "//src/api:types",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/types:span",
     ],
 )

@@ -18,8 +18,8 @@ namespace peregrine::integration_test {
 class UserApplication final {
  public:
   // Constructor.
-  UserApplication(const size_t len, const Byte byte)
-      : data_(len, byte), transport_(CreateTransport()) {
+  UserApplication(const size_t len)
+      : data_(len), transport_(CreateTransport()) {
     CHECK_NE(transport_, nullptr);  // Crash OK
   }
 
@@ -34,6 +34,12 @@ class UserApplication final {
 
   // Returns the transport.
   Transport& GetTransport() { return *transport_; }
+
+  // Sets all the data to zero.
+  void ClearData();
+
+  // Sets all the data to non-zero random values.
+  void GenData();
 
  private:
   std::vector<Byte> data_;
