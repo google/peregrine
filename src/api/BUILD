@@ -19,7 +19,6 @@ cc_library(
         "//util/intops",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 

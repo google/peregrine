@@ -7,20 +7,20 @@
 #include <cerrno>
 #include <cstring>
 #include <string>
+#include <string_view>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
 #include "src/internal/base/types.h"
 
 namespace peregrine {
 
 namespace {
-absl::Status InvalidArgumentError(const absl::string_view msg,
-                                  const absl::string_view arg) {
+absl::Status InvalidArgumentError(const std::string_view msg,
+                                  const std::string_view arg) {
   return absl::InvalidArgumentError(absl::StrCat(msg, " ", arg));
 }
 
@@ -30,7 +30,7 @@ std::string InetNtopError() {
 }
 }  // namespace
 
-absl::StatusOr<ipv4_t> ParseIPv4Addr(absl::string_view ip) {
+absl::StatusOr<ipv4_t> ParseIPv4Addr(std::string_view ip) {
   ipv4_t addr;
   if (inet_pton(AF_INET, std::string(ip).c_str(), &addr) == 1) {
     return addr;
@@ -39,7 +39,7 @@ absl::StatusOr<ipv4_t> ParseIPv4Addr(absl::string_view ip) {
   }
 }
 
-absl::StatusOr<ipv6_t> ParseIPv6Addr(const absl::string_view ip) {
+absl::StatusOr<ipv6_t> ParseIPv6Addr(const std::string_view ip) {
   ipv6_t addr;
   if (inet_pton(AF_INET6, std::string(ip).c_str(), &addr) == 1) {
     return addr;

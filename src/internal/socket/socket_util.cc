@@ -9,24 +9,24 @@
 #include <cerrno>
 #include <cstring>
 #include <string>
+#include <string_view>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
 #include "src/internal/socket/ip_util.h"
 
 namespace peregrine {
 
 namespace {
-std::string Error(absl::string_view msg) {
+std::string Error(std::string_view msg) {
   return absl::StrFormat("Socket: %s errno=%d(%s)", msg, errno,
                          std::strerror(errno));
 }
 
-absl::Status InternalError(absl::string_view msg) {
+absl::Status InternalError(std::string_view msg) {
   return absl::InternalError(Error(msg));
 }
 }  // namespace

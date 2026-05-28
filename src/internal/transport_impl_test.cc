@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 #include <thread>  // NOLINT
 #include <vector>
 
@@ -10,7 +11,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -26,7 +26,7 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
-constexpr absl::string_view kPeer = "127.0.0.1:12345";
+constexpr std::string_view kPeer = "127.0.0.1:12345";
 constexpr Byte kByteA = 1;
 constexpr Byte kByteB = 2;
 static_assert(kByteA != kByteB);

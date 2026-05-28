@@ -4,11 +4,11 @@
 #include <netinet/in.h>
 
 #include <cstring>
+#include <string_view>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
-#include "absl/strings/string_view.h"
 #include "src/internal/base/types.h"
 #include "src/internal/util/test_util.h"
 

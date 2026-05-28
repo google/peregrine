@@ -4,20 +4,20 @@
 #include <netinet/in.h>
 
 #include <string>
+#include <string_view>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "src/internal/base/types.h"
 
 namespace peregrine {
 
 // Parses the `ip` address and returns an `in_addr` struct if successful.
 // Otherwise, returns an error status.
-absl::StatusOr<ipv4_t> ParseIPv4Addr(absl::string_view ip);
+absl::StatusOr<ipv4_t> ParseIPv4Addr(std::string_view ip);
 
 // Parses the `ip` address and returns an `in6_addr` struct if successful.
 // Otherwise, returns an error status.
-absl::StatusOr<ipv6_t> ParseIPv6Addr(absl::string_view ip);
+absl::StatusOr<ipv6_t> ParseIPv6Addr(std::string_view ip);
 
 // Returns a "ipv4:port" or "[ipv6]:port" string.
 std::string ToIpAddrPortString(const struct sockaddr_storage& ss);

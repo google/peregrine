@@ -3,11 +3,11 @@
 
 #include <ostream>
 #include <string>
+#include <string_view>
 
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
@@ -22,7 +22,7 @@ namespace peregrine {
 class Endpoint final {
  public:
   // Creates from a string, eg. "127.0.0.1:12345" or "[::1]:12345".
-  static absl::StatusOr<Endpoint> Create(absl::string_view ipaddr_port);
+  static absl::StatusOr<Endpoint> Create(std::string_view ipaddr_port);
 
   // Default constructor creates an invalid endpoint.
   Endpoint() : ipaddr_(), port_(0) { DCHECK(!IsValid()); }
@@ -56,13 +56,13 @@ class Endpoint final {
   // Equality operator.
   friend bool operator==(const Endpoint& a, const Endpoint& b);
 
-  // Returns the hash signature of the endpoint.
+  // Returns a hash signature of the endpoint.
   HashValue Hash() const {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     return Hash(*this);
   }
 
-  // Returns the hash signature of the endpoint.
+  // Returns a hash signature of the endpoint.
   static HashValue Hash(const Endpoint& e) {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     return absl::Hash<Endpoint>{}(e);
@@ -72,7 +72,7 @@ class Endpoint final {
   std::string ToString() const;
 
  private:
-  // Returns the hash value of the endpoint.
+  // Calculates a hash value for the endpoint.
   template <typename H>
   friend H AbslHashValue(H h, const Endpoint& e) {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);

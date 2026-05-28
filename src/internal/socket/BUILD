@@ -15,7 +15,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 
@@ -27,7 +26,6 @@ cc_test(
         "//src/internal/base:types",
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/strings:string_view",
         "@googletest//:gtest_main",
     ],
 )
@@ -45,7 +43,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 
@@ -55,7 +52,6 @@ cc_test(
     deps = [
         ":socket_util",
         "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/strings:string_view",
         "@googletest//:gtest_main",
     ],
 )
@@ -87,7 +83,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 
@@ -125,7 +120,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 

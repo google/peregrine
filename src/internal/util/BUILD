@@ -33,7 +33,6 @@ cc_library(
         "//src/internal/socket:socket_udp",
         "//util",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings:string_view",
     ],
 )
 

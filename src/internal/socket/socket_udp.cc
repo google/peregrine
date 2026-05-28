@@ -10,6 +10,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
@@ -19,7 +20,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
 #include "src/api/types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/ip_util.h"
@@ -28,20 +28,20 @@
 
 namespace peregrine {
 
-constexpr absl::string_view kUdpPrefix = "udp socket: ";
+constexpr std::string_view kUdpPrefix = "udp socket: ";
 
 namespace {
-std::string Success(int fd, absl::string_view msg) {
+std::string Success(int fd, std::string_view msg) {
   return absl::StrFormat("%s%s fd=%d %s", kUdpPrefix, msg, fd,
                          AddrPortPair(fd));
 }
 
-std::string Error(absl::string_view msg) {
+std::string Error(std::string_view msg) {
   return absl::StrFormat("%s%s errno=%d(%s)", kUdpPrefix, msg, errno,
                          std::strerror(errno));
 }
 
-absl::Status InternalError(absl::string_view msg) {
+absl::Status InternalError(std::string_view msg) {
   return absl::InternalError(Error(msg));
 }
 }  // namespace

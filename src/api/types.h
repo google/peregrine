@@ -6,7 +6,6 @@
 #include <ostream>
 #include <string>
 
-#include "absl/strings/string_view.h"
 #include "util/intops/strong_int.h"
 
 namespace peregrine {

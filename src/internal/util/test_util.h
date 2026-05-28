@@ -2,8 +2,8 @@
 #define PEREGRINE_SRC_INTERNAL_UTIL_TEST_UTIL_H_
 
 #include <memory>
+#include <string_view>
 
-#include "absl/strings/string_view.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_udp.h"
@@ -15,10 +15,10 @@ inline constexpr IoVec kEoF = {};
 static_assert(kEoF.iov_base == nullptr && kEoF.iov_len == 0);
 
 // ip addresses
-inline constexpr absl::string_view kIPv4AnyAddr = "0.0.0.0";
-inline constexpr absl::string_view kIPv6AnyAddr = "::";
-inline constexpr absl::string_view kIPv4Localhost = "127.0.0.1";
-inline constexpr absl::string_view kIPv6Localhost = "::1";
+inline constexpr std::string_view kIPv4AnyAddr = "0.0.0.0";
+inline constexpr std::string_view kIPv6AnyAddr = "::";
+inline constexpr std::string_view kIPv4Localhost = "127.0.0.1";
+inline constexpr std::string_view kIPv6Localhost = "::1";
 
 // Finds an unused TCP port in the given address `family`.
 // Return a non-zero port if successful, otherwise crashes.
