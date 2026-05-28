@@ -24,6 +24,10 @@ class BindTest(googletest.TestCase):
     h = pg.Handle(1337)
     self.assertEqual(h.value(), 1337)
 
+  def test_buffer(self):
+    b = pg.Buffer(9973)
+    self.assertEqual(b.value(), 9973)
+
   def test_request(self):
     # Allocate safe virtual buffer memory addresses
     lbuf = ctypes.create_string_buffer(1024)

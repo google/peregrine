@@ -17,6 +17,9 @@ using Byte = uint8_t;
 // `Handle` uniquely identifies a transport request within one process.
 DEFINE_STRONG_INT_TYPE(Handle, uint32_t);
 
+// `Buffer` uniquely identifies a buffer within a transport request.
+DEFINE_STRONG_INT_TYPE(Buffer, uint32_t);
+
 // Transport operation.
 enum class Op : uint8_t {
   kRead = 1,   // Read from peer

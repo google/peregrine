@@ -1,6 +1,6 @@
 #include <cstdint>
 #include <stdexcept>
-#include <string>
+#include <string_view>
 
 #include "nanobind/nanobind.h"
 #include "nanobind/stl/string.h"
@@ -21,6 +21,11 @@ NB_MODULE(peregrine, m) {
   nb::class_<Handle>(m, "Handle")
       .def(nb::init<uint32_t>())
       .def("value", [](const Handle& h) { return h.value(); });
+
+  // Bind `Buffer`
+  nb::class_<Buffer>(m, "Buffer")
+      .def(nb::init<uint32_t>())
+      .def("value", [](const Buffer& b) { return b.value(); });
 
   // Bind `Op` enum
   nb::enum_<Op>(m, "Op").value("READ", Op::kRead).value("WRITE", Op::kWrite);
@@ -68,7 +73,7 @@ NB_MODULE(peregrine, m) {
   nb::class_<Transport>(m, "Transport")
       .def(
           "post",
-          [](Transport& t, absl::string_view peer, const Request& request) {
+          [](Transport& t, std::string_view peer, const Request& request) {
             if (const auto result = t.Post(peer, request); !result.ok()) {
               throw std::runtime_error(result.status().ToString());
             } else {
