@@ -8,8 +8,9 @@ namespace peregrine::internal {
 
 std::string ChunkMetadata::ToString() const {
   return absl::StrFormat(
-      "ChunkMetadata: buffer=0x%x, chunk_size=%d, #chunks=%d, chunk_index=%d",
-      buffer.value(), chunk_size, nchunks, index.value());
+      "ChunkMetadata: handle=0x%x, buffer=0x%x, chunk_size=%d, "
+      "#chunks=%d, index=%d",
+      handle.value(), buffer.value(), size, nchunks, index.value());
 }
 
 }  // namespace peregrine::internal

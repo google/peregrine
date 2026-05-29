@@ -9,6 +9,7 @@ cc_library(
     hdrs = ["chunk.h"],
     deps = [
         "//src/api:types",
+        "//src/internal:assumptions",
         "//util/intops",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
