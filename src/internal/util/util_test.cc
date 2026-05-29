@@ -27,7 +27,7 @@ TEST(UtilTest, TotalLength) {
 
 TEST(UtilTest, ThreadId) {
   EXPECT_EQ(ThreadId(), ThreadId());
-  LOG(INFO) << "ThreadId: " << ThreadId();
+  LOG(INFO) << "thread #" << ThreadId();
 }
 
 }  // namespace

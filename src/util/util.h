@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "absl/log/check.h"
 #include "absl/random/random.h"
 
 namespace peregrine::util {
@@ -12,12 +13,14 @@ namespace peregrine::util {
 template <typename T>
 T Random(absl::BitGen& gen, T min, T max) {
   static_assert(std::is_integral_v<T>);
+  DCHECK_LE(min, max);
   return absl::Uniform<T>(absl::IntervalClosedClosed, gen, min, max);
 }
 
-// Finds an unused port in the range [10'000, 65'535], inclusively. Returns
-// the port number if successful, or 0 if failed. Note: there is no guarantee
-// that the found port is still available when the caller actually uses it.
+// Finds an unused port in the range [10,000, 65,535], inclusively. Returns
+// the port number if successful, or 0 if failed.
+// Note: there is no guarantee that the found port is still available when
+// the caller actually uses it.
 uint16_t FindFreePort(int family, bool tcp);
 
 }  // namespace peregrine::util
