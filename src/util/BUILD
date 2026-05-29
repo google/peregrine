@@ -13,6 +13,7 @@ cc_library(
     srcs = ["app.cc"],
     hdrs = ["app.h"],
     deps = [
+        ":util",
         "//src/api:transport",
         "//src/api:transport_util",
         "//src/api:types",
@@ -47,6 +48,7 @@ cc_test(
     srcs = ["util_test.cc"],
     deps = [
         ":util",
+        "@abseil-cpp//absl/random",
         "@googletest//:gtest_main",
     ],
 )

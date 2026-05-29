@@ -7,9 +7,7 @@ cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
-    deps = [
-        "//src/internal/base:types",
-    ],
+    deps = ["//src/internal/base:types"],
 )
 
 cc_test(

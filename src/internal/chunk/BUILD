@@ -50,6 +50,7 @@ cc_test(
     deps = [
         ":chunk",
         ":chunk_tracker",
+        "//src/util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",

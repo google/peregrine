@@ -2,8 +2,18 @@
 #define PEREGRINE_SRC_UTIL_UTIL_H_
 
 #include <cstdint>
+#include <type_traits>
+
+#include "absl/random/random.h"
 
 namespace peregrine::util {
+
+// Generates a random integer in the range `[min, max]`, inclusively.
+template <typename T>
+T Random(absl::BitGen& gen, T min, T max) {
+  static_assert(std::is_integral_v<T>);
+  return absl::Uniform<T>(absl::IntervalClosedClosed, gen, min, max);
+}
 
 // Finds an unused port in the range [10'000, 65'535], inclusively. Returns
 // the port number if successful, or 0 if failed. Note: there is no guarantee

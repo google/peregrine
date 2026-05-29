@@ -13,6 +13,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/util/util.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -61,14 +62,14 @@ class ChunkTrackerStressTest : public ::testing::Test {
   }
 
   chunk_t RandomChunkIndex(absl::BitGen& bitgen) {
-    return chunk_t(
-        absl::Uniform(absl::IntervalClosedOpen, bitgen, 0U, kTotalNumChunks));
+    using T = chunk_t::ValueType;
+    return chunk_t(util::Random<T>(bitgen, 0, kTotalNumChunks - 1));
   }
 
   bool Success(absl::BitGen& bitgen) { return absl::Bernoulli(bitgen, 0.75); }
 
   void SimulateWork(absl::BitGen& bitgen, chunk_t i) {
-    const int n = absl::Uniform(absl::IntervalClosedClosed, bitgen, 5, 10);
+    const int n = util::Random(bitgen, 5, 10);
     absl::SleepFor(absl::Milliseconds(n));
   }
 
