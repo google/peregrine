@@ -33,6 +33,11 @@ cc_test(
 )
 
 cc_library(
+    name = "macro",
+    hdrs = ["macro.h"],
+)
+
+cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],

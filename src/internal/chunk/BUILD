@@ -36,6 +36,7 @@ cc_library(
     deps = [
         ":chunk",
         "//src/internal/util",
+        "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

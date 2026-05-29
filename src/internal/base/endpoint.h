@@ -11,6 +11,7 @@
 #include "absl/types/span.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
+#include "src/util/macro.h"
 
 namespace peregrine::internal {
 
@@ -33,13 +34,9 @@ class Endpoint final {
   // Constructor for ipv6.
   Endpoint(ipv6_t ip6, port_t port) : ipaddr_(ip6), port_(port) {}
 
-  // Allows copy constructor and copy assignment.
-  Endpoint(const Endpoint& e) = default;
-  Endpoint& operator=(const Endpoint& e) = default;
-
-  // Allows move constructor and move assignment.
-  Endpoint(Endpoint&& e) = default;
-  Endpoint& operator=(Endpoint&& e) = default;
+  // Allows copy/move.
+  ALLOW_COPY(Endpoint);
+  ALLOW_MOVE(Endpoint);
 
   // Destructor.
   ~Endpoint() = default;

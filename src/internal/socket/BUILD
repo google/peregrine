@@ -61,6 +61,7 @@ cc_library(
     hdrs = ["socket_base.h"],
     deps = [
         ":socket_util",
+        "//src/util:macro",
         "@abseil-cpp//absl/log:check",
     ],
 )

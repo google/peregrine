@@ -6,6 +6,7 @@
 
 #include "absl/log/check.h"
 #include "src/internal/socket/socket_util.h"
+#include "src/util/macro.h"
 
 namespace peregrine::internal {
 
@@ -41,9 +42,8 @@ class SocketBase {
     DCHECK(invariant());
   }
 
-  // Disallows copy since the socket owns OS resource.
-  SocketBase(const SocketBase&) = delete;
-  SocketBase& operator=(const SocketBase&) = delete;
+  // Disables copy since the socket owns OS resource.
+  DISALLOW_COPY(SocketBase);
 
   // Move constructor.
   SocketBase(SocketBase&& o) noexcept

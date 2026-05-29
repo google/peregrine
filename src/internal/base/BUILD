@@ -32,6 +32,7 @@ cc_library(
         ":types",
         "//src/internal:assumptions",
         "//src/internal/socket:ip_util",
+        "//src/util:macro",
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",

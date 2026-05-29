@@ -10,6 +10,7 @@
 #include "absl/synchronization/mutex.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/util/util.h"
+#include "src/util/macro.h"
 
 namespace peregrine::internal {
 
@@ -41,11 +42,9 @@ class ChunkTracker {
   // Constructs a tracker with `total_num_chunks` chunk states.
   explicit ChunkTracker(uint32_t total_num_chunks);
 
-  // Disallows copy/move constructors and assignment operators.
-  ChunkTracker(const ChunkTracker&) = delete;
-  ChunkTracker& operator=(const ChunkTracker&) = delete;
-  ChunkTracker(ChunkTracker&&) = delete;
-  ChunkTracker& operator=(ChunkTracker&&) = delete;
+  // Disables copy/move.
+  DISALLOW_COPY(ChunkTracker);
+  DISALLOW_MOVE(ChunkTracker);
 
   // Destructor.
   ~ChunkTracker() = default;
