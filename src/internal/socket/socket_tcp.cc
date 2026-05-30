@@ -5,7 +5,6 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
-#include <cerrno>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -16,10 +15,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "src/api/types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/ip_util.h"
@@ -27,36 +23,13 @@
 
 namespace peregrine::internal {
 
-constexpr std::string_view kTcpPrefix = "tcp socket: ";
-
-namespace {
-std::string Success(int fd, std::string_view msg) {
-  return absl::StrFormat("%s%s fd=%d %s", kTcpPrefix, msg, fd,
-                         AddrPortPair(fd));
-}
-
-std::string Error(std::string_view msg) {
-  return absl::StrFormat("%s%s errno=%d(%s)", kTcpPrefix, msg, errno,
-                         std::strerror(errno));
-}
-
-absl::Status InternalError(std::string_view msg) {
-  return absl::InternalError(Error(msg));
-}
-
-absl::Status AbortedError(std::string_view msg) {
-  return absl::AbortedError(Error(msg));
-}
-}  // namespace
-
-absl::StatusOr<std::unique_ptr<TcpSocket>> TcpSocket::Create(int family) {
+std::unique_ptr<TcpSocket> TcpSocket::Create(int family) {
   constexpr bool kNonblocking = false;
-  const auto maybe_fd = CreateSocket(family, SOCK_STREAM, kNonblocking);
-  if (!maybe_fd.ok()) {
-    return maybe_fd.status();
+  const int fd = CreateSocket(family, SOCK_STREAM, kNonblocking);
+  if (fd < 0) {
+    return nullptr;
   } else {
-    const int fd = maybe_fd.value();
-    LOG(INFO) << Success(fd, "created");
+    LOG(INFO) << successMsg("create", fd);
     return absl::WrapUnique(new TcpSocket(fd, family, /*connected=*/false));
   }
 }
@@ -67,9 +40,10 @@ std::unique_ptr<TcpSocket> TcpSocket::Create(int fd, int family) {
 
 TcpSocket::~TcpSocket() {
   DCHECK(invariant());
-  LOG(INFO) << Success(fd_, "closing");
+  LOG(INFO) << successMsg("shutdown");
   ::shutdown(fd_, SHUT_RDWR);  // discards unread data
   connected_ = false;
+  LOG(INFO) << successMsg("close");
   ::close(fd_);
 }
 
@@ -107,46 +81,50 @@ auto AcceptV6(int fd) {
 }
 }  // namespace
 
-absl::Status TcpSocket::Listen(const IpAddr& ip, port_t port) const {
+bool TcpSocket::Listen(const IpAddr& ip, port_t port) const {
   int opt = 1;  // enable
-  if (const auto status = SetOption(fd_, SO_REUSEADDR, &opt, sizeof(opt));
-      !status.ok()) {
-    return status;
+  if (!SetOption(fd_, SO_REUSEADDR, &opt, sizeof(opt))) {
+    LOG(WARNING) << errorMsg("set SO_REUSEADDR");
+    return false;
   }
   const auto bind = IsIPv4(ip) ? BindV4 : BindV6;
   if (bind(fd_, ip, port) < 0) {
-    return InternalError("bind");
+    LOG(WARNING) << errorMsg("bind");
+    return false;
   } else if (::listen(fd_, SOMAXCONN) < 0) {
-    return InternalError("listen");
+    LOG(WARNING) << errorMsg("listen");
+    return false;
   } else {
-    LOG(INFO) << Success(fd_, "listening");
-    return absl::OkStatus();
+    LOG(INFO) << successMsg("listening on");
+    return true;
   }
 }
 
-absl::StatusOr<int> TcpSocket::Accept() const {
+int TcpSocket::Accept() const {
   const auto accept = family_ == AF_INET ? AcceptV4 : AcceptV6;
   if (const int new_fd = accept(fd_); new_fd < 0) {
-    return InternalError("accept");
+    LOG(WARNING) << errorMsg("accept");
+    return -1;
   } else {
     DCHECK_GE(new_fd, 0);
-    LOG(INFO) << Success(new_fd, "accepted");
+    LOG(INFO) << successMsg("accepted", new_fd);
     return new_fd;
   }
 }
 
-absl::Status TcpSocket::Connect(const IpAddr& ip, port_t port) {
+bool TcpSocket::Connect(const IpAddr& ip, port_t port) {
   const auto connect = IsIPv4(ip) ? ConnectV4 : ConnectV6;
   if (connect(fd_, ip, port) < 0) {
-    return InternalError("connect");
+    LOG(WARNING) << errorMsg("connect");
+    return false;
   } else {
-    LOG(INFO) << Success(fd_, "connected");
+    LOG(INFO) << successMsg("connected");
     connected_ = true;
-    return absl::OkStatus();
+    return true;
   }
 }
 
-absl::Status TcpSocket::Send(const Byte* const buf, const size_t len) const {
+bool TcpSocket::Send(const Byte* const buf, const size_t len) const {
   DCHECK_GE(len, 1);
   const Byte* ptr = buf;
   size_t sent = 0;
@@ -161,18 +139,20 @@ absl::Status TcpSocket::Send(const Byte* const buf, const size_t len) const {
       DCHECK_EQ(buf + len, ptr + left);
     } else if (bytes < 0) {
       if (Interrupted()) continue;
-      return InternalError("send");
+      LOG(WARNING) << errorMsg("send");
+      return false;
     } else {  // rarely happens
       DCHECK_EQ(bytes, 0);
-      return AbortedError("send connection closed");
+      LOG(WARNING) << errorMsg("send zero");
+      return false;
     }
   }
   DCHECK_EQ(left, 0);
   DCHECK_EQ(sent, len);
-  return absl::OkStatus();
+  return true;
 }
 
-absl::Status TcpSocket::Recv(Byte* const buf, const size_t len) const {
+bool TcpSocket::Recv(Byte* const buf, const size_t len) const {
   DCHECK_GE(len, 1);
   Byte* ptr = buf;
   size_t rcvd = 0;
@@ -187,19 +167,21 @@ absl::Status TcpSocket::Recv(Byte* const buf, const size_t len) const {
       DCHECK_EQ(buf + len, ptr + left);
     } else if (bytes < 0) {
       if (Interrupted()) continue;
-      return InternalError("recv");
+      LOG(WARNING) << errorMsg("recv");
+      return false;
     } else {
       DCHECK_EQ(bytes, 0);  // peer closed connection
-      return AbortedError("recv eof");
+      LOG(INFO) << errorMsg("recv eof");
+      return false;
     }
   }
   DCHECK_EQ(left, 0);
   DCHECK_EQ(rcvd, len);
-  return absl::OkStatus();
+  return true;
 }
 
 std::string TcpSocket::ToString() const {
-  return absl::StrCat(kTcpPrefix, AddrPortPair(fd_));
+  return absl::StrCat("tcp socket: ", AddrPortPair(fd_));
 }
 
 }  // namespace peregrine::internal

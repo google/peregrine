@@ -34,9 +34,8 @@ cc_library(
         "//src/internal/socket:ip_util",
         "//src/util:macro",
         "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
     ],
@@ -50,7 +49,6 @@ cc_test(
         ":types",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status",
         "@googletest//:gtest_main",
     ],
 )

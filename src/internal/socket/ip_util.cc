@@ -6,12 +6,12 @@
 
 #include <cerrno>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "src/internal/base/types.h"
@@ -19,32 +19,42 @@
 namespace peregrine::internal {
 
 namespace {
-absl::Status InvalidArgumentError(const std::string_view msg,
-                                  const std::string_view arg) {
-  return absl::InvalidArgumentError(absl::StrCat(msg, " ", arg));
+std::string PtonErrorMsg(std::string_view ip, int v) {
+  return absl::StrFormat("inet_pton failed: ipv%d_addr=%s, errno=%d (%s)", v,
+                         ip, errno, std::strerror(errno));
 }
 
-std::string InetNtopError() {
-  return absl::StrFormat("inet_ntop failed: errno=%d (%s)", errno,
+std::string NtopErrorMsg(int v) {
+  return absl::StrFormat("inet_ntop failed: ipv%d, errno=%d (%s)", v, errno,
                          std::strerror(errno));
 }
 }  // namespace
 
-absl::StatusOr<ipv4_t> ParseIPv4Addr(std::string_view ip) {
+std::optional<ipv4_t> ParseIPv4Addr(std::string_view ip) {
   ipv4_t addr;
-  if (inet_pton(AF_INET, std::string(ip).c_str(), &addr) == 1) {
-    return addr;
-  } else {
-    return InvalidArgumentError("invalid ipv4 addr ", ip);
+  switch (inet_pton(AF_INET, std::string(ip).c_str(), &addr)) {
+    case 1:
+      return addr;
+    case 0:
+      LOG(WARNING) << "invalid ipv4 addr " << ip;
+      return std::nullopt;
+    default:
+      LOG(WARNING) << PtonErrorMsg(ip, 4);
+      return std::nullopt;
   }
 }
 
-absl::StatusOr<ipv6_t> ParseIPv6Addr(const std::string_view ip) {
+std::optional<ipv6_t> ParseIPv6Addr(const std::string_view ip) {
   ipv6_t addr;
-  if (inet_pton(AF_INET6, std::string(ip).c_str(), &addr) == 1) {
-    return addr;
-  } else {
-    return InvalidArgumentError("invalid ipv6 addr ", ip);
+  switch (inet_pton(AF_INET6, std::string(ip).c_str(), &addr)) {
+    case 1:
+      return addr;
+    case 0:
+      LOG(WARNING) << "invalid ipv6 addr " << ip;
+      return std::nullopt;
+    default:
+      LOG(WARNING) << PtonErrorMsg(ip, 6);
+      return std::nullopt;
   }
 }
 
@@ -57,13 +67,16 @@ std::string ToString(const struct sockaddr_storage& ss) {
     if (inet_ntop(AF_INET, &sa->sin_addr, addr, kAddrLen) != nullptr) {
       return absl::StrCat(addr, ":", ntohs(sa->sin_port));
     }
+    LOG(WARNING) << NtopErrorMsg(4);
+    return "invalid ipv4:port";
   } else {
     static_assert(kFamily == AF_INET6);
     if (inet_ntop(AF_INET6, &sa->sin6_addr, addr, kAddrLen) != nullptr) {
       return absl::StrCat("[", addr, "]:", ntohs(sa->sin6_port));
     }
+    LOG(WARNING) << NtopErrorMsg(6);
+    return "invalid ipv6:port";
   }
-  return InetNtopError();
 }
 }  // namespace
 
@@ -74,7 +87,7 @@ std::string ToIpAddrPortString(const struct sockaddr_storage& ss) {
     case AF_INET6:
       return ToString<AF_INET6, INET6_ADDRSTRLEN, struct sockaddr_in6>(ss);
     default:
-      return absl::StrFormat("non-ip address family: %d", ss.ss_family);
+      return absl::StrCat("invalid addr family: ", ss.ss_family);
   }
 }
 

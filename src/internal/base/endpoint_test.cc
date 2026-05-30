@@ -2,32 +2,24 @@
 
 #include <utility>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
-#include "absl/status/status.h"
 #include "src/internal/base/types.h"
 
 namespace peregrine::internal::testing {
 namespace {
 
-using ::absl::StatusCode::kInvalidArgument;
-using ::testing::status::IsOkAndHolds;
-using ::testing::status::StatusIs;
-
 constexpr ipv4_t kIPv4{.s_addr = 0x0100007f};
 constexpr ipv6_t kIPv6 = IN6ADDR_LOOPBACK_INIT;
 
 TEST(EndpointTest, Create) {
-  EXPECT_THAT(Endpoint::Create("127.0.0.1:12345"),
-              IsOkAndHolds(Endpoint(kIPv4, 12345)));
-  EXPECT_THAT(Endpoint::Create("[::1]:54321"),
-              IsOkAndHolds(Endpoint(kIPv6, 54321)));
+  EXPECT_EQ(Endpoint::Create("127.0.0.1:12345"), Endpoint(kIPv4, 12345));
+  EXPECT_EQ(Endpoint::Create("[::1]:54321"), Endpoint(kIPv6, 54321));
 
-  EXPECT_THAT(Endpoint::Create("?"), StatusIs(kInvalidArgument));
-  EXPECT_THAT(Endpoint::Create("::1"), StatusIs(kInvalidArgument));
-  EXPECT_THAT(Endpoint::Create("127.0.0.1:"), StatusIs(kInvalidArgument));
+  EXPECT_FALSE(Endpoint::Create("?").IsValid());
+  EXPECT_FALSE(Endpoint::Create("::1").IsValid());
+  EXPECT_FALSE(Endpoint::Create("127.0.0.1:").IsValid());
 }
 
 TEST(EndpointTest, Validity) {

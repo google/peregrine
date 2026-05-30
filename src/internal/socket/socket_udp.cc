@@ -5,7 +5,6 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
-#include <cerrno>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -16,10 +15,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "src/api/types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/ip_util.h"
@@ -28,39 +24,20 @@
 
 namespace peregrine::internal {
 
-constexpr std::string_view kUdpPrefix = "udp socket: ";
-
-namespace {
-std::string Success(int fd, std::string_view msg) {
-  return absl::StrFormat("%s%s fd=%d %s", kUdpPrefix, msg, fd,
-                         AddrPortPair(fd));
-}
-
-std::string Error(std::string_view msg) {
-  return absl::StrFormat("%s%s errno=%d(%s)", kUdpPrefix, msg, errno,
-                         std::strerror(errno));
-}
-
-absl::Status InternalError(std::string_view msg) {
-  return absl::InternalError(Error(msg));
-}
-}  // namespace
-
-absl::StatusOr<std::unique_ptr<UdpSocket>> UdpSocket::Create(int family) {
+std::unique_ptr<UdpSocket> UdpSocket::Create(int family) {
   constexpr bool kNonblocking = false;
-  const auto maybe_fd = CreateSocket(family, SOCK_DGRAM, kNonblocking);
-  if (!maybe_fd.ok()) {
-    return maybe_fd.status();
+  const int fd = CreateSocket(family, SOCK_DGRAM, kNonblocking);
+  if (fd < 0) {
+    return nullptr;
   } else {
-    const int fd = maybe_fd.value();
-    LOG(INFO) << Success(fd, "created");
+    LOG(INFO) << successMsg("created", fd);
     return absl::WrapUnique(new UdpSocket(fd, family));
   }
 }
 
 UdpSocket::~UdpSocket() {
   DCHECK(invariant());
-  LOG(INFO) << Success(fd_, "closing");
+  LOG(INFO) << successMsg("closing");
   ::shutdown(fd_, SHUT_RDWR);  // discards unread data
   connected_ = false;
   ::close(fd_);
@@ -88,42 +65,44 @@ auto ConnectV6(int fd, const IpAddr& ip, port_t port) {
 }
 }  // namespace
 
-absl::Status UdpSocket::Bind(const IpAddr& ip, port_t port) const {
+bool UdpSocket::Bind(const IpAddr& ip, port_t port) const {
   const auto bind = IsIPv4(ip) ? BindV4 : BindV6;
   if (bind(fd_, ip, port) < 0) {
-    return InternalError("bind");
+    LOG(WARNING) << errorMsg("bind");
+    return false;
   } else {
-    LOG(INFO) << Success(fd_, "bound");
-    return absl::OkStatus();
+    LOG(INFO) << successMsg("bound");
+    return true;
   }
 }
 
-absl::Status UdpSocket::Connect(const IpAddr& ip, port_t port) {
+bool UdpSocket::Connect(const IpAddr& ip, port_t port) {
   const auto connect = IsIPv4(ip) ? ConnectV4 : ConnectV6;
   if (connect(fd_, ip, port) < 0) {
-    return InternalError("connect");
+    LOG(WARNING) << errorMsg("connect");
+    return false;
   } else {
-    LOG(INFO) << Success(fd_, "connected");
+    LOG(INFO) << successMsg("connected");
     connected_ = true;
-    return absl::OkStatus();
+    return true;
   }
 }
 
-absl::Status UdpSocket::Send(const Byte* const buf, const size_t len) const {
+bool UdpSocket::Send(const Byte* const buf, const size_t len) const {
   DCHECK(connected_);
   DCHECK_GE(len, 1);
 
   const ssize_t bytes = ::send(fd_, buf, len, /*flags=*/0);
   DCHECK(bytes == len || bytes < 0);
   if ABSL_PREDICT_TRUE (bytes == len) {
-    return absl::OkStatus();
+    return true;
   } else {
-    return InternalError("send");
+    LOG(WARNING) << errorMsg("send");
+    return false;
   }
 }
 
-absl::StatusOr<size_t> UdpSocket::Recv(Byte* const buf,
-                                       const size_t len) const {
+ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
   DCHECK(connected_);
   DCHECK_GE(len, 1);
 
@@ -133,15 +112,17 @@ absl::StatusOr<size_t> UdpSocket::Recv(Byte* const buf,
     return bytes;
   } else if (bytes < 0) {
     if (Interrupted()) return 0;
-    return InternalError("recv");
+    LOG(WARNING) << errorMsg("recv");
+    return -1;
   } else {
     DCHECK_EQ(bytes, 0);  // zero-length payload
+    LOG(INFO) << errorMsg("recv zero");
     return 0;
   }
 }
 
-absl::Status UdpSocket::SendV(const IoVec* const iov, const int n,
-                              const size_t len) const {
+bool UdpSocket::SendV(const IoVec* const iov, const int n,
+                      const size_t len) const {
   DCHECK(connected_);
   DCHECK_GE(len, 1);
   DCHECK_EQ(TotalLength(iov, n), len);
@@ -149,14 +130,15 @@ absl::Status UdpSocket::SendV(const IoVec* const iov, const int n,
   const ssize_t bytes = ::writev(fd_, iov, n);
   DCHECK(bytes == len || bytes < 0);
   if ABSL_PREDICT_TRUE (bytes == len) {
-    return absl::OkStatus();
+    return true;
   } else {
-    return InternalError("send");
+    LOG(WARNING) << errorMsg("writev");
+    return false;
   }
 }
 
-absl::StatusOr<size_t> UdpSocket::RecvV(const IoVec* const iov, const int n,
-                                        const size_t len) const {
+ssize_t UdpSocket::RecvV(const IoVec* const iov, const int n,
+                         const size_t len) const {
   DCHECK(connected_);
   DCHECK_GE(len, 1);
   DCHECK_EQ(TotalLength(iov, n), len);
@@ -167,15 +149,17 @@ absl::StatusOr<size_t> UdpSocket::RecvV(const IoVec* const iov, const int n,
     return bytes;
   } else if (bytes < 0) {
     if (Interrupted()) return 0;
-    return InternalError("recv");
+    LOG(WARNING) << errorMsg("recv");
+    return -1;
   } else {
     DCHECK_EQ(bytes, 0);  // zero-length payload
+    LOG(INFO) << errorMsg("recv zero");
     return 0;
   }
 }
 
 std::string UdpSocket::ToString() const {
-  return absl::StrCat(kUdpPrefix, AddrPortPair(fd_));
+  return absl::StrCat("udp socket: ", AddrPortPair(fd_));
 }
 
 }  // namespace peregrine::internal

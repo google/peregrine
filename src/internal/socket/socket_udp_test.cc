@@ -40,8 +40,8 @@ class UdpSocketTest : public ::testing::Test {
         send_socket_(TestOnly_CreateUdpSocket(kFamily)),
         recv_socket_(TestOnly_CreateUdpSocket(kFamily)) {
     CHECK_NE(send_port_, recv_port_);
-    CHECK_OK(recv_socket_->Bind(ip_, recv_port_));
-    CHECK_OK(send_socket_->Bind(ip_, send_port_));
+    CHECK(recv_socket_->Bind(ip_, recv_port_));
+    CHECK(send_socket_->Bind(ip_, send_port_));
     CHECK(!send_socket_->IsConnected());
     CHECK(!recv_socket_->IsConnected());
     CHECK_NE(send_socket_->fd(), recv_socket_->fd());
@@ -68,20 +68,20 @@ TEST_F(UdpSocketIPv4Test, SendRecv) {
   // First, create a receiver thread.
   absl::Notification rcvr_ready;
   std::thread rcvr([&]() {
-    CHECK_OK(recv_socket_->Connect(ip_, send_port_));
+    CHECK(recv_socket_->Connect(ip_, send_port_));
     CHECK(recv_socket_->IsConnected());
     CHECK(recv_socket_->IsBlocking());
     rcvr_ready.Notify();
-    CHECK_OK(recv_socket_->Recv(recv_buf.data(), kMsgSize));
+    CHECK(recv_socket_->Recv(recv_buf.data(), kMsgSize));
   });
 
   // Second, create a sender thread.
   std::thread sndr([&]() {
     rcvr_ready.WaitForNotification();
-    CHECK_OK(send_socket_->Connect(ip_, recv_port_));
+    CHECK(send_socket_->Connect(ip_, recv_port_));
     CHECK(send_socket_->IsConnected());
     CHECK(send_socket_->IsBlocking());
-    CHECK_OK(send_socket_->Send(message.data(), kMsgSize));
+    CHECK(send_socket_->Send(message.data(), kMsgSize));
   });
 
   // Wait for both threads to finish.
@@ -102,7 +102,7 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
   // First, create a receiver thread.
   absl::Notification rcvr_ready;
   std::thread rcvr([&]() {
-    CHECK_OK(recv_socket_->Connect(ip_, send_port_));
+    CHECK(recv_socket_->Connect(ip_, send_port_));
     CHECK(recv_socket_->IsConnected());
     CHECK(recv_socket_->IsBlocking());
     constexpr int kRN = 2;
@@ -111,13 +111,13 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
         {.iov_base = (void*)(recv_buf.data() + 2), .iov_len = kMsgSize - 2},
     };
     rcvr_ready.Notify();
-    CHECK_OK(recv_socket_->RecvV(recv_iov, kRN, kMsgSize));
+    CHECK(recv_socket_->RecvV(recv_iov, kRN, kMsgSize));
   });
 
   // Second, create a sender thread.
   std::thread sndr([&]() {
     rcvr_ready.WaitForNotification();
-    CHECK_OK(send_socket_->Connect(ip_, recv_port_));
+    CHECK(send_socket_->Connect(ip_, recv_port_));
     CHECK(send_socket_->IsConnected());
     CHECK(send_socket_->IsBlocking());
     constexpr int kSN = 2;
@@ -125,7 +125,7 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
         {.iov_base = (void*)message.data(), .iov_len = 1},
         {.iov_base = (void*)(message.data() + 1), .iov_len = kMsgSize - 1},
     };
-    CHECK_OK(send_socket_->SendV(send_iov, kSN, kMsgSize));
+    CHECK(send_socket_->SendV(send_iov, kSN, kMsgSize));
   });
 
   // Wait for both threads to finish.

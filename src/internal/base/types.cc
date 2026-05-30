@@ -15,7 +15,7 @@
 namespace peregrine::internal {
 
 namespace {
-std::string InetNtopError() {
+inline std::string NtopErrorMsg() {
   return absl::StrFormat("inet_ntop failed: errno=%d (%s)", errno,
                          std::strerror(errno));
 }
@@ -26,7 +26,7 @@ std::string ToIPv4String(const ipv4_t& ip4) {
   if (inet_ntop(AF_INET, &ip4, addr, INET_ADDRSTRLEN) != nullptr) {
     return addr;
   } else {
-    LOG(WARNING) << InetNtopError();
+    LOG(WARNING) << NtopErrorMsg();
     return "invalid ipv4 addr";
   }
 }
@@ -36,7 +36,7 @@ std::string ToIPv6String(const ipv6_t& ip6) {
   if (inet_ntop(AF_INET6, &ip6, addr, INET6_ADDRSTRLEN) != nullptr) {
     return addr;
   } else {
-    LOG(WARNING) << InetNtopError();
+    LOG(WARNING) << NtopErrorMsg();
     return "invalid ipv6 addr";
   }
 }

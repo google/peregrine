@@ -1,7 +1,6 @@
 #include "src/internal/util/test_util.h"
 
 #include <memory>
-#include <utility>
 
 #include "absl/log/check.h"
 #include "src/internal/base/types.h"
@@ -24,10 +23,8 @@ port_t TestOnly_FindFreeUdpPort(int family) {
 }
 
 std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family) {
-  auto maybe_socket = TcpSocket::Create(family);
-  CHECK_OK(maybe_socket);  // Crash OK
-
-  auto socket = std::move(maybe_socket).value();
+  std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family);
+  CHECK_NE(socket, nullptr);  // Crash OK
   DCHECK_EQ(socket->family(), family);
   DCHECK(socket->IsValid());
   DCHECK(socket->IsBlocking());
@@ -36,10 +33,8 @@ std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family) {
 }
 
 std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family) {
-  auto maybe_socket = UdpSocket::Create(family);
-  CHECK_OK(maybe_socket);  // Crash OK
-
-  auto socket = std::move(maybe_socket).value();
+  std::unique_ptr<UdpSocket> socket = UdpSocket::Create(family);
+  CHECK_NE(socket, nullptr);  // Crash OK
   DCHECK_EQ(socket->family(), family);
   DCHECK(socket->IsValid());
   DCHECK(socket->IsBlocking());

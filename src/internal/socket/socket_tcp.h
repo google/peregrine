@@ -9,14 +9,12 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <string_view>
 
-#include "absl/log/check.h"
-#include "absl/log/log.h"
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "src/api/types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_base.h"
+#include "src/internal/socket/socket_util.h"
 
 namespace peregrine::internal {
 
@@ -27,7 +25,7 @@ namespace peregrine::internal {
 class TcpSocket final : public SocketBase {
  public:
   // Creates an unconnected tcp socket.
-  static absl::StatusOr<std::unique_ptr<TcpSocket>> Create(int family);
+  static std::unique_ptr<TcpSocket> Create(int family);
 
   // Creates a connected tcp socket.
   static std::unique_ptr<TcpSocket> Create(int fd, int family);
@@ -36,26 +34,26 @@ class TcpSocket final : public SocketBase {
   ~TcpSocket();
 
   // Listens on the local `ip:port`.
-  absl::Status Listen(const IpAddr& ip, port_t port) const;
+  bool Listen(const IpAddr& ip, port_t port) const;
 
   // Accepts a new connection by this listening socket. Returns the new spawn
-  // socket file descriptor if successful. Otherwise, returns an error status.
-  absl::StatusOr<int> Accept() const;
+  // socket file descriptor if successful. Otherwise, returns -1.
+  int Accept() const;
 
   // Connects to the peer `ip:port`.
-  absl::Status Connect(const IpAddr& ip, port_t port);
+  bool Connect(const IpAddr& ip, port_t port);
 
-  // Sends `len` bytes of data from the `buf`. Returns OK if all the data has
-  // been sent successfully. Otherwise, returns an error status.
-  absl::Status Send(const Byte* buf, size_t len) const;
+  // Sends `len` bytes of data from the `buf`. Returns true if all the data has
+  // been sent successfully. Otherwise, returns false.
+  bool Send(const Byte* buf, size_t len) const;
 
-  // Sends `len` bytes of data from `n` `iov` buffers. Returns OK if all the
-  // data has been sent successfully. Otherwise, returns an error status.
-  // absl::Status Send(const struct iovec* iov, int n, size_t len) const;
+  // Sends `len` bytes of data from `n` `iov` buffers. Returns true if all the
+  // data has been sent successfully. Otherwise, returns false.
+  // bool Send(const struct iovec* iov, int n, size_t len) const;
 
   // Receives exactly `len` bytes of data into the `buf`.
-  // Returns OK if successful. Otherwise, returns an error status.
-  absl::Status Recv(Byte* buf, size_t len) const;
+  // Returns true if successful. Otherwise, returns false.
+  bool Recv(Byte* buf, size_t len) const;
 
   // Returns a self/peer address pair string of the socket.
   std::string ToString() const;
@@ -65,6 +63,21 @@ class TcpSocket final : public SocketBase {
   // The `fd` comes from a successful `Create()` or `Accept()` call.
   TcpSocket(int fd, int family, bool connected)
       : SocketBase(fd, family, connected) {}
+
+  // Returns a success message for the last socket operation.
+  static std::string successMsg(std::string_view func, int fd) {
+    return SuccessMsg("tcp", func, fd);
+  }
+
+  // Returns a success message for the last socket operation.
+  std::string successMsg(std::string_view func) const {
+    return SuccessMsg("tcp", func, fd_);
+  }
+
+  // Returns an error message for the last socket operation.
+  std::string errorMsg(std::string_view func) const {
+    return ErrorMsg("tcp", func, fd_);
+  }
 };
 
 inline std::ostream& operator<<(std::ostream& os, const TcpSocket& s) {

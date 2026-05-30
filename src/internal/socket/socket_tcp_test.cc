@@ -66,23 +66,23 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
   // First, create a server thread.
   absl::Notification server_ready;
   std::thread server([&]() {
-    CHECK_OK(listen_socket_->Listen(listen_ip_, listen_port_));
+    CHECK(listen_socket_->Listen(listen_ip_, listen_port_));
     server_ready.Notify();
-    const auto maybe_new_fd = listen_socket_->Accept();
-    CHECK_OK(maybe_new_fd);
-    auto new_socket = TcpSocket::Create(maybe_new_fd.value(), AF_INET);
+    const int new_fd = listen_socket_->Accept();
+    CHECK_GE(new_fd, 0);
+    auto new_socket = TcpSocket::Create(new_fd, AF_INET);
     CHECK(new_socket->IsConnected());
     CHECK(new_socket->IsBlocking());
-    CHECK_OK(new_socket->Recv(recv_buf.data(), kMsgSize));
+    CHECK(new_socket->Recv(recv_buf.data(), kMsgSize));
   });
 
   // Second, create a client thread.
   std::thread client([&]() {
     server_ready.WaitForNotification();
-    CHECK_OK(connect_socket_->Connect(listen_ip_, listen_port_));
+    CHECK(connect_socket_->Connect(listen_ip_, listen_port_));
     CHECK(connect_socket_->IsConnected());
     CHECK(connect_socket_->IsBlocking());
-    CHECK_OK(connect_socket_->Send(message.data(), kMsgSize));
+    CHECK(connect_socket_->Send(message.data(), kMsgSize));
   });
 
   // Wait for both threads to finish.
@@ -103,23 +103,23 @@ TEST_F(TcpIPv6SocketTest, BigData) {
   // First, create a server thread.
   absl::Notification server_ready;
   std::thread server([&]() {
-    CHECK_OK(listen_socket_->Listen(listen_ip_, listen_port_));
+    CHECK(listen_socket_->Listen(listen_ip_, listen_port_));
     server_ready.Notify();
-    const auto maybe_new_fd = listen_socket_->Accept();
-    CHECK_OK(maybe_new_fd);
-    auto new_socket = TcpSocket::Create(maybe_new_fd.value(), AF_INET6);
+    const int new_fd = listen_socket_->Accept();
+    CHECK_GE(new_fd, 0);
+    auto new_socket = TcpSocket::Create(new_fd, AF_INET6);
     CHECK(new_socket->IsConnected());
     CHECK(new_socket->IsBlocking());
-    CHECK_OK(new_socket->Recv(recv_buf.data(), kDataSize));
+    CHECK(new_socket->Recv(recv_buf.data(), kDataSize));
   });
 
   // Second, create a client thread.
   std::thread client([&]() {
     server_ready.WaitForNotification();
-    CHECK_OK(connect_socket_->Connect(listen_ip_, listen_port_));
+    CHECK(connect_socket_->Connect(listen_ip_, listen_port_));
     CHECK(connect_socket_->IsConnected());
     CHECK(connect_socket_->IsBlocking());
-    CHECK_OK(connect_socket_->Send(send_buf.data(), kDataSize));
+    CHECK(connect_socket_->Send(send_buf.data(), kDataSize));
   });
 
   // Wait for both threads to finish.

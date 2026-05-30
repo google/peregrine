@@ -7,7 +7,6 @@
 
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
-#include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
@@ -22,8 +21,9 @@ namespace peregrine::internal {
 // It is thread-compatible and but not thread-safe.
 class Endpoint final {
  public:
-  // Creates from a string, eg. "127.0.0.1:12345" or "[::1]:12345".
-  static absl::StatusOr<Endpoint> Create(std::string_view ipaddr_port);
+  // Parses and creates an endpoint from a string, eg. "127.0.0.1:12345" or
+  // "[::1]:12345". Returns an invalid endpoint if the string parsing fails.
+  static Endpoint Create(std::string_view ipaddr_port);
 
   // Default constructor creates an invalid endpoint.
   Endpoint() : ipaddr_(), port_(0) { DCHECK(!IsValid()); }

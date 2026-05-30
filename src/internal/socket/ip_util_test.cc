@@ -4,38 +4,40 @@
 #include <netinet/in.h>
 
 #include <cstring>
+#include <optional>
 #include <string_view>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/status/status.h"
 #include "src/internal/base/types.h"
 #include "src/internal/util/test_util.h"
 
 namespace peregrine::internal::testing {
 namespace {
 
-using ::absl::StatusCode::kInvalidArgument;
-using ::testing::status::StatusIs;
-
 TEST(IpUtilTest, ParseIPv4Addr) {
-  ASSERT_OK_AND_ASSIGN(const ipv4_t a, ParseIPv4Addr(kIPv4AnyAddr));
-  EXPECT_EQ(ntohl(a.s_addr), 0);
+  const std::optional<ipv4_t> a = ParseIPv4Addr(kIPv4AnyAddr);
+  EXPECT_TRUE(a.has_value());
+  EXPECT_EQ(ntohl(a.value().s_addr), 0);
 
-  ASSERT_OK_AND_ASSIGN(const ipv4_t b, ParseIPv4Addr(kIPv4Localhost));
-  EXPECT_EQ(ntohl(b.s_addr), 0x7f000001);
+  const std::optional<ipv4_t> b = ParseIPv4Addr(kIPv4Localhost);
+  EXPECT_TRUE(b.has_value());
+  EXPECT_EQ(ntohl(b.value().s_addr), 0x7f000001);
 
-  EXPECT_THAT(ParseIPv4Addr("?"), StatusIs(kInvalidArgument));
+  EXPECT_FALSE(ParseIPv4Addr("?").has_value());
 }
 
 TEST(IpUtilTest, ParseIPv6Addr) {
-  ASSERT_OK_AND_ASSIGN(const ipv6_t a, ParseIPv6Addr(kIPv6AnyAddr));
-  EXPECT_EQ(std::memcmp(&a, &in6addr_any, sizeof(a)), 0);
+  const std::optional<ipv6_t> a = ParseIPv6Addr(kIPv6AnyAddr);
+  EXPECT_TRUE(a.has_value());
+  const ipv6_t aa = a.value();
+  EXPECT_EQ(std::memcmp(&aa, &in6addr_any, sizeof(aa)), 0);
 
-  ASSERT_OK_AND_ASSIGN(const ipv6_t b, ParseIPv6Addr(kIPv6Localhost));
-  EXPECT_EQ(std::memcmp(&b, &in6addr_loopback, sizeof(b)), 0);
+  const std::optional<ipv6_t> b = ParseIPv6Addr(kIPv6Localhost);
+  EXPECT_TRUE(b.has_value());
+  const ipv6_t bb = b.value();
+  EXPECT_EQ(std::memcmp(&bb, &in6addr_loopback, sizeof(bb)), 0);
 
-  EXPECT_THAT(ParseIPv6Addr("?"), StatusIs(kInvalidArgument));
+  EXPECT_FALSE(ParseIPv6Addr("?").has_value());
 }
 
 TEST(IpUtilTest, ToIPv4AddrPortString) {
@@ -57,8 +59,8 @@ TEST(IpUtilTest, ToIPv6AddrPortString) {
 }
 
 TEST(IpUtilTest, BuildIPv4Sockaddr) {
-  ASSERT_OK_AND_ASSIGN(ipv4_t ip4, ParseIPv4Addr(kIPv4Localhost));
-  const IpAddr ip = ip4;
+  const std::optional<ipv4_t> ip4 = ParseIPv4Addr(kIPv4Localhost);
+  const IpAddr ip = ip4.value();
   struct sockaddr_in sa = BuildIPv4Sockaddr(ip, 34567);
   EXPECT_EQ(sa.sin_family, AF_INET);
   EXPECT_EQ(sa.sin_port, htons(34567));
@@ -66,8 +68,8 @@ TEST(IpUtilTest, BuildIPv4Sockaddr) {
 }
 
 TEST(IpUtilTest, BuildIPv6Sockaddr) {
-  ASSERT_OK_AND_ASSIGN(ipv6_t ip6, ParseIPv6Addr(kIPv6Localhost));
-  const IpAddr ip = ip6;
+  const std::optional<ipv6_t> ip6 = ParseIPv6Addr(kIPv6Localhost);
+  const IpAddr ip = ip6.value();
   struct sockaddr_in6 sa = BuildIPv6Sockaddr(ip, 45678);
   EXPECT_EQ(sa.sin6_family, AF_INET6);
   EXPECT_EQ(sa.sin6_port, htons(45678));

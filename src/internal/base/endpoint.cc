@@ -2,12 +2,12 @@
 
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include "absl/log/check.h"
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
+#include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "src/internal/base/types.h"
@@ -16,21 +16,20 @@
 namespace peregrine::internal {
 
 namespace {
-absl::Status InvalidArgumentError(const std::string_view msg,
-                                  const std::string_view arg) {
-  return absl::InvalidArgumentError(absl::StrCat(msg, " ", arg));
-}
-
-bool LooksLikeIPv6(std::string_view addr) {
+inline bool LooksLikeIPv6(std::string_view addr) {
   return addr.starts_with('[') && addr.ends_with(']');
 }
 }  // namespace
 
-absl::StatusOr<Endpoint> Endpoint::Create(const std::string_view ipaddr_port) {
+Endpoint Endpoint::Create(const std::string_view ipaddr_port) {
   // "127.0.0.1:12345" or "[::1]:12345", or sth invalid
+  const Endpoint invalid;
+  DCHECK(!invalid.IsValid());
+
   const auto pos = ipaddr_port.rfind(':');
   if (pos == std::string_view::npos) {
-    return InvalidArgumentError("invalid", ipaddr_port);
+    LOG(WARNING) << "invalid ip:port " << ipaddr_port;
+    return invalid;
   }
 
   const std::string_view a = ipaddr_port.substr(0, pos);
@@ -38,23 +37,31 @@ absl::StatusOr<Endpoint> Endpoint::Create(const std::string_view ipaddr_port) {
 
   uint16_t port;
   if (!(absl::SimpleAtoi(p, &port) && 1 <= port && port <= 65535)) {
-    return InvalidArgumentError("invalid port in ", ipaddr_port);
+    LOG(WARNING) << "invalid port in " << ipaddr_port;
+    return invalid;
   }
 
   std::string_view ipaddr = a;
   if (LooksLikeIPv6(ipaddr)) {
     ipaddr = a.substr(1, a.size() - 2);  // "[...]" -> "..."
-    const absl::StatusOr<ipv6_t> ipv6 = ParseIPv6Addr(ipaddr);
-    if (!ipv6.ok()) {
-      return InvalidArgumentError("invalid ipv6 addr in ", ipaddr_port);
+    const std::optional<ipv6_t> ipv6 = ParseIPv6Addr(ipaddr);
+    if (!ipv6.has_value()) {
+      LOG(WARNING) << "invalid ipv6 addr in " << ipaddr_port;
+      return invalid;
     }
-    return Endpoint(ipv6.value(), port);
+    const Endpoint e(ipv6.value(), port);
+    DCHECK(e.IsValid());
+    return e;
+
   } else {
-    const absl::StatusOr<ipv4_t> ipv4 = ParseIPv4Addr(ipaddr);
-    if (!ipv4.ok()) {
-      return InvalidArgumentError("invalid ipv4 addr in ", ipaddr_port);
+    const std::optional<ipv4_t> ipv4 = ParseIPv4Addr(ipaddr);
+    if (!ipv4.has_value()) {
+      LOG(WARNING) << "invalid ipv4 addr in " << ipaddr_port;
+      return invalid;
     }
-    return Endpoint(ipv4.value(), port);
+    const Endpoint e(ipv4.value(), port);
+    DCHECK(e.IsValid());
+    return e;
   }
 }
 

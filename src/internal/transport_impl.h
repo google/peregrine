@@ -29,8 +29,8 @@ class TransportImpl final : public Transport {
   // memories specified by the `request` valid until it is completely served.
   absl::StatusOr<Handle> Post(std::string_view peer,
                               const Request& request) override {
-    const absl::StatusOr<Endpoint> endpoint = Endpoint::Create(peer);
-    if ABSL_PREDICT_FALSE (!endpoint.ok()) {
+    const Endpoint endpoint = Endpoint::Create(peer);
+    if ABSL_PREDICT_FALSE (!endpoint.IsValid()) {
       return absl::InvalidArgumentError(
           absl::StrCat("Invalid peer endpoint ", peer));
     }
@@ -38,7 +38,7 @@ class TransportImpl final : public Transport {
       return absl::InvalidArgumentError(
           absl::StrCat("Invalid ", request.ToString()));
     }
-    return engine_.Enqueue(endpoint.value(), request);
+    return engine_.Enqueue(endpoint, request);
   }
 
   // Polls the status of the transport request identified by the `handle`.
