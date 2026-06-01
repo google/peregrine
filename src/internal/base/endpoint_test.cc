@@ -1,5 +1,8 @@
 #include "src/internal/base/endpoint.h"
 
+#include <arpa/inet.h>
+
+#include <cstring>
 #include <utility>
 
 #include "gtest/gtest.h"
@@ -73,6 +76,24 @@ TEST(EndpointTest, Hash) {
   set.insert(c);
   set.insert(d);
   EXPECT_EQ(set.size(), 3);
+}
+
+TEST(EndpointTest, BuildIPv4Sockaddr) {
+  const Endpoint e = Endpoint::Create("127.0.0.1:34567");
+  struct sockaddr_in sa = e.BuildIPv4Sockaddr();
+  EXPECT_EQ(sa.sin_family, AF_INET);
+  EXPECT_EQ(sa.sin_port, htons(34567));
+  EXPECT_EQ(sa.sin_addr.s_addr, inet_addr("127.0.0.1"));
+}
+
+TEST(EndpointTest, BuildIPv6Sockaddr) {
+  const Endpoint e = Endpoint::Create("[::1]:45678");
+  struct sockaddr_in6 sa = e.BuildIPv6Sockaddr();
+  EXPECT_EQ(sa.sin6_family, AF_INET6);
+  EXPECT_EQ(sa.sin6_port, htons(45678));
+  struct in6_addr addr2;
+  ASSERT_EQ(inet_pton(AF_INET6, "::1", &addr2), 1);
+  EXPECT_EQ(std::memcmp(&sa.sin6_addr, &addr2, sizeof(addr2)), 0);
 }
 
 }  // namespace

@@ -17,17 +17,6 @@ namespace peregrine::internal {
 // Returns its file descriptor if successful, or -1 otherwise.
 int CreateSocket(int family, int type, bool nonblocking);
 
-// Returns a self ip:port string for the socket `fd`.
-std::string SelfAddrPort(int fd);
-
-// Returns a peer ip:port string for the socket `fd`.
-std::string PeerAddrPort(int fd);
-
-// Returns a string of self/peer ip:port pair for the socket `fd`.
-inline std::string AddrPortPair(int fd) {
-  return absl::StrCat(SelfAddrPort(fd), " <> ", PeerAddrPort(fd));
-}
-
 // Sets socket option. Returns true if successful, false otherwise.
 inline bool SetOption(int fd, int opt, const void* val, socklen_t len) {
   return setsockopt(fd, SOL_SOCKET, opt, val, len) >= 0;
@@ -64,6 +53,20 @@ inline bool WouldBlock() { return errno == EAGAIN || errno == EWOULDBLOCK; }
 
 // Returns true iff the socket connect operation is in progress.
 inline bool InProgress() { return errno == EINPROGRESS; }
+
+// Returns a self ip:port string for the socket `fd`.
+std::string SelfAddrPort(int fd);
+
+// Returns a peer ip:port string for the socket `fd`.
+std::string PeerAddrPort(int fd);
+
+// Returns a string of self/peer ip:port pair for the socket `fd`.
+inline std::string AddrPortPair(int fd) {
+  return absl::StrCat(SelfAddrPort(fd), " <> ", PeerAddrPort(fd));
+}
+
+// Returns a "ipv4:port" or "[ipv6]:port" string.
+std::string ToIpAddrPortString(const struct sockaddr_storage& ss);
 
 // Returns a success message for the last socket operation.
 inline std::string SuccessMsg(std::string_view who, std::string_view what,

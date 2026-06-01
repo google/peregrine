@@ -15,7 +15,7 @@
 namespace peregrine::internal {
 
 // This class represents a network endpoint, which is a combination of
-// an IPv{4,6} address and a port number. It is used to uniquely identifies
+// an ipv{4,6} address and a port number. It is used to uniquely identify
 // a process, whose control channel listens on the `ip:port`.
 //
 // It is thread-compatible and but not thread-safe.
@@ -59,15 +59,13 @@ class Endpoint final {
   // Returns true iff the endpoint has an ipv6 address.
   bool IsIPv6() const { return ipaddr_.IsIPv6(); }
 
-  // Returns the ipv4 address of the endpoint.
-  // REQUIRE: `IsIPv4()` is true.
+  // Returns the ipv4 address of the ipv4 endpoint.
   const ipv4_t& IPv4Addr() const {
     DCHECK(IsIPv4());
     return ipaddr_.IPv4Addr();
   }
 
-  // Returns the ipv6 address of the endpoint.
-  // REQUIRE: `IsIPv6()` is true.
+  // Returns the ipv6 address of the ipv6 endpoint.
   const ipv6_t& IPv6Addr() const {
     DCHECK(IsIPv6());
     return ipaddr_.IPv6Addr();
@@ -75,6 +73,12 @@ class Endpoint final {
 
   // Returns the port of the endpoint.
   port_t Port() const { return port_; };
+
+  // Builds a `sockaddr_in` struct for the ipv4 endpoint.
+  struct sockaddr_in BuildIPv4Sockaddr() const;
+
+  // Builds a `sockaddr_in6` struct for the ipv6 endpoint.
+  struct sockaddr_in6 BuildIPv6Sockaddr() const;
 
   // Equality operator.
   friend bool operator==(const Endpoint& a, const Endpoint& b) {

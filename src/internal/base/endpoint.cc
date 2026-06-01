@@ -63,6 +63,24 @@ Endpoint Endpoint::Create(const std::string_view ipaddr_port) {
   }
 }
 
+struct sockaddr_in Endpoint::BuildIPv4Sockaddr() const {
+  DCHECK(IsIPv4());
+  return sockaddr_in{
+      .sin_family = AF_INET,
+      .sin_port = htons(port_),
+      .sin_addr = IPv4Addr(),
+  };
+}
+
+struct sockaddr_in6 Endpoint::BuildIPv6Sockaddr() const {
+  DCHECK(IsIPv6());
+  return sockaddr_in6{
+      .sin6_family = AF_INET6,
+      .sin6_port = htons(port_),
+      .sin6_addr = IPv6Addr(),
+  };
+}
+
 std::string Endpoint::ToString() const {
   const std::string addr = ipaddr_.ToString();
   if (ipaddr_.IsIPv4()) {

@@ -19,7 +19,6 @@
 #include "src/api/types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
-#include "src/internal/socket/ip_util.h"
 #include "src/internal/socket/socket_util.h"
 #include "src/internal/util/util.h"
 
@@ -45,22 +44,22 @@ UdpSocket::~UdpSocket() {
 
 namespace {
 auto BindV4(int fd, const Endpoint& local) {
-  const struct sockaddr_in sa = BuildIPv4Sockaddr(local);
+  const struct sockaddr_in sa = local.BuildIPv4Sockaddr();
   return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
 auto BindV6(int fd, const Endpoint& local) {
-  const struct sockaddr_in6 sa = BuildIPv6Sockaddr(local);
+  const struct sockaddr_in6 sa = local.BuildIPv6Sockaddr();
   return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
 auto ConnectV4(int fd, const Endpoint& peer) {
-  const struct sockaddr_in sa = BuildIPv4Sockaddr(peer);
+  const struct sockaddr_in sa = peer.BuildIPv4Sockaddr();
   return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
 auto ConnectV6(int fd, const Endpoint& peer) {
-  const struct sockaddr_in6 sa = BuildIPv6Sockaddr(peer);
+  const struct sockaddr_in6 sa = peer.BuildIPv6Sockaddr();
   return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 }  // namespace

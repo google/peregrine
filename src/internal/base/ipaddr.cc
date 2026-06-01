@@ -76,7 +76,7 @@ std::string ToIPv6String(const ipv6_t& ip6) {
   }
 }
 
-std::optional<IpAddr> Create(std::string_view ip) {
+std::optional<IpAddr> IpAddr::Create(std::string_view ip) {
   if (auto v4 = ParseIPv4Addr(ip); v4.has_value()) {
     return IpAddr(v4.value());
   } else if (auto v6 = ParseIPv6Addr(ip); v6.has_value()) {
@@ -88,18 +88,16 @@ std::optional<IpAddr> Create(std::string_view ip) {
 
 bool operator==(const IpAddr& a, const IpAddr& b) {
   if (a.IsIPv4() && b.IsIPv4()) {
-    const ipv4_t& a4 = a.IPv4Addr();
-    const ipv4_t& b4 = b.IPv4Addr();
-    return a4.s_addr == b4.s_addr;
-
+    return a.IPv4Addr().s_addr == b.IPv4Addr().s_addr;
   } else if (a.IsIPv6() && b.IsIPv6()) {
-    const ipv6_t& a6 = a.IPv6Addr();
-    const ipv6_t& b6 = b.IPv6Addr();
-    return memcmp(&a6, &b6, sizeof(ipv6_t)) == 0;
-
+    return std::memcmp(&a.IPv6Addr(), &b.IPv6Addr(), sizeof(ipv6_t)) == 0;
   } else {
     return false;
   }
+}
+
+std::string IpAddr::ToString() const {
+  return IsIPv4() ? ToIPv4String(IPv4Addr()) : ToIPv6String(IPv6Addr());
 }
 
 }  // namespace peregrine::internal

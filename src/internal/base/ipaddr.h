@@ -24,11 +24,11 @@ namespace peregrine::internal {
 using ipv4_t = ::in_addr;
 using ipv6_t = ::in6_addr;
 
-// Parses the `ip` address and returns an `in_addr` struct if successful.
+// Parses the `ip` address string. Returns an `in_addr` struct if successful.
 // Otherwise, returns `std::nullopt`.
 std::optional<ipv4_t> ParseIPv4Addr(std::string_view ip);
 
-// Parses the `ip` address and returns an `in6_addr` struct if successful.
+// Parses the `ip` address string. Returns an `in6_addr` struct if successful.
 // Otherwise, returns `std::nullopt`.
 std::optional<ipv6_t> ParseIPv6Addr(std::string_view ip);
 
@@ -93,23 +93,19 @@ class IpAddr final {
   }
 
   // Returns a string representation of the ip address.
-  std::string ToString() const {
-    return IsIPv4() ? ToIPv4String(IPv4Addr()) : ToIPv6String(IPv6Addr());
-  }
+  std::string ToString() const;
 
  private:
-  // Calculates a hash value for the endpoint.
+  // Calculates a hash value for the ip address.
   template <typename H>
   friend H AbslHashValue(H h, const IpAddr& ip) {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     if (ip.IsIPv4()) {
-      const ipv4_t& ip4 = ip.IPv4Addr();
-      return H::combine(std::move(h), ip4.s_addr);
+      return H::combine(std::move(h), ip.IPv4Addr().s_addr);
     } else {
       DCHECK(ip.IsIPv6());
-      const ipv6_t& ip6 = ip.IPv6Addr();
-      const auto v = absl::MakeConstSpan(ip6.s6_addr, sizeof(ip6.s6_addr));
-      return H::combine(std::move(h), v);
+      return H::combine(std::move(h), absl::MakeConstSpan(ip.IPv6Addr().s6_addr,
+                                                          sizeof(ipv6_t)));
     }
   }
 
