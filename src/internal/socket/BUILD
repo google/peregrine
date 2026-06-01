@@ -4,6 +4,63 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//src/internal:internal_impl"])
 
 cc_library(
+    name = "acceptor",
+    srcs = ["acceptor.cc"],
+    hdrs = ["acceptor.h"],
+    deps = [
+        ":socket_tcp",
+        "//src/internal/base:endpoint",
+        "//src/internal/base:types",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/memory",
+    ],
+)
+
+cc_test(
+    name = "acceptor_test",
+    srcs = ["acceptor_test.cc"],
+    deps = [
+        ":acceptor",
+        ":socket_tcp",
+        "//src/internal/base:endpoint",
+        "//src/internal/util:test_util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "connector",
+    srcs = ["connector.cc"],
+    hdrs = ["connector.h"],
+    deps = [
+        ":socket_tcp",
+        "//src/internal/base:endpoint",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "connector_test",
+    srcs = ["connector_test.cc"],
+    deps = [
+        ":acceptor",
+        ":connector",
+        ":socket_tcp",
+        "//src/internal/base:endpoint",
+        "//src/internal/util:test_util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "ip_util",
     srcs = ["ip_util.cc"],
     hdrs = ["ip_util.h"],
