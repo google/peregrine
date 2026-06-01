@@ -27,6 +27,7 @@ cc_library(
     hdrs = ["test_util.h"],
     deps = [
         "//src/internal/base:types",
+        "//src/internal/socket:ip_util",
         "//src/internal/socket:socket_tcp",
         "//src/internal/socket:socket_udp",
         "//src/util",

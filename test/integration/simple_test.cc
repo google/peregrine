@@ -39,8 +39,8 @@ class SimpleTest : public testing::Test {
   }
 
  protected:
-  util::App l_;
-  util::App r_;
+  util::App l_;  // local
+  util::App r_;  // remote
 };
 
 TEST_F(SimpleTest, Read) {

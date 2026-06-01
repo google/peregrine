@@ -83,7 +83,6 @@ cc_test(
     name = "socket_tcp_test",
     srcs = ["socket_tcp_test.cc"],
     deps = [
-        ":ip_util",
         ":socket_tcp",
         "//src/api:types",
         "//src/internal/base:types",
@@ -117,7 +116,6 @@ cc_test(
     name = "socket_udp_test",
     srcs = ["socket_udp_test.cc"],
     deps = [
-        ":ip_util",
         ":socket_udp",
         "//src/api:types",
         "//src/internal/base:types",

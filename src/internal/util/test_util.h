@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "src/internal/base/types.h"
+#include "src/internal/socket/ip_util.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_udp.h"
 
@@ -19,6 +20,26 @@ inline constexpr std::string_view kIPv4AnyAddr = "0.0.0.0";
 inline constexpr std::string_view kIPv6AnyAddr = "::";
 inline constexpr std::string_view kIPv4Localhost = "127.0.0.1";
 inline constexpr std::string_view kIPv6Localhost = "::1";
+
+// Returns the ipv4 `ANY_ADDR` (all 0's).
+inline IpAddr IPv4AnyAddr() {
+  return IpAddr(ParseIPv4Addr(kIPv4AnyAddr).value());
+}
+
+// Returns the ipv6 `ANY_ADDR` (all 0's).
+inline IpAddr IPv6AnyAddr() {
+  return IpAddr(ParseIPv6Addr(kIPv6AnyAddr).value());
+}
+
+// Returns the ipv4 localhost address.
+inline IpAddr IPv4Localhost() {
+  return IpAddr(ParseIPv4Addr(kIPv4Localhost).value());
+}
+
+// Returns the ipv6 localhost address.
+inline IpAddr IPv6Localhost() {
+  return IpAddr(ParseIPv6Addr(kIPv6Localhost).value());
+}
 
 // Finds an unused TCP port in the given address `family`.
 // Return a non-zero port if successful, otherwise crashes.

@@ -34,6 +34,9 @@ class Endpoint final {
   // Constructor for ipv6.
   Endpoint(ipv6_t ip6, port_t port) : ipaddr_(ip6), port_(port) {}
 
+  // Constructor for ipv{4,6}.
+  Endpoint(const IpAddr& ip, port_t port) : ipaddr_(ip), port_(port) {}
+
   // Allows copy/move.
   ALLOW_COPY(Endpoint);
   ALLOW_MOVE(Endpoint);
@@ -42,7 +45,7 @@ class Endpoint final {
   ~Endpoint() = default;
 
   // Returns the ip address of the endpoint.
-  IpAddr GetIpAddr() const { return ipaddr_; };
+  const IpAddr& GetIpAddr() const { return ipaddr_; };
 
   // Returns the port of the endpoint.
   port_t Port() const { return port_; };

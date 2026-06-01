@@ -68,20 +68,31 @@ inline bool InProgress() { return errno == EINPROGRESS; }
 // Returns a success message for the last socket operation.
 inline std::string SuccessMsg(std::string_view who, std::string_view what,
                               int fd) {
-  return absl::StrCat(who, " socket ", what, " fd=", fd, " ", AddrPortPair(fd));
+  return absl::StrCat(who, " socket ", what, ", fd=", fd, " ",
+                      AddrPortPair(fd));
+}
+
+// Returns a success message for the last socket send/recv call.
+inline std::string SuccessMsg(std::string_view who, std::string_view what,
+                              int fd, size_t bytes) {
+  return absl::StrCat(who, " socket ", what, ", fd=", fd, " ", AddrPortPair(fd),
+                      " #bytes=", bytes);
 }
 
 // Returns an error message for the last socket operation.
 inline std::string ErrorMsg(std::string_view who, std::string_view what,
                             int fd) {
-  return absl::StrFormat("%s socket %s failed: fd=%d errno=%d (%s)", who, what,
-                         fd, errno, std::strerror(errno));
+  const auto last_errno = errno;
+  return absl::StrFormat("%s socket %s failed: fd=%d %s errno=%d (%s)", who,
+                         what, fd, AddrPortPair(fd), last_errno,
+                         std::strerror(last_errno));
 }
 
 // Returns an error message for the last socket operation.
 inline std::string ErrorMsg(std::string_view what) {
-  return absl::StrFormat("socket %s failed: errno=%d (%s)", what, errno,
-                         std::strerror(errno));
+  const auto last_errno = errno;
+  return absl::StrFormat("socket %s failed: errno=%d (%s)", what, last_errno,
+                         std::strerror(last_errno));
 }
 
 }  // namespace peregrine::internal

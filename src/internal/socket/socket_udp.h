@@ -11,6 +11,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "src/api/types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_base.h"
@@ -58,22 +59,32 @@ class UdpSocket final : public SocketBase {
  private:
   // Constructor with a valid file descriptor `fd`.
   // The `fd` comes from a successful `Create()` call.
-  UdpSocket(int fd, int family) : SocketBase(fd, family, /*connected=*/false) {}
+  UdpSocket(int fd, int family) : SocketBase(fd, family, /*connected=*/false) {
+    DCHECK(invariant());
+  }
 
+ private:
   // Returns a success message for the last socket operation.
-  static std::string successMsg(std::string_view func, int fd) {
-    return SuccessMsg("udp", func, fd);
+  static std::string okMsg(std::string_view func, int fd) {
+    return SuccessMsg(kUdp, func, fd);
   }
 
   // Returns a success message for the last socket operation.
-  std::string successMsg(std::string_view func) const {
-    return SuccessMsg("udp", func, fd_);
+  std::string okMsg(std::string_view func) const {
+    return SuccessMsg(kUdp, func, fd_);
+  }
+
+  // Returns a success message for the socket send/recv call.
+  std::string ioMsg(std::string_view func, size_t bytes) const {
+    return SuccessMsg(kUdp, func, fd_, bytes);
   }
 
   // Returns an error message for the last socket operation.
-  std::string errorMsg(std::string_view func) const {
-    return ErrorMsg("udp", func, fd_);
+  std::string errMsg(std::string_view func) const {
+    return ErrorMsg(kUdp, func, fd_);
   }
+
+  static constexpr std::string_view kUdp = "udp";
 };
 
 inline std::ostream& operator<<(std::ostream& os, const UdpSocket& s) {

@@ -26,10 +26,10 @@ namespace peregrine::internal {
 std::unique_ptr<TcpSocket> TcpSocket::Create(int family) {
   constexpr bool kNonblocking = false;
   const int fd = CreateSocket(family, SOCK_STREAM, kNonblocking);
-  if (fd < 0) {
+  if ABSL_PREDICT_FALSE (fd < 0) {
     return nullptr;
   } else {
-    LOG(INFO) << successMsg("create", fd);
+    LOG(INFO) << okMsg("created", fd);
     return absl::WrapUnique(new TcpSocket(fd, family, /*connected=*/false));
   }
 }
@@ -40,10 +40,10 @@ std::unique_ptr<TcpSocket> TcpSocket::Create(int fd, int family) {
 
 TcpSocket::~TcpSocket() {
   DCHECK(invariant());
-  LOG(INFO) << successMsg("shutdown");
-  ::shutdown(fd_, SHUT_RDWR);  // discards unread data
+  LOG(INFO) << okMsg("shutdown");
+  ::shutdown(fd_, SHUT_RDWR);  // no more send/recv
+  LOG(INFO) << okMsg("closing");
   connected_ = false;
-  LOG(INFO) << successMsg("close");
   ::close(fd_);
 }
 
@@ -82,43 +82,44 @@ auto AcceptV6(int fd) {
 }  // namespace
 
 bool TcpSocket::Listen(const IpAddr& ip, port_t port) const {
-  int opt = 1;  // enable
-  if (!SetOption(fd_, SO_REUSEADDR, &opt, sizeof(opt))) {
-    LOG(WARNING) << errorMsg("set SO_REUSEADDR");
+  int on = 1;
+  if ABSL_PREDICT_FALSE (!SetOption(fd_, SO_REUSEADDR, &on, sizeof(on))) {
+    LOG(WARNING) << errMsg("set SO_REUSEADDR");
     return false;
   }
   const auto bind = IsIPv4(ip) ? BindV4 : BindV6;
-  if (bind(fd_, ip, port) < 0) {
-    LOG(WARNING) << errorMsg("bind");
+  if ABSL_PREDICT_FALSE (bind(fd_, ip, port) < 0) {
+    LOG(WARNING) << errMsg("bind");
     return false;
-  } else if (::listen(fd_, SOMAXCONN) < 0) {
-    LOG(WARNING) << errorMsg("listen");
+  } else if (ABSL_PREDICT_FALSE(::listen(fd_, SOMAXCONN) < 0)) {
+    LOG(WARNING) << errMsg("listen");
     return false;
   } else {
-    LOG(INFO) << successMsg("listening on");
+    LOG(INFO) << okMsg("listening");
     return true;
   }
 }
 
 int TcpSocket::Accept() const {
   const auto accept = family_ == AF_INET ? AcceptV4 : AcceptV6;
-  if (const int new_fd = accept(fd_); new_fd < 0) {
-    LOG(WARNING) << errorMsg("accept");
+  const int new_fd = accept(fd_);
+  if ABSL_PREDICT_FALSE (new_fd < 0) {
+    LOG(WARNING) << errMsg("accept");
     return -1;
   } else {
     DCHECK_GE(new_fd, 0);
-    LOG(INFO) << successMsg("accepted", new_fd);
+    LOG(INFO) << okMsg("accepted", new_fd);
     return new_fd;
   }
 }
 
 bool TcpSocket::Connect(const IpAddr& ip, port_t port) {
   const auto connect = IsIPv4(ip) ? ConnectV4 : ConnectV6;
-  if (connect(fd_, ip, port) < 0) {
-    LOG(WARNING) << errorMsg("connect");
+  if ABSL_PREDICT_FALSE (connect(fd_, ip, port) < 0) {
+    LOG(WARNING) << errMsg("connect");
     return false;
   } else {
-    LOG(INFO) << successMsg("connected");
+    LOG(INFO) << okMsg("connected");
     connected_ = true;
     return true;
   }
@@ -137,13 +138,14 @@ bool TcpSocket::Send(const Byte* const buf, const size_t len) const {
       left -= bytes;
       sent += bytes;
       DCHECK_EQ(buf + len, ptr + left);
+      VLOG(1) << ioMsg("send", bytes);
     } else if (bytes < 0) {
       if (Interrupted()) continue;
-      LOG(WARNING) << errorMsg("send");
+      LOG(WARNING) << errMsg("send");
       return false;
     } else {  // rarely happens
       DCHECK_EQ(bytes, 0);
-      LOG(WARNING) << errorMsg("send zero");
+      LOG(WARNING) << errMsg("send zero");
       return false;
     }
   }
@@ -165,13 +167,14 @@ bool TcpSocket::Recv(Byte* const buf, const size_t len) const {
       left -= bytes;
       rcvd += bytes;
       DCHECK_EQ(buf + len, ptr + left);
+      VLOG(1) << ioMsg("recv", bytes);
     } else if (bytes < 0) {
       if (Interrupted()) continue;
-      LOG(WARNING) << errorMsg("recv");
+      LOG(WARNING) << errMsg("recv");
       return false;
     } else {
       DCHECK_EQ(bytes, 0);  // peer closed connection
-      LOG(INFO) << errorMsg("recv eof");
+      LOG(INFO) << errMsg("recv eof");
       return false;
     }
   }

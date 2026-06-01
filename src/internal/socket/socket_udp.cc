@@ -27,18 +27,17 @@ namespace peregrine::internal {
 std::unique_ptr<UdpSocket> UdpSocket::Create(int family) {
   constexpr bool kNonblocking = false;
   const int fd = CreateSocket(family, SOCK_DGRAM, kNonblocking);
-  if (fd < 0) {
+  if ABSL_PREDICT_FALSE (fd < 0) {
     return nullptr;
   } else {
-    LOG(INFO) << successMsg("created", fd);
+    LOG(INFO) << okMsg("created", fd);
     return absl::WrapUnique(new UdpSocket(fd, family));
   }
 }
 
 UdpSocket::~UdpSocket() {
   DCHECK(invariant());
-  LOG(INFO) << successMsg("closing");
-  ::shutdown(fd_, SHUT_RDWR);  // discards unread data
+  LOG(INFO) << okMsg("closing");
   connected_ = false;
   ::close(fd_);
 }
@@ -67,22 +66,22 @@ auto ConnectV6(int fd, const IpAddr& ip, port_t port) {
 
 bool UdpSocket::Bind(const IpAddr& ip, port_t port) const {
   const auto bind = IsIPv4(ip) ? BindV4 : BindV6;
-  if (bind(fd_, ip, port) < 0) {
-    LOG(WARNING) << errorMsg("bind");
+  if ABSL_PREDICT_FALSE (bind(fd_, ip, port) < 0) {
+    LOG(WARNING) << errMsg("bind");
     return false;
   } else {
-    LOG(INFO) << successMsg("bound");
+    LOG(INFO) << okMsg("bound");
     return true;
   }
 }
 
 bool UdpSocket::Connect(const IpAddr& ip, port_t port) {
   const auto connect = IsIPv4(ip) ? ConnectV4 : ConnectV6;
-  if (connect(fd_, ip, port) < 0) {
-    LOG(WARNING) << errorMsg("connect");
+  if ABSL_PREDICT_FALSE (connect(fd_, ip, port) < 0) {
+    LOG(WARNING) << errMsg("connect");
     return false;
   } else {
-    LOG(INFO) << successMsg("connected");
+    LOG(INFO) << okMsg("connected");
     connected_ = true;
     return true;
   }
@@ -95,9 +94,12 @@ bool UdpSocket::Send(const Byte* const buf, const size_t len) const {
   const ssize_t bytes = ::send(fd_, buf, len, /*flags=*/0);
   DCHECK(bytes == len || bytes < 0);
   if ABSL_PREDICT_TRUE (bytes == len) {
+    VLOG(1) << ioMsg("send", bytes);
     return true;
+  } else if (Interrupted()) {
+    return false;
   } else {
-    LOG(WARNING) << errorMsg("send");
+    LOG(WARNING) << errMsg("send");
     return false;
   }
 }
@@ -109,14 +111,15 @@ ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
   const ssize_t bytes = ::recv(fd_, buf, len, /*flags=*/0);
   DCHECK_LE(bytes, len);
   if ABSL_PREDICT_TRUE (bytes > 0) {
+    VLOG(1) << ioMsg("recv", bytes);
     return bytes;
   } else if (bytes < 0) {
     if (Interrupted()) return 0;
-    LOG(WARNING) << errorMsg("recv");
+    LOG(WARNING) << errMsg("recv");
     return -1;
   } else {
     DCHECK_EQ(bytes, 0);  // zero-length payload
-    LOG(INFO) << errorMsg("recv zero");
+    LOG(INFO) << ioMsg("recv", 0);
     return 0;
   }
 }
@@ -130,9 +133,12 @@ bool UdpSocket::SendV(const IoVec* const iov, const int n,
   const ssize_t bytes = ::writev(fd_, iov, n);
   DCHECK(bytes == len || bytes < 0);
   if ABSL_PREDICT_TRUE (bytes == len) {
+    VLOG(1) << ioMsg("writev", bytes);
     return true;
+  } else if (Interrupted()) {
+    return false;
   } else {
-    LOG(WARNING) << errorMsg("writev");
+    LOG(WARNING) << errMsg("writev");
     return false;
   }
 }
@@ -146,14 +152,15 @@ ssize_t UdpSocket::RecvV(const IoVec* const iov, const int n,
   const ssize_t bytes = ::readv(fd_, iov, n);
   DCHECK_LE(bytes, len);
   if ABSL_PREDICT_TRUE (bytes > 0) {
+    VLOG(1) << ioMsg("readv", bytes);
     return bytes;
   } else if (bytes < 0) {
     if (Interrupted()) return 0;
-    LOG(WARNING) << errorMsg("recv");
+    LOG(WARNING) << errMsg("readv");
     return -1;
   } else {
     DCHECK_EQ(bytes, 0);  // zero-length payload
-    LOG(INFO) << errorMsg("recv zero");
+    LOG(INFO) << ioMsg("readv", 0);
     return 0;
   }
 }

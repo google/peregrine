@@ -9,6 +9,8 @@
 #include <string>
 #include <variant>
 
+#include "absl/log/check.h"
+
 namespace peregrine::internal {
 
 // hash value
@@ -25,19 +27,20 @@ using ipv4_t = ::in_addr;
 using ipv6_t = ::in6_addr;
 using IpAddr = std::variant<ipv4_t, ipv6_t>;
 
-// returns the address family of `ip`.
-constexpr int AddressFamily(const IpAddr& ip) {
-  return std::holds_alternative<ipv4_t>(ip) ? AF_INET : AF_INET6;
-}
-
-// returns true iff `ip` is an IPv4 address.
+// Returns true iff `ip` is an IPv4 address.
 constexpr bool IsIPv4(const IpAddr& ip) {
   return std::holds_alternative<ipv4_t>(ip);
 }
 
-// returns true iff `ip` is an IPv6 address.
+// Returns true iff `ip` is an IPv6 address.
 constexpr bool IsIPv6(const IpAddr& ip) {
   return std::holds_alternative<ipv6_t>(ip);
+}
+
+// Returns the address family of `ip`.
+constexpr int AddressFamily(const IpAddr& ip) {
+  DCHECK(IsIPv4(ip) || IsIPv6(ip));
+  return IsIPv4(ip) ? AF_INET : AF_INET6;
 }
 
 // Returns a string representation of the ipv4 address.
