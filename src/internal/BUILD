@@ -35,6 +35,7 @@ cc_library(
 
 cc_library(
     name = "transport_impl",
+    srcs = ["transport_impl.cc"],
     hdrs = ["transport_impl.h"],
     deps = [
         "//src/api:transport",
