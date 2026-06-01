@@ -6,7 +6,6 @@
 #include "absl/status/statusor.h"
 #include "src/api/transport.h"
 #include "src/api/types.h"
-#include "src/internal/base/endpoint.h"
 #include "src/internal/engine/engine.h"
 
 namespace peregrine::internal {

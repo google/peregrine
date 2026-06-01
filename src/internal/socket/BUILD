@@ -10,7 +10,6 @@ cc_library(
     deps = [
         ":socket_tcp",
         "//src/internal/base:endpoint",
-        "//src/internal/base:types",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

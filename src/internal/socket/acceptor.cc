@@ -10,7 +10,6 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "src/internal/base/endpoint.h"
-#include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
