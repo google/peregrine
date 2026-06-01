@@ -5,15 +5,13 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
-#include "src/internal/base/types.h"
+#include "src/internal/base/ipaddr.h"
 
 namespace peregrine::internal::testing {
 namespace {
 
 constexpr ipv4_t kIPv4{.s_addr = 0x0100007f};
 constexpr ipv6_t kIPv6 = IN6ADDR_LOOPBACK_INIT;
-constexpr IpAddr kIpAddr4 = kIPv4;
-constexpr IpAddr kIpAddr6 = kIPv6;
 
 TEST(EndpointTest, Create) {
   EXPECT_EQ(Endpoint::Create("127.0.0.1:12345"), Endpoint(kIPv4, 12345));
@@ -46,11 +44,11 @@ TEST(EndpointTest, Ctors) {
   LOG(INFO) << "d = " << d;
   LOG(INFO) << "e = " << e;
 
-  const Endpoint f(kIpAddr4, 9999);
+  const Endpoint f(IpAddr(kIPv4), 9999);
   EXPECT_EQ(f, c);
   LOG(INFO) << "f = " << f;
 
-  const Endpoint g(kIpAddr6, 9999);
+  const Endpoint g(IpAddr(kIPv6), 9999);
   const Endpoint h(kIPv6, 9999);
   EXPECT_EQ(g, h);
   LOG(INFO) << "g = " << g;

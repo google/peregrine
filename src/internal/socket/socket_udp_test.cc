@@ -12,7 +12,7 @@
 #include "absl/log/check.h"
 #include "absl/synchronization/notification.h"
 #include "src/api/types.h"
-#include "src/internal/base/types.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/util/test_util.h"
 
 namespace peregrine::internal::testing {
@@ -22,27 +22,25 @@ template <int kFamily>
 class UdpSocketTest : public ::testing::Test {
  protected:
   UdpSocketTest()
-      : sndr_ip_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost()),
-        rcvr_ip_(sndr_ip_),
-        sndr_port_(TestOnly_FindFreeUdpPort(kFamily)),
-        rcvr_port_(TestOnly_FindFreeUdpPort(kFamily)),
-        sndr_(TestOnly_CreateUdpSocket(kFamily)),
-        rcvr_(TestOnly_CreateUdpSocket(kFamily)) {
-    CHECK_NE(sndr_port_, rcvr_port_);
-    DCHECK(sndr_->IsValid());
-    DCHECK(rcvr_->IsValid());
-    DCHECK(!sndr_->IsConnected());
-    DCHECK(!rcvr_->IsConnected());
-    DCHECK_NE(sndr_->fd(), rcvr_->fd());
+      : sndr_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
+              TestOnly_FindFreeUdpPort(kFamily)),
+        rcvr_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
+              TestOnly_FindFreeUdpPort(kFamily)),
+        sskt_(TestOnly_CreateUdpSocket(kFamily)),
+        rskt_(TestOnly_CreateUdpSocket(kFamily)) {
+    CHECK_NE(sndr_.Port(), rcvr_.Port());
+    DCHECK(sskt_->IsValid());
+    DCHECK(rskt_->IsValid());
+    DCHECK(!sskt_->IsConnected());
+    DCHECK(!rskt_->IsConnected());
+    DCHECK_NE(sskt_->fd(), rskt_->fd());
   }
 
  protected:
-  const IpAddr sndr_ip_;
-  const IpAddr rcvr_ip_;
-  const port_t sndr_port_;
-  const port_t rcvr_port_;
-  const std::unique_ptr<UdpSocket> sndr_;
-  const std::unique_ptr<UdpSocket> rcvr_;
+  const Endpoint sndr_;
+  const Endpoint rcvr_;
+  const std::unique_ptr<UdpSocket> sskt_;
+  const std::unique_ptr<UdpSocket> rskt_;
 };
 
 using UdpSocketIPv4Test = UdpSocketTest<AF_INET>;
@@ -58,22 +56,22 @@ TEST_F(UdpSocketIPv4Test, SendRecv) {
   // First, create a receiver thread.
   absl::Notification rcvr_ready;
   std::thread receiver([&]() {
-    CHECK(rcvr_->Bind(rcvr_ip_, rcvr_port_));
-    CHECK(rcvr_->Connect(sndr_ip_, sndr_port_));
-    DCHECK(rcvr_->IsConnected());
+    CHECK(rskt_->Bind(rcvr_));
+    CHECK(rskt_->Connect(sndr_));
+    DCHECK(rskt_->IsConnected());
     rcvr_ready.Notify();
-    DCHECK(rcvr_->IsBlocking());
-    CHECK(rcvr_->Recv(recv_buf.data(), kMsgSize));
+    DCHECK(rskt_->IsBlocking());
+    CHECK(rskt_->Recv(recv_buf.data(), kMsgSize));
   });
 
   // Second, create a sender thread.
   std::thread sender([&]() {
     rcvr_ready.WaitForNotification();
-    CHECK(sndr_->Bind(sndr_ip_, sndr_port_));
-    CHECK(sndr_->Connect(rcvr_ip_, rcvr_port_));
-    DCHECK(sndr_->IsConnected());
-    DCHECK(sndr_->IsBlocking());
-    CHECK(sndr_->Send(message.data(), kMsgSize));
+    CHECK(sskt_->Bind(sndr_));
+    CHECK(sskt_->Connect(rcvr_));
+    DCHECK(sskt_->IsConnected());
+    DCHECK(sskt_->IsBlocking());
+    CHECK(sskt_->Send(message.data(), kMsgSize));
   });
 
   // Wait for both threads to finish.
@@ -94,32 +92,32 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
   // First, create a receiver thread.
   absl::Notification rcvr_ready;
   std::thread receiver([&]() {
-    CHECK(rcvr_->Bind(rcvr_ip_, rcvr_port_));
-    CHECK(rcvr_->Connect(sndr_ip_, sndr_port_));
-    DCHECK(rcvr_->IsConnected());
+    CHECK(rskt_->Bind(rcvr_));
+    CHECK(rskt_->Connect(sndr_));
+    DCHECK(rskt_->IsConnected());
     constexpr int kRN = 2;
     const struct iovec recv_iov[kRN] = {
         {.iov_base = (void*)recv_buf.data(), .iov_len = 2},
         {.iov_base = (void*)(recv_buf.data() + 2), .iov_len = kMsgSize - 2},
     };
     rcvr_ready.Notify();
-    DCHECK(rcvr_->IsBlocking());
-    CHECK(rcvr_->RecvV(recv_iov, kRN, kMsgSize));
+    DCHECK(rskt_->IsBlocking());
+    CHECK(rskt_->RecvV(recv_iov, kRN, kMsgSize));
   });
 
   // Second, create a sender thread.
   std::thread sender([&]() {
     rcvr_ready.WaitForNotification();
-    CHECK(sndr_->Bind(sndr_ip_, sndr_port_));
-    CHECK(sndr_->Connect(rcvr_ip_, rcvr_port_));
-    DCHECK(sndr_->IsConnected());
+    CHECK(sskt_->Bind(sndr_));
+    CHECK(sskt_->Connect(rcvr_));
+    DCHECK(sskt_->IsConnected());
     constexpr int kSN = 2;
     const struct iovec send_iov[kSN] = {
         {.iov_base = (void*)message.data(), .iov_len = 1},
         {.iov_base = (void*)(message.data() + 1), .iov_len = kMsgSize - 1},
     };
-    DCHECK(sndr_->IsBlocking());
-    CHECK(sndr_->SendV(send_iov, kSN, kMsgSize));
+    DCHECK(sskt_->IsBlocking());
+    CHECK(sskt_->SendV(send_iov, kSN, kMsgSize));
   });
 
   // Wait for both threads to finish.

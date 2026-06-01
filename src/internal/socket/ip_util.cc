@@ -6,57 +6,22 @@
 
 #include <cerrno>
 #include <cstring>
-#include <optional>
 #include <string>
-#include <string_view>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "src/internal/base/types.h"
+#include "src/internal/base/endpoint.h"
 
 namespace peregrine::internal {
 
 namespace {
-std::string PtonErrorMsg(std::string_view ip, int v) {
-  return absl::StrFormat("inet_pton failed: ipv%d_addr=%s, errno=%d (%s)", v,
-                         ip, errno, std::strerror(errno));
-}
-
 std::string NtopErrorMsg(int v) {
   return absl::StrFormat("inet_ntop failed: ipv%d, errno=%d (%s)", v, errno,
                          std::strerror(errno));
 }
 }  // namespace
-
-std::optional<ipv4_t> ParseIPv4Addr(std::string_view ip) {
-  ipv4_t addr;
-  switch (inet_pton(AF_INET, std::string(ip).c_str(), &addr)) {
-    case 1:
-      return addr;
-    case 0:
-      LOG(WARNING) << "invalid ipv4 addr " << ip;
-      return std::nullopt;
-    default:
-      LOG(WARNING) << PtonErrorMsg(ip, 4);
-      return std::nullopt;
-  }
-}
-
-std::optional<ipv6_t> ParseIPv6Addr(const std::string_view ip) {
-  ipv6_t addr;
-  switch (inet_pton(AF_INET6, std::string(ip).c_str(), &addr)) {
-    case 1:
-      return addr;
-    case 0:
-      LOG(WARNING) << "invalid ipv6 addr " << ip;
-      return std::nullopt;
-    default:
-      LOG(WARNING) << PtonErrorMsg(ip, 6);
-      return std::nullopt;
-  }
-}
 
 namespace {
 template <int kFamily, int kAddrLen, typename T>
@@ -91,21 +56,21 @@ std::string ToIpAddrPortString(const struct sockaddr_storage& ss) {
   }
 }
 
-struct sockaddr_in BuildIPv4Sockaddr(const IpAddr& ip, const port_t port) {
-  DCHECK(IsIPv4(ip));
+struct sockaddr_in BuildIPv4Sockaddr(const Endpoint& e) {
+  DCHECK(e.IsIPv4());
   return sockaddr_in{
       .sin_family = AF_INET,
-      .sin_port = htons(port),
-      .sin_addr = std::get<ipv4_t>(ip),
+      .sin_port = htons(e.Port()),
+      .sin_addr = e.IPv4Addr(),
   };
 }
 
-struct sockaddr_in6 BuildIPv6Sockaddr(const IpAddr& ip, const port_t port) {
-  DCHECK(IsIPv6(ip));
+struct sockaddr_in6 BuildIPv6Sockaddr(const Endpoint& e) {
+  DCHECK(e.IsIPv6());
   return sockaddr_in6{
       .sin6_family = AF_INET6,
-      .sin6_port = htons(port),
-      .sin6_addr = std::get<ipv6_t>(ip),
+      .sin6_port = htons(e.Port()),
+      .sin6_addr = e.IPv6Addr(),
   };
 }
 

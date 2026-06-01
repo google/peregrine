@@ -12,7 +12,7 @@
 #include "absl/log/check.h"
 #include "absl/synchronization/notification.h"
 #include "src/api/types.h"
-#include "src/internal/base/types.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/util/test_util.h"
 
 namespace peregrine::internal::testing {
@@ -24,8 +24,8 @@ class TcpSocketTest : public ::testing::Test {
 
  protected:
   TcpSocketTest()
-      : listen_ip_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost()),
-        listen_port_(TestOnly_FindFreeTcpPort(kFamily)),
+      : local_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
+               TestOnly_FindFreeTcpPort(kFamily)),
         listener_(TestOnly_CreateTcpSocket(kFamily)),
         connector_(TestOnly_CreateTcpSocket(kFamily)) {
     DCHECK(listener_->IsValid());
@@ -36,8 +36,7 @@ class TcpSocketTest : public ::testing::Test {
   }
 
  protected:
-  const IpAddr listen_ip_;
-  const port_t listen_port_;
+  const Endpoint local_;
   const std::unique_ptr<TcpSocket> listener_;
   const std::unique_ptr<TcpSocket> connector_;
 };
@@ -55,7 +54,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
   // First, create a server thread.
   absl::Notification server_ready;
   std::thread server([&]() {
-    CHECK(listener_->Listen(listen_ip_, listen_port_));
+    CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
     const int new_fd = listener_->Accept();
@@ -70,7 +69,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
   // Second, create a client thread.
   std::thread client([&]() {
     server_ready.WaitForNotification();
-    CHECK(connector_->Connect(listen_ip_, listen_port_));
+    CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsConnected());
     DCHECK(connector_->IsBlocking());
     CHECK(connector_->Send(message.data(), kMsgSize));
@@ -94,7 +93,7 @@ TEST_F(TcpIPv6SocketTest, BigData) {
   // First, create a server thread.
   absl::Notification server_ready;
   std::thread server([&]() {
-    CHECK(listener_->Listen(listen_ip_, listen_port_));
+    CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
     const int new_fd = listener_->Accept();
@@ -109,7 +108,7 @@ TEST_F(TcpIPv6SocketTest, BigData) {
   // Second, create a client thread.
   std::thread client([&]() {
     server_ready.WaitForNotification();
-    CHECK(connector_->Connect(listen_ip_, listen_port_));
+    CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsConnected());
     DCHECK(connector_->IsBlocking());
     CHECK(connector_->Send(send_buf.data(), kDataSize));

@@ -5,20 +5,30 @@ package(default_visibility = ["//src/internal:internal_impl"])
 
 cc_library(
     name = "types",
-    srcs = ["types.cc"],
     hdrs = ["types.h"],
+)
+
+cc_library(
+    name = "ipaddr",
+    srcs = ["ipaddr.cc"],
+    hdrs = ["ipaddr.h"],
     deps = [
+        ":types",
+        "//src/internal:assumptions",
+        "//src/util:macro",
+        "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
 cc_test(
-    name = "types_test",
-    srcs = ["types_test.cc"],
+    name = "ipaddr_test",
+    srcs = ["ipaddr_test.cc"],
     deps = [
-        ":types",
+        ":ipaddr",
         "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],
@@ -29,15 +39,14 @@ cc_library(
     srcs = ["endpoint.cc"],
     hdrs = ["endpoint.h"],
     deps = [
+        ":ipaddr",
         ":types",
         "//src/internal:assumptions",
-        "//src/internal/socket:ip_util",
         "//src/util:macro",
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -46,7 +55,7 @@ cc_test(
     srcs = ["endpoint_test.cc"],
     deps = [
         ":endpoint",
-        ":types",
+        ":ipaddr",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",

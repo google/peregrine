@@ -13,7 +13,7 @@
 
 #include "absl/log/check.h"
 #include "src/api/types.h"
-#include "src/internal/base/types.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/socket/socket_base.h"
 #include "src/internal/socket/socket_util.h"
 
@@ -34,15 +34,15 @@ class TcpSocket final : public SocketBase {
   // Destructor closes the socket.
   ~TcpSocket();
 
-  // Listens on the local `ip:port`.
-  bool Listen(const IpAddr& ip, port_t port) const;
+  // Listens on the `local` endpoint.
+  bool Listen(const Endpoint& local) const;
 
-  // Accepts a new connection by this listening socket. Returns the new spawn
+  // Accepts a new connection to this listening socket. Returns the new spawn
   // socket file descriptor if successful. Otherwise, returns -1.
   int Accept() const;
 
-  // Connects to the peer `ip:port`.
-  bool Connect(const IpAddr& ip, port_t port);
+  // Connects to the `peer` endpoint.
+  bool Connect(const Endpoint& peer);
 
   // Sends `len` bytes of data from the `buf`. Returns true if all the data has
   // been sent successfully. Otherwise, returns false.

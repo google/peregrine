@@ -26,8 +26,9 @@ cc_library(
     srcs = ["test_util.cc"],
     hdrs = ["test_util.h"],
     deps = [
+        "//src/internal/base:endpoint",
+        "//src/internal/base:ipaddr",
         "//src/internal/base:types",
-        "//src/internal/socket:ip_util",
         "//src/internal/socket:socket_tcp",
         "//src/internal/socket:socket_udp",
         "//src/util",
@@ -40,6 +41,7 @@ cc_test(
     srcs = ["test_util_test.cc"],
     deps = [
         ":test_util",
+        "//src/internal/base:endpoint",
         "@googletest//:gtest_main",
     ],
 )

@@ -17,6 +17,7 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "src/api/types.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/ip_util.h"
 #include "src/internal/socket/socket_util.h"
@@ -43,30 +44,30 @@ UdpSocket::~UdpSocket() {
 }
 
 namespace {
-auto BindV4(int fd, const IpAddr& ip, port_t port) {
-  const struct sockaddr_in sa = BuildIPv4Sockaddr(ip, port);
+auto BindV4(int fd, const Endpoint& local) {
+  const struct sockaddr_in sa = BuildIPv4Sockaddr(local);
   return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto BindV6(int fd, const IpAddr& ip, port_t port) {
-  const struct sockaddr_in6 sa = BuildIPv6Sockaddr(ip, port);
+auto BindV6(int fd, const Endpoint& local) {
+  const struct sockaddr_in6 sa = BuildIPv6Sockaddr(local);
   return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV4(int fd, const IpAddr& ip, port_t port) {
-  const struct sockaddr_in sa = BuildIPv4Sockaddr(ip, port);
+auto ConnectV4(int fd, const Endpoint& peer) {
+  const struct sockaddr_in sa = BuildIPv4Sockaddr(peer);
   return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV6(int fd, const IpAddr& ip, port_t port) {
-  const struct sockaddr_in6 sa = BuildIPv6Sockaddr(ip, port);
+auto ConnectV6(int fd, const Endpoint& peer) {
+  const struct sockaddr_in6 sa = BuildIPv6Sockaddr(peer);
   return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
 }
 }  // namespace
 
-bool UdpSocket::Bind(const IpAddr& ip, port_t port) const {
-  const auto bind = IsIPv4(ip) ? BindV4 : BindV6;
-  if ABSL_PREDICT_FALSE (bind(fd_, ip, port) < 0) {
+bool UdpSocket::Bind(const Endpoint& local) const {
+  const auto bind = local.IsIPv4() ? BindV4 : BindV6;
+  if ABSL_PREDICT_FALSE (bind(fd_, local) < 0) {
     LOG(WARNING) << errMsg("bind");
     return false;
   } else {
@@ -75,9 +76,9 @@ bool UdpSocket::Bind(const IpAddr& ip, port_t port) const {
   }
 }
 
-bool UdpSocket::Connect(const IpAddr& ip, port_t port) {
-  const auto connect = IsIPv4(ip) ? ConnectV4 : ConnectV6;
-  if ABSL_PREDICT_FALSE (connect(fd_, ip, port) < 0) {
+bool UdpSocket::Connect(const Endpoint& peer) {
+  const auto connect = peer.IsIPv4() ? ConnectV4 : ConnectV6;
+  if ABSL_PREDICT_FALSE (connect(fd_, peer) < 0) {
     LOG(WARNING) << errMsg("connect");
     return false;
   } else {

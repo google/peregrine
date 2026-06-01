@@ -7,8 +7,8 @@
 
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
-#include "absl/types/span.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/base/ipaddr.h"
 #include "src/internal/base/types.h"
 #include "src/util/macro.h"
 
@@ -44,17 +44,42 @@ class Endpoint final {
   // Destructor.
   ~Endpoint() = default;
 
+  // Returns true iff the endpoint is valid.
+  bool IsValid() const {
+    DCHECK(0 <= port_ && port_ <= 65535);
+    return 1 <= port_;  // [1, 65535]
+  }
+
   // Returns the ip address of the endpoint.
   const IpAddr& GetIpAddr() const { return ipaddr_; };
+
+  // Returns true iff the endpoint has an ipv4 address.
+  bool IsIPv4() const { return ipaddr_.IsIPv4(); }
+
+  // Returns true iff the endpoint has an ipv6 address.
+  bool IsIPv6() const { return ipaddr_.IsIPv6(); }
+
+  // Returns the ipv4 address of the endpoint.
+  // REQUIRE: `IsIPv4()` is true.
+  const ipv4_t& IPv4Addr() const {
+    DCHECK(IsIPv4());
+    return ipaddr_.IPv4Addr();
+  }
+
+  // Returns the ipv6 address of the endpoint.
+  // REQUIRE: `IsIPv6()` is true.
+  const ipv6_t& IPv6Addr() const {
+    DCHECK(IsIPv6());
+    return ipaddr_.IPv6Addr();
+  }
 
   // Returns the port of the endpoint.
   port_t Port() const { return port_; };
 
-  // Returns true iff the endpoint is valid.
-  bool IsValid() const { return 1 <= port_ && port_ <= 65535; }
-
   // Equality operator.
-  friend bool operator==(const Endpoint& a, const Endpoint& b);
+  friend bool operator==(const Endpoint& a, const Endpoint& b) {
+    return a.port_ == b.port_ && a.ipaddr_ == b.ipaddr_;
+  }
 
   // Returns a hash signature of the endpoint.
   HashValue Hash() const {
@@ -76,14 +101,7 @@ class Endpoint final {
   template <typename H>
   friend H AbslHashValue(H h, const Endpoint& e) {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
-    if (IsIPv4(e.ipaddr_)) {
-      const ipv4_t& ip4 = std::get<ipv4_t>(e.ipaddr_);
-      return H::combine(std::move(h), ip4.s_addr, e.port_);
-    } else {
-      const ipv6_t& ip6 = std::get<ipv6_t>(e.ipaddr_);
-      const auto v = absl::MakeConstSpan(ip6.s6_addr, sizeof(ip6.s6_addr));
-      return H::combine(std::move(h), v, e.port_);
-    }
+    return H::combine(std::move(h), e.ipaddr_, e.port_);
   }
 
  private:

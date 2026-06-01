@@ -4,8 +4,9 @@
 #include <memory>
 #include <string_view>
 
+#include "src/internal/base/endpoint.h"
+#include "src/internal/base/ipaddr.h"
 #include "src/internal/base/types.h"
-#include "src/internal/socket/ip_util.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_udp.h"
 
@@ -40,6 +41,14 @@ inline IpAddr IPv4Localhost() {
 inline IpAddr IPv6Localhost() {
   return IpAddr(ParseIPv6Addr(kIPv6Localhost).value());
 }
+
+// Returns an ipv4 or ipv6 localhost address in the given address `family`.
+inline IpAddr IpLocalhost(int family) {
+  return family == AF_INET ? IPv4Localhost() : IPv6Localhost();
+}
+
+// Creates an endpoint in the given address `family` and protocol.
+Endpoint TestOnly_LocalEndpoint(int family, bool tcp);
 
 // Finds an unused TCP port in the given address `family`.
 // Return a non-zero port if successful, otherwise crashes.

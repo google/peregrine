@@ -1,7 +1,6 @@
 #include "src/internal/base/endpoint.h"
 
 #include <cstdint>
-#include <cstring>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -10,8 +9,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
-#include "src/internal/base/types.h"
-#include "src/internal/socket/ip_util.h"
+#include "src/internal/base/ipaddr.h"
 
 namespace peregrine::internal {
 
@@ -65,30 +63,13 @@ Endpoint Endpoint::Create(const std::string_view ipaddr_port) {
   }
 }
 
-bool operator==(const Endpoint& a, const Endpoint& b) {
-  if (a.port_ != b.port_) {
-    return false;
-  } else if (IsIPv4(a.ipaddr_) && IsIPv4(b.ipaddr_)) {
-    const ipv4_t& a4 = std::get<ipv4_t>(a.ipaddr_);
-    const ipv4_t& b4 = std::get<ipv4_t>(b.ipaddr_);
-    return a4.s_addr == b4.s_addr;
-  } else if (IsIPv6(a.ipaddr_) && IsIPv6(b.ipaddr_)) {
-    const ipv6_t& a6 = std::get<ipv6_t>(a.ipaddr_);
-    const ipv6_t& b6 = std::get<ipv6_t>(b.ipaddr_);
-    return memcmp(&a6, &b6, sizeof(ipv6_t)) == 0;
-  } else {
-    return false;
-  }
-}
-
 std::string Endpoint::ToString() const {
-  if (IsIPv4(ipaddr_)) {
-    const ipv4_t& ip4 = std::get<ipv4_t>(ipaddr_);
-    return absl::StrCat(ToIPv4String(ip4), ":", port_);
+  const std::string addr = ipaddr_.ToString();
+  if (ipaddr_.IsIPv4()) {
+    return absl::StrCat(addr, ":", port_);
   } else {
-    DCHECK(IsIPv6(ipaddr_));
-    const ipv6_t& ip6 = std::get<ipv6_t>(ipaddr_);
-    return absl::StrCat("[", ToIPv6String(ip6), "]:", port_);
+    DCHECK(ipaddr_.IsIPv6());
+    return absl::StrCat("[", addr, "]:", port_);
   }
 };
 

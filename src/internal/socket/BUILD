@@ -8,7 +8,7 @@ cc_library(
     srcs = ["ip_util.cc"],
     hdrs = ["ip_util.h"],
     deps = [
-        "//src/internal/base:types",
+        "//src/internal/base:endpoint",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -21,7 +21,8 @@ cc_test(
     srcs = ["ip_util_test.cc"],
     deps = [
         ":ip_util",
-        "//src/internal/base:types",
+        "//src/internal/base:endpoint",
+        "//src/internal/base:ipaddr",
         "//src/internal/util:test_util",
         "@googletest//:gtest_main",
     ],
@@ -70,7 +71,7 @@ cc_library(
         ":socket_base",
         ":socket_util",
         "//src/api:types",
-        "//src/internal/base:types",
+        "//src/internal/base:endpoint",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -85,7 +86,7 @@ cc_test(
     deps = [
         ":socket_tcp",
         "//src/api:types",
-        "//src/internal/base:types",
+        "//src/internal/base:endpoint",
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
@@ -102,6 +103,7 @@ cc_library(
         ":socket_base",
         ":socket_util",
         "//src/api:types",
+        "//src/internal/base:endpoint",
         "//src/internal/base:types",
         "//src/internal/util",
         "@abseil-cpp//absl/base:core_headers",
@@ -118,7 +120,7 @@ cc_test(
     deps = [
         ":socket_udp",
         "//src/api:types",
-        "//src/internal/base:types",
+        "//src/internal/base:endpoint",
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
