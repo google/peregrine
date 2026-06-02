@@ -12,10 +12,6 @@
 
 namespace peregrine::internal::testing {
 
-// end of file
-inline constexpr IoVec kEoF = {};
-static_assert(kEoF.iov_base == nullptr && kEoF.iov_len == 0);
-
 // ip addresses
 inline constexpr std::string_view kIPv4AnyAddr = "0.0.0.0";
 inline constexpr std::string_view kIPv6AnyAddr = "::";

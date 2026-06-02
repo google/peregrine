@@ -7,6 +7,8 @@
 #include <string>
 #include <type_traits>
 
+#include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "src/internal/base/types.h"
 
 namespace peregrine::internal {
@@ -18,8 +20,26 @@ constexpr bool IsPowerOfTwo(T n) {
   return n > 0 && (n & (n - 1)) == 0;
 }
 
-// Returns the total length of the `n` buffers.
-size_t TotalLength(const IoVec* iov, int n);
+// end of file
+inline constexpr IoVec kEoF = {};
+static_assert(kEoF.iov_base == nullptr && kEoF.iov_len == 0);
+
+// Returns true iff the `IoVec` is valid.
+inline bool IsValid(const IoVec& v) {
+  DCHECK_GE(v.iov_len, 0);
+  return v.iov_len == 0 || v.iov_base != nullptr;
+}
+
+// Returns true iff all the `iovecs` are valid.
+bool IsValid(absl::Span<const IoVec> iovecs);
+
+// Returns the total length of the `iovecs`.
+size_t TotalLength(absl::Span<const IoVec> iovecs);
+
+// Returns the total length of the `n` iovecs.
+inline size_t TotalLength(const IoVec* iov, int n) {
+  return TotalLength(absl::MakeSpan(iov, n));
+}
 
 // Returns the thread id where this function is called.
 std::string ThreadId();

@@ -7,7 +7,11 @@ cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
-    deps = ["//src/internal/base:types"],
+    deps = [
+        "//src/internal/base:types",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
+    ],
 )
 
 cc_test(
@@ -16,6 +20,35 @@ cc_test(
     deps = [
         ":util",
         "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "test_iov",
+    testonly = True,
+    srcs = ["test_iov.cc"],
+    hdrs = ["test_iov.h"],
+    deps = [
+        ":util",
+        "//src/api:types",
+        "//src/internal/base:types",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "test_iov_test",
+    srcs = ["test_iov_test.cc"],
+    deps = [
+        ":test_iov",
+        "//src/api:types",
+        "//src/internal/base:types",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )

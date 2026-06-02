@@ -17,6 +17,11 @@ T Random(absl::BitGen& gen, T min, T max) {
   return absl::Uniform<T>(absl::IntervalClosedClosed, gen, min, max);
 }
 
+// Generates a random boolean.
+inline bool Toss(absl::BitGen& bitgen) {
+  return Random<uint8_t>(bitgen, 0, 1) == 0;
+}
+
 // Finds an unused port in the range [10,000, 65,535], inclusively. Returns
 // the port number if successful, or 0 if failed.
 // Note: there is no guarantee that the found port is still available when
