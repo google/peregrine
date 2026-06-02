@@ -16,7 +16,7 @@ cc_library(
     srcs = ["types.cc"],
     hdrs = ["types.h"],
     deps = [
-        "//util/intops",
+        "//third_party/gloop/util/intops",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
     ],

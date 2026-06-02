@@ -47,7 +47,7 @@ inline IpAddr IpLocalhost(int family) {
   return family == AF_INET ? IPv4Localhost() : IPv6Localhost();
 }
 
-// Creates an endpoint in the given address `family` and protocol.
+// Creates a localhost endpoint in the given address `family` and protocol.
 Endpoint TestOnly_LocalEndpoint(int family, bool tcp);
 
 // Finds an unused TCP port in the given address `family`.

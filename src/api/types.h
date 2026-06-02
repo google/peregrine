@@ -6,7 +6,7 @@
 #include <ostream>
 #include <string>
 
-#include "util/intops/strong_int.h"
+#include "third_party/gloop/util/intops/strong_int.h"
 
 namespace peregrine {
 

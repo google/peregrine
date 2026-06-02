@@ -7,9 +7,9 @@
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "third_party/gloop/util/intops/strong_int.h"
 #include "src/api/types.h"
 #include "src/internal/assumptions.h"
-#include "util/intops/strong_int.h"
 
 namespace peregrine::internal {
 

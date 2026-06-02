@@ -10,7 +10,7 @@ cc_library(
     deps = [
         "//src/api:types",
         "//src/internal:assumptions",
-        "//util/intops",
+        "//third_party/gloop/util/intops",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
