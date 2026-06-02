@@ -22,6 +22,7 @@ cc_test(
     srcs = ["chunk_test.cc"],
     deps = [
         ":chunk",
+        ":chunk_test_util",
         "//src/api:types",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -58,5 +59,18 @@ cc_test(
         "@abseil-cpp//absl/random:distributions",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "chunk_test_util",
+    testonly = True,
+    srcs = ["chunk_test_util.cc"],
+    hdrs = ["chunk_test_util.h"],
+    deps = [
+        ":chunk",
+        "//src/api:types",
+        "//src/util",
+        "@abseil-cpp//absl/random",
     ],
 )
