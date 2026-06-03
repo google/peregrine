@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <thread>  // NOLINT
+#include <utility>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
@@ -21,7 +22,14 @@ class TcpAcceptorTest : public ::testing::Test {
  protected:
   TcpAcceptorTest()
       : local_(TestOnly_LocalEndpoint(kFamily, /*tcp=*/true)),
-        acceptor_(TcpAcceptor::Create(local_)) {}
+        acceptor_(TcpAcceptor::Create(local_)) {
+    CHECK_NE(acceptor_, nullptr);
+  }
+
+  static void Accept(std::unique_ptr<TcpSocket> socket) {
+    auto x = std::move(socket);
+    CHECK_NE(x, nullptr);
+  }
 
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(300)); }
 
@@ -36,7 +44,7 @@ using TcpAcceptorTestIPv6 = TcpAcceptorTest<AF_INET6>;
 TEST_F(TcpAcceptorTestIPv4, StartThenStop) {
   std::jthread ta([&]() {
     DCHECK(acceptor_->Socket().IsBlocking());
-    acceptor_->Start();
+    acceptor_->Start(Accept);
   });
 
   ShortSleep();
@@ -48,7 +56,7 @@ TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
 
   std::jthread ta([&]() {
     DCHECK(acceptor_->Socket().IsBlocking());
-    acceptor_->Start();
+    acceptor_->Start(Accept);
   });
 }
 

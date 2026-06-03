@@ -5,6 +5,7 @@
 #include <memory>
 #include <utility>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/socket/socket_tcp.h"
@@ -15,6 +16,8 @@ namespace peregrine::internal {
 // and creates a new tcp socket for each connection.
 // This class is thread-compatible but not thread-safe.
 class TcpAcceptor {
+  using AcceptCallback = absl::AnyInvocable<void(std::unique_ptr<TcpSocket>)>;
+
  public:
   // Creates a tcp acceptor with a socket listening on the `local` endpoint.
   static std::unique_ptr<TcpAcceptor> Create(const Endpoint& local);
@@ -23,7 +26,7 @@ class TcpAcceptor {
   const TcpSocket& Socket() const { return *listener_; }
 
   // Starts running the acceptor.
-  void Start();
+  void Start(AcceptCallback accept);
 
   // Stops the acceptor.
   void Stop();

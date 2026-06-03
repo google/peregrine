@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
@@ -37,8 +38,10 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(const Endpoint& local) {
   return absl::WrapUnique(new TcpAcceptor(std::move(socket)));
 }
 
-void TcpAcceptor::Start() {
+void TcpAcceptor::Start(AcceptCallback accept) {
+  DCHECK_NE(accept, nullptr);
   LOG(INFO) << kAcceptor << "starting, " << *listener_;
+
   const int family = listener_->family();
   while (!stop_.load(std::memory_order_relaxed)) {
     DCHECK(listener_->IsBlocking());
@@ -51,7 +54,8 @@ void TcpAcceptor::Start() {
     DCHECK(socket->IsValid());
     DCHECK(socket->IsConnected());
     DCHECK(socket->IsBlocking());
-    // TODO(yongx): Handle the new socket.
+    LOG(INFO) << kAcceptor << "accepted, " << *socket;
+    accept(std::move(socket));
   }
 }
 

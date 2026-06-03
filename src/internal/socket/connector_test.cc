@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <thread>  // NOLINT
+#include <utility>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
@@ -25,6 +26,12 @@ class TcpConnectorTest : public ::testing::Test {
         peer_(local_),
         acceptor_(TcpAcceptor::Create(local_)) {
     CHECK_EQ(local_, peer_);
+    CHECK_NE(acceptor_, nullptr);
+  }
+
+  static void Accept(std::unique_ptr<TcpSocket> socket) {
+    auto x = std::move(socket);
+    CHECK_NE(x, nullptr);
   }
 
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(100)); }
@@ -41,12 +48,13 @@ using TcpConnectorTestIPv6 = TcpConnectorTest<AF_INET6>;
 TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
   std::jthread ta([&]() {
     DCHECK(acceptor_->Socket().IsBlocking());
-    acceptor_->Start();
+    acceptor_->Start(Accept);
   });
 
   ShortSleep();
   std::jthread tc([&]() {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_);
+    CHECK_NE(socket, nullptr);
     DCHECK(socket->IsConnected());
     DCHECK(socket->IsBlocking());
   });
@@ -58,6 +66,7 @@ TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
 TEST_F(TcpConnectorTestIPv6, ConnectBeforeAccept) {
   std::jthread tc([&]() {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_);
+    CHECK_NE(socket, nullptr);
     DCHECK(socket->IsConnected());
     DCHECK(socket->IsBlocking());
   });
@@ -65,7 +74,7 @@ TEST_F(TcpConnectorTestIPv6, ConnectBeforeAccept) {
   ShortSleep();
   std::jthread ta([&]() {
     DCHECK(acceptor_->Socket().IsBlocking());
-    acceptor_->Start();
+    acceptor_->Start(Accept);
   });
 
   ShortSleep();
