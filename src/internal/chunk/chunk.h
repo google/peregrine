@@ -21,12 +21,14 @@ DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
 // `ChunkMetadata` defines the metadata of a chunk.
 #pragma pack(push, 1)
 struct ChunkMetadata final {
+  // LINT.IfChange
   addr_t base_addr;  // buffer base address (fixed) TODO(yongx): remove it
   Handle handle;     // handle id (fixed)
   Buffer buffer;     // buffer id (fixed)
   uint32_t size;     // chunk size (fixed)
   uint32_t nchunks;  // total #chunks (fixed)
   chunk_t index;     // chunk index (variable)
+  // LINT.ThenChange(//third_party/peregrine/src/internal/chunk/chunk.fbs)
 
   // Returns true iff the chunk is valid.
   bool IsValid() const {

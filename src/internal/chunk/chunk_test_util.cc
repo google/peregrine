@@ -26,12 +26,12 @@ ChunkMetadata GenChunkMetadata(const chunk_t index) {
 }
 
 void GenChunkMetadata(absl::BitGen& bitgen, ChunkMetadata& chunk) {
-  chunk.base_addr = kBufferBaseAddr;
-  chunk.handle = kHandle;
-  chunk.buffer = kBuffer;
-  chunk.size = kChunkSize;
-  chunk.nchunks = kNumChunks;
-  chunk.index = chunk_t(util::Random<uint32_t>(bitgen, 0, kNumChunks - 1));
+  chunk.base_addr = addr_t(util::Random<addr_t::ValueType>(bitgen));
+  chunk.handle = Handle(util::Random<Handle::ValueType>(bitgen));
+  chunk.buffer = Buffer(util::Random<Buffer::ValueType>(bitgen));
+  chunk.size = util::Random<uint32_t>(bitgen, 1, 0xffff'ffff);
+  chunk.nchunks = util::Random<uint32_t>(bitgen, 1, 0xffff'ffff);
+  chunk.index = chunk_t(util::Random<uint32_t>(bitgen, 0, chunk.nchunks - 1));
 }
 
 ChunkMetadata GenChunkMetadata(absl::BitGen& bitgen) {

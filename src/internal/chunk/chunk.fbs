@@ -1,0 +1,12 @@
+namespace peregrine.internal.flatbuf;
+
+// `flatbuf::ChunkMetadata` is the flatbuffer version of `ChunkMetadata`.
+// It must be kept in sync with `ChunkMetadata` in chunk.h.
+struct ChunkMetadata {
+  base_addr:uint64;
+  handle:uint32;
+  buffer:uint32;
+  size:uint32;
+  nchunks:uint32;
+  index:uint32;
+}

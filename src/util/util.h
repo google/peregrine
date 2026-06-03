@@ -2,6 +2,7 @@
 #define PEREGRINE_SRC_UTIL_UTIL_H_
 
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 #include "absl/log/check.h"
@@ -11,7 +12,8 @@ namespace peregrine::util {
 
 // Generates a random integer in the range `[min, max]`, inclusively.
 template <typename T>
-T Random(absl::BitGen& gen, T min, T max) {
+T Random(absl::BitGen& gen, T min = std::numeric_limits<T>::min(),
+         T max = std::numeric_limits<T>::max()) {
   static_assert(std::is_integral_v<T>);
   DCHECK_LE(min, max);
   return absl::Uniform<T>(absl::IntervalClosedClosed, gen, min, max);

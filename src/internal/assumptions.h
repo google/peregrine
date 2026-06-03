@@ -48,6 +48,16 @@ inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
 // known cases including jumbo frames.
 inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
 
+// Assumptions about chunk metadata serialization.
+// ---------------------------------------------------------------------------
+//
+// For performance reasons, chunk metadata is serialized to a FIXED-SIZE string
+// using flatbuffer struct (https://github.com/google/flatbuffers). This saves
+// one read call in the receiver. Otherwise, we have to first read a length
+// field, and then read a variable-size string and parse it. In other words,
+// we treat chunk metadata as a fixed-size header.
+inline constexpr bool kChunkMetadataSerializesToFixedSizeFlatBufString = true;
+
 // Assumptions about the chunk receive contention.
 // ---------------------------------------------------------------------------
 //
