@@ -1,0 +1,29 @@
+#ifndef PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_UTIL_H_
+#define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_UTIL_H_
+
+#include <memory>
+#include <utility>
+
+#include "src/internal/channel/channel.h"
+#include "src/internal/channel/channel_tcp.h"
+#include "src/internal/channel/channel_udp.h"
+#include "src/internal/socket/socket_tcp.h"
+#include "src/internal/socket/socket_udp.h"
+
+namespace peregrine::internal {
+
+// Creates a tcp channel.
+inline std::unique_ptr<Channel> CreateTcpChannel(
+    std::unique_ptr<TcpSocket> socket) {
+  return std::make_unique<TcpChannel>(std::move(socket));
+}
+
+// Creates a udp channel.
+inline std::unique_ptr<Channel> CreateUdpChannel(
+    std::unique_ptr<UdpSocket> socket) {
+  return std::make_unique<UdpChannel>(std::move(socket));
+}
+
+}  // namespace peregrine::internal
+
+#endif  // PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_UTIL_H_
