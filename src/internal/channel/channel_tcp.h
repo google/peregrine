@@ -32,8 +32,7 @@ class TcpChannel final : public Channel {
   }
 
   // Writes a number of buffers described by the `iovecs` to the channel.
-  // Returns true if all the data are written successfully. Otherwise,
-  // returns false.
+  // Returns true if all the data are written successfully, or false otherwise.
   bool Write(absl::Span<const IoVec> iovecs) override;
 
   // Reads exactly `len` bytes of data into the `buf` from the the channel.

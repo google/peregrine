@@ -38,13 +38,13 @@ class Channel {
   virtual ChannelType Type() const = 0;
 
   // Writes a number of buffers described by the `iovecs` to the channel.
-  // Returns true if all the data are written successfully. Otherwise,
-  // returns false.
+  // Returns true if all the data are written successfully, or false otherwise.
   virtual bool Write(absl::Span<const IoVec> iovecs) = 0;
 
-  // Reads data into the `buf` from the the channel. For stream/message channel,
-  // it reads exactly/at most `len` bytes, respectively. Returns the number of
-  // bytes actually read if successful, or -1 otherwise.
+  // Reads data into the `buf` from the the channel.
+  // For stream channel, it reads exactly `len` bytes of data.
+  // For message channel, it reads one message of at most `len` bytes.
+  // Returns the number of bytes actually read if successful, or -1 otherwise.
   virtual ssize_t Read(Byte* buf, size_t len) = 0;
 
   // Returns a string representation for the channel.
