@@ -6,7 +6,6 @@
 #include <string>
 
 #include "absl/base/thread_annotations.h"
-#include "absl/log/check.h"
 #include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
@@ -31,15 +30,8 @@ class MemStreamChannel final : public Channel {
   bool Write(absl::Span<const IoVec> iovecs) override ABSL_LOCKS_EXCLUDED(mu_);
 
   // Reads exactly `len` bytes of data into the `buf` from the the channel.
-  // Returns true if successful. Otherwise, returns false.
-  bool ReadExact(Byte* buf, size_t len) override ABSL_LOCKS_EXCLUDED(mu_);
-
-  // Reads at most `len` bytes of data into the `buf` from the the channel.
   // Returns the number of bytes actually read if successful, or -1 otherwise.
-  ssize_t ReadUpto(Byte* buf, size_t len) override {
-    DCHECK(false) << "unsupported";
-    return -1;
-  }
+  ssize_t Read(Byte* buf, size_t len) override ABSL_LOCKS_EXCLUDED(mu_);
 
   // Returns a string representation for the channel.
   std::string ToString() const override { return "MemStreamChannel"; }

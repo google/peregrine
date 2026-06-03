@@ -100,7 +100,7 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
     // Receive from the other channel.
     ChunkMetadata out[kN];
     for (int i = 0; i < kN; ++i) {
-      EXPECT_TRUE(rcvr->ReadExact(Ptr<Byte>(out[i]), kSize));
+      EXPECT_EQ(rcvr->Read(Ptr<Byte>(out[i]), kSize), kSize);
     }
 
     // Check that the data read is the same as written.
@@ -138,7 +138,7 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
 
     // Read from the other channel.
     ChunkMetadata out[kN];
-    EXPECT_EQ(rcvr->ReadUpto(Ptr<Byte>(out[0]), kN * kSize), kN * kSize);
+    EXPECT_EQ(rcvr->Read(Ptr<Byte>(out[0]), kN * kSize), kN * kSize);
 
     // Check that the data read is the same as written.
     for (int i = 0; i < kN; ++i) {

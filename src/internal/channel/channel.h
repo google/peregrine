@@ -42,13 +42,10 @@ class Channel {
   // returns false.
   virtual bool Write(absl::Span<const IoVec> iovecs) = 0;
 
-  // Reads exactly `len` bytes of data into the `buf` from the the channel.
-  // Returns true if successful. Otherwise, returns false.
-  virtual bool ReadExact(Byte* buf, size_t len) = 0;
-
-  // Reads at most `len` bytes of data into the `buf` from the the channel.
-  // Returns the number of bytes actually read if successful, or -1 otherwise.
-  virtual ssize_t ReadUpto(Byte* buf, size_t len) = 0;
+  // Reads data into the `buf` from the the channel. For stream/message channel,
+  // it reads exactly/at most `len` bytes, respectively. Returns the number of
+  // bytes actually read if successful, or -1 otherwise.
+  virtual ssize_t Read(Byte* buf, size_t len) = 0;
 
   // Returns a string representation for the channel.
   virtual std::string ToString() const = 0;

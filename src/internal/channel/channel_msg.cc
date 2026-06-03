@@ -31,7 +31,7 @@ bool MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
   return true;
 }
 
-ssize_t MemMsgChannel::ReadUpto(Byte* const buf, const size_t len) {
+ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
   OwnedIoVec owned_iov;
   {
     absl::MutexLock lock(mu_);

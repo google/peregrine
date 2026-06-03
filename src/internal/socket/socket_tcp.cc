@@ -153,7 +153,7 @@ bool TcpSocket::Send(const Byte* const buf, const size_t len) const {
   return true;
 }
 
-bool TcpSocket::Recv(Byte* const buf, const size_t len) const {
+ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
   DCHECK_GE(len, 1);
   Byte* ptr = buf;
   size_t rcvd = 0;
@@ -170,16 +170,16 @@ bool TcpSocket::Recv(Byte* const buf, const size_t len) const {
     } else if (bytes < 0) {
       if (Interrupted()) continue;
       LOG(WARNING) << errMsg("recv");
-      return false;
+      return -1;
     } else {
       DCHECK_EQ(bytes, 0);  // peer closed connection
       LOG(INFO) << errMsg("recv eof");
-      return false;
+      return 0;
     }
   }
   DCHECK_EQ(left, 0);
   DCHECK_EQ(rcvd, len);
-  return true;
+  return rcvd;
 }
 
 std::string TcpSocket::ToString() const {

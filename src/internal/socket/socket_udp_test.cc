@@ -61,7 +61,9 @@ TEST_F(UdpSocketIPv4Test, SendRecv) {
     DCHECK(rskt_->IsConnected());
     rcvr_ready.Notify();
     DCHECK(rskt_->IsBlocking());
-    CHECK(rskt_->Recv(recv_buf.data(), kMsgSize));
+    const ssize_t n = rskt_->Recv(recv_buf.data(), kMsgSize);
+    CHECK_GT(n, 0);
+    CHECK_LE(n, kMsgSize);
   });
 
   // Second, create a sender thread.
@@ -102,7 +104,9 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
     };
     rcvr_ready.Notify();
     DCHECK(rskt_->IsBlocking());
-    CHECK(rskt_->RecvV(recv_iov, kRN, kMsgSize));
+    const ssize_t n = rskt_->RecvV(recv_iov, kRN, kMsgSize);
+    CHECK_GT(n, 0);
+    CHECK_LE(n, kMsgSize);
   });
 
   // Second, create a sender thread.

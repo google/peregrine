@@ -71,7 +71,7 @@ bool Transfer::recvChunkStream() {
 
   // Step 1: read chunk metadata.
   ChunkMetadata chunk;
-  if (!channel_->ReadExact(Ptr<Byte>(chunk), sizeof(chunk))) {
+  if (channel_->Read(Ptr<Byte>(chunk), sizeof(chunk)) != sizeof(chunk)) {
     // TODO(yongx): handle the error.
     LOG(WARNING) << "failed to read chunk metadata";
     return false;
@@ -92,7 +92,7 @@ bool Transfer::recvChunkStream() {
   const bool permission = tracker_.Acquire(index);
   if ABSL_PREDICT_TRUE (permission) {
     // Permission is granted, read payload and track its arrival.
-    status = channel_->ReadExact(chunk.DstAddr(), chunk.size);
+    status = channel_->Read(chunk.DstAddr(), chunk.size) == chunk.size;
     tracker_.Release(index, status);
   } else {
     // Another thread is busy with the same chunk.
@@ -108,7 +108,7 @@ bool Transfer::testOnly_recvChunkMsg() {
   // Step 1: read chunk metadata.
   ChunkMetadata chunk;
   Byte* const buf = tmpbuf_.get();
-  const ssize_t len = channel_->ReadUpto(buf, kTmpBufSize);
+  const ssize_t len = channel_->Read(buf, kTmpBufSize);
   if (len < 0) {
     // TODO(yongx): handle the error.
     LOG(WARNING) << "failed to read chunk metadata";
@@ -160,7 +160,7 @@ bool Transfer::drainStream(const ChunkMetadata& chunk) {
   size_t left = chunk.size;
   while (left > 0) {
     const size_t len = std::min(left, kTmpBufSize);
-    if ABSL_PREDICT_FALSE (!channel_->ReadExact(tmpbuf_.get(), len)) {
+    if ABSL_PREDICT_FALSE (channel_->Read(tmpbuf_.get(), len) != len) {
       // TODO(yongx): handle the error.
       return false;
     }

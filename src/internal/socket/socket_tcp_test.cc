@@ -63,7 +63,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
     auto new_socket = TcpSocket::Create(new_fd, AF_INET);
     DCHECK(new_socket->IsConnected());
     DCHECK(new_socket->IsBlocking());
-    CHECK(new_socket->Recv(recv_buf.data(), kMsgSize));
+    CHECK_EQ(new_socket->Recv(recv_buf.data(), kMsgSize), kMsgSize);
   });
 
   // Second, create a client thread.
@@ -102,7 +102,7 @@ TEST_F(TcpIPv6SocketTest, BigData) {
     auto new_socket = TcpSocket::Create(new_fd, AF_INET6);
     DCHECK(new_socket->IsConnected());
     DCHECK(new_socket->IsBlocking());
-    CHECK(new_socket->Recv(recv_buf.data(), kDataSize));
+    CHECK_EQ(new_socket->Recv(recv_buf.data(), kDataSize), kDataSize);
   });
 
   // Second, create a client thread.

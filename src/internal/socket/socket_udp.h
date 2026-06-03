@@ -42,16 +42,16 @@ class UdpSocket final : public SocketBase {
   // been sent successfully. Otherwise, returns false.
   bool Send(const Byte* buf, size_t len) const;
 
-  // Receives at most `len` bytes of data into the `buf`. Returns the number of
-  // bytes received if successful. Otherwise, returns -1.
+  // Receives at most `len` bytes of data into the `buf`.
+  // Returns the number of bytes received if successful. Otherwise, returns -1.
   ssize_t Recv(Byte* buf, size_t len) const;
 
   // Sends `len` bytes of data from `n` `iov` buffers. Returns true if all the
   // data has been sent successfully. Otherwise, returns false.
   bool SendV(const IoVec* iov, int n, size_t len) const;
 
-  // Receives at most `len` bytes of data into `n` `iov` buffers. Returns the
-  // number of bytes received if successful. Otherwise, returns -1.
+  // Receives at most `len` bytes of data into `n` `iov` buffers.
+  // Returns the number of bytes received if successful. Otherwise, returns -1.
   ssize_t RecvV(const IoVec* iov, int n, size_t len) const;
 
   // Returns a self/peer address pair string of the socket.

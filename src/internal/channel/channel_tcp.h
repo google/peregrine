@@ -37,16 +37,9 @@ class TcpChannel final : public Channel {
   bool Write(absl::Span<const IoVec> iovecs) override;
 
   // Reads exactly `len` bytes of data into the `buf` from the the channel.
-  // Returns true if successful. Otherwise, returns false.
-  bool ReadExact(Byte* buf, size_t len) override {
-    return socket_->Recv(buf, len);
-  }
-
-  // Reads at most `len` bytes of data into the `buf` from the the channel.
   // Returns the number of bytes actually read if successful, or -1 otherwise.
-  ssize_t ReadUpto(Byte* buf, size_t len) override {
-    DCHECK(false) << "unsupported";
-    return -1;
+  ssize_t Read(Byte* buf, size_t len) override {
+    return socket_->Recv(buf, len);
   }
 
   // Returns a string representation for the channel.

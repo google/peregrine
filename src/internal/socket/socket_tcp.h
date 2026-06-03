@@ -53,8 +53,8 @@ class TcpSocket final : public SocketBase {
   // bool Send(const struct iovec* iov, int n, size_t len) const;
 
   // Receives exactly `len` bytes of data into the `buf`.
-  // Returns true if successful. Otherwise, returns false.
-  bool Recv(Byte* buf, size_t len) const;
+  // Returns the number of bytes received if successful. Otherwise, returns -1.
+  ssize_t Recv(Byte* buf, size_t len) const;
 
   // Returns a self/peer address pair string of the socket.
   std::string ToString() const;

@@ -25,12 +25,12 @@ bool MemStreamChannel::Write(const absl::Span<const IoVec> iovecs) {
   return true;
 }
 
-bool MemStreamChannel::ReadExact(Byte* const buf, const size_t len) {
+ssize_t MemStreamChannel::Read(Byte* const buf, const size_t len) {
   OwnedIoVec owned_iov;
   {
     absl::MutexLock lock(mu_);
     if (queue_.empty()) {
-      return false;
+      return -1;
     }
     owned_iov = std::move(queue_.front());
     queue_.pop();
@@ -39,7 +39,7 @@ bool MemStreamChannel::ReadExact(Byte* const buf, const size_t len) {
   const size_t size = owned_iov.size;
   CHECK_EQ(size, len);  // Crash OK
   std::memcpy(buf, owned_iov.data.get(), size);
-  return true;
+  return size;
 }
 
 }  // namespace peregrine::internal::testing
