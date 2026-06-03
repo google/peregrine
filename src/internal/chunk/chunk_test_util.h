@@ -6,10 +6,12 @@
 
 #include "absl/random/random.h"
 #include "src/api/types.h"
+#include "src/internal/assumptions.h"
 #include "src/internal/chunk/chunk.h"
 
 namespace peregrine::internal::testing {
 
+static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr addr_t kPayloadSrcAddr(0x12340000);  // read from
 constexpr addr_t kBufferBaseAddr(0xffff0000);  // write to
 static_assert(kBufferBaseAddr != kPayloadSrcAddr);

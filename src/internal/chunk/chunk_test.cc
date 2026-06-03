@@ -31,5 +31,17 @@ TEST_F(ChunkTest, ChunkAddr) {
   LOG(INFO) << chunk_;
 }
 
+TEST_F(ChunkTest, Check) {
+  ChunkMetadata good = chunk_;
+  ++good.index;
+  ASSERT_TRUE(good.IsValid());
+  EXPECT_TRUE(chunk_.Check(good));
+
+  ChunkMetadata bad = chunk_;
+  ++bad.base_addr;
+  ASSERT_TRUE(bad.IsValid());
+  EXPECT_FALSE(chunk_.Check(bad));
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

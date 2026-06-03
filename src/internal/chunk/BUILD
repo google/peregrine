@@ -70,6 +70,7 @@ cc_library(
     deps = [
         ":chunk",
         "//src/api:types",
+        "//src/internal:assumptions",
         "//src/util",
         "@abseil-cpp//absl/random",
     ],

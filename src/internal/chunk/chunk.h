@@ -19,6 +19,7 @@ DEFINE_STRONG_INT_TYPE(addr_t, uintptr_t);
 DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
 
 // `ChunkMetadata` defines the metadata of a chunk.
+#pragma pack(push, 1)
 struct ChunkMetadata final {
   addr_t base_addr;  // buffer base address (fixed) TODO(yongx): remove it
   Handle handle;     // handle id (fixed)
@@ -33,10 +34,16 @@ struct ChunkMetadata final {
     return 1 <= size && 1 <= nchunks && index.value() < nchunks;
   }
 
+  // Returns true iff the fixed parts of the chunk metadata match.
+  bool Check(const ChunkMetadata& m) const {
+    return m.base_addr == base_addr && m.handle == handle &&
+           m.buffer == buffer && m.size == size && m.nchunks == nchunks;
+  }
+
   // Returns the destination memory address for the chunk.
   Byte* DstAddr() const {
     static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
-    const uintptr_t i = index.value();
+    const addr_t::ValueType i = index.value();
     return reinterpret_cast<Byte*>(base_addr.value() + i * size);
   }
 
@@ -50,7 +57,8 @@ struct ChunkMetadata final {
            a.index == b.index;
   }
 };
-static_assert(sizeof(ChunkMetadata) == 32);
+#pragma pack(pop)
+static_assert(sizeof(ChunkMetadata) == 28);
 
 inline std::ostream& operator<<(std::ostream& os, const ChunkMetadata& c) {
   return os << c.ToString();

@@ -41,6 +41,26 @@ inline constexpr bool kAbslHashIsStableOnlyInOneProcessInvocation = true;
 // chunk maybe shorter than the fixed chunk size. It is handled specially.)
 inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
 
+// Assumptions about network MTU.
+// ---------------------------------------------------------------------------
+//
+// We assume that network MTU is no more than 10 KiB. This should cover all the
+// known cases including jumbo frames.
+inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
+
+// Assumptions about the chunk receive contention.
+// ---------------------------------------------------------------------------
+//
+// A transport request contains one or more non-overlapping buffers, each of
+// which is further split into many fixed-size, non-overlapping chunks sent over
+// a set of communication channels. As a result, multiple chunks may arrive at
+// the receiver simultaneously. We assume that, in any time window, there are
+// not many (ideally, no) duplicate chunk arrivals. For each chunk, there can
+// be at most a few (ideally, one) writers asking for permission to write its
+// data. That is, the write contention of the same chunk at the receiver side is
+// low. However, multiple writers can write different chunks at the same time.
+inline constexpr bool kLowChunkWritingContentionAtReceiverSide = true;
+
 }  // namespace peregrine::assumptions
 
 #endif  // PEREGRINE_SRC_INTERNAL_ASSUMPTIONS_H_
