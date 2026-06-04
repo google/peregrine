@@ -19,17 +19,12 @@
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
-#include "src/internal/chunk/chunk_fb.h"
+#include "src/internal/chunk/chunk_flatbuf.h"
 #include "src/internal/chunk/chunk_tracker.h"
 
 namespace peregrine::internal {
 
-namespace {
-template <typename T>
-T* Ptr(ChunkMetadata& metadata) {
-  return reinterpret_cast<T*>(&metadata);
-}
-}  // namespace
+using flatbuf::kChunkHeaderSize;
 
 Transfer::Transfer(const ChunkMetadata& m, std::unique_ptr<Channel> channel)
     : template_(m),
@@ -43,14 +38,14 @@ Transfer::Transfer(const ChunkMetadata& m, std::unique_ptr<Channel> channel)
 }
 
 bool Transfer::SendChunk(const chunk_t index, const ChunkPayloadView payload) {
-  // Step 1: build two iovecs for the chunk
-  //  * fixed-size chunk metadata serialization
-  //  * variable-sized chunk payload (raw bytes)
+  DCHECK_EQ(payload.size(), template_.size);
+
+  // Step 1: build two iovecs: header + payload.
   const ChunkMetadata chunk = genChunkMetadata(index);
-  const std::string chunk_str = Serialize(chunk);
-  DCHECK_EQ(chunk_str.size(), kChunkMetadataSerializationSize);
+  const std::string header = flatbuf::Serialize(chunk);
+  DCHECK_EQ(header.size(), kChunkHeaderSize);
   const std::array<const IoVec, 2> iovecs = {
-      IoVec((void*)chunk_str.data(), chunk_str.size()),
+      IoVec((void*)header.data(), header.size()),
       IoVec((void*)payload.data(), payload.size()),
   };
   DCHECK(IsMatch(chunk, payload));
@@ -70,15 +65,14 @@ bool Transfer::RecvChunk() {
 }
 
 bool Transfer::deserializeAndCheck(Byte* buf, ChunkMetadata& chunk) const {
-  std::string_view s(reinterpret_cast<const char*>(buf),
-                     kChunkMetadataSerializationSize);
-  Deserialize(s, chunk);
-  if (!chunk.IsValid()) {
-    LOG(WARNING) << "invalid chunk metadata: " << chunk;
+  std::string_view s(reinterpret_cast<const char*>(buf), kChunkHeaderSize);
+  flatbuf::Deserialize(s, chunk);
+  if ABSL_PREDICT_FALSE (!chunk.IsValid()) {
+    LOG(WARNING) << "invalid chunk: " << chunk;
     return false;
   }
-  if (!template_.Check(chunk)) {
-    LOG(WARNING) << "malicious chunk metadata: " << chunk;
+  if ABSL_PREDICT_FALSE (!template_.Check(chunk)) {
+    LOG(ERROR) << "malicious chunk: " << chunk;
     return false;
   }
   return true;
@@ -87,23 +81,23 @@ bool Transfer::deserializeAndCheck(Byte* buf, ChunkMetadata& chunk) const {
 bool Transfer::recvChunkStream() {
   DCHECK(IsReliableStream(channel_->Type()));
 
-  // Step 1: read chunk metadata serialization.
-  Byte buf[kChunkMetadataSerializationSize];
-  if (const ssize_t len = channel_->Read(buf, sizeof(buf));
-      len != sizeof(buf)) {
+  // Step 1: read chunk header.
+  Byte buf[kChunkHeaderSize];
+  const ssize_t len = channel_->Read(buf, sizeof(buf));
+  if ABSL_PREDICT_FALSE (len != sizeof(buf)) {
     // TODO(yongx): handle the error.
-    LOG(WARNING) << "failed to read chunk metadata: " << len;
+    LOG(WARNING) << "failed to read chunk header: " << len;
     return false;
   }
 
   // Step 2: deserialize chunk metadata.
   ChunkMetadata chunk;
-  if (!deserializeAndCheck(buf, chunk)) {
+  if ABSL_PREDICT_FALSE (!deserializeAndCheck(buf, chunk)) {
     return false;
   }
 
   // Step 3: acquire chunk write permission and process chunk payload.
-  static_assert(assumptions::kLowChunkWritingContentionAtReceiverSide);
+  static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   bool status = false;
   const chunk_t index = chunk.index;
   const bool permission = tracker_.Acquire(index);
@@ -112,7 +106,7 @@ bool Transfer::recvChunkStream() {
     status = channel_->Read(chunk.DstAddr(), chunk.size) == chunk.size;
     tracker_.Release(index, status);
   } else {
-    // Another thread is busy with the same chunk.
+    // Another thread is busy writing the same chunk.
     LOG(WARNING) << "busy chunk #" << index.value();
     status = drainStream(chunk);
   }
@@ -122,33 +116,33 @@ bool Transfer::recvChunkStream() {
 bool Transfer::testOnly_recvChunkMsg() {
   DCHECK(IsUnreliableMessage(channel_->Type()));
 
-  // Step 1: read chunk metadata.
-  static_assert(kChunkMetadataSerializationSize < kTmpBufSize);
+  // Step 1: read chunk header.
+  static_assert(kChunkHeaderSize < kTmpBufSize);
   Byte* const buf = tmpbuf_.get();
   const ssize_t len = channel_->Read(buf, kTmpBufSize);
-  if (len < kChunkMetadataSerializationSize) {
+  if ABSL_PREDICT_FALSE (len < kChunkHeaderSize) {
     // TODO(yongx): handle the error.
-    LOG(WARNING) << "failed to read chunk metadata: " << len;
+    LOG(WARNING) << "failed to read chunk header: " << len;
     return false;
   }
 
   // Step 2: deserialize chunk metadata.
   ChunkMetadata chunk;
-  if (!deserializeAndCheck(buf, chunk)) {
+  if ABSL_PREDICT_FALSE (!deserializeAndCheck(buf, chunk)) {
     return false;
   }
 
   // Step 3: read chunk payload.
-  const ChunkPayloadView payload(buf + kChunkMetadataSerializationSize,
-                                 len - kChunkMetadataSerializationSize);
-  if (!IsMatch(chunk, payload)) {
+  const ChunkPayloadView payload(buf + kChunkHeaderSize,
+                                 len - kChunkHeaderSize);
+  if ABSL_PREDICT_FALSE (!IsMatch(chunk, payload)) {
     LOG(WARNING) << "mismatched chunk metadata: " << chunk
                  << " vs payload size " << payload.size();
     return false;
   }
 
   // Step 4: acquire chunk write permission and process chunk payload.
-  static_assert(assumptions::kLowChunkWritingContentionAtReceiverSide);
+  static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
   const bool permission = tracker_.Acquire(index);
   if ABSL_PREDICT_TRUE (permission) {
@@ -156,7 +150,7 @@ bool Transfer::testOnly_recvChunkMsg() {
     std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
     tracker_.Release(index, true);
   } else {
-    // Another thread is busy with the same chunk. Discard this payload.
+    // Another thread is busy writing the same chunk.
     LOG(WARNING) << "busy chunk #" << index.value();
   }
   return true;
@@ -165,7 +159,6 @@ bool Transfer::testOnly_recvChunkMsg() {
 bool Transfer::drainStream(const ChunkMetadata& chunk) {
   DCHECK(chunk.IsValid());
 
-  // Drain the chunk payload in the channel.
   LOG(WARNING) << "draining chunk " << chunk;
   size_t left = chunk.size;
   while (left > 0) {

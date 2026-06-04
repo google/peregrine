@@ -42,9 +42,9 @@ cc_flatbuffers_library(
 )
 
 cc_library(
-    name = "chunk_fb",
-    srcs = ["chunk_fb.cc"],
-    hdrs = ["chunk_fb.h"],
+    name = "chunk_flatbuf",
+    srcs = ["chunk_flatbuf.cc"],
+    hdrs = ["chunk_flatbuf.h"],
     deps = [
         ":chunk",
         ":chunk_cc_fbs",
@@ -56,11 +56,11 @@ cc_library(
 )
 
 cc_test(
-    name = "chunk_fb_test",
-    srcs = ["chunk_fb_test.cc"],
+    name = "chunk_flatbuf_test",
+    srcs = ["chunk_flatbuf_test.cc"],
     deps = [
         ":chunk",
-        ":chunk_fb",
+        ":chunk_flatbuf",
         ":chunk_test_util",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",

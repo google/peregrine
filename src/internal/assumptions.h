@@ -63,13 +63,14 @@ inline constexpr bool kChunkMetadataSerializesToFixedSizeFlatBufString = true;
 //
 // A transport request contains one or more non-overlapping buffers, each of
 // which is further split into many fixed-size, non-overlapping chunks sent over
-// a set of communication channels. As a result, multiple chunks may arrive at
+// a set of communication channels. As a result, multiple chunks often arrive at
 // the receiver simultaneously. We assume that, in any time window, there are
 // not many (ideally, no) duplicate chunk arrivals. For each chunk, there can
-// be at most a few (ideally, one) writers asking for permission to write its
-// data. That is, the write contention of the same chunk at the receiver side is
-// low. However, multiple writers can write different chunks at the same time.
-inline constexpr bool kLowChunkWritingContentionAtReceiverSide = true;
+// be at most a few writer threads asking for permission to write the same chunk
+// data. Therefore, the write contention of the same chunk at the receiver side
+// is extremely low. On the other hand, multiple writer threads can write
+// different chunks at the same time.
+inline constexpr bool kReceiverSideChunkWriteContentionIsVeryLow = true;
 
 }  // namespace peregrine::assumptions
 

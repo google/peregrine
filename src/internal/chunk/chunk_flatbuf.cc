@@ -1,4 +1,4 @@
-#include "src/internal/chunk/chunk_fb.h"
+#include "src/internal/chunk/chunk_flatbuf.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -13,22 +13,21 @@
 #include "src/internal/chunk/chunk.fbs.h"
 #include "src/internal/chunk/chunk.h"
 
-namespace peregrine::internal {
+namespace peregrine::internal::flatbuf {
 
 std::string Serialize(const ChunkMetadata& m) {
   static_assert(assumptions::kChunkMetadataSerializesToFixedSizeFlatBufString);
 
-  const flatbuf::ChunkMetadata b(m.base_addr.value(), m.handle.value(),
-                                 m.buffer.value(), m.size, m.nchunks,
-                                 m.index.value());
+  const ChunkHeader h(m.base_addr.value(), m.handle.value(), m.buffer.value(),
+                      m.size, m.nchunks, m.index.value());
 
-  flatbuffers::FlatBufferBuilder builder(64);
+  flatbuffers::FlatBufferBuilder builder(kChunkHeaderSize * 2);
   builder.Align(8);
-  builder.PushBytes(reinterpret_cast<const uint8_t*>(&b), sizeof(b));
+  builder.PushBytes(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
 
   const uint8_t* buf = builder.GetCurrentBufferPointer();
   const size_t size = builder.GetSize();
-  DCHECK_EQ(size, kChunkMetadataSerializationSize);
+  DCHECK_EQ(size, kChunkHeaderSize);
   return std::string(reinterpret_cast<const char*>(buf), size);
 }
 
@@ -41,18 +40,17 @@ ChunkMetadata Deserialize(const std::string_view s) {
 void Deserialize(std::string_view s, ChunkMetadata& chunk) {
   static_assert(assumptions::kChunkMetadataSerializesToFixedSizeFlatBufString);
 
-  // Alignment: copy to a local flatbuffer object.
-  // TODO(yongx): remove it if the input is always 8-byte aligned.
-  flatbuf::ChunkMetadata b;
-  DCHECK_EQ(s.size(), sizeof(b));
-  std::memcpy(&b, s.data(), sizeof(b));
+  // TODO(yongx): remove it if the input string is already 8-byte aligned.
+  ChunkHeader h;
+  DCHECK_EQ(s.size(), sizeof(h));
+  std::memcpy(&h, s.data(), sizeof(h));
 
-  chunk.base_addr = addr_t(b.base_addr());
-  chunk.handle = Handle(b.handle());
-  chunk.buffer = Buffer(b.buffer());
-  chunk.size = b.size();
-  chunk.nchunks = b.nchunks();
-  chunk.index = chunk_t(b.index());
+  chunk.base_addr = addr_t(h.base_addr());
+  chunk.handle = Handle(h.handle());
+  chunk.buffer = Buffer(h.buffer());
+  chunk.size = h.size();
+  chunk.nchunks = h.nchunks();
+  chunk.index = chunk_t(h.index());
 }
 
-}  // namespace peregrine::internal
+}  // namespace peregrine::internal::flatbuf

@@ -1,4 +1,4 @@
-#include "src/internal/chunk/chunk_fb.h"
+#include "src/internal/chunk/chunk_flatbuf.h"
 
 #include <string>
 
@@ -17,14 +17,14 @@ TEST(ChunkSerializationTest, Serde) {
   ChunkMetadata chunk = GenChunkMetadata();
   ASSERT_TRUE(chunk.IsValid());
 
-  const std::string s = Serialize(chunk);
-  ASSERT_EQ(s.size(), kChunkMetadataSerializationSize);
+  const std::string s = flatbuf::Serialize(chunk);
+  ASSERT_EQ(s.size(), flatbuf::kChunkHeaderSize);
 
-  const ChunkMetadata m1 = Deserialize(s);
+  const ChunkMetadata m1 = flatbuf::Deserialize(s);
   EXPECT_EQ(chunk, m1);
 
   ChunkMetadata m2;
-  Deserialize(s, m2);
+  flatbuf::Deserialize(s, m2);
   EXPECT_EQ(chunk, m2);
 }
 
@@ -39,10 +39,10 @@ TEST(ChunkSerializationTest, FixedSize) {
     GenChunkMetadata(bitgen, chunk);
     ASSERT_TRUE(chunk.IsValid());
 
-    const std::string s = Serialize(chunk);
-    ASSERT_EQ(s.size(), kChunkMetadataSerializationSize);
+    const std::string s = flatbuf::Serialize(chunk);
+    ASSERT_EQ(s.size(), flatbuf::kChunkHeaderSize);
 
-    const ChunkMetadata m = Deserialize(s);
+    const ChunkMetadata m = flatbuf::Deserialize(s);
     ASSERT_THAT(chunk, ::testing::Eq(m));
 
     ss.insert(s);
