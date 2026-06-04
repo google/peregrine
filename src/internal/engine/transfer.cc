@@ -7,6 +7,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -18,6 +19,7 @@
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/chunk/chunk_fb.h"
 #include "src/internal/chunk/chunk_tracker.h"
 
 namespace peregrine::internal {
@@ -42,12 +44,13 @@ Transfer::Transfer(const ChunkMetadata& m, std::unique_ptr<Channel> channel)
 
 bool Transfer::SendChunk(const chunk_t index, const ChunkPayloadView payload) {
   // Step 1: build two iovecs for the chunk
-  //  * fix-sized chunk metadata
+  //  * fixed-size chunk metadata serialization
   //  * variable-sized chunk payload (raw bytes)
   const ChunkMetadata chunk = genChunkMetadata(index);
+  const std::string chunk_str = Serialize(chunk);
+  DCHECK_EQ(chunk_str.size(), kChunkMetadataSerializationSize);
   const std::array<const IoVec, 2> iovecs = {
-      // TODO(yongx): chunk serialization to fixed size header
-      IoVec((void*)&chunk, sizeof(chunk)),
+      IoVec((void*)chunk_str.data(), chunk_str.size()),
       IoVec((void*)payload.data(), payload.size()),
   };
   DCHECK(IsMatch(chunk, payload));
@@ -66,26 +69,40 @@ bool Transfer::RecvChunk() {
   }
 }
 
-bool Transfer::recvChunkStream() {
-  DCHECK(IsReliableStream(channel_->Type()));
-
-  // Step 1: read chunk metadata.
-  ChunkMetadata chunk;
-  if (channel_->Read(Ptr<Byte>(chunk), sizeof(chunk)) != sizeof(chunk)) {
-    // TODO(yongx): handle the error.
-    LOG(WARNING) << "failed to read chunk metadata";
-    return false;
-  }
+bool Transfer::deserializeAndCheck(Byte* buf, ChunkMetadata& chunk) const {
+  std::string_view s(reinterpret_cast<const char*>(buf),
+                     kChunkMetadataSerializationSize);
+  Deserialize(s, chunk);
   if (!chunk.IsValid()) {
     LOG(WARNING) << "invalid chunk metadata: " << chunk;
     return false;
   }
-  if (!checkSecurity(chunk)) {
+  if (!template_.Check(chunk)) {
     LOG(WARNING) << "malicious chunk metadata: " << chunk;
     return false;
   }
+  return true;
+}
 
-  // Step 2: acquire chunk write permission and process chunk payload.
+bool Transfer::recvChunkStream() {
+  DCHECK(IsReliableStream(channel_->Type()));
+
+  // Step 1: read chunk metadata serialization.
+  Byte buf[kChunkMetadataSerializationSize];
+  if (const ssize_t len = channel_->Read(buf, sizeof(buf));
+      len != sizeof(buf)) {
+    // TODO(yongx): handle the error.
+    LOG(WARNING) << "failed to read chunk metadata: " << len;
+    return false;
+  }
+
+  // Step 2: deserialize chunk metadata.
+  ChunkMetadata chunk;
+  if (!deserializeAndCheck(buf, chunk)) {
+    return false;
+  }
+
+  // Step 3: acquire chunk write permission and process chunk payload.
   static_assert(assumptions::kLowChunkWritingContentionAtReceiverSide);
   bool status = false;
   const chunk_t index = chunk.index;
@@ -106,38 +123,31 @@ bool Transfer::testOnly_recvChunkMsg() {
   DCHECK(IsUnreliableMessage(channel_->Type()));
 
   // Step 1: read chunk metadata.
-  ChunkMetadata chunk;
+  static_assert(kChunkMetadataSerializationSize < kTmpBufSize);
   Byte* const buf = tmpbuf_.get();
   const ssize_t len = channel_->Read(buf, kTmpBufSize);
-  if (len < 0) {
+  if (len < kChunkMetadataSerializationSize) {
     // TODO(yongx): handle the error.
-    LOG(WARNING) << "failed to read chunk metadata";
-    return false;
-  }
-  if (len <= sizeof(chunk)) {
-    LOG(WARNING) << "too short chunk metadata";
-    return false;
-  }
-  // TODO(yongx): chunk deserialization from fixed size header
-  std::memcpy(&chunk, buf, sizeof(chunk));
-  if (!chunk.IsValid()) {
-    LOG(WARNING) << "invalid chunk metadata: " << chunk;
-    return false;
-  }
-  if (!checkSecurity(chunk)) {
-    LOG(WARNING) << "malicious chunk metadata: " << chunk;
+    LOG(WARNING) << "failed to read chunk metadata: " << len;
     return false;
   }
 
-  // Step 2: read chunk payload.
-  const ChunkPayloadView payload(buf + sizeof(chunk), len - sizeof(chunk));
+  // Step 2: deserialize chunk metadata.
+  ChunkMetadata chunk;
+  if (!deserializeAndCheck(buf, chunk)) {
+    return false;
+  }
+
+  // Step 3: read chunk payload.
+  const ChunkPayloadView payload(buf + kChunkMetadataSerializationSize,
+                                 len - kChunkMetadataSerializationSize);
   if (!IsMatch(chunk, payload)) {
     LOG(WARNING) << "mismatched chunk metadata: " << chunk
                  << " vs payload size " << payload.size();
     return false;
   }
 
-  // Step 3: acquire chunk write permission and process chunk payload.
+  // Step 4: acquire chunk write permission and process chunk payload.
   static_assert(assumptions::kLowChunkWritingContentionAtReceiverSide);
   const chunk_t index = chunk.index;
   const bool permission = tracker_.Acquire(index);

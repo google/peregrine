@@ -35,6 +35,7 @@ cc_library(
         "//src/internal/base:types",
         "//src/internal/channel",
         "//src/internal/chunk",
+        "//src/internal/chunk:chunk_fb",
         "//src/internal/chunk:chunk_tracker",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",

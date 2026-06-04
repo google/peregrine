@@ -47,10 +47,9 @@ class Transfer final {
     return c;
   }
 
-  // Returns true iff the incoming `chunk` metadata is not malicious.
-  bool checkSecurity(const ChunkMetadata& chunk) const {
-    return template_.Check(chunk);
-  }
+  // Deserializes chunk metadata and checks its validity and security.
+  // Returns true iff the chunk metadata is valid and not malicious.
+  bool deserializeAndCheck(Byte* buf, ChunkMetadata& chunk) const;
 
   // Receives chunk metadata and payload from the stream channel.
   bool recvChunkStream();
@@ -65,6 +64,7 @@ class Transfer final {
   static_assert(assumptions::kNetworkMtuIsAtMostTenKiloBytes);
   static constexpr size_t kTmpBufSize = 10UL << 10;
 
+ private:
   const ChunkMetadata template_;
   std::unique_ptr<Channel> channel_;
   std::unique_ptr<Byte[]> tmpbuf_;
