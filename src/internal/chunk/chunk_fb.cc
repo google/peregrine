@@ -33,21 +33,26 @@ std::string Serialize(const ChunkMetadata& m) {
 }
 
 ChunkMetadata Deserialize(const std::string_view s) {
+  ChunkMetadata chunk;
+  Deserialize(s, chunk);
+  return chunk;
+}
+
+void Deserialize(std::string_view s, ChunkMetadata& chunk) {
   static_assert(assumptions::kChunkMetadataSerializesToFixedSizeFlatBufString);
 
   // Alignment: copy to a local flatbuffer object.
+  // TODO(yongx): remove it if the input is always 8-byte aligned.
   flatbuf::ChunkMetadata b;
   DCHECK_EQ(s.size(), sizeof(b));
   std::memcpy(&b, s.data(), sizeof(b));
 
-  return ChunkMetadata{
-      .base_addr = addr_t(b.base_addr()),
-      .handle = Handle(b.handle()),
-      .buffer = Buffer(b.buffer()),
-      .size = b.size(),
-      .nchunks = b.nchunks(),
-      .index = chunk_t(b.index()),
-  };
+  chunk.base_addr = addr_t(b.base_addr());
+  chunk.handle = Handle(b.handle());
+  chunk.buffer = Buffer(b.buffer());
+  chunk.size = b.size();
+  chunk.nchunks = b.nchunks();
+  chunk.index = chunk_t(b.index());
 }
 
 }  // namespace peregrine::internal

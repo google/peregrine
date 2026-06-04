@@ -20,8 +20,12 @@ TEST(ChunkSerializationTest, Serde) {
   const std::string s = Serialize(chunk);
   ASSERT_EQ(s.size(), kChunkMetadataSerializationSize);
 
-  const ChunkMetadata m = Deserialize(s);
-  EXPECT_EQ(chunk, m);
+  const ChunkMetadata m1 = Deserialize(s);
+  EXPECT_EQ(chunk, m1);
+
+  ChunkMetadata m2;
+  Deserialize(s, m2);
+  EXPECT_EQ(chunk, m2);
 }
 
 TEST(ChunkSerializationTest, FixedSize) {

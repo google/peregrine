@@ -23,6 +23,9 @@ std::string Serialize(const ChunkMetadata& m);
 // Parses the chunk metadata from its fixed-size flatbuffer serialization.
 ChunkMetadata Deserialize(std::string_view s);
 
+// Parses the chunk metadata from its fixed-size flatbuffer serialization.
+void Deserialize(std::string_view s, ChunkMetadata& chunk);
+
 }  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_CHUNK_CHUNK_FB_H_
