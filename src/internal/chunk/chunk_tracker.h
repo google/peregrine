@@ -4,12 +4,12 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
-#include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/synchronization/mutex.h"
 #include "src/internal/chunk/chunk.h"
-#include "src/internal/util/util.h"
+#include "src/internal/lib/bitset.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -25,16 +25,22 @@ namespace peregrine::internal {
 //
 // Chunk state machine:
 //
-//    entrance >  EMPTY
-//         v        |
-//                  V
-//       ERROR --> DONE      (w/ a BUSY flag)
+//             Acquire()           Release(..., success=true)
+//    EMPTY <-------------> BUSY -----------------------------> DONE
+//      ^                    |
+//      |                    |  Release(..., success=false)
+//      +--------------------+
 //
-// The entrance is either EMPTY or ERROR. DONE is final so it can only be
-// updated at most once. When a writer is busy writing the chunk data, the
-// BUSY flag for the chunk is set. It is cleared after the chunk data writing
-// is completed, with the state updated to either DONE (for success) or ERROR
-// (for failure).
+// EMPTY is the initial state. To write a chunk, a writer must first call
+// Acquire() to get exclusive write access, which transitions the chunk's
+// state from EMPTY to BUSY. If Acquire() returns false, the writer must
+// not write to the chunk. Note that Acquire() only returns false when the
+// chunk is already BUSY or DONE.
+//
+// Once the writer finishes writing, it must call Release(). If the write
+// succeeded, the chunk's state transitions to DONE (which is final). If
+// the write failed, the chunk's state transitions back to EMPTY so that
+// other writers can attempt to write the chunk again.
 //
 // This class is thread-safe.
 class ChunkTracker {
@@ -53,58 +59,52 @@ class ChunkTracker {
   uint32_t TotalNumChunks() const { return total_num_chunks_; }
 
   // Returns true iff the `index`-th chunk is being busy written.
-  bool IsBusy(chunk_t index) const ABSL_LOCKS_EXCLUDED(mu_);
+  bool IsBusy(chunk_t index) const ABSL_LOCKS_EXCLUDED(mu_) {
+    absl::MutexLock lock(mu_);
+    return busy_chunks_.contains(index);
+  }
+
+  // Returns true iff no chunk has been written yet.
+  bool IsEmpty() const ABSL_LOCKS_EXCLUDED(mu_) {
+    absl::MutexLock lock(mu_);
+    return chunks_.IsEmpty();
+  }
+
+  // Returns true iff all the chunks have been written successfully.
+  bool IsCompleted() const ABSL_LOCKS_EXCLUDED(mu_) {
+    absl::MutexLock lock(mu_);
+    return chunks_.IsFull();
+  }
 
   // Gets the exclusive data write access to the `index`-th chunk.
   // Returns true if the permission is granted.
   bool Acquire(chunk_t index) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Releases the exclusive data write access to the `index`-th chunk.
-  // Returns true iff all the chunks have been written successfully.
   // PRECONDITION: The caller must have called Acquire() and it returned true.
-  bool Release(chunk_t index, bool success) ABSL_LOCKS_EXCLUDED(mu_);
-
-  // Returns true iff no chunk has been written yet.
-  bool IsEmpty() const ABSL_LOCKS_EXCLUDED(mu_);
-
-  // Returns true iff all the chunks have been written successfully.
-  bool IsCompleted() const ABSL_LOCKS_EXCLUDED(mu_);
+  void Release(chunk_t index, bool success) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Returns a string representation of the tracker.
   std::string ToString() const ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
-  // Chunk states. Do not change the values.
-  using ChunkState = uint8_t;
-  static constexpr ChunkState kChunkEmpty = 0x00;  // Never been written.
-  static constexpr ChunkState kChunkError = 0x01;  // Written but failed.
-  static constexpr ChunkState kChunkDone = 0x02;   // Data has been filled.
-  static constexpr ChunkState kChunkStateMask = 0x03;
-  static constexpr ChunkState kChunkBusyFlag = 0x10;  // It is being written.
-  static_assert(IsPowerOfTwo<uint8_t>(kChunkStateMask + 1));
-  static_assert((kChunkBusyFlag & kChunkStateMask) == 0);
-
- private:
-  // Returns true iff the chunk state has the BUSY flag set.
-  constexpr bool testBusyBit(ChunkState s) const {
-    return (s & kChunkBusyFlag) != 0;
-  }
-
   // Returns true iff the chunk index is valid.
   bool isValidChunk(chunk_t index) const {
     return 0 <= index.value() && index.value() < total_num_chunks_;
   }
 
   // Returns true iff the invariant holds.
-  bool invariant() const ABSL_SHARED_LOCKS_REQUIRED(mu_);
+  bool invariant() const ABSL_SHARED_LOCKS_REQUIRED(mu_) {
+    return chunks_.Size() == total_num_chunks_;
+  }
 
  private:
-  const uint32_t total_num_chunks_;
+  const uint32_t total_num_chunks_;  // cache
 
   mutable absl::Mutex mu_;
-  uint32_t num_chunks_done_ ABSL_GUARDED_BY(mu_);  // cache
   uint32_t num_chunks_dup_ ABSL_GUARDED_BY(mu_);
-  std::vector<ChunkState> states_ ABSL_GUARDED_BY(mu_);
+  Bitset chunks_ ABSL_GUARDED_BY(mu_);
+  absl::flat_hash_set<chunk_t> busy_chunks_ ABSL_GUARDED_BY(mu_);
 };
 
 inline std::ostream& operator<<(std::ostream& os, const ChunkTracker& t) {

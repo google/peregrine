@@ -75,10 +75,10 @@ cc_library(
     hdrs = ["chunk_tracker.h"],
     deps = [
         ":chunk",
-        "//src/internal/util",
+        "//src/internal/lib:bitset",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",

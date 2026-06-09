@@ -91,7 +91,8 @@ TEST_F(ChunkTrackerStressTest, MultipleWriters) {
         const chunk_t i = RandomChunkIndex(bitgen);
         if (tracker_->Acquire(i)) {
           SimulateWork(bitgen, i);
-          if (tracker_->Release(i, Success(bitgen))) break;
+          tracker_->Release(i, Success(bitgen));
+          if (tracker_->IsCompleted()) break;
         } else {
           absl::SleepFor(absl::Milliseconds(1));
         }
