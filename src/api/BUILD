@@ -43,10 +43,14 @@ cc_library(
 
 cc_library(
     name = "transport_util",
+    srcs = ["transport_util.cc"],
     hdrs = ["transport_util.h"],
     deps = [
         ":transport",
         "//src/internal:transport_impl",
+        "//src/internal/base:endpoint",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
     ],
 )
 
@@ -55,6 +59,8 @@ cc_test(
     srcs = ["transport_util_test.cc"],
     deps = [
         ":transport_util",
+        "//src/util",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )

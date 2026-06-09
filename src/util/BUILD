@@ -19,6 +19,7 @@ cc_library(
         "//src/api:types",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
     ],
 )

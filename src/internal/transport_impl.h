@@ -3,20 +3,27 @@
 
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "src/api/transport.h"
 #include "src/api/types.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/engine/engine.h"
 
 namespace peregrine::internal {
 
 // This lightweight class implements the transport API. It delegates all the
 // heavy work to its `engine`. In other words, this class serves as a thin
-// adapter between the transport API and the engine, so the latter is has
+// adapter between the transport API and the engine, so the latter has
 // more flexibility to change.
 // It is thread-safe.
 class TransportImpl final : public Transport {
  public:
+  // Constructor.
+  explicit TransportImpl(const Endpoint& self) : self_(self) {
+    DCHECK(self_.IsValid());
+  }
+
   // Posts a transport `request` to communicate with the `peer`.
   //
   // If successful, returns a `handle` which uniquely identifies the request
@@ -35,6 +42,7 @@ class TransportImpl final : public Transport {
   }
 
  private:
+  const Endpoint self_;
   Engine engine_;
 };
 

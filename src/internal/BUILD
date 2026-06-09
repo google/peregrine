@@ -43,6 +43,7 @@ cc_library(
         "//src/internal/base:endpoint",
         "//src/internal/engine",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",

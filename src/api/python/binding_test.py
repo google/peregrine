@@ -52,7 +52,7 @@ class BindTest(googletest.TestCase):
     lbuf = ctypes.create_string_buffer(1024)
     rbuf = ctypes.create_string_buffer(1024)
 
-    transport = pg.create_transport()
+    transport = pg.create_transport("127.0.0.1:12345")
     self.assertIsNotNone(transport)
 
     req = pg.Request(

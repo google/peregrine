@@ -12,8 +12,9 @@ class SimpleTest(googletest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.peer = "127.0.0.1:12345"
-    self.transport = pg.create_transport()
+    self.self = "127.0.0.1:12345"
+    self.peer = "127.0.0.1:54321"
+    self.transport = pg.create_transport(self.self)
 
   def wait_for_completion(self, handle: pg.Handle) -> None:
     end_time = time.time() + _TIMEOUT.total_seconds()

@@ -92,7 +92,7 @@ NB_MODULE(peregrine, m) {
           },
           nb::arg("handle"));
 
-  m.def("create_transport", &CreateTransport);
+  m.def("create_transport", &CreateTransport, nb::arg("endpoint"));
 }
 
 }  // namespace
