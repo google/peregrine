@@ -2,6 +2,8 @@
 #include "src/internal/engine/engine.h"
 
 #include <cstring>
+#include <memory>
+#include <thread>  // NOLINT
 #include <utility>
 
 #include "absl/log/check.h"
@@ -12,6 +14,8 @@
 #include "absl/synchronization/mutex.h"
 #include "src/api/types.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/socket/acceptor.h"
+#include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
 
@@ -26,11 +30,27 @@ absl::Status NotFoundError(const Handle h) {
 }
 }  // namespace
 
-Engine::Engine(const int num_threads) : stopping_(false) {
-  for (int i = 0; i < num_threads; ++i) {
+Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor)
+    : stopping_(false), acceptor_(std::move(acceptor)) {
+  // Start an acceptor thread.
+  DCHECK(acceptor_ != nullptr);
+  acceptor_thread_ = std::jthread([this]() {
+    auto callback = [this](std::unique_ptr<TcpSocket> socket) {
+      accept(std::move(socket));
+    };
+    acceptor_->Start(callback);
+  });
+
+  // Start worker threads.
+  constexpr int kNumThreads = 1;
+  for (int i = 0; i < kNumThreads; ++i) {
     threads_.emplace_back([this, i]() { workerLoop(i); });
   }
   LOG(INFO) << "ctor, #num_threads = " << threads_.size();
+}
+
+void Engine::accept(std::unique_ptr<TcpSocket> socket) {
+  auto _ = std::move(socket);
 }
 
 bool Engine::hasWork() const { return !reqs_.empty() || stopping_; }
@@ -65,6 +85,7 @@ Engine::~Engine() {
   LOG(INFO) << "dtor";
   {
     absl::MutexLock _(mu_);
+    acceptor_->Stop();
     stopping_ = true;
   }
   // all threads are joined in the threads_ destructor.

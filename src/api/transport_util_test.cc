@@ -14,9 +14,12 @@ namespace peregrine::testing {
 namespace {
 
 TEST(TransportUtilTest, Create) {
-  const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
-  const std::string endpoint = absl::StrCat("127.0.0.1:", port);
-  EXPECT_THAT(CreateTransport(endpoint), ::testing::NotNull());
+  for (int family : {AF_INET, AF_INET6}) {
+    const std::string ip = family == AF_INET ? "127.0.0.1" : "[::1]";
+    const uint16_t port = util::FindFreePort(family, /*tcp=*/true);
+    const std::string endpoint = absl::StrCat(ip, ":", port);
+    EXPECT_THAT(CreateTransport(endpoint), ::testing::NotNull());
+  }
 }
 
 }  // namespace

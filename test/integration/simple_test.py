@@ -1,8 +1,10 @@
 import ctypes
 import datetime
+import socket
 import time
 from google3.testing.pybase import googletest
 from src.api import peregrine as pg
+from src.util import util
 
 _TIMEOUT = datetime.timedelta(seconds=10)
 _INTERVAL = datetime.timedelta(milliseconds=100)
@@ -12,8 +14,10 @@ class SimpleTest(googletest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.self = "127.0.0.1:12345"
-    self.peer = "127.0.0.1:54321"
+    port1 = util.find_free_port(socket.AF_INET, tcp=True)
+    port2 = util.find_free_port(socket.AF_INET, tcp=True)
+    self.self = f"127.0.0.1:{port1}"
+    self.peer = f"127.0.0.1:{port2}"
     self.transport = pg.create_transport(self.self)
 
   def wait_for_completion(self, handle: pg.Handle) -> None:

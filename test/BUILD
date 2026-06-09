@@ -28,6 +28,7 @@ py_test(
     main = "integration/simple_test.py",
     deps = [
         "//src/api:peregrine",
+        "//src/util:util_py",
         "//testing/pybase",
     ],
 )

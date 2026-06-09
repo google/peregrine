@@ -42,6 +42,7 @@ cc_library(
         "//src/api:types",
         "//src/internal/base:endpoint",
         "//src/internal/engine",
+        "//src/internal/socket:acceptor",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",

@@ -1,14 +1,16 @@
 #ifndef PEREGRINE_SRC_INTERNAL_TRANSPORT_IMPL_H_
 #define PEREGRINE_SRC_INTERNAL_TRANSPORT_IMPL_H_
 
+#include <memory>
 #include <string_view>
+#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "src/api/transport.h"
 #include "src/api/types.h"
-#include "src/internal/base/endpoint.h"
 #include "src/internal/engine/engine.h"
+#include "src/internal/socket/acceptor.h"
 
 namespace peregrine::internal {
 
@@ -20,9 +22,8 @@ namespace peregrine::internal {
 class TransportImpl final : public Transport {
  public:
   // Constructor.
-  explicit TransportImpl(const Endpoint& self) : self_(self) {
-    DCHECK(self_.IsValid());
-  }
+  explicit TransportImpl(std::unique_ptr<TcpAcceptor> acceptor)
+      : engine_(std::move(acceptor)) {}
 
   // Posts a transport `request` to communicate with the `peer`.
   //
@@ -42,7 +43,6 @@ class TransportImpl final : public Transport {
   }
 
  private:
-  const Endpoint self_;
   Engine engine_;
 };
 

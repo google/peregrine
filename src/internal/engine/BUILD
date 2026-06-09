@@ -12,6 +12,8 @@ cc_library(
         "//src/internal:assumptions",
         "//src/internal:coding_style",
         "//src/internal/base:endpoint",
+        "//src/internal/socket:acceptor",
+        "//src/internal/socket:socket_tcp",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
