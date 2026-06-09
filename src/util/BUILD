@@ -2,6 +2,8 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 package(default_visibility = [
     "//src:__subpackages__",
@@ -56,5 +58,20 @@ cc_test(
         ":util",
         "@abseil-cpp//absl/random",
         "@googletest//:gtest_main",
+    ],
+)
+
+py_library(
+    name = "util_py",
+    srcs = ["util.py"],
+)
+
+py_test(
+    name = "util_test_py",
+    srcs = ["util_test.py"],
+    main = "util_test.py",
+    deps = [
+        ":util_py",
+        "//testing/pybase",
     ],
 )
