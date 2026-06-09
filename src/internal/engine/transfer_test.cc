@@ -16,6 +16,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/chunk/chunk_tracker.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -41,21 +42,22 @@ T* Ptr(ChunkMetadata& metadata) {
 
 class TransferTest : public ::testing::Test {
  protected:
-  TransferTest() : src_(kBufSize), dst_(kBufSize) {
+  TransferTest() : src_(kBufSize), dst_(kBufSize), chunk_tracker_(kNumChunks) {
+    DCHECK(chunk_tracker_.IsEmpty());
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = static_cast<Byte>(0);
     }
   }
 
-  ChunkMetadata GenChunk() {
+  ChunkMetadata GenChunk(uint32_t i) {
     return ChunkMetadata{
         .base_addr = addr_t(reinterpret_cast<uintptr_t>(dst_.data())),
         .handle = kHandle,
         .buffer = kBuffer,
         .size = kChunkSize,
         .nchunks = kNumChunks,
-        .index = chunk_t(0)};
+        .index = chunk_t(i)};
   }
 
   ChunkPayloadView GenPayload(uint32_t i) {
@@ -75,26 +77,33 @@ class TransferTest : public ::testing::Test {
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
+  ChunkTracker chunk_tracker_;
 };
 
 TEST_F(TransferTest, SendAndRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
+  // Set up chunk tracker lookup.
+  auto lookup = [this](Handle, Buffer) { return &chunk_tracker_; };
+
+  Transfer xfer;
   for (const auto type : {kReliableStream, kUnreliableMessage}) {
-    Transfer xfer(GenChunk(), CreateChannel(type));
+    std::unique_ptr<Channel> ch = CreateChannel(type);
+    Channel* const channel = ch.get();
+    ASSERT_NE(channel, nullptr);
 
     std::thread sndr([&]() {
-      for (int i = 0; i < kNumChunks; ++i) {
-        const chunk_t index = chunk_t(i);
+      for (uint32_t i = 0; i < kNumChunks; ++i) {
+        const ChunkMetadata chunk = GenChunk(i);
         const ChunkPayloadView payload = GenPayload(i);
-        CHECK(xfer.SendChunk(index, payload));
+        CHECK(xfer.SendChunk(channel, chunk, payload));
       }
     });
 
     std::thread rcvr([&]() {
-      while (!xfer.Done()) {
-        xfer.RecvChunk();
+      while (!chunk_tracker_.IsCompleted()) {
+        xfer.RecvChunk(channel, lookup);
       }
     });
 

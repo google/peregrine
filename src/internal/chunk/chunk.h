@@ -28,18 +28,12 @@ struct ChunkMetadata final {
   uint32_t size;     // chunk size (fixed)
   uint32_t nchunks;  // total #chunks (fixed)
   chunk_t index;     // chunk index (variable)
-  // LINT.ThenChange(//third_party/peregrine/src/internal/chunk/chunk.fbs)
+  // LINT.ThenChange(src/internal/chunk/chunk.fbs)
 
   // Returns true iff the chunk is valid.
   bool IsValid() const {
     DCHECK_LE(0, index.value());
     return 1 <= size && 1 <= nchunks && index.value() < nchunks;
-  }
-
-  // Returns true iff the fixed parts of the chunk metadata match.
-  bool Check(const ChunkMetadata& m) const {
-    return m.base_addr == base_addr && m.handle == handle &&
-           m.buffer == buffer && m.size == size && m.nchunks == nchunks;
   }
 
   // Returns the destination memory address for the chunk.

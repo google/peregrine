@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -13,7 +14,6 @@
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/str_format.h"
 #include "src/api/types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
@@ -26,22 +26,9 @@ namespace peregrine::internal {
 
 using flatbuf::kChunkHeaderSize;
 
-Transfer::Transfer(const ChunkMetadata& m, std::unique_ptr<Channel> channel)
-    : template_(m),
-      channel_(std::move(channel)),
-      tmpbuf_(std::make_unique_for_overwrite<Byte[]>(kTmpBufSize)),
-      tracker_(template_.nchunks) {
-  DCHECK(template_.IsValid());
-  DCHECK_NE(channel_, nullptr);
-  DCHECK_NE(tmpbuf_, nullptr);
-  DCHECK(tracker_.IsEmpty());
-}
-
-bool Transfer::SendChunk(const chunk_t index, const ChunkPayloadView payload) {
-  DCHECK_EQ(payload.size(), template_.size);
-
+bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
+                         const ChunkPayloadView payload) {
   // Step 1: build two iovecs: header + payload.
-  const ChunkMetadata chunk = genChunkMetadata(index);
   const std::string header = flatbuf::Serialize(chunk);
   DCHECK_EQ(header.size(), kChunkHeaderSize);
   const std::array<const IoVec, 2> iovecs = {
@@ -50,40 +37,33 @@ bool Transfer::SendChunk(const chunk_t index, const ChunkPayloadView payload) {
   };
   DCHECK(IsMatch(chunk, payload));
 
-  // Step 2: send the chunk.
-  return channel_->Write(iovecs);
+  // Step 2: send chunk header and payload.
+  return channel->Write(iovecs);
 }
 
-bool Transfer::RecvChunk() {
-  const ChannelType t = channel_->Type();
+bool Transfer::RecvChunk(Channel* const channel, ChunkTrackerLookup lookup) {
+  const ChannelType t = channel->Type();
   if ABSL_PREDICT_TRUE (IsReliableStream(t)) {
-    return recvChunkStream();
+    return recvChunkStream(channel, std::move(lookup));
   } else {
     DCHECK(IsUnreliableMessage(t));
-    return testOnly_recvChunkMsg();
+    return testOnly_recvChunkMsg(channel, std::move(lookup));
   }
 }
 
-bool Transfer::deserializeAndCheck(Byte* buf, ChunkMetadata& chunk) const {
+bool Transfer::deserialize(Byte* buf, ChunkMetadata& chunk) {
   std::string_view s(reinterpret_cast<const char*>(buf), kChunkHeaderSize);
   flatbuf::Deserialize(s, chunk);
-  if ABSL_PREDICT_FALSE (!chunk.IsValid()) {
-    LOG(WARNING) << "invalid chunk: " << chunk;
-    return false;
-  }
-  if ABSL_PREDICT_FALSE (!template_.Check(chunk)) {
-    LOG(ERROR) << "malicious chunk: " << chunk;
-    return false;
-  }
-  return true;
+  return chunk.IsValid();
 }
 
-bool Transfer::recvChunkStream() {
-  DCHECK(IsReliableStream(channel_->Type()));
+bool Transfer::recvChunkStream(Channel* const channel,
+                               ChunkTrackerLookup lookup) {
+  DCHECK(IsReliableStream(channel->Type()));
 
   // Step 1: read chunk header.
   Byte buf[kChunkHeaderSize];
-  const ssize_t len = channel_->Read(buf, sizeof(buf));
+  const ssize_t len = channel->Read(buf, sizeof(buf));
   if ABSL_PREDICT_FALSE (len != sizeof(buf)) {
     // TODO(yongx): handle the error.
     LOG(WARNING) << "failed to read chunk header: " << len;
@@ -92,34 +72,43 @@ bool Transfer::recvChunkStream() {
 
   // Step 2: deserialize chunk metadata.
   ChunkMetadata chunk;
-  if ABSL_PREDICT_FALSE (!deserializeAndCheck(buf, chunk)) {
+  if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
+    LOG(WARNING) << "invalid chunk header: " << chunk;
     return false;
   }
 
-  // Step 3: acquire chunk write permission and process chunk payload.
+  // Step 3: find chunk tracker.
+  ChunkTracker* const tracker = lookup(chunk.handle, chunk.buffer);
+  if ABSL_PREDICT_FALSE (tracker == nullptr) {
+    LOG(WARNING) << "failed to find chunk tracker for: " << chunk.buffer;
+    return drainStream(channel, chunk.size);
+  }
+
+  // Step 4: acquire chunk write permission and process chunk payload.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
-  bool status = false;
   const chunk_t index = chunk.index;
-  const bool permission = tracker_.Acquire(index);
+  const bool permission = tracker->Acquire(index);
   if ABSL_PREDICT_TRUE (permission) {
     // Permission is granted, read payload and track its arrival.
-    status = channel_->Read(chunk.DstAddr(), chunk.size) == chunk.size;
-    tracker_.Release(index, status);
+    const size_t size = chunk.size;
+    const bool status = channel->Read(chunk.DstAddr(), size) == size;
+    tracker->Release(index, status);
+    return status;
   } else {
-    // Another thread is busy writing the same chunk.
-    LOG(WARNING) << "busy chunk #" << index.value();
-    status = drainStream(chunk);
+    // The same chunk is being, or has been, written.
+    LOG(WARNING) << "busy/done chunk #" << index.value();
+    return drainStream(channel, chunk.size);
   }
-  return status;
 }
 
-bool Transfer::testOnly_recvChunkMsg() {
-  DCHECK(IsUnreliableMessage(channel_->Type()));
+bool Transfer::testOnly_recvChunkMsg(Channel* const channel,
+                                     ChunkTrackerLookup lookup) {
+  DCHECK(IsUnreliableMessage(channel->Type()));
 
   // Step 1: read chunk header.
   static_assert(kChunkHeaderSize < kTmpBufSize);
   Byte* const buf = tmpbuf_.get();
-  const ssize_t len = channel_->Read(buf, kTmpBufSize);
+  const ssize_t len = channel->Read(buf, kTmpBufSize);
   if ABSL_PREDICT_FALSE (len < kChunkHeaderSize) {
     // TODO(yongx): handle the error.
     LOG(WARNING) << "failed to read chunk header: " << len;
@@ -128,11 +117,19 @@ bool Transfer::testOnly_recvChunkMsg() {
 
   // Step 2: deserialize chunk metadata.
   ChunkMetadata chunk;
-  if ABSL_PREDICT_FALSE (!deserializeAndCheck(buf, chunk)) {
+  if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
+    LOG(WARNING) << "invalid chunk header: " << chunk;
     return false;
   }
 
-  // Step 3: read chunk payload.
+  // Step 3: find chunk tracker.
+  ChunkTracker* const tracker = lookup(chunk.handle, chunk.buffer);
+  if ABSL_PREDICT_FALSE (tracker == nullptr) {
+    LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();
+    return false;
+  }
+
+  // Step 4: read chunk payload.
   const ChunkPayloadView payload(buf + kChunkHeaderSize,
                                  len - kChunkHeaderSize);
   if ABSL_PREDICT_FALSE (!IsMatch(chunk, payload)) {
@@ -141,42 +138,33 @@ bool Transfer::testOnly_recvChunkMsg() {
     return false;
   }
 
-  // Step 4: acquire chunk write permission and process chunk payload.
+  // Step 5: acquire chunk write permission and process chunk payload.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
-  const bool permission = tracker_.Acquire(index);
+  const bool permission = tracker->Acquire(index);
   if ABSL_PREDICT_TRUE (permission) {
     // Permission is granted, read payload and track its arrival.
     std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
-    tracker_.Release(index, true);
+    tracker->Release(index, true);
   } else {
-    // Another thread is busy writing the same chunk.
-    LOG(WARNING) << "busy chunk #" << index.value();
+    // The same chunk is being, or has been, written.
+    LOG(WARNING) << "busy/done chunk #" << index.value();
   }
   return true;
 }
 
-bool Transfer::drainStream(const ChunkMetadata& chunk) {
-  DCHECK(chunk.IsValid());
-
-  LOG(WARNING) << "draining chunk " << chunk;
-  size_t left = chunk.size;
+bool Transfer::drainStream(Channel* const channel, const uint32_t chunk_size) {
+  LOG(WARNING) << "draining chunk size " << chunk_size;
+  size_t left = chunk_size;
   while (left > 0) {
     const size_t len = std::min(left, kTmpBufSize);
-    if ABSL_PREDICT_FALSE (channel_->Read(tmpbuf_.get(), len) != len) {
+    if ABSL_PREDICT_FALSE (channel->Read(tmpbuf_.get(), len) != len) {
       // TODO(yongx): handle the error.
       return false;
     }
     left -= len;
   }
   return true;
-}
-
-std::string Transfer::ToString() const {
-  return absl::StrFormat(
-      "Transfer: handle=0x%x, buffer=0x%x, #chunks=%d, chunk_size=%d",
-      template_.handle.value(), template_.buffer.value(), template_.nchunks,
-      template_.size);
 }
 
 }  // namespace peregrine::internal

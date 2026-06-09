@@ -2,10 +2,10 @@
 #define PEREGRINE_SRC_INTERNAL_ENGINE_TRANSFER_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
-#include <ostream>
-#include <string>
 
+#include "absl/functional/any_invocable.h"
 #include "src/api/types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/channel/channel.h"
@@ -14,66 +14,46 @@
 
 namespace peregrine::internal {
 
-// This class implements transfer for a single buffer between two endpoints.
-// A buffer is a variable-sized contiguous memory space. It can be split into
-// multiple equal-sized chunks, except for the last one.
+// This utility class implements chunk transfer between two endpoints.
+// The chunk is arbitrary: it can come from any buffer. A buffer is a
+// variable-sized contiguous memory space. It can be split into multiple
+// fixed-sized chunks, except for the last one.
 //
-// This class is thread-compatible but not thread-safe. One instance of this
-// class should be used by a single thread.
+// This class is thread-compatible but not thread-safe.
 class Transfer final {
   static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
+  using ChunkTrackerLookup = absl::AnyInvocable<ChunkTracker*(Handle, Buffer)>;
 
  public:
   // Constructor.
-  Transfer(const ChunkMetadata& m, std::unique_ptr<Channel> channel);
+  Transfer() : tmpbuf_(std::make_unique_for_overwrite<Byte[]>(kTmpBufSize)) {}
 
   // Sends chunk metadata and payload to the channel.
-  bool SendChunk(chunk_t index, ChunkPayloadView payload);
+  static bool SendChunk(Channel* channel, const ChunkMetadata& chunk,
+                        ChunkPayloadView payload);
 
   // Receives chunk metadata and payload from the channel.
-  bool RecvChunk();
-
-  // Returns true iff all the chunks of this buffer have been delivered.
-  bool Done() const { return tracker_.IsCompleted(); }
-
-  // Returns a string representation for the transfer.
-  std::string ToString() const;
+  bool RecvChunk(Channel* channel, ChunkTrackerLookup lookup);
 
  private:
-  // Generates chunk metadata with the given chunk `index`.
-  ChunkMetadata genChunkMetadata(chunk_t index) {
-    ChunkMetadata c = template_;
-    c.index = index;
-    return c;
-  }
-
-  // Deserializes chunk metadata and checks its validity and security.
-  // Returns true iff the chunk metadata is valid and not malicious.
-  bool deserializeAndCheck(Byte* buf, ChunkMetadata& chunk) const;
+  // Deserializes chunk metadata and returns true iff the chunk is valid.
+  static bool deserialize(Byte* buf, ChunkMetadata& chunk);
 
   // Receives chunk metadata and payload from the stream channel.
-  bool recvChunkStream();
+  bool recvChunkStream(Channel* channel, ChunkTrackerLookup lookup);
 
   // Receives chunk metadata and payload from the message channel.
-  bool testOnly_recvChunkMsg();
+  bool testOnly_recvChunkMsg(Channel* channel, ChunkTrackerLookup lookup);
 
   // Discards chunk payload that is still buffered in the stream channel.
-  bool drainStream(const ChunkMetadata& chunk);
+  bool drainStream(Channel* channel, uint32_t chunk_size);
 
  private:
   static_assert(assumptions::kNetworkMtuIsAtMostTenKiloBytes);
-  static constexpr size_t kTmpBufSize = 10UL << 10;
+  static constexpr size_t kTmpBufSize = 10U << 10;
 
- private:
-  const ChunkMetadata template_;
-  std::unique_ptr<Channel> channel_;
   std::unique_ptr<Byte[]> tmpbuf_;
-  ChunkTracker tracker_;
 };
-
-inline std::ostream& operator<<(std::ostream& os, const Transfer& t) {
-  return os << t.ToString();
-}
 
 }  // namespace peregrine::internal
 

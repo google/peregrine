@@ -38,9 +38,9 @@ cc_library(
         "//src/internal/chunk:chunk_flatbuf",
         "//src/internal/chunk:chunk_tracker",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -54,6 +54,7 @@ cc_test(
         "//src/internal/channel",
         "//src/internal/channel:channel_test_util",
         "//src/internal/chunk",
+        "//src/internal/chunk:chunk_tracker",
         "//src/util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",

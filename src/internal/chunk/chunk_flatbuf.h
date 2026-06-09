@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_CHUNK_CHUNK_FLATBUF_H_
 #define PEREGRINE_SRC_INTERNAL_CHUNK_CHUNK_FLATBUF_H_
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 
@@ -13,7 +14,7 @@ namespace peregrine::internal::flatbuf {
 static_assert(assumptions::kChunkMetadataSerializesToFixedSizeFlatBufString);
 
 // Note: change of this value will cause breaks!
-constexpr int kChunkHeaderSize = sizeof(ChunkHeader);
+constexpr size_t kChunkHeaderSize = sizeof(ChunkHeader);
 static_assert(kChunkHeaderSize == 32);
 
 // Serializes the chunk metadata to a fixed-size flatbuffer string.
