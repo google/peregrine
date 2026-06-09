@@ -87,7 +87,6 @@ TEST_F(TransferTest, SendAndRecv) {
   // Set up chunk tracker lookup.
   auto lookup = [this](Handle, Buffer) { return &chunk_tracker_; };
 
-  Transfer xfer;
   for (const auto type : {kReliableStream, kUnreliableMessage}) {
     std::unique_ptr<Channel> ch = CreateChannel(type);
     Channel* const channel = ch.get();
@@ -97,13 +96,13 @@ TEST_F(TransferTest, SendAndRecv) {
       for (uint32_t i = 0; i < kNumChunks; ++i) {
         const ChunkMetadata chunk = GenChunk(i);
         const ChunkPayloadView payload = GenPayload(i);
-        CHECK(xfer.SendChunk(channel, chunk, payload));
+        CHECK(Transfer::SendChunk(channel, chunk, payload));
       }
     });
 
     std::thread rcvr([&]() {
       while (!chunk_tracker_.IsCompleted()) {
-        xfer.RecvChunk(channel, lookup);
+        Transfer::RecvChunk(channel, lookup);
       }
     });
 
