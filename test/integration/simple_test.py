@@ -2,7 +2,9 @@ import ctypes
 import datetime
 import socket
 import time
-from google3.testing.pybase import googletest
+
+from absl.testing import absltest
+
 from src.api import peregrine as pg
 from src.util import util
 
@@ -10,12 +12,13 @@ _TIMEOUT = datetime.timedelta(seconds=10)
 _INTERVAL = datetime.timedelta(milliseconds=100)
 
 
-class SimpleTest(googletest.TestCase):
+class SimpleTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
     port1 = util.find_free_port(socket.AF_INET, tcp=True)
     port2 = util.find_free_port(socket.AF_INET, tcp=True)
+    self.assertNotEqual(port1, port2)
     self.self = f"127.0.0.1:{port1}"
     self.peer = f"127.0.0.1:{port2}"
     self.transport = pg.create_transport(self.self)
@@ -75,4 +78,4 @@ class SimpleTest(googletest.TestCase):
 
 
 if __name__ == "__main__":
-  googletest.main()
+  absltest.main()

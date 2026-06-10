@@ -1,9 +1,13 @@
 import ctypes
-from google3.testing.pybase import googletest
+import socket
+
+from absl.testing import absltest
+
 from src.api import peregrine as pg
+from src.util import util
 
 
-class BindTest(googletest.TestCase):
+class BindTest(absltest.TestCase):
 
   def test_op_enum(self):
     self.assertEqual(pg.Op.READ.value, 1)
@@ -52,7 +56,13 @@ class BindTest(googletest.TestCase):
     lbuf = ctypes.create_string_buffer(1024)
     rbuf = ctypes.create_string_buffer(1024)
 
-    transport = pg.create_transport("127.0.0.1:12345")
+    port1 = util.find_free_port(socket.AF_INET, tcp=True)
+    port2 = util.find_free_port(socket.AF_INET, tcp=True)
+    self.assertNotEqual(port1, port2)
+    local = f"127.0.0.1:{port1}"
+    remote = f"127.0.0.1:{port2}"
+
+    transport = pg.create_transport(local)
     self.assertIsNotNone(transport)
 
     req = pg.Request(
@@ -61,7 +71,7 @@ class BindTest(googletest.TestCase):
         raddr=ctypes.addressof(rbuf),
         len=512,
     )
-    handle = transport.post("127.0.0.1:12345", req)
+    handle = transport.post(remote, req)
     self.assertIsInstance(handle, pg.Handle)
 
     status = transport.poll(handle)
@@ -69,4 +79,4 @@ class BindTest(googletest.TestCase):
 
 
 if __name__ == "__main__":
-  googletest.main()
+  absltest.main()

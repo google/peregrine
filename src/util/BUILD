@@ -73,6 +73,6 @@ py_test(
     main = "util_test.py",
     deps = [
         ":util_py",
-        "//testing/pybase",
+        "@abseil-py//absl/testing:absltest",
     ],
 )

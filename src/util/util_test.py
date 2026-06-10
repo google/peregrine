@@ -1,10 +1,11 @@
 import socket
 
-from google3.testing.pybase import googletest
+from absl.testing import absltest
+
 from src.util import util
 
 
-class UtilTest(googletest.TestCase):
+class UtilTest(absltest.TestCase):
 
   def test_find_free_port(self):
     for family in (socket.AF_INET, socket.AF_INET6):
@@ -15,4 +16,4 @@ class UtilTest(googletest.TestCase):
 
 
 if __name__ == "__main__":
-  googletest.main()
+  absltest.main()

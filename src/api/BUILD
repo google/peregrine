@@ -82,6 +82,7 @@ py_test(
     srcs = ["python/binding_test.py"],
     deps = [
         ":peregrine",
-        "//testing/pybase",
+        "//src/util:util_py",
+        "@abseil-py//absl/testing:absltest",
     ],
 )
