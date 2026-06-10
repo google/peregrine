@@ -17,6 +17,7 @@
 namespace peregrine::internal::testing {
 
 // A reliable memory channel to help dev and test: lossless, stream.
+// It is thread-safe.
 class MemStreamChannel final : public Channel {
  public:
   // Returns the channel type.

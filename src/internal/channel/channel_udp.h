@@ -19,6 +19,7 @@
 namespace peregrine::internal {
 
 // A udp socket based channel: unreliable, message.
+// It is thread-compatible but not thread-safe.
 class UdpChannel final : public Channel {
  public:
   // Constructor.

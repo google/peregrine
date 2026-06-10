@@ -21,7 +21,6 @@ namespace peregrine::internal {
 
 // This class wraps a TCP/IPv{4,6} socket for reliable network communications.
 // It is movable but not copyable.
-//
 // This class is thread-compatible but not thread-safe.
 class TcpSocket final : public SocketBase {
  public:

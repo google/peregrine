@@ -15,14 +15,17 @@
 namespace peregrine::internal::testing {
 
 OwnedIoVec TestOnly_Linearize(const absl::Span<const IoVec> iovecs) {
-  // Allocate a buffer to hold all the data.
+  // Calculate the total length of all the iovecs.
   const size_t size = TotalLength(iovecs);
   if ABSL_PREDICT_FALSE (size <= 0) {
     return OwnedIoVec{.data = nullptr, .size = 0};
   }
 
-  // Copy the data from the iovecs into the buffer.
+  // Allocate a buffer to hold all the data.
   auto buf = std::make_unique_for_overwrite<Byte[]>(size);
+  DCHECK_NE(buf, nullptr);
+
+  // Copy the data from the iovecs into the buffer.
   size_t offset = 0;
   for (const auto& v : iovecs) {
     void* __restrict const dst = buf.get() + offset;

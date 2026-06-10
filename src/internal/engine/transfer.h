@@ -17,7 +17,6 @@ namespace peregrine::internal {
 // The chunk is arbitrary: it can come from any buffer. A buffer is a
 // variable-sized contiguous memory space. It can be split into multiple
 // fixed-sized chunks, except for the last one.
-//
 // This class is thread-safe since it has no state.
 class Transfer final {
   static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);

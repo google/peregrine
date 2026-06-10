@@ -8,8 +8,9 @@
 
 namespace peregrine::internal {
 
-// TCP connector is a utility class that creates a tcp socket and
-// connects it to a peer endpoint.
+// This is a utility class that creates a tcp socket and connects it to
+// a peer endpoint which has a tcp acceptor socket listening.
+// It is thread-safe since it has no state.
 class TcpConnector {
  public:
   // Connects to the `peer` endpoint. Returns a connected tcp socket

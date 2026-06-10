@@ -11,10 +11,9 @@
 namespace peregrine::internal {
 
 // This class provides common functionalities for TCP/UDP sockets.
-// It is not intended to be instantiated directly.
-// Instead, instantiate the derived classes `TcpSocket` or `UdpSocket`.
-//
-// It is thread-compatible but not thread-safe.
+// It is not intended to be instantiated directly. Instead, instantiate the
+// derived classes `TcpSocket` or `UdpSocket`.
+// This class is thread-compatible but not thread-safe.
 class SocketBase {
  public:
   // Returns AF_INET for IPv4 and AF_INET6 for IPv6.

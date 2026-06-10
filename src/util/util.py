@@ -12,9 +12,9 @@ def find_free_port(family: int, tcp: bool) -> int:
     tcp: True if TCP, False if UDP.
 
   Returns:
-    The port number if successful, or 0 if failed.
+    The port number if successful, or 0 otherwise.
 
-  Note:
+  Notes:
     There is no guarantee that the found port is still available when the
     caller actually uses it.
   """
@@ -35,13 +35,13 @@ def find_free_port(family: int, tcp: bool) -> int:
       s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
       # Bind the socket to a randomly chosen port.
-      addr = "0.0.0.0" if family == socket.AF_INET else "::"
+      ip = "0.0.0.0" if family == socket.AF_INET else "::"
       port = random.randint(min_port, max_port)
-      s.bind((addr, port))
+      s.bind((ip, port))
 
       # Check the bound socket.
-      bound_addr = s.getsockname()
-      if bound_addr[1] != port:
+      _, bound_port, *_ = s.getsockname()
+      if bound_port != port:
         continue
 
       # Check that the tcp socket can listen.

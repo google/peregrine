@@ -25,8 +25,8 @@ namespace peregrine::internal {
 
 // This class takes variable-sized transport requests, splits each of them into
 // fixed-sized chunks, and schedules their execution on workers. Factors like
-// CPU/memory/PCIs/NIC locality and network multipaths are key in this class
-// to improve the performance of the transport operations.
+// CPU/memory/PCIe/NIC locality and network multipaths are key in this class
+// to improve the transport performance.
 // It is thread-safe.
 class Engine {
   static_assert(assumptions::kTransportImplementationHasItsOwnThreads);

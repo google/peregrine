@@ -18,6 +18,7 @@
 namespace peregrine::internal {
 
 // A tcp socket based channel: reliable, stream.
+// It is thread-compatible but not thread-safe.
 class TcpChannel final : public Channel {
  public:
   // Constructor.

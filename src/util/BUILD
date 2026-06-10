@@ -6,6 +6,7 @@ load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 
 package(default_visibility = [
+    # Do _not_ add anything new here.
     "//src:__subpackages__",
     "//test:__subpackages__",
 ])

@@ -22,7 +22,6 @@ namespace peregrine::internal {
 
 // This class wraps a UDP/IPv{4,6} socket for unreliable network communications.
 // It is movable but not copyable.
-//
 // This class is thread-compatible but not thread-safe.
 class UdpSocket final : public SocketBase {
  public:

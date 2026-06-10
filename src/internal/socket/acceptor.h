@@ -12,9 +12,9 @@
 
 namespace peregrine::internal {
 
-// TCP acceptor listens on a local endpoint, accepts incoming connections,
-// and creates a new tcp socket for each connection.
-// This class is thread-compatible but not thread-safe.
+// This class listens on a local endpoint, accepts incoming connections, and
+// creates a new tcp socket for each connection.
+// It is thread-compatible but not thread-safe.
 class TcpAcceptor {
   using AcceptCallback = absl::AnyInvocable<void(std::unique_ptr<TcpSocket>)>;
 

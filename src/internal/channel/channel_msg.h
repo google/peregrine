@@ -19,6 +19,7 @@
 namespace peregrine::internal::testing {
 
 // An unreliable memory channel to help dev and test: lossy, message.
+// It is thread-safe.
 class MemMsgChannel final : public Channel {
  public:
   // Construtor.

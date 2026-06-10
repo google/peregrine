@@ -17,7 +17,6 @@ namespace peregrine::internal {
 // This class represents a network endpoint, which is a combination of
 // an ipv{4,6} address and a port number. It is used to uniquely identify
 // a process, whose control channel listens on the `ip:port`.
-//
 // It is thread-compatible and but not thread-safe.
 class Endpoint final {
  public:
