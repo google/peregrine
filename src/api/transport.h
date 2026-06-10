@@ -16,17 +16,19 @@ class Transport {
 
   // Posts a transport `request` to communicate with the `peer`.
   //
-  // If successful, returns a `handle` which uniquely identifies the request
-  // within this process. Otherwise, returns an error status. Once the `handle`
-  // is returned, it is the caller's responsibility to keep the local/remote
-  // memories specified by the `request` valid until it is completely served.
+  // On success, returns a process-level unique `handle`. Returns an error
+  // on failure.
+  //
+  // The caller must maintain the validity of the local/remote memory buffers
+  // specified by the `request` until processing is complete.
   virtual absl::StatusOr<Handle> Post(std::string_view peer,
                                       const Request& request) = 0;
 
   // Polls the status of the transport request identified by the `handle`.
   //
-  // If the `handle` doesn't exist, returns an error status. Otherwise, returns
-  // its status and, if the request is completely served, removes the `handle`.
+  // If the `handle` is not found, returns an error. Otherwise, returns the
+  // request status and automatically removes the `handle` if processing is
+  // complete.
   virtual absl::StatusOr<Status> Poll(Handle handle) = 0;
 };
 
