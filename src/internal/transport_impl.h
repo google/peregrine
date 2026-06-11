@@ -7,6 +7,7 @@
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/types.h"
 #include "src/internal/engine/engine.h"
@@ -25,15 +26,15 @@ class TransportImpl final : public Transport {
   explicit TransportImpl(std::unique_ptr<TcpAcceptor> acceptor)
       : engine_(std::move(acceptor)) {}
 
-  // Posts a transport `request` to communicate with the `peer`.
+  // Posts a batch of transport `requests` to communicate with the `peer`.
   //
-  // On success, returns a process-level unique `handle`. Returns an error
-  // on failure.
+  // On success, returns a process-level unique `handle`, which can be used to
+  // poll the request batch status. Returns an error on failure.
   //
   // The caller must maintain the validity of the local/remote memory buffers
   // specified by the `request` until processing is complete.
   absl::StatusOr<Handle> Post(std::string_view peer,
-                              const Request& request) override;
+                              absl::Span<const Request> requests) override;
 
   // Polls the status of the transport request identified by the `handle`.
   //

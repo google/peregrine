@@ -71,7 +71,7 @@ class BindTest(absltest.TestCase):
         raddr=ctypes.addressof(rbuf),
         len=512,
     )
-    handle = transport.post(remote, req)
+    handle = transport.post(remote, [req])
     self.assertIsInstance(handle, pg.Handle)
 
     status = transport.poll(handle)

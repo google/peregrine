@@ -56,7 +56,7 @@ TEST_F(TransportImplTest, Read) {
         .raddr = b_.DataPtr(),
         .len = a_.DataSize(),
     };
-    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(kPeer, req));
+    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(kPeer, {req}));
     while (true) {
       ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
       LOG(INFO) << Info(req, h, s);
@@ -91,7 +91,7 @@ TEST_F(TransportImplTest, Write) {
         .raddr = b_.DataPtr(),
         .len = a_.DataSize(),
     };
-    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(kPeer, req));
+    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(kPeer, {req}));
     while (true) {
       ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
       LOG(INFO) << Info(req, h, s);

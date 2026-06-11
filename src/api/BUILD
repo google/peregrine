@@ -38,6 +38,7 @@ cc_library(
     deps = [
         ":types",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -74,6 +75,9 @@ nanobind_extension(
         ":transport",
         ":transport_util",
         ":types",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 

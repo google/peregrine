@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "src/api/types.h"
 
 namespace peregrine {
@@ -14,15 +15,15 @@ class Transport {
   // Destructor.
   virtual ~Transport() = default;
 
-  // Posts a transport `request` to communicate with the `peer`.
+  // Posts a batch of transport `requests` to communicate with the `peer`.
   //
-  // On success, returns a process-level unique `handle`. Returns an error
-  // on failure.
+  // On success, returns a process-level unique `handle`, which can be used to
+  // poll the request batch status. Returns an error on failure.
   //
   // The caller must maintain the validity of the local/remote memory buffers
   // specified by the `request` until processing is complete.
   virtual absl::StatusOr<Handle> Post(std::string_view peer,
-                                      const Request& request) = 0;
+                                      absl::Span<const Request> requests) = 0;
 
   // Polls the status of the transport request identified by the `handle`.
   //

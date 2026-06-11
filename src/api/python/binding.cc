@@ -1,17 +1,30 @@
+#include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <string_view>
+#include <vector>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "nanobind/nanobind.h"
 #include "nanobind/stl/string.h"
 #include "nanobind/stl/string_view.h"
 #include "nanobind/stl/unique_ptr.h"
+#include "nanobind/stl/vector.h"
 #include "src/api/transport.h"
 #include "src/api/transport_util.h"
 #include "src/api/types.h"
 
 namespace peregrine {
 namespace {
+
+// Translates Abseil errors into Python exceptions.
+void ThrowIfFailed(const absl::Status& status) {
+  if (!status.ok()) {
+    throw std::runtime_error(status.ToString());
+  }
+}
 
 NB_MODULE(peregrine, m) {
   namespace nb = nanobind;
@@ -73,22 +86,20 @@ NB_MODULE(peregrine, m) {
   nb::class_<Transport>(m, "Transport")
       .def(
           "post",
-          [](Transport& t, std::string_view peer, const Request& request) {
-            if (const auto result = t.Post(peer, request); !result.ok()) {
-              throw std::runtime_error(result.status().ToString());
-            } else {
-              return result.value();
-            }
+          [](Transport& self, std::string_view peer,
+             const std::vector<Request>& requests) -> Handle {
+            const auto reqs = absl::MakeConstSpan(requests);
+            const absl::StatusOr<Handle> handle = self.Post(peer, reqs);
+            ThrowIfFailed(handle.status());
+            return handle.value();
           },
-          nb::arg("peer"), nb::arg("request"))
+          nb::arg("peer"), nb::arg("requests"))
       .def(
           "poll",
           [](Transport& t, Handle handle) {
-            if (const auto result = t.Poll(handle); !result.ok()) {
-              throw std::runtime_error(result.status().ToString());
-            } else {
-              return result.value();
-            }
+            const absl::StatusOr<peregrine::Status> status = t.Poll(handle);
+            ThrowIfFailed(status.status());
+            return status.value();
           },
           nb::arg("handle"));
 

@@ -50,7 +50,7 @@ class SimpleTest(absltest.TestCase):
         raddr=ctypes.addressof(rbuf),
         len=len(data),
     )
-    handle = self.transport.post(self.peer, req)
+    handle = self.transport.post(self.peer, [req])
     self.wait_for_completion(handle)
 
     # Post-condition: local buf matches the expected data.
@@ -70,7 +70,7 @@ class SimpleTest(absltest.TestCase):
         raddr=ctypes.addressof(rbuf),
         len=len(data),
     )
-    handle = self.transport.post(self.peer, req)
+    handle = self.transport.post(self.peer, [req])
     self.wait_for_completion(handle)
 
     # Post-condition: remote buf matches the expected data.

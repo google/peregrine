@@ -57,7 +57,7 @@ TEST_F(SimpleTest, Read) {
       .raddr = r_.DataPtr(),
       .len = l_.DataSize(),
   };
-  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(kPeer, req));
+  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(kPeer, {req}));
 
   // Local: wait for the transport to finish processing the request.
   WaitForCompletion(lt, h);
@@ -80,7 +80,7 @@ TEST_F(SimpleTest, Write) {
       .raddr = r_.DataPtr(),
       .len = l_.DataSize(),
   };
-  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(kPeer, req));
+  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(kPeer, {req}));
 
   // Local: wait for the transport to finish processing the request.
   WaitForCompletion(lt, h);
