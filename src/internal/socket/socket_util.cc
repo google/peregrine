@@ -24,7 +24,8 @@ int CreateSocket(int family, int type, bool nonblocking) {
   DCHECK(type == SOCK_STREAM || type == SOCK_DGRAM);
   const int fd = ::socket(family, type | SOCK_CLOEXEC, /*protocol=*/0);
   if (fd < 0) {
-    LOG(WARNING) << ErrorMsg("socket");
+    const auto last_errno = errno;
+    LOG(WARNING) << ErrorMsg("socket", last_errno);
     return -1;
   }
   DCHECK(IsBlockingMode(fd));
@@ -64,7 +65,8 @@ std::string SelfAddrPort(const int fd) {
   if (getsockname(fd, (struct sockaddr*)&ss, &len) == 0) {
     return ToIpAddrPortString(ss);
   } else {
-    LOG(WARNING) << ErrorMsg("getsockname");
+    const auto last_errno = errno;
+    LOG(WARNING) << ErrorMsg("getsockname", last_errno);
     return "?";
   }
 }
@@ -77,15 +79,16 @@ std::string PeerAddrPort(const int fd) {
   } else if (errno == ENOTCONN) {
     return "*";
   } else {
-    LOG(WARNING) << ErrorMsg("getpeername");
+    const auto last_errno = errno;
+    LOG(WARNING) << ErrorMsg("getpeername", last_errno);
     return "?";
   }
 }
 
 namespace {
-std::string NtopErrorMsg(int v) {
-  return absl::StrFormat("inet_ntop failed: ipv%d, errno=%d (%s)", v, errno,
-                         std::strerror(errno));
+std::string NtopErrorMsg(int v, int last_errno) {
+  return absl::StrFormat("inet_ntop failed: ipv%d, errno=%d (%s)", v,
+                         last_errno, std::strerror(last_errno));
 }
 }  // namespace
 
@@ -98,14 +101,16 @@ std::string ToString(const struct sockaddr_storage& ss) {
     if (inet_ntop(AF_INET, &sa->sin_addr, addr, kAddrLen) != nullptr) {
       return absl::StrCat(addr, ":", ntohs(sa->sin_port));
     }
-    LOG(WARNING) << NtopErrorMsg(4);
+    const auto last_errno = errno;
+    LOG(WARNING) << NtopErrorMsg(4, last_errno);
     return "invalid ipv4:port";
   } else {
     static_assert(kFamily == AF_INET6);
     if (inet_ntop(AF_INET6, &sa->sin6_addr, addr, kAddrLen) != nullptr) {
       return absl::StrCat("[", addr, "]:", ntohs(sa->sin6_port));
     }
-    LOG(WARNING) << NtopErrorMsg(6);
+    const auto last_errno = errno;
+    LOG(WARNING) << NtopErrorMsg(6, last_errno);
     return "invalid ipv6:port";
   }
 }

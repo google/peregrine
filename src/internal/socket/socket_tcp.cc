@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include <cerrno>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -83,15 +84,18 @@ auto AcceptV6(int fd) {
 bool TcpSocket::Listen(const Endpoint& local) const {
   int on = 1;
   if ABSL_PREDICT_FALSE (!SetOption(fd_, SO_REUSEADDR, &on, sizeof(on))) {
-    LOG(WARNING) << errMsg("set SO_REUSEADDR");
+    const auto last_errno = errno;
+    LOG(WARNING) << errMsg("set SO_REUSEADDR", last_errno);
     return false;
   }
   const auto bind = local.IsIPv4() ? BindV4 : BindV6;
   if ABSL_PREDICT_FALSE (bind(fd_, local) < 0) {
-    LOG(WARNING) << errMsg("bind");
+    const auto last_errno = errno;
+    LOG(WARNING) << errMsg("bind", last_errno);
     return false;
   } else if (ABSL_PREDICT_FALSE(::listen(fd_, SOMAXCONN) < 0)) {
-    LOG(WARNING) << errMsg("listen");
+    const auto last_errno = errno;
+    LOG(WARNING) << errMsg("listen", last_errno);
     return false;
   } else {
     LOG(INFO) << okMsg("listening");
@@ -103,7 +107,8 @@ int TcpSocket::Accept() const {
   const auto accept = family_ == AF_INET ? AcceptV4 : AcceptV6;
   const int new_fd = accept(fd_);
   if ABSL_PREDICT_FALSE (new_fd < 0) {
-    LOG(WARNING) << errMsg("accept");
+    const auto last_errno = errno;
+    LOG(WARNING) << errMsg("accept", last_errno);
     return -1;
   } else {
     DCHECK_GE(new_fd, 0);
@@ -115,7 +120,8 @@ int TcpSocket::Accept() const {
 bool TcpSocket::Connect(const Endpoint& peer) {
   const auto connect = peer.IsIPv4() ? ConnectV4 : ConnectV6;
   if ABSL_PREDICT_FALSE (connect(fd_, peer) < 0) {
-    LOG(WARNING) << errMsg("connect");
+    const auto last_errno = errno;
+    LOG(WARNING) << errMsg("connect", last_errno);
     return false;
   } else {
     LOG(INFO) << okMsg("connected");
@@ -138,14 +144,17 @@ bool TcpSocket::Send(const Byte* const buf, const size_t len) const {
       sent += bytes;
       DCHECK_EQ(buf + len, ptr + left);
       VLOG(1) << ioMsg("send", bytes);
-    } else if (bytes < 0) {
-      if (Interrupted()) continue;
-      LOG(WARNING) << errMsg("send");
-      return false;
-    } else {  // rarely happens
-      DCHECK_EQ(bytes, 0);
-      LOG(WARNING) << errMsg("send zero");
-      return false;
+    } else {
+      const auto last_errno = errno;
+      if ABSL_PREDICT_TRUE (bytes < 0) {
+        if (Interrupted(last_errno)) continue;
+        LOG(WARNING) << errMsg("send", last_errno);
+        return false;
+      } else {  // rarely happens
+        DCHECK_EQ(bytes, 0);
+        LOG(WARNING) << errMsg("send zero", last_errno);
+        return false;
+      }
     }
   }
   DCHECK_EQ(left, 0);
@@ -167,14 +176,14 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
       rcvd += bytes;
       DCHECK_EQ(buf + len, ptr + left);
       VLOG(1) << ioMsg("recv", bytes);
-    } else if (bytes < 0) {
-      if (Interrupted()) continue;
-      LOG(WARNING) << errMsg("recv");
-      return -1;
-    } else {
-      DCHECK_EQ(bytes, 0);  // peer closed connection
-      LOG(INFO) << errMsg("recv eof");
+    } else if (bytes == 0) {  // peer closed connection
+      LOG(INFO) << ioMsg("recv EoF", 0);
       return 0;
+    } else {
+      const auto last_errno = errno;
+      if (Interrupted(last_errno)) continue;
+      LOG(WARNING) << errMsg("recv", last_errno);
+      return -1;
     }
   }
   DCHECK_EQ(left, 0);

@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include <cerrno>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -67,7 +68,8 @@ auto ConnectV6(int fd, const Endpoint& peer) {
 bool UdpSocket::Bind(const Endpoint& local) const {
   const auto bind = local.IsIPv4() ? BindV4 : BindV6;
   if ABSL_PREDICT_FALSE (bind(fd_, local) < 0) {
-    LOG(WARNING) << errMsg("bind");
+    const auto last_errno = errno;
+    LOG(WARNING) << errMsg("bind", last_errno);
     return false;
   } else {
     LOG(INFO) << okMsg("bound");
@@ -78,7 +80,8 @@ bool UdpSocket::Bind(const Endpoint& local) const {
 bool UdpSocket::Connect(const Endpoint& peer) {
   const auto connect = peer.IsIPv4() ? ConnectV4 : ConnectV6;
   if ABSL_PREDICT_FALSE (connect(fd_, peer) < 0) {
-    LOG(WARNING) << errMsg("connect");
+    const auto last_errno = errno;
+    LOG(WARNING) << errMsg("connect", last_errno);
     return false;
   } else {
     LOG(INFO) << okMsg("connected");
@@ -89,24 +92,24 @@ bool UdpSocket::Connect(const Endpoint& peer) {
 
 bool UdpSocket::Send(const Byte* const buf, const size_t len) const {
   DCHECK(connected_);
-  DCHECK_GE(len, 1);
 
   const ssize_t bytes = ::send(fd_, buf, len, /*flags=*/0);
   DCHECK(bytes == len || bytes < 0);
   if ABSL_PREDICT_TRUE (bytes == len) {
     VLOG(1) << ioMsg("send", bytes);
     return true;
-  } else if (Interrupted()) {
+  }
+  const auto last_errno = errno;
+  if (Interrupted(last_errno)) {
     return false;
   } else {
-    LOG(WARNING) << errMsg("send");
+    LOG(WARNING) << errMsg("send", last_errno);
     return false;
   }
 }
 
 ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
   DCHECK(connected_);
-  DCHECK_GE(len, 1);
 
   const ssize_t bytes = ::recv(fd_, buf, len, /*flags=*/0);
   DCHECK_LE(bytes, len);
@@ -114,12 +117,13 @@ ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
     VLOG(1) << ioMsg("recv", bytes);
     return bytes;
   } else if (bytes < 0) {
-    if (Interrupted()) return 0;
-    LOG(WARNING) << errMsg("recv");
+    const auto last_errno = errno;
+    if (Interrupted(last_errno)) return 0;
+    LOG(WARNING) << errMsg("recv", last_errno);
     return -1;
   } else {
-    DCHECK_EQ(bytes, 0);  // zero-length payload
-    LOG(INFO) << ioMsg("recv", 0);
+    DCHECK_EQ(bytes, 0);
+    LOG(INFO) << ioMsg("recv no payload", 0);
     return 0;
   }
 }
@@ -127,7 +131,6 @@ ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
 bool UdpSocket::SendV(const IoVec* const iov, const int n,
                       const size_t len) const {
   DCHECK(connected_);
-  DCHECK_GE(len, 1);
   DCHECK_EQ(TotalLength(iov, n), len);
 
   const ssize_t bytes = ::writev(fd_, iov, n);
@@ -135,10 +138,12 @@ bool UdpSocket::SendV(const IoVec* const iov, const int n,
   if ABSL_PREDICT_TRUE (bytes == len) {
     VLOG(1) << ioMsg("writev", bytes);
     return true;
-  } else if (Interrupted()) {
+  }
+  const auto last_errno = errno;
+  if (Interrupted(last_errno)) {
     return false;
   } else {
-    LOG(WARNING) << errMsg("writev");
+    LOG(WARNING) << errMsg("writev", last_errno);
     return false;
   }
 }
@@ -146,7 +151,6 @@ bool UdpSocket::SendV(const IoVec* const iov, const int n,
 ssize_t UdpSocket::RecvV(const IoVec* const iov, const int n,
                          const size_t len) const {
   DCHECK(connected_);
-  DCHECK_GE(len, 1);
   DCHECK_EQ(TotalLength(iov, n), len);
 
   const ssize_t bytes = ::readv(fd_, iov, n);
@@ -155,12 +159,13 @@ ssize_t UdpSocket::RecvV(const IoVec* const iov, const int n,
     VLOG(1) << ioMsg("readv", bytes);
     return bytes;
   } else if (bytes < 0) {
-    if (Interrupted()) return 0;
-    LOG(WARNING) << errMsg("readv");
+    const auto last_errno = errno;
+    if (Interrupted(last_errno)) return 0;
+    LOG(WARNING) << errMsg("readv", last_errno);
     return -1;
   } else {
-    DCHECK_EQ(bytes, 0);  // zero-length payload
-    LOG(INFO) << ioMsg("readv", 0);
+    DCHECK_EQ(bytes, 0);
+    LOG(INFO) << ioMsg("readv no payload", 0);
     return 0;
   }
 }

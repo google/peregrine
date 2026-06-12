@@ -46,13 +46,15 @@ inline bool SetNonBlockingMode(int fd) {
 }
 
 // Returns true iff the last socket operation was interrupted by a signal.
-inline bool Interrupted() { return errno == EINTR; }
+inline bool Interrupted(int last_errno) { return last_errno == EINTR; }
 
 // Returns true iff the last socket operation would block.
-inline bool WouldBlock() { return errno == EAGAIN || errno == EWOULDBLOCK; }
+inline bool WouldBlock(int last_errno) {
+  return last_errno == EAGAIN || last_errno == EWOULDBLOCK;
+}
 
 // Returns true iff the socket connect operation is in progress.
-inline bool InProgress() { return errno == EINPROGRESS; }
+inline bool InProgress(int last_errno) { return last_errno == EINPROGRESS; }
 
 // Returns a self ip:port string for the socket `fd`.
 std::string SelfAddrPort(int fd);
@@ -83,17 +85,15 @@ inline std::string SuccessMsg(std::string_view who, std::string_view what,
 }
 
 // Returns an error message for the last socket operation.
-inline std::string ErrorMsg(std::string_view who, std::string_view what,
-                            int fd) {
-  const auto last_errno = errno;
+inline std::string ErrorMsg(std::string_view who, std::string_view what, int fd,
+                            int last_errno) {
   return absl::StrFormat("%s socket %s failed: fd=%d %s errno=%d (%s)", who,
                          what, fd, AddrPortPair(fd), last_errno,
                          std::strerror(last_errno));
 }
 
 // Returns an error message for the last socket operation.
-inline std::string ErrorMsg(std::string_view what) {
-  const auto last_errno = errno;
+inline std::string ErrorMsg(std::string_view what, int last_errno) {
   return absl::StrFormat("socket %s failed: errno=%d (%s)", what, last_errno,
                          std::strerror(last_errno));
 }
