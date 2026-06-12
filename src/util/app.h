@@ -3,6 +3,7 @@
 
 #include <sys/socket.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -36,6 +37,12 @@ class App final {
     CHECK_NE(transport_, nullptr);  // Crash OK
   }
 
+  // Returns the endpoint.
+  std::string GetEndpoint() const { return endpoint_; }
+
+  // Returns the transport.
+  Transport& GetTransport() const { return *transport_; }
+
   // Returns the data pointer.
   Byte* DataPtr() { return data_.data(); }
 
@@ -45,14 +52,11 @@ class App final {
   // Returns the data buffer.
   absl::Span<const Byte> Data() const { return absl::MakeConstSpan(data_); }
 
-  // Returns the transport.
-  Transport& GetTransport() { return *transport_; }
-
   // Sets all the data to zero.
-  void ClearData();
+  void ClearData() { std::fill(data_.begin(), data_.end(), 0); }
 
   // Sets all the data to non-zero random values.
-  void GenData();
+  void GenData() { RandomNonZero(absl::MakeSpan(data_)); }
 
  private:
   std::vector<Byte> data_;

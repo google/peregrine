@@ -7,6 +7,8 @@
 
 #include "absl/log/check.h"
 #include "absl/random/random.h"
+#include "absl/types/span.h"
+#include "src/api/types.h"
 
 namespace peregrine::util {
 
@@ -23,6 +25,12 @@ T Random(absl::BitGen& gen, T min = std::numeric_limits<T>::min(),
 inline bool Toss(absl::BitGen& bitgen) {
   return Random<uint8_t>(bitgen, 0, 1) == 0;
 }
+
+// Generates random non-zero bytes.
+void RandomNonZero(absl::Span<Byte> data);
+
+// Generates random non-zero bytes.
+void RandomNonZero(absl::BitGen& bitgen, absl::Span<Byte> data);
 
 // Finds an unused port in the range [10,000, 65,535], inclusively. Returns
 // the port number if successful, or 0 otherwise.

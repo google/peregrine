@@ -12,8 +12,22 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
+#include "absl/types/span.h"
+#include "src/api/types.h"
 
 namespace peregrine::util {
+
+void RandomNonZero(absl::Span<Byte> data) {
+  absl::BitGen bitgen;
+  RandomNonZero(bitgen, data);
+}
+
+void RandomNonZero(absl::BitGen& bitgen, absl::Span<Byte> data) {
+  for (int i = 0; i < data.size(); ++i) {
+    data[i] = Random<Byte>(bitgen, 0x01, 0xff);
+    DCHECK_NE(data[i], 0);
+  }
+}
 
 namespace {
 using port_t = uint16_t;

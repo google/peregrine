@@ -13,7 +13,6 @@ package(default_visibility = [
 
 cc_library(
     name = "app",
-    srcs = ["app.cc"],
     hdrs = ["app.h"],
     deps = [
         ":util",
@@ -21,7 +20,6 @@ cc_library(
         "//src/api:transport_util",
         "//src/api:types",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
     ],
@@ -46,9 +44,11 @@ cc_library(
     srcs = ["util.cc"],
     hdrs = ["util.h"],
     deps = [
+        "//src/api:types",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
