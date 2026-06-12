@@ -58,8 +58,13 @@ cc_test(
         "//src/internal/chunk",
         "//src/internal/chunk:chunk_tracker",
         "//src/util",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
 )

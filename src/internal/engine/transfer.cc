@@ -77,6 +77,9 @@ bool Transfer::recvChunkStream(Channel* const channel,
   }
 
   // Step 3: find chunk tracker.
+  if ABSL_PREDICT_FALSE (lookup == nullptr) {
+    return channel->Read(chunk.DstAddr(), chunk.size) == chunk.size;
+  }
   ChunkTracker* const tracker = lookup(chunk.handle, chunk.buffer);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker for: " << chunk.buffer;
@@ -120,19 +123,23 @@ bool Transfer::recvChunkMsg(Channel* const channel, ChunkTrackerLookup lookup) {
     return false;
   }
 
-  // Step 3: find chunk tracker.
-  ChunkTracker* const tracker = lookup(chunk.handle, chunk.buffer);
-  if ABSL_PREDICT_FALSE (tracker == nullptr) {
-    LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();
-    return false;
-  }
-
-  // Step 4: read chunk payload.
+  // Step 3: read chunk payload.
   const ChunkPayloadView payload(buf + kChunkHeaderSize,
                                  len - kChunkHeaderSize);
   if ABSL_PREDICT_FALSE (!IsMatch(chunk, payload)) {
     LOG(WARNING) << "mismatched chunk metadata: " << chunk
                  << " vs payload size " << payload.size();
+    return false;
+  }
+
+  // Step 4: find chunk tracker.
+  if ABSL_PREDICT_FALSE (lookup == nullptr) {
+    std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
+    return true;
+  }
+  ChunkTracker* const tracker = lookup(chunk.handle, chunk.buffer);
+  if ABSL_PREDICT_FALSE (tracker == nullptr) {
+    LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();
     return false;
   }
 

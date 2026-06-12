@@ -4,13 +4,21 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <thread>  // NOLINT
+#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
+#include "absl/strings/str_cat.h"
+#include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "src/api/types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/channel/channel.h"
@@ -27,6 +35,7 @@ using ChannelType::kUnreliableMessage;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
+using ::testing::TestParamInfo;
 
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
@@ -35,12 +44,23 @@ constexpr uint32_t kNumChunks = 1024;
 constexpr uint32_t kChunkSize = 16;
 constexpr size_t kBufSize = kNumChunks * kChunkSize;
 
-template <typename T>
-T* Ptr(ChunkMetadata& metadata) {
-  return reinterpret_cast<T*>(&metadata);
+using TestParams = std::tuple<ChannelType, /*track=*/bool>;
+
+std::string ToString(const TestParamInfo<TestParams>& info) {
+  const ChannelType type = std::get<0>(info.param);
+  const bool track = std::get<1>(info.param);
+  const std::string track_str = track ? "ChunkTracker_Yes" : "ChunkTracker_No";
+  switch (type) {
+    case kReliableStream:
+      return absl::StrCat("Channel_ReliableStream_", track_str);
+    case kUnreliableMessage:
+      return absl::StrCat("Channel_UnreliableMessage_", track_str);
+    default:
+      DCHECK(false) << "Unreachable";
+  }
 }
 
-class TransferTest : public ::testing::Test {
+class TransferTest : public ::testing::TestWithParam<TestParams> {
  protected:
   TransferTest() : src_(kBufSize), dst_(kBufSize), chunk_tracker_(kNumChunks) {
     DCHECK(chunk_tracker_.IsEmpty());
@@ -73,6 +93,11 @@ class TransferTest : public ::testing::Test {
     }
   }
 
+  absl::AnyInvocable<ChunkTracker*(Handle, Buffer)> GenLookup(bool track) {
+    if (!track) return nullptr;
+    return [this](Handle, Buffer) { return &chunk_tracker_; };
+  }
+
  protected:
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
@@ -80,38 +105,49 @@ class TransferTest : public ::testing::Test {
   ChunkTracker chunk_tracker_;
 };
 
-TEST_F(TransferTest, SendAndRecv) {
+INSTANTIATE_TEST_SUITE_P(
+    , TransferTest,
+    ::testing::Combine(::testing::Values(kReliableStream, kUnreliableMessage),
+                       ::testing::Bool()),
+    ToString);
+
+TEST_P(TransferTest, SendAndRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
-  // Set up chunk tracker lookup.
-  auto lookup = [this](Handle, Buffer) { return &chunk_tracker_; };
+  const auto param = GetParam();
+  const ChannelType type = std::get<0>(param);
+  const bool track = std::get<1>(param);
 
-  for (const auto type : {kReliableStream, kUnreliableMessage}) {
-    std::unique_ptr<Channel> ch = CreateChannel(type);
-    Channel* const channel = ch.get();
-    ASSERT_NE(channel, nullptr);
+  std::unique_ptr<Channel> ch = CreateChannel(type);
+  Channel* const channel = ch.get();
+  ASSERT_NE(channel, nullptr);
 
-    std::thread sndr([&]() {
-      for (uint32_t i = 0; i < kNumChunks; ++i) {
-        const ChunkMetadata chunk = GenChunk(i);
-        const ChunkPayloadView payload = GenPayload(i);
-        CHECK(Transfer::SendChunk(channel, chunk, payload));
+  absl::Notification stop;
+  std::thread sndr([&]() {
+    for (uint32_t i = 0; i < kNumChunks; ++i) {
+      const ChunkMetadata chunk = GenChunk(i);
+      const ChunkPayloadView payload = GenPayload(i);
+      CHECK(Transfer::SendChunk(channel, chunk, payload));
+    }
+  });
+  std::thread rcvr([&]() {
+    while (!stop.HasBeenNotified()) {
+      Transfer::RecvChunk(channel, GenLookup(track));
+      if (!track || !chunk_tracker_.IsCompleted()) {
+        continue;
       }
-    });
+    }
+  });
 
-    std::thread rcvr([&]() {
-      while (!chunk_tracker_.IsCompleted()) {
-        Transfer::RecvChunk(channel, lookup);
-      }
-    });
+  absl::SleepFor(absl::Seconds(3));
+  stop.Notify();
 
-    sndr.join();
-    rcvr.join();
+  sndr.join();
+  rcvr.join();
 
-    // Postcondition: dst is the same as src.
-    EXPECT_THAT(dst_, Pointwise(Eq(), src_));
-  }
+  // Postcondition: dst is the same as src.
+  EXPECT_THAT(dst_, Pointwise(Eq(), src_));
 }
 
 }  // namespace
