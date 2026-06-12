@@ -44,7 +44,10 @@ class Channel {
   // Reads data into the `buf` from the the channel.
   // For stream channel, it reads exactly `len` bytes of data.
   // For message channel, it reads one message of at most `len` bytes.
-  // Returns the number of bytes actually read if successful, or -1 otherwise.
+  // Returns the number of bytes actually read if successful.
+  // For stream channel, returns 0 if the peer side has closed the connection.
+  // For message channel, returns 0 if the received packet has no payload.
+  // Returns -1 on error.
   virtual ssize_t Read(Byte* buf, size_t len) = 0;
 
   // Returns a string representation for the channel.

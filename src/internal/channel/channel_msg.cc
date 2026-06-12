@@ -24,9 +24,6 @@ bool MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
   OwnedIoVec owned_iov = TestOnly_Linearize(iovecs);
 
   absl::MutexLock lock(mu_);
-  if (error()) {
-    return false;
-  }
   queue_.push(std::move(owned_iov));
   return true;
 }
@@ -36,6 +33,7 @@ ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
   {
     absl::MutexLock lock(mu_);
     if (queue_.empty()) {
+      // CHECK(false) << "should block";
       return 0;
     }
     owned_iov = std::move(queue_.front());
@@ -47,9 +45,15 @@ ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
   }
 
   const size_t size = owned_iov.size;
-  CHECK_LE(size, len);  // Crash OK
-  std::memcpy(buf, owned_iov.data.get(), size);
-  return size;
+  if (size <= 0) {
+    return 0;
+  } else if (size > len) {
+    return -1;
+  } else {
+    DCHECK(0 < size && size <= len);
+    std::memcpy(buf, owned_iov.data.get(), size);
+    return size;
+  }
 }
 
 }  // namespace peregrine::internal::testing

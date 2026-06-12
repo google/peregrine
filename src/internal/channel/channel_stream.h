@@ -2,7 +2,7 @@
 #define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_STREAM_H_
 
 #include <cstddef>
-#include <queue>
+#include <deque>
 #include <string>
 
 #include "absl/base/thread_annotations.h"
@@ -30,7 +30,8 @@ class MemStreamChannel final : public Channel {
   bool Write(absl::Span<const IoVec> iovecs) override ABSL_LOCKS_EXCLUDED(mu_);
 
   // Reads exactly `len` bytes of data into the `buf` from the the channel.
-  // Returns the number of bytes actually read if successful, or -1 otherwise.
+  // Returns the number of bytes actually read if successful. Returns 0 if
+  // the peer side has closed the connection. Returns -1 on error.
   ssize_t Read(Byte* buf, size_t len) override ABSL_LOCKS_EXCLUDED(mu_);
 
   // Returns a string representation for the channel.
@@ -39,7 +40,7 @@ class MemStreamChannel final : public Channel {
  private:
   mutable absl::Mutex mu_;
   absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
-  std::queue<OwnedIoVec> queue_ ABSL_GUARDED_BY(mu_);
+  std::deque<OwnedIoVec> queue_ ABSL_GUARDED_BY(mu_);
 };
 
 }  // namespace peregrine::internal::testing

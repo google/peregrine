@@ -42,7 +42,8 @@ class UdpSocket final : public SocketBase {
   bool Send(const Byte* buf, size_t len) const;
 
   // Receives at most `len` bytes of data into the `buf`.
-  // Returns the number of bytes received if successful. Otherwise, returns -1.
+  // Returns the number of bytes received if successful. Zero byte means the
+  // received packet has no payload. Returns -1 on error.
   ssize_t Recv(Byte* buf, size_t len) const;
 
   // Sends `len` bytes of data from `n` `iov` buffers. Returns true if all the
@@ -50,7 +51,8 @@ class UdpSocket final : public SocketBase {
   bool SendV(const IoVec* iov, int n, size_t len) const;
 
   // Receives at most `len` bytes of data into `n` `iov` buffers.
-  // Returns the number of bytes received if successful. Otherwise, returns -1.
+  // Returns the number of bytes received if successful. Zero byte means the
+  // received packet has no payload. Returns -1 on error.
   ssize_t RecvV(const IoVec* iov, int n, size_t len) const;
 
   // Returns a self/peer address pair string of the socket.

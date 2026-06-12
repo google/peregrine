@@ -37,7 +37,8 @@ class TcpChannel final : public Channel {
   bool Write(absl::Span<const IoVec> iovecs) override;
 
   // Reads exactly `len` bytes of data into the `buf` from the the channel.
-  // Returns the number of bytes actually read if successful, or -1 otherwise.
+  // Returns the number of bytes actually read if successful. Returns 0 if
+  // the peer side has closed the connection. Returns -1 on error.
   ssize_t Read(Byte* buf, size_t len) override {
     return socket_->Recv(buf, len);
   }

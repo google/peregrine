@@ -35,7 +35,8 @@ class MemMsgChannel final : public Channel {
   bool Write(absl::Span<const IoVec> iovecs) override ABSL_LOCKS_EXCLUDED(mu_);
 
   // Reads a message of at most `len` bytes into the `buf` from the the channel.
-  // Returns the number of bytes actually read if successful, or -1 otherwise.
+  // Returns the number of bytes actually read if successful. Returns 0 if the
+  // received packet has no payload. Returns -1 on error.
   virtual ssize_t Read(Byte* buf, size_t len) override ABSL_LOCKS_EXCLUDED(mu_);
 
   // Returns a string representation for the channel.

@@ -47,12 +47,9 @@ class TcpSocket final : public SocketBase {
   // been sent successfully. Otherwise, returns false.
   bool Send(const Byte* buf, size_t len) const;
 
-  // Sends `len` bytes of data from `n` `iov` buffers. Returns true if all the
-  // data has been sent successfully. Otherwise, returns false.
-  // bool Send(const struct iovec* iov, int n, size_t len) const;
-
   // Receives exactly `len` bytes of data into the `buf`.
-  // Returns the number of bytes received if successful. Otherwise, returns -1.
+  // Returns the number of bytes received if successful. Zero byte means the
+  // peer side has closed the connection. Returns -1 on error.
   ssize_t Recv(Byte* buf, size_t len) const;
 
   // Returns a self/peer address pair string of the socket.
