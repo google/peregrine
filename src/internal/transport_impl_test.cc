@@ -1,6 +1,5 @@
 #include <cstddef>
 #include <string>
-#include <string_view>
 #include <thread>  // NOLINT
 
 #include "gmock/gmock.h"
@@ -22,12 +21,11 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
-constexpr std::string_view kPeer = "127.0.0.1:12345";
-constexpr size_t kSize = 1024;
-
 class TransportImplTest : public ::testing::Test {
+  static constexpr size_t kBufSize = 1UL << 20;
+
  protected:
-  TransportImplTest() : a_(kSize), b_(kSize) {
+  TransportImplTest() : a_(kBufSize), b_(kBufSize) {
     DCHECK_EQ(a_.DataSize(), b_.DataSize());
   }
 
@@ -50,13 +48,14 @@ TEST_F(TransportImplTest, Read) {
   // Use one thread to emulate a local process.
   std::thread a([this]() {
     Transport& t = a_.GetTransport();
+    const std::string peer = b_.GetEndpoint();
     const Request req = {
         .op = Op::kRead,
         .laddr = a_.DataPtr(),
         .raddr = b_.DataPtr(),
         .len = a_.DataSize(),
     };
-    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(kPeer, {req}));
+    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, {req}));
     while (true) {
       ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
       LOG(INFO) << Info(req, h, s);
@@ -85,13 +84,14 @@ TEST_F(TransportImplTest, Write) {
   // Use one thread to emulate a local process.
   std::thread a([this]() {
     Transport& t = a_.GetTransport();
+    const std::string peer = b_.GetEndpoint();
     const Request req = {
         .op = Op::kWrite,
         .laddr = a_.DataPtr(),
         .raddr = b_.DataPtr(),
         .len = a_.DataSize(),
     };
-    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(kPeer, {req}));
+    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, {req}));
     while (true) {
       ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
       LOG(INFO) << Info(req, h, s);

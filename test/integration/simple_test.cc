@@ -1,6 +1,6 @@
 #include <cstddef>
 #include <cstring>
-#include <string_view>
+#include <string>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -18,12 +18,11 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
-constexpr std::string_view kPeer = "127.0.0.1:12345";
-constexpr size_t kSize = 128 * 1024;
-
 class SimpleTest : public testing::Test {
+  static constexpr size_t kBufSize = 1UL << 20;
+
  protected:
-  SimpleTest() : l_(kSize), r_(kSize) {
+  SimpleTest() : l_(kBufSize), r_(kBufSize) {
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
   }
 
@@ -51,13 +50,14 @@ TEST_F(SimpleTest, Read) {
 
   // Local: post a read request.
   Transport& lt = l_.GetTransport();
+  const std::string peer = r_.GetEndpoint();
   const Request& req = {
       .op = Op::kRead,
       .laddr = l_.DataPtr(),
       .raddr = r_.DataPtr(),
       .len = l_.DataSize(),
   };
-  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(kPeer, {req}));
+  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(peer, {req}));
 
   // Local: wait for the transport to finish processing the request.
   WaitForCompletion(lt, h);
@@ -74,13 +74,14 @@ TEST_F(SimpleTest, Write) {
 
   // Local: post a write request.
   Transport& lt = l_.GetTransport();
+  const std::string peer = r_.GetEndpoint();
   const Request& req = {
       .op = Op::kWrite,
       .laddr = l_.DataPtr(),
       .raddr = r_.DataPtr(),
       .len = l_.DataSize(),
   };
-  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(kPeer, {req}));
+  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(peer, {req}));
 
   // Local: wait for the transport to finish processing the request.
   WaitForCompletion(lt, h);
