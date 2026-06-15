@@ -19,7 +19,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_flatbuf.h"
-#include "src/internal/chunk/chunk_tracker.h"
+#include "src/internal/chunk/tracker.h"
 
 namespace peregrine::internal {
 
@@ -59,6 +59,7 @@ bool Transfer::deserialize(Byte* buf, ChunkMetadata& chunk) {
 bool Transfer::recvChunkStream(Channel* const channel,
                                ChunkTrackerLookup lookup) {
   DCHECK(IsReliableStream(channel->Type()));
+  DCHECK_NE(lookup, nullptr);
 
   // Step 1: read chunk header.
   Byte buf[kChunkHeaderSize];
@@ -77,10 +78,7 @@ bool Transfer::recvChunkStream(Channel* const channel,
   }
 
   // Step 3: find chunk tracker.
-  if ABSL_PREDICT_FALSE (lookup == nullptr) {
-    return channel->Read(chunk.DstAddr(), chunk.size) == chunk.size;
-  }
-  ChunkTracker* const tracker = lookup(chunk.handle, chunk.buffer);
+  Tracker* const tracker = lookup(chunk.handle, chunk.buffer);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker for: " << chunk.buffer;
     return drainStream(channel, chunk.size);
@@ -105,6 +103,7 @@ bool Transfer::recvChunkStream(Channel* const channel,
 
 bool Transfer::recvChunkMsg(Channel* const channel, ChunkTrackerLookup lookup) {
   DCHECK(IsUnreliableMessage(channel->Type()));
+  DCHECK_NE(lookup, nullptr);
 
   // Step 1: read chunk header.
   Byte buf[kTmpBufSize];
@@ -133,11 +132,7 @@ bool Transfer::recvChunkMsg(Channel* const channel, ChunkTrackerLookup lookup) {
   }
 
   // Step 4: find chunk tracker.
-  if ABSL_PREDICT_FALSE (lookup == nullptr) {
-    std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
-    return true;
-  }
-  ChunkTracker* const tracker = lookup(chunk.handle, chunk.buffer);
+  Tracker* const tracker = lookup(chunk.handle, chunk.buffer);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();
     return false;

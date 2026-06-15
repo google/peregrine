@@ -9,7 +9,7 @@
 #include "src/internal/assumptions.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
-#include "src/internal/chunk/chunk_tracker.h"
+#include "src/internal/chunk/tracker.h"
 
 namespace peregrine::internal {
 
@@ -20,7 +20,7 @@ namespace peregrine::internal {
 // This class is thread-safe since it has no state.
 class Transfer final {
   static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
-  using ChunkTrackerLookup = absl::AnyInvocable<ChunkTracker*(Handle, Buffer)>;
+  using ChunkTrackerLookup = absl::AnyInvocable<Tracker*(Handle, Buffer)>;
 
  public:
   // Sends chunk metadata and payload to the channel.

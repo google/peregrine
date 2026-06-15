@@ -24,7 +24,9 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/chunk/chunk_counter.h"
 #include "src/internal/chunk/chunk_tracker.h"
+#include "src/internal/chunk/tracker.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -40,7 +42,7 @@ using ::testing::TestParamInfo;
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
 constexpr Buffer kBuffer(0xbeef);
-constexpr uint32_t kNumChunks = 1024;
+constexpr uint32_t kNumChunks = 1000;
 constexpr uint32_t kChunkSize = 16;
 constexpr size_t kBufSize = kNumChunks * kChunkSize;
 
@@ -49,7 +51,7 @@ using TestParams = std::tuple<ChannelType, /*track=*/bool>;
 std::string ToString(const TestParamInfo<TestParams>& info) {
   const ChannelType type = std::get<0>(info.param);
   const bool track = std::get<1>(info.param);
-  const std::string track_str = track ? "ChunkTracker_Yes" : "ChunkTracker_No";
+  const std::string track_str = track ? "ChunkTracker" : "ChunkCounter";
   switch (type) {
     case kReliableStream:
       return absl::StrCat("Channel_ReliableStream_", track_str);
@@ -62,7 +64,11 @@ std::string ToString(const TestParamInfo<TestParams>& info) {
 
 class TransferTest : public ::testing::TestWithParam<TestParams> {
  protected:
-  TransferTest() : src_(kBufSize), dst_(kBufSize), chunk_tracker_(kNumChunks) {
+  TransferTest()
+      : src_(kBufSize),
+        dst_(kBufSize),
+        chunk_counter_(kNumChunks),
+        chunk_tracker_(kNumChunks) {
     DCHECK(chunk_tracker_.IsEmpty());
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
@@ -93,15 +99,19 @@ class TransferTest : public ::testing::TestWithParam<TestParams> {
     }
   }
 
-  absl::AnyInvocable<ChunkTracker*(Handle, Buffer)> GenLookup(bool track) {
-    if (!track) return nullptr;
-    return [this](Handle, Buffer) { return &chunk_tracker_; };
+  absl::AnyInvocable<Tracker*(Handle, Buffer)> GenLookup(bool track) {
+    if (track) {
+      return [this](Handle, Buffer) { return &chunk_tracker_; };
+    } else {
+      return [this](Handle, Buffer) { return &chunk_counter_; };
+    }
   }
 
  protected:
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
+  ChunkCounter chunk_counter_;
   ChunkTracker chunk_tracker_;
 };
 

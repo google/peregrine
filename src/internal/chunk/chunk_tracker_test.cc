@@ -74,7 +74,7 @@ class ChunkTrackerStressTest : public ::testing::Test {
   }
 
  protected:
-  static constexpr uint32_t kTotalNumChunks = 128;
+  static constexpr uint32_t kTotalNumChunks = 1999;
   std::unique_ptr<ChunkTracker> tracker_;
 };
 
@@ -92,7 +92,6 @@ TEST_F(ChunkTrackerStressTest, MultipleWriters) {
         if (tracker_->Acquire(i)) {
           SimulateWork(bitgen, i);
           tracker_->Release(i, Success(bitgen));
-          if (tracker_->IsCompleted()) break;
         } else {
           absl::SleepFor(absl::Milliseconds(1));
         }

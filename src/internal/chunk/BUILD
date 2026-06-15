@@ -70,11 +70,39 @@ cc_test(
 )
 
 cc_library(
+    name = "tracker",
+    hdrs = ["tracker.h"],
+    deps = [":chunk"],
+)
+
+cc_library(
+    name = "chunk_counter",
+    hdrs = ["chunk_counter.h"],
+    deps = [
+        ":chunk",
+        ":tracker",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "chunk_counter_test",
+    srcs = ["chunk_counter_test.cc"],
+    deps = [
+        ":chunk",
+        ":chunk_counter",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "chunk_tracker",
     srcs = ["chunk_tracker.cc"],
     hdrs = ["chunk_tracker.h"],
     deps = [
         ":chunk",
+        ":tracker",
         "//src/internal/lib:bitset",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
