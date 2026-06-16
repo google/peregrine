@@ -72,6 +72,16 @@ inline constexpr bool kChunkMetadataSerializesToFixedSizeFlatBufString = true;
 // different chunks at the same time.
 inline constexpr bool kReceiverSideChunkWriteContentionIsVeryLow = true;
 
+// Assumptions about control messages.
+// ---------------------------------------------------------------------------
+//
+// There are multiple types of messages in the control plane, such as transport
+// request, host device info, etc. All of them are wrapped in a single control
+// message using protobuf's `oneof` feature. This control message is serialized
+// in two fields: a 4-byte network-byte-order length field and a variable-size
+// string (serialization of the inner message).
+inline constexpr bool kThereIsOnlyOneWrapperControlMessage = true;
+
 }  // namespace peregrine::assumptions
 
 #endif  // PEREGRINE_SRC_INTERNAL_ASSUMPTIONS_H_

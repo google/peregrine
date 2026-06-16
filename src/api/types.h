@@ -34,10 +34,12 @@ inline std::ostream& operator<<(std::ostream& os, const Op op) {
 
 // Per-peer transport request.
 struct Request final {
+  // LINT.IfChange
   Op op = Op::kWrite;     // operation type
   Byte* laddr = nullptr;  // address in this local process
   Byte* raddr = nullptr;  // address in the remote peer process
   size_t len = 0;         // buffer length in bytes
+  // LINT.ThenChange(src/internal/control/message.proto)
 
   // Returns true iff the request is valid.
   constexpr bool IsValid() const {

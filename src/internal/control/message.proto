@@ -1,0 +1,26 @@
+edition = "2024";
+
+package peregrine.internal.proto;
+
+// static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
+message Control {
+  oneof msg {
+    Request request = 1;
+    // Add other message types here.
+  }
+}
+
+// Below are inner messages.
+
+message Request {
+  enum Op {
+    INVALID = 0;
+    READ = 1;   // Read from peer
+    WRITE = 2;  // Write to peer
+  }
+
+  Op op = 1;         // operation type
+  uint64 laddr = 2;  // address in this local process
+  uint64 raddr = 3;  // address in the remote peer process
+  uint64 len = 4;    // buffer length in bytes
+}
