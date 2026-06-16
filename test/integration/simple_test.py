@@ -3,6 +3,7 @@ import datetime
 import socket
 import time
 
+from absl import logging
 from absl.testing import absltest
 
 from src.api import peregrine as pg
@@ -16,17 +17,23 @@ class SimpleTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
+    self.data = b"Peregrine Read/Write Integration"
+    # TODO(yongx): support data of arbitrary length.
+    self.assertEqual(len(self.data) % 32, 0)
     port1 = util.find_free_port(socket.AF_INET, tcp=True)
     port2 = util.find_free_port(socket.AF_INET, tcp=True)
     self.assertNotEqual(port1, port2)
-    self.self = f"127.0.0.1:{port1}"
-    self.peer = f"127.0.0.1:{port2}"
-    self.transport = pg.create_transport(self.self)
+    self.local = f"127.0.0.1:{port1}"
+    self.remote = f"127.0.0.1:{port2}"
+    self.local_transport = pg.create_transport(self.local)
+    self.remote_transport = pg.create_transport(self.remote)
+    logging.info("local endpoint listening on %s", self.local)
+    logging.info("remote endpoint listening on %s", self.remote)
 
   def wait_for_completion(self, handle: pg.Handle) -> None:
     end_time = time.time() + _TIMEOUT.total_seconds()
     while time.time() < end_time:
-      status = self.transport.poll(handle)
+      status = self.local_transport.poll(handle)
       if not pg.is_completed(status):
         time.sleep(_INTERVAL.total_seconds())
       elif status == pg.Status.SUCCESS:
@@ -38,43 +45,41 @@ class SimpleTest(absltest.TestCase):
 
   def test_read(self):
     # Precondition: local buf doesn't match the expected data.
-    data = b"Peregrine Read Integration!"
-    rbuf = ctypes.create_string_buffer(data)
-    lbuf = ctypes.create_string_buffer(len(data))
-    self.assertNotEqual(lbuf.raw, data)
+    rbuf = ctypes.create_string_buffer(self.data)
+    lbuf = ctypes.create_string_buffer(len(self.data))
+    self.assertNotEqual(lbuf.raw, self.data)
 
     # Initiate read (self <- peer) and wait for completion.
     req = pg.Request(
         op=pg.Op.READ,
         laddr=ctypes.addressof(lbuf),
         raddr=ctypes.addressof(rbuf),
-        len=len(data),
+        len=len(self.data),
     )
-    handle = self.transport.post(self.peer, [req])
+    handle = self.local_transport.post(self.remote, [req])
     self.wait_for_completion(handle)
 
     # Post-condition: local buf matches the expected data.
-    self.assertEqual(lbuf.raw, data)
+    self.assertEqual(lbuf.raw, self.data)
 
   def test_write(self):
     # Precondition: remote buf doesn't match the expected data.
-    data = b"Peregrine Write Integration!"
-    lbuf = ctypes.create_string_buffer(data)
-    rbuf = ctypes.create_string_buffer(len(data))
-    self.assertNotEqual(rbuf.raw, data)
+    lbuf = ctypes.create_string_buffer(self.data)
+    rbuf = ctypes.create_string_buffer(len(self.data))
+    self.assertNotEqual(rbuf.raw, self.data)
 
     # Initiate write (self -> peer) and wait for completion.
     req = pg.Request(
         op=pg.Op.WRITE,
         laddr=ctypes.addressof(lbuf),
         raddr=ctypes.addressof(rbuf),
-        len=len(data),
+        len=len(self.data),
     )
-    handle = self.transport.post(self.peer, [req])
+    handle = self.local_transport.post(self.remote, [req])
     self.wait_for_completion(handle)
 
     # Post-condition: remote buf matches the expected data.
-    self.assertEqual(rbuf.raw, data)
+    self.assertEqual(rbuf.raw, self.data)
 
 
 if __name__ == "__main__":

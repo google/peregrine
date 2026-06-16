@@ -29,6 +29,7 @@ py_test(
     deps = [
         "//src/api:peregrine",
         "//src/util:util_py",
+        "@abseil-py//absl/logging",
         "@abseil-py//absl/testing:absltest",
     ],
 )
