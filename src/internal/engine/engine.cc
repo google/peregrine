@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <memory>
+#include <string_view>
 #include <thread>  // NOLINT
 #include <utility>
 
@@ -20,6 +21,8 @@
 namespace peregrine::internal {
 
 namespace {
+constexpr std::string_view kEngine = "engine ";
+
 absl::Status AlreadyExistsError(const Handle h) {
   return absl::FailedPreconditionError(
       absl::StrFormat("handle 0x%x already exists", h.value()));
@@ -41,68 +44,24 @@ Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor)
     acceptor_->Start(callback);
   });
 
-  // Start worker threads.
-  constexpr int kNumThreads = 1;
-  for (int i = 0; i < kNumThreads; ++i) {
-    threads_.emplace_back([this, i]() { workerLoop(i); });
+  // Start a main loop thread.
+  main_thread_ = std::jthread([this]() { mainLoop(); });
+
+  LOG(INFO) << kEngine << "created";
+}
+
+Engine::~Engine() {
+  {
+    absl::MutexLock _(mu_);
+    stopping_ = true;
+    acceptor_->Stop();
   }
-  LOG(INFO) << "ctor, #num_threads = " << threads_.size();
+  // all threads are joined in the threads_ destructor.
+  LOG(INFO) << kEngine << "destroyed";
 }
 
 void Engine::accept(std::unique_ptr<TcpSocket> socket) {
   auto _ = std::move(socket);
-}
-
-bool Engine::hasWork() const { return !reqs_.empty() || stopping_; }
-
-void Engine::workerLoop(const int i) {
-  while (true) {
-    Entry e = {};
-    {  // step 1: get a transport request, if any.
-      absl::MutexLock _(mu_);
-      mu_.Await(absl::Condition(this, &Engine::hasWork));
-      if (reqs_.empty()) {
-        DCHECK(stopping_);  // destructor called
-        return;
-      }
-      e = std::move(reqs_.front());
-      reqs_.pop_front();
-    }
-
-    // step 2: process the request.
-    processOne(e.peer, e.req);
-
-    {  // step 3: update the status.
-      absl::MutexLock _(mu_);
-      DCHECK(sts_.contains(e.handle));
-      sts_[e.handle] = Status::kSuccess;
-    }
-    e = {};
-  }
-}
-
-Engine::~Engine() {
-  LOG(INFO) << "dtor";
-  {
-    absl::MutexLock _(mu_);
-    acceptor_->Stop();
-    stopping_ = true;
-  }
-  // all threads are joined in the threads_ destructor.
-}
-
-// A trivial implementation assuming the peer is in the same address space.
-void Engine::processOne(const Endpoint& peer, const Request& request) {
-  switch (request.op) {
-    case Op::kRead:  // self <- peer
-      std::memcpy(request.laddr, request.raddr, request.len);
-      break;
-    case Op::kWrite:  // self -> peer
-      std::memcpy(request.raddr, request.laddr, request.len);
-      break;
-    default:
-      DCHECK(false) << "Unreachable";
-  }
 }
 
 absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
@@ -131,6 +90,50 @@ absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
     sts_.erase(it);
   }
   return s;
+}
+
+bool Engine::hasWork() const { return !reqs_.empty() || stopping_; }
+
+void Engine::mainLoop() {
+  while (true) {
+    Entry entry;
+    {  // step 1: get an entry.
+      absl::MutexLock _(mu_);
+      mu_.Await(absl::Condition(this, &Engine::hasWork));
+      if (reqs_.empty()) {
+        DCHECK(stopping_);  // destructor called
+        return;
+      }
+      entry = std::move(reqs_.front());
+      reqs_.pop_front();
+    }
+
+    // step 2: process the entry.
+    processOne(entry);
+  }
+}
+
+void Engine::processOne(const Entry& entry) {
+  process(entry.peer, entry.req);
+
+  absl::MutexLock _(mu_);
+  auto it = sts_.find(entry.handle);
+  DCHECK_NE(it, sts_.end());
+  it->second = Status::kSuccess;
+}
+
+// A trivial implementation assuming the peer is in the same address space.
+void Engine::process(const Endpoint& peer, const Request& request) {
+  switch (request.op) {
+    case Op::kRead:  // self <- peer
+      std::memcpy(request.laddr, request.raddr, request.len);
+      break;
+    case Op::kWrite:  // self -> peer
+      std::memcpy(request.raddr, request.laddr, request.len);
+      break;
+    default:
+      DCHECK(false) << "Unreachable";
+  }
 }
 
 }  // namespace peregrine::internal

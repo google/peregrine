@@ -6,11 +6,9 @@
 #include <memory>
 #include <thread>  // NOLINT
 #include <type_traits>
-#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/random/distributions.h"
 #include "absl/random/random.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -20,6 +18,7 @@
 #include "src/internal/coding_style.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
+#include "src/util/util.h"
 
 namespace peregrine::internal {
 
@@ -47,31 +46,35 @@ class Engine {
   absl::StatusOr<Status> QueryUpdate(Handle handle);
 
  private:
+  struct Entry {
+    Handle handle;
+    Endpoint peer;
+    Request req;
+  };
+
+ private:
   // Acceptor callback with the given `socket`.
   void accept(std::unique_ptr<TcpSocket> socket);
 
   // Generates a random handle.
   Handle genHandle() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     static_assert(std::is_same_v<Handle::ValueType, uint32_t>);
-    return Handle(absl::Uniform<uint32_t>(bitgen_));
+    return Handle(util::Random<Handle::ValueType>(bitgen_));
   }
 
   // Returns true iff there are pending requests or the destructor is called.
   bool hasWork() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
-  // Processes a single transport request.
-  void processOne(const Endpoint& peer, const Request& request)
-      ABSL_LOCKS_EXCLUDED(mu_);
-
-  // Runs in a worker thread to grab and process transport requests.
-  void workerLoop(int i) ABSL_LOCKS_EXCLUDED(mu_);
+  // Runs in a main thread to grab and process transport requests.
+  void mainLoop() ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
-  struct Entry {
-    Handle handle;
-    Endpoint peer;
-    Request req;
-  };
+  // Processes a single entry.
+  void processOne(const Entry& entry) ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Processes a single transport request.
+  void process(const Endpoint& peer, const Request& request)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
   absl::Mutex mu_;
@@ -82,8 +85,7 @@ class Engine {
 
   std::unique_ptr<TcpAcceptor> acceptor_;
   std::jthread acceptor_thread_;
-
-  std::vector<std::jthread> threads_;  // must be last to be destroyed first.
+  std::jthread main_thread_;
 };
 
 }  // namespace peregrine::internal
