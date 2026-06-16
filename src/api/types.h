@@ -32,6 +32,34 @@ inline std::ostream& operator<<(std::ostream& os, const Op op) {
   return os << ToString(op);
 }
 
+// Per-peer transport request.
+struct Request final {
+  Op op = Op::kWrite;     // operation type
+  Byte* laddr = nullptr;  // address in this local process
+  Byte* raddr = nullptr;  // address in the remote peer process
+  size_t len = 0;         // buffer length in bytes
+
+  // Returns true iff the request is valid.
+  constexpr bool IsValid() const {
+    return laddr != nullptr && raddr != nullptr && len > 0;
+  }
+
+  // Returns true iff this request is equal to the request `r`.
+  bool operator==(const Request& r) const {
+    return op == r.op && laddr == r.laddr && raddr == r.raddr && len == r.len;
+  }
+
+  // Returns true iff this request is not equal to the request `r`.
+  bool operator!=(const Request& r) const { return !(*this == r); }
+
+  // Returns a string representation of the transport request.
+  std::string ToString() const;
+};
+
+inline std::ostream& operator<<(std::ostream& os, const Request& r) {
+  return os << r.ToString();
+}
+
 // Transport operation status.
 enum class Status : int {
   kInProgress = 1,
@@ -51,26 +79,6 @@ std::string ToString(Status s);
 
 inline std::ostream& operator<<(std::ostream& os, const Status s) {
   return os << ToString(s);
-}
-
-// Per-peer transport request.
-struct Request final {
-  Op op = Op::kWrite;
-  Byte* laddr = nullptr;  // in this local process
-  Byte* raddr = nullptr;  // in the remote peer process
-  size_t len = 0;
-
-  // Returns true iff the request is valid.
-  constexpr bool IsValid() const {
-    return laddr != nullptr && raddr != nullptr && len > 0;
-  }
-
-  // Returns a string representation of the transport request.
-  std::string ToString() const;
-};
-
-inline std::ostream& operator<<(std::ostream& os, const Request& r) {
-  return os << r.ToString();
 }
 
 }  // namespace peregrine

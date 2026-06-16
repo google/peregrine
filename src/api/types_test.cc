@@ -7,9 +7,11 @@ namespace peregrine::testing {
 namespace {
 
 TEST(TransportOp, ToString) {
+  EXPECT_EQ(static_cast<int>(Op::kRead), 1);
   EXPECT_EQ(ToString(Op::kRead), "Read");
   LOG(INFO) << "Op: " << Op::kRead;
 
+  EXPECT_EQ(static_cast<int>(Op::kWrite), 2);
   EXPECT_EQ(ToString(Op::kWrite), "Write");
   LOG(INFO) << "Op: " << Op::kWrite;
 }
