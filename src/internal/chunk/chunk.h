@@ -22,35 +22,31 @@ DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
 #pragma pack(push, 1)
 struct ChunkMetadata final {
   // LINT.IfChange
-  addr_t base_addr;  // buffer base address (fixed) TODO(yongx): remove it
   Handle handle;     // handle id (fixed)
   Buffer buffer;     // buffer id (fixed)
-  uint32_t size;     // chunk size (fixed)
   uint32_t nchunks;  // total #chunks (fixed)
   chunk_t index;     // chunk index (variable)
+  addr_t addr;       // chunk address (variable)
+  uint32_t size;     // chunk size (variable)
   // LINT.ThenChange(src/internal/chunk/chunk.fbs)
 
   // Returns true iff the chunk is valid.
   bool IsValid() const {
     DCHECK_LE(0, index.value());
-    return 1 <= size && 1 <= nchunks && index.value() < nchunks;
+    return 1 <= nchunks && index.value() < nchunks && 1 <= size;
   }
 
   // Returns the destination memory address for the chunk.
-  Byte* DstAddr() const {
-    static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
-    const addr_t::ValueType i = index.value();
-    return reinterpret_cast<Byte*>(base_addr.value() + i * size);
-  }
+  Byte* DstAddr() const { return reinterpret_cast<Byte*>(addr.value()); }
 
   // Returns a string representation for the chunk.
   std::string ToString() const;
 
   // Equality operator.
   friend bool operator==(const ChunkMetadata& a, const ChunkMetadata& b) {
-    return a.base_addr == b.base_addr && a.handle == b.handle &&
-           a.buffer == b.buffer && a.size == b.size && a.nchunks == b.nchunks &&
-           a.index == b.index;
+    return a.handle == b.handle && a.buffer == b.buffer &&
+           a.nchunks == b.nchunks && a.index == b.index && a.addr == b.addr &&
+           a.size == b.size;
   }
 };
 #pragma pack(pop)

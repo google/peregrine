@@ -3,10 +3,10 @@ namespace peregrine.internal.flatbuf;
 // `ChunkHeader` is used to serialize `ChunkMetadata` in chunk.h.
 // They must be kept in sync.
 struct ChunkHeader {
-  base_addr:uint64;
   handle:uint32;
   buffer:uint32;
-  size:uint32;
   nchunks:uint32;
   index:uint32;
+  addr:uint64;
+  size:uint32;
 }

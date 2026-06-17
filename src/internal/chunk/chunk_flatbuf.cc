@@ -18,8 +18,8 @@ namespace peregrine::internal::flatbuf {
 std::string Serialize(const ChunkMetadata& m) {
   static_assert(assumptions::kChunkMetadataSerializesToFixedSizeFlatBufString);
 
-  const ChunkHeader h(m.base_addr.value(), m.handle.value(), m.buffer.value(),
-                      m.size, m.nchunks, m.index.value());
+  const ChunkHeader h(m.handle.value(), m.buffer.value(), m.nchunks,
+                      m.index.value(), m.addr.value(), m.size);
 
   flatbuffers::FlatBufferBuilder builder(kChunkHeaderSize * 2);
   builder.Align(8);
@@ -45,12 +45,12 @@ void Deserialize(std::string_view s, ChunkMetadata& chunk) {
   DCHECK_EQ(s.size(), sizeof(h));
   std::memcpy(&h, s.data(), sizeof(h));
 
-  chunk.base_addr = addr_t(h.base_addr());
   chunk.handle = Handle(h.handle());
   chunk.buffer = Buffer(h.buffer());
-  chunk.size = h.size();
   chunk.nchunks = h.nchunks();
   chunk.index = chunk_t(h.index());
+  chunk.addr = addr_t(h.addr());
+  chunk.size = h.size();
 }
 
 }  // namespace peregrine::internal::flatbuf

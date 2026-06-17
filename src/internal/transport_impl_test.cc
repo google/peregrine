@@ -22,7 +22,7 @@ using ::testing::Ne;
 using ::testing::Pointwise;
 
 class TransportImplTest : public ::testing::Test {
-  static constexpr size_t kBufSize = 1UL << 20;
+  static constexpr size_t kBufSize = (1UL << 20) - 1;
 
  protected:
   TransportImplTest() : a_(kBufSize), b_(kBufSize) {

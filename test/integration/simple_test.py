@@ -17,9 +17,8 @@ class SimpleTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.data = b"Peregrine Read/Write Integration"
-    # TODO(yongx): support data of arbitrary length.
-    self.assertEqual(len(self.data) % 32, 0)
+    self.data = b"Peregrine Read/Write Integration!"
+    self.assertNotEqual(len(self.data) % 2, 0)
     port1 = util.find_free_port(socket.AF_INET, tcp=True)
     port2 = util.find_free_port(socket.AF_INET, tcp=True)
     self.assertNotEqual(port1, port2)

@@ -19,7 +19,7 @@ using ::testing::Ne;
 using ::testing::Pointwise;
 
 class SimpleTest : public testing::Test {
-  static constexpr size_t kBufSize = 1UL << 20;
+  static constexpr size_t kBufSize = (1UL << 20) - 1;
 
  protected:
   SimpleTest() : l_(kBufSize), r_(kBufSize) {

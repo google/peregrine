@@ -44,7 +44,9 @@ constexpr Handle kHandle(0x1234);
 constexpr Buffer kBuffer(0xbeef);
 constexpr uint32_t kNumChunks = 1000;
 constexpr uint32_t kChunkSize = 16;
-constexpr size_t kBufSize = kNumChunks * kChunkSize;
+constexpr uint32_t kLastChunkSize = kChunkSize - 1;
+constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
+static_assert(kBufSize % kNumChunks != 0);
 
 using TestParams = std::tuple<ChannelType, /*track=*/bool>;
 
@@ -76,18 +78,25 @@ class TransferTest : public ::testing::TestWithParam<TestParams> {
     }
   }
 
+  static uint32_t GetChunkSize(uint32_t i) {
+    DCHECK_LT(i, kNumChunks);
+    return i != kNumChunks - 1 ? kChunkSize : kLastChunkSize;
+  }
+
   ChunkMetadata GenChunk(uint32_t i) {
+    DCHECK_LT(i, kNumChunks);
     return ChunkMetadata{
-        .base_addr = addr_t(reinterpret_cast<uintptr_t>(dst_.data())),
         .handle = kHandle,
         .buffer = kBuffer,
-        .size = kChunkSize,
         .nchunks = kNumChunks,
-        .index = chunk_t(i)};
+        .index = chunk_t(i),
+        .addr =
+            addr_t(reinterpret_cast<uintptr_t>(dst_.data() + i * kChunkSize)),
+        .size = GetChunkSize(i)};
   }
 
   ChunkPayloadView GenPayload(uint32_t i) {
-    return ChunkPayloadView(src_.data() + i * kChunkSize, kChunkSize);
+    return ChunkPayloadView(src_.data() + i * kChunkSize, GetChunkSize(i));
   }
 
   static std::unique_ptr<Channel> CreateChannel(ChannelType type) {
