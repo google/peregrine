@@ -101,7 +101,7 @@ cc_library(
     deps = [
         ":socket_base",
         ":socket_util",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
@@ -116,7 +116,7 @@ cc_test(
     srcs = ["socket_tcp_test.cc"],
     deps = [
         ":socket_tcp",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log:check",
@@ -132,7 +132,7 @@ cc_library(
     deps = [
         ":socket_base",
         ":socket_util",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/base:types",
         "//src/internal/util",
@@ -149,7 +149,7 @@ cc_test(
     srcs = ["socket_udp_test.cc"],
     deps = [
         ":socket_udp",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log:check",

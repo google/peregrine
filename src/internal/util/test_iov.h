@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "absl/types/span.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 
 namespace peregrine::internal::testing {

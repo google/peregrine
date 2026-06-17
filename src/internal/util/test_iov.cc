@@ -8,7 +8,7 @@
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/util/util.h"
 

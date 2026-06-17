@@ -15,8 +15,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "src/api/transport.h"
+#include "src/api/transport_types.h"
 #include "src/api/transport_util.h"
-#include "src/api/types.h"
 #include "src/util/util.h"
 
 namespace peregrine::util {

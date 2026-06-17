@@ -7,7 +7,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/engine/engine.h"
 

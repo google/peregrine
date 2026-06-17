@@ -8,7 +8,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/api/transport.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/util/app.h"
 
 namespace peregrine::integration_test {

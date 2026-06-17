@@ -12,7 +12,7 @@
 #include "absl/random/random.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/coding_style.h"

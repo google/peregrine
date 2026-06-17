@@ -11,7 +11,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/notification.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/util/test_util.h"
 

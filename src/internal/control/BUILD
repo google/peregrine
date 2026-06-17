@@ -12,7 +12,7 @@ cc_library(
     deps = [
         ":message_cc_proto",
         ":parser",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:types",
         "//src/internal/channel",
@@ -53,7 +53,7 @@ cc_test(
     srcs = ["message_test.cc"],
     deps = [
         ":message_cc_proto",
-        "//src/api:types",
+        "//src/api:transport_types",
         "@googletest//:gtest_main",
     ],
 )
@@ -64,7 +64,7 @@ cc_library(
     hdrs = ["parser.h"],
     deps = [
         ":message_cc_proto",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal:assumptions",
     ],
 )

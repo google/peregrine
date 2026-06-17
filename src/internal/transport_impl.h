@@ -9,7 +9,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "src/api/transport.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/engine/engine.h"
 #include "src/internal/socket/acceptor.h"
 

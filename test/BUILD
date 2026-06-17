@@ -14,7 +14,7 @@ cc_test(
     srcs = ["integration/simple_test.cc"],
     deps = [
         "//src/api:transport",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/util:app",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",

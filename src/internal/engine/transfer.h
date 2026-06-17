@@ -5,7 +5,7 @@
 #include <cstdint>
 
 #include "absl/functional/any_invocable.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"

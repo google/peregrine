@@ -12,7 +12,7 @@
 #include <string_view>
 
 #include "absl/log/check.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/socket/socket_base.h"
 #include "src/internal/socket/socket_util.h"

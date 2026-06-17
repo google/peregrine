@@ -9,7 +9,7 @@ cc_library(
     srcs = ["chunk.cc"],
     hdrs = ["chunk.h"],
     deps = [
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:types",
         "//third_party/gloop/util/intops",
@@ -25,7 +25,7 @@ cc_test(
     deps = [
         ":chunk",
         ":chunk_test_util",
-        "//src/api:types",
+        "//src/api:transport_types",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@googletest//:gtest_main",
@@ -49,7 +49,7 @@ cc_library(
     deps = [
         ":chunk",
         ":chunk_cc_fbs",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal:assumptions",
         "//third_party/flatbuffers:runtime_cc",
         "@abseil-cpp//absl/log:check",
@@ -137,7 +137,7 @@ cc_library(
     hdrs = ["chunk_test_util.h"],
     deps = [
         ":chunk",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:types",
         "//src/util",

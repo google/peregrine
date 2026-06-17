@@ -7,7 +7,7 @@ cc_library(
     name = "channel",
     hdrs = ["channel.h"],
     deps = [
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:types",
         "@abseil-cpp//absl/types:span",
     ],
@@ -52,7 +52,7 @@ cc_library(
     hdrs = ["channel_tcp.h"],
     deps = [
         ":channel",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/socket:socket_tcp",
         "@abseil-cpp//absl/log:check",
@@ -67,7 +67,7 @@ cc_library(
     hdrs = ["channel_udp.h"],
     deps = [
         ":channel",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/socket:socket_udp",
         "//src/internal/util",
@@ -85,7 +85,7 @@ cc_library(
     hdrs = ["channel_msg.h"],
     deps = [
         ":channel",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/util:test_iov",
         "//src/util",
@@ -105,7 +105,7 @@ cc_library(
     hdrs = ["channel_stream.h"],
     deps = [
         ":channel",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/util:test_iov",
         "@abseil-cpp//absl/base:core_headers",
@@ -122,7 +122,7 @@ cc_test(
     deps = [
         ":channel",
         ":channel_test_util",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

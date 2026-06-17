@@ -8,7 +8,7 @@ cc_library(
     srcs = ["engine.cc"],
     hdrs = ["engine.h"],
     deps = [
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal:coding_style",
         "//src/internal/base:endpoint",
@@ -32,7 +32,7 @@ cc_library(
     srcs = ["transfer.cc"],
     hdrs = ["transfer.h"],
     deps = [
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:types",
         "//src/internal/channel",
@@ -51,7 +51,7 @@ cc_test(
     srcs = ["transfer_test.cc"],
     deps = [
         ":transfer",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:types",
         "//src/internal/channel",

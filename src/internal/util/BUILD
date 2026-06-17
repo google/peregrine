@@ -31,7 +31,7 @@ cc_library(
     hdrs = ["test_iov.h"],
     deps = [
         ":util",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:types",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
@@ -44,7 +44,7 @@ cc_test(
     srcs = ["test_iov_test.cc"],
     deps = [
         ":test_iov",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:types",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

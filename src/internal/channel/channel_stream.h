@@ -9,7 +9,7 @@
 #include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/util/test_iov.h"

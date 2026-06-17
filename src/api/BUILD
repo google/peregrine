@@ -12,9 +12,27 @@ package(default_visibility = [
 ])
 
 cc_library(
+    name = "transport",
+    hdrs = ["transport.h"],
+    deps = [
+        ":transport_types",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
     name = "types",
-    srcs = ["types.cc"],
     hdrs = ["types.h"],
+    deps = [
+        ":transport_types",
+    ],
+)
+
+cc_library(
+    name = "transport_types",
+    srcs = ["transport_types.cc"],
+    hdrs = ["transport_types.h"],
     deps = [
         "//third_party/gloop/util/intops",
         "@abseil-cpp//absl/log:check",
@@ -23,22 +41,12 @@ cc_library(
 )
 
 cc_test(
-    name = "types_test",
-    srcs = ["types_test.cc"],
+    name = "transport_types_test",
+    srcs = ["transport_types_test.cc"],
     deps = [
-        ":types",
+        ":transport_types",
         "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "transport",
-    hdrs = ["transport.h"],
-    deps = [
-        ":types",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -73,8 +81,8 @@ nanobind_extension(
     features = ["-use_header_modules"],
     deps = [
         ":transport",
+        ":transport_types",
         ":transport_util",
-        ":types",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",

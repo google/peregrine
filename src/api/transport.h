@@ -5,7 +5,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 
 namespace peregrine {
 

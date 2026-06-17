@@ -13,8 +13,8 @@
 #include "nanobind/stl/unique_ptr.h"
 #include "nanobind/stl/vector.h"
 #include "src/api/transport.h"
+#include "src/api/transport_types.h"
 #include "src/api/transport_util.h"
-#include "src/api/types.h"
 
 namespace peregrine {
 namespace {

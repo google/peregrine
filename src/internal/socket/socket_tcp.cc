@@ -17,7 +17,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/socket/socket_util.h"
 

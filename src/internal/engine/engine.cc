@@ -13,7 +13,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
-#include "src/api/types.h"
+#include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"

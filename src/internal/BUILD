@@ -39,7 +39,7 @@ cc_library(
     hdrs = ["transport_impl.h"],
     deps = [
         "//src/api:transport",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/engine",
         "//src/internal/socket:acceptor",
@@ -57,7 +57,7 @@ cc_test(
     srcs = ["transport_impl_test.cc"],
     deps = [
         "//src/api:transport",
-        "//src/api:types",
+        "//src/api:transport_types",
         "//src/internal/util",
         "//src/util:app",
         "@abseil-cpp//absl/log",
