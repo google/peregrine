@@ -41,6 +41,7 @@ cc_test(
     srcs = ["parser_test.cc"],
     deps = [
         ":parser",
+        "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],
 )

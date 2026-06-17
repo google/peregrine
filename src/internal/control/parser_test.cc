@@ -1,8 +1,10 @@
 #include "src/internal/control/parser.h"
 
+#include <cstddef>
 #include <string>
 
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -21,6 +23,10 @@ TEST(ControlMsgTest, Request) {
   EXPECT_FALSE(ControlMsg::Deserialize("bad", c2));
 
   const std::string s = ControlMsg::Serialize(c);
+  const size_t size = s.size();
+  LOG(INFO) << "serialized control message size: " << size;
+  EXPECT_LE(size, ControlMsg::kMaxLen);
+
   EXPECT_TRUE(ControlMsg::Deserialize(s, c2));
   EXPECT_TRUE(c2.has_request());
 

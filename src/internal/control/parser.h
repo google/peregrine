@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_CONTROL_PARSER_H_
 #define PEREGRINE_SRC_INTERNAL_CONTROL_PARSER_H_
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 
@@ -16,6 +17,9 @@ class ControlMsg final {
   static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
 
  public:
+  // The maximum length of a serialized control message.
+  static constexpr size_t kMaxLen = 512;
+
   // Serializes the control message to a string.
   static std::string Serialize(const proto::Control& c) {
     return c.SerializeAsString();

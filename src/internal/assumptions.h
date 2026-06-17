@@ -79,7 +79,9 @@ inline constexpr bool kReceiverSideChunkWriteContentionIsVeryLow = true;
 // request, host device info, etc. All of them are wrapped in a single control
 // message using protobuf's `oneof` feature. This control message is serialized
 // in two fields: a 4-byte network-byte-order length field and a variable-size
-// string (serialization of the inner message).
+// string (serialization of the inner message, at most 512 bytes). In total,
+// a serialized control message is at most 516 bytes, well below the widely
+// assumed minimum network MTU of 576 bytes.
 inline constexpr bool kThereIsOnlyOneWrapperControlMessage = true;
 
 }  // namespace peregrine::assumptions
