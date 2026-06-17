@@ -68,6 +68,10 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
 
     LOG(INFO) << *sndr;
     LOG(INFO) << *rcvr;
+
+    // Shutdown the channels.
+    sndr->Shutdown();
+    rcvr->Shutdown();
   }
 }
 
@@ -105,6 +109,10 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
 
     LOG(INFO) << *sndr;
     LOG(INFO) << *rcvr;
+
+    // Shutdown the channels.
+    sndr->Shutdown();
+    rcvr->Shutdown();
   }
 }
 

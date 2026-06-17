@@ -50,6 +50,9 @@ class Channel {
   // Returns -1 on error.
   virtual ssize_t Read(Byte* buf, size_t len) = 0;
 
+  // Shuts down the channel.
+  virtual void Shutdown() = 0;
+
   // Returns a string representation for the channel.
   virtual std::string ToString() const = 0;
 };

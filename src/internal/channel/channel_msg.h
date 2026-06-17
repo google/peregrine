@@ -39,6 +39,9 @@ class MemMsgChannel final : public Channel {
   // received packet has no payload. Returns -1 on error.
   virtual ssize_t Read(Byte* buf, size_t len) override ABSL_LOCKS_EXCLUDED(mu_);
 
+  // Shuts down the channel.
+  void Shutdown() override {}
+
   // Returns a string representation for the channel.
   std::string ToString() const override {
     return absl::StrFormat("MemMsgChannel: error_rate=%d%%", error_rate_);

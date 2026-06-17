@@ -44,6 +44,9 @@ class UdpChannel final : public Channel {
     return socket_->Recv(buf, len);
   }
 
+  // Shuts down the channel.
+  void Shutdown() override { ::shutdown(socket_->fd(), SHUT_RDWR); }
+
   // Returns a string representation for the channel.
   std::string ToString() const override;
 
