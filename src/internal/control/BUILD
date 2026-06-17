@@ -5,6 +5,39 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(default_visibility = ["//src/internal:internal_impl"])
 
+cc_library(
+    name = "control",
+    srcs = ["control.cc"],
+    hdrs = ["control.h"],
+    deps = [
+        ":message_cc_proto",
+        ":parser",
+        "//src/api:types",
+        "//src/internal:assumptions",
+        "//src/internal/base:types",
+        "//src/internal/channel",
+        "//src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "control_test",
+    srcs = ["control_test.cc"],
+    deps = [
+        ":control",
+        "//src/internal/channel:channel_test_util",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
 proto_library(
     name = "message_proto",
     srcs = ["message.proto"],
