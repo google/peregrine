@@ -37,7 +37,8 @@ class TcpSocket final : public SocketBase {
   bool Listen(const Endpoint& local) const;
 
   // Accepts a new connection to this listening socket. Returns the new spawn
-  // socket file descriptor if successful. Otherwise, returns -1.
+  // socket file descriptor if successful. Return -2 if the socket is shut down.
+  // Otherwise, returns -1.
   int Accept() const;
 
   // Connects to the `peer` endpoint.

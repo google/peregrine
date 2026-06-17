@@ -12,6 +12,7 @@
 #include "absl/memory/memory.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/socket/socket_tcp.h"
+#include "src/internal/socket/socket_util.h"
 
 namespace peregrine::internal {
 
@@ -47,7 +48,9 @@ void TcpAcceptor::Start(AcceptCallback accept) {
     DCHECK(listener_->IsBlocking());
     const int fd = listener_->Accept();
     if ABSL_PREDICT_FALSE (fd < 0) {
+      if (IsShutdown(fd)) return;
       // TODO(yongx): Handle errors.
+      DCHECK_EQ(fd, -1);
       continue;
     }
     std::unique_ptr<TcpSocket> socket = TcpSocket::Create(fd, family);

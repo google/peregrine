@@ -9,6 +9,7 @@ cc_library(
     hdrs = ["acceptor.h"],
     deps = [
         ":socket_tcp",
+        ":socket_util",
         "//src/internal/base:endpoint",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",

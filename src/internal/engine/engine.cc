@@ -53,10 +53,10 @@ Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor)
 Engine::~Engine() {
   {
     absl::MutexLock _(mu_);
-    stopping_ = true;
     acceptor_->Stop();
+    stopping_ = true;
   }
-  // all threads are joined in the threads_ destructor.
+  // all threads are joined in their destructor.
   LOG(INFO) << kEngine << "destroyed";
 }
 

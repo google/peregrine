@@ -107,9 +107,15 @@ int TcpSocket::Accept() const {
   const auto accept = family_ == AF_INET ? AcceptV4 : AcceptV6;
   const int new_fd = accept(fd_);
   if ABSL_PREDICT_FALSE (new_fd < 0) {
-    const auto last_errno = errno;
-    LOG(WARNING) << errMsg("accept", last_errno);
-    return -1;
+    // At this point, shutdown() is the only reason that can cause EINVAL.
+    if (const auto last_errno = errno; last_errno == EINVAL) {
+      LOG(WARNING) << okMsg("accept shutdown");
+      DCHECK(IsShutdown(-2));
+      return -2;
+    } else {
+      LOG(WARNING) << errMsg("accept", last_errno);
+      return -1;
+    }
   } else {
     DCHECK_GE(new_fd, 0);
     LOG(INFO) << okMsg("accepted", new_fd);

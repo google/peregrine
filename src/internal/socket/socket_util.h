@@ -45,6 +45,9 @@ inline bool SetNonBlockingMode(int fd) {
   return __set_blocking_mode(fd, /*nonblocking=*/true);
 }
 
+// Returns true iff the tcp listen socket Accept() call was shut down.
+inline bool IsShutdown(int ret) { return ret == -2; }
+
 // Returns true iff the last socket operation was interrupted by a signal.
 inline bool Interrupted(int last_errno) { return last_errno == EINTR; }
 
