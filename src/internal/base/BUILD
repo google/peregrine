@@ -6,6 +6,9 @@ package(default_visibility = ["//src/internal:internal_impl"])
 cc_library(
     name = "types",
     hdrs = ["types.h"],
+    deps = [
+        "//third_party/gloop/util/intops",
+    ],
 )
 
 cc_library(

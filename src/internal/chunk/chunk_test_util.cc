@@ -5,6 +5,7 @@
 
 #include "absl/random/random.h"
 #include "src/api/types.h"
+#include "src/internal/base/types.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/util/util.h"
 

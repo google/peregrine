@@ -16,21 +16,11 @@ using Byte = uint8_t;
 // `Handle` uniquely identifies a transport request within one process.
 DEFINE_STRONG_INT_TYPE(Handle, uint32_t);
 
-// `Buffer` uniquely identifies a buffer within a transport request.
-DEFINE_STRONG_INT_TYPE(Buffer, uint32_t);
-
 // Transport operation.
 enum class Op : uint8_t {
   kRead = 1,   // Read from peer
   kWrite = 2,  // Write to peer
 };
-
-// Returns a string representation of the transport operation.
-std::string ToString(Op op);
-
-inline std::ostream& operator<<(std::ostream& os, const Op op) {
-  return os << ToString(op);
-}
 
 // Per-peer transport request.
 struct Request final {
@@ -46,21 +36,9 @@ struct Request final {
     return laddr != nullptr && raddr != nullptr && len > 0;
   }
 
-  // Returns true iff this request is equal to the request `r`.
-  bool operator==(const Request& r) const {
-    return op == r.op && laddr == r.laddr && raddr == r.raddr && len == r.len;
-  }
-
-  // Returns true iff this request is not equal to the request `r`.
-  bool operator!=(const Request& r) const { return !(*this == r); }
-
   // Returns a string representation of the transport request.
   std::string ToString() const;
 };
-
-inline std::ostream& operator<<(std::ostream& os, const Request& r) {
-  return os << r.ToString();
-}
 
 // Transport operation status.
 enum class Status : int {
@@ -78,6 +56,16 @@ constexpr bool IsCompleted(const Status s) { return s != Status::kInProgress; }
 
 // Returns a string representation of the transport operation status.
 std::string ToString(Status s);
+
+// Returns a string representation of the transport operation.
+std::string ToString(Op op);
+
+inline std::ostream& operator<<(std::ostream& os, const Op op) {
+  return os << ToString(op);
+}
+inline std::ostream& operator<<(std::ostream& os, const Request& r) {
+  return os << r.ToString();
+}
 
 inline std::ostream& operator<<(std::ostream& os, const Status s) {
   return os << ToString(s);

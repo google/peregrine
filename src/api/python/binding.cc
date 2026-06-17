@@ -35,22 +35,8 @@ NB_MODULE(peregrine, m) {
       .def(nb::init<uint32_t>())
       .def("value", [](const Handle& h) { return h.value(); });
 
-  // Bind `Buffer`
-  nb::class_<Buffer>(m, "Buffer")
-      .def(nb::init<uint32_t>())
-      .def("value", [](const Buffer& b) { return b.value(); });
-
   // Bind `Op` enum
   nb::enum_<Op>(m, "Op").value("READ", Op::kRead).value("WRITE", Op::kWrite);
-
-  // Bind `Status` enum and helper functions
-  nb::enum_<Status>(m, "Status")
-      .value("IN_PROGRESS", Status::kInProgress)
-      .value("SUCCESS", Status::kSuccess)
-      .value("FAILURE", Status::kFailure);
-
-  m.def("is_in_progress", &IsInProgress);
-  m.def("is_completed", &IsCompleted);
 
   // Bind `Request` struct
   nb::class_<Request>(m, "Request")
@@ -104,6 +90,15 @@ NB_MODULE(peregrine, m) {
           nb::arg("handle"));
 
   m.def("create_transport", &CreateTransport, nb::arg("endpoint"));
+
+  // Bind `Status` enum and helper functions
+  nb::enum_<Status>(m, "Status")
+      .value("IN_PROGRESS", Status::kInProgress)
+      .value("SUCCESS", Status::kSuccess)
+      .value("FAILURE", Status::kFailure);
+
+  m.def("is_in_progress", &IsInProgress);
+  m.def("is_completed", &IsCompleted);
 }
 
 }  // namespace

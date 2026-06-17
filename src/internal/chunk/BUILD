@@ -11,6 +11,7 @@ cc_library(
     deps = [
         "//src/api:types",
         "//src/internal:assumptions",
+        "//src/internal/base:types",
         "//third_party/gloop/util/intops",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
@@ -138,6 +139,7 @@ cc_library(
         ":chunk",
         "//src/api:types",
         "//src/internal:assumptions",
+        "//src/internal/base:types",
         "//src/util",
         "@abseil-cpp//absl/random",
     ],

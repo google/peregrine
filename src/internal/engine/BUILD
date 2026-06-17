@@ -53,6 +53,7 @@ cc_test(
         ":transfer",
         "//src/api:types",
         "//src/internal:assumptions",
+        "//src/internal/base:types",
         "//src/internal/channel",
         "//src/internal/channel:channel_test_util",
         "//src/internal/chunk",

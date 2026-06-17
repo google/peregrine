@@ -7,6 +7,7 @@
 #include "absl/functional/any_invocable.h"
 #include "src/api/types.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/tracker.h"

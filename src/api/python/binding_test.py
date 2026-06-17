@@ -9,28 +9,13 @@ from src.util import util
 
 class BindTest(absltest.TestCase):
 
-  def test_op_enum(self):
-    self.assertEqual(pg.Op.READ.value, 1)
-    self.assertEqual(pg.Op.WRITE.value, 2)
-
-  def test_status_enum(self):
-    self.assertEqual(pg.Status.IN_PROGRESS.value, 1)
-    self.assertEqual(pg.Status.SUCCESS.value, 0)
-    self.assertEqual(pg.Status.FAILURE.value, -1)
-
-  def test_status_helpers(self):
-    self.assertTrue(pg.is_in_progress(pg.Status.IN_PROGRESS))
-    self.assertFalse(pg.is_in_progress(pg.Status.SUCCESS))
-    self.assertTrue(pg.is_completed(pg.Status.SUCCESS))
-    self.assertFalse(pg.is_completed(pg.Status.IN_PROGRESS))
-
   def test_handle(self):
     h = pg.Handle(1337)
     self.assertEqual(h.value(), 1337)
 
-  def test_buffer(self):
-    b = pg.Buffer(9973)
-    self.assertEqual(b.value(), 9973)
+  def test_op_enum(self):
+    self.assertEqual(pg.Op.READ.value, 1)
+    self.assertEqual(pg.Op.WRITE.value, 2)
 
   def test_request(self):
     # Allocate safe virtual buffer memory addresses
@@ -51,6 +36,17 @@ class BindTest(absltest.TestCase):
     self.assertTrue(req.is_valid())
     self.assertIn("Write", str(req))
     self.assertIn("Write", repr(req))
+
+  def test_status_enum(self):
+    self.assertEqual(pg.Status.IN_PROGRESS.value, 1)
+    self.assertEqual(pg.Status.SUCCESS.value, 0)
+    self.assertEqual(pg.Status.FAILURE.value, -1)
+
+  def test_status_helpers(self):
+    self.assertTrue(pg.is_in_progress(pg.Status.IN_PROGRESS))
+    self.assertFalse(pg.is_in_progress(pg.Status.SUCCESS))
+    self.assertTrue(pg.is_completed(pg.Status.SUCCESS))
+    self.assertFalse(pg.is_completed(pg.Status.IN_PROGRESS))
 
   def test_transport(self):
     lbuf = ctypes.create_string_buffer(1024)
@@ -76,7 +72,6 @@ class BindTest(absltest.TestCase):
 
     status = transport.poll(handle)
     self.assertIsInstance(status, pg.Status)
-
 
 if __name__ == "__main__":
   absltest.main()

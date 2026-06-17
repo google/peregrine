@@ -10,6 +10,7 @@
 #include "third_party/gloop/util/intops/strong_int.h"
 #include "src/api/types.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/base/types.h"
 
 namespace peregrine::internal {
 
