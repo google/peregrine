@@ -23,13 +23,11 @@
 
 namespace peregrine::internal {
 
-using flatbuf::kChunkHeaderSize;
-
 bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
                          const ChunkPayloadView payload) {
   // Step 1: build two iovecs: header + payload.
-  const std::string header = flatbuf::Serialize(chunk);
-  DCHECK_EQ(header.size(), kChunkHeaderSize);
+  const std::string header = ChunkHeader::Serialize(chunk);
+  DCHECK_EQ(header.size(), ChunkHeader::kSize);
   const std::array<const IoVec, 2> iovecs = {
       IoVec((void*)header.data(), header.size()),
       IoVec((void*)payload.data(), payload.size()),
@@ -51,9 +49,8 @@ bool Transfer::RecvChunk(Channel* const channel, ChunkTrackerLookup lookup) {
 }
 
 bool Transfer::deserialize(Byte* buf, ChunkMetadata& chunk) {
-  std::string_view s(reinterpret_cast<const char*>(buf), kChunkHeaderSize);
-  flatbuf::Deserialize(s, chunk);
-  return chunk.IsValid();
+  std::string_view s(reinterpret_cast<const char*>(buf), ChunkHeader::kSize);
+  return ChunkHeader::Deserialize(s, chunk) && chunk.IsValid();
 }
 
 bool Transfer::recvChunkStream(Channel* const channel,
@@ -62,7 +59,7 @@ bool Transfer::recvChunkStream(Channel* const channel,
   DCHECK_NE(lookup, nullptr);
 
   // Step 1: read chunk header.
-  Byte buf[kChunkHeaderSize];
+  Byte buf[ChunkHeader::kSize];
   const ssize_t len = channel->Read(buf, sizeof(buf));
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, sizeof(buf))) {
     // TODO(yongx): handle the error.
@@ -107,9 +104,9 @@ bool Transfer::recvChunkMsg(Channel* const channel, ChunkTrackerLookup lookup) {
 
   // Step 1: read chunk header.
   Byte buf[kTmpBufSize];
-  static_assert(kChunkHeaderSize < kTmpBufSize);
+  static_assert(ChunkHeader::kSize < kTmpBufSize);
   const ssize_t len = channel->Read(buf, kTmpBufSize);
-  if ABSL_PREDICT_FALSE (std::cmp_less(len, kChunkHeaderSize)) {
+  if ABSL_PREDICT_FALSE (std::cmp_less(len, ChunkHeader::kSize)) {
     // TODO(yongx): handle the error.
     LOG(WARNING) << "failed to read chunk header: " << len;
     return false;
@@ -123,8 +120,8 @@ bool Transfer::recvChunkMsg(Channel* const channel, ChunkTrackerLookup lookup) {
   }
 
   // Step 3: read chunk payload.
-  const ChunkPayloadView payload(buf + kChunkHeaderSize,
-                                 len - kChunkHeaderSize);
+  const ChunkPayloadView payload(buf + ChunkHeader::kSize,
+                                 len - ChunkHeader::kSize);
   if ABSL_PREDICT_FALSE (!IsMatch(chunk, payload)) {
     LOG(WARNING) << "mismatched chunk metadata: " << chunk
                  << " vs payload size " << payload.size();

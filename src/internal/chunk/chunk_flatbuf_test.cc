@@ -17,15 +17,13 @@ TEST(ChunkSerializationTest, Serde) {
   ChunkMetadata chunk = GenChunkMetadata();
   ASSERT_TRUE(chunk.IsValid());
 
-  const std::string s = flatbuf::Serialize(chunk);
-  ASSERT_EQ(s.size(), flatbuf::kChunkHeaderSize);
+  const std::string s = ChunkHeader::Serialize(chunk);
+  ASSERT_EQ(s.size(), ChunkHeader::kSize);
 
-  const ChunkMetadata m1 = flatbuf::Deserialize(s);
+  ChunkMetadata m1;
+  ASSERT_NE(chunk, m1);
+  ASSERT_TRUE(ChunkHeader::Deserialize(s, m1));
   EXPECT_EQ(chunk, m1);
-
-  ChunkMetadata m2;
-  flatbuf::Deserialize(s, m2);
-  EXPECT_EQ(chunk, m2);
 }
 
 TEST(ChunkSerializationTest, FixedSize) {
@@ -39,10 +37,12 @@ TEST(ChunkSerializationTest, FixedSize) {
     GenChunkMetadata(bitgen, chunk);
     ASSERT_TRUE(chunk.IsValid());
 
-    const std::string s = flatbuf::Serialize(chunk);
-    ASSERT_EQ(s.size(), flatbuf::kChunkHeaderSize);
+    const std::string s = ChunkHeader::Serialize(chunk);
+    ASSERT_EQ(s.size(), ChunkHeader::kSize);
 
-    const ChunkMetadata m = flatbuf::Deserialize(s);
+    ChunkMetadata m;
+    ASSERT_NE(chunk, m);
+    ASSERT_TRUE(ChunkHeader::Deserialize(s, m));
     ASSERT_THAT(chunk, ::testing::Eq(m));
 
     ss.insert(s);

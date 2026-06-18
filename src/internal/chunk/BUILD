@@ -51,7 +51,9 @@ cc_library(
         ":chunk_cc_fbs",
         "//src/api:transport_types",
         "//src/internal:assumptions",
+        "//src/internal/base:types",
         "//third_party/flatbuffers:runtime_cc",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
     ],
 )
