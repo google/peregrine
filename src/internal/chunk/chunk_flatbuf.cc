@@ -34,6 +34,9 @@ bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
   // NOTE: Do not remove any existing case. Only prepend new cases.
   const uint8_t ver = h.ver();
   switch (ver) {
+    case 2:
+      deserializeV2(h, chunk);
+      return true;
     case 1:
       deserializeV1(h, chunk);
       return true;
@@ -43,12 +46,24 @@ bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
   }
 }
 
-std::string ChunkHeader::serializeV1(const ChunkMetadata& m) {
-  constexpr uint16_t kVer = 1;
+std::string ChunkHeader::serializeV2(const ChunkMetadata& m) {
+  constexpr uint16_t kVer = 2;
   const flatbuf::ChunkHeader h(kMagic, kVer, m.handle.value(), m.buffer.value(),
                                m.nchunks, m.index.value(), m.size,
-                               m.addr.value(), /*paddings=*/0, 0, 0, 0);
+                               m.addr.value(), /*send_ts=*/1000,
+                               /*recv_ts=*/2000, /*paddings=*/0, 0);
   return serialize(h);
+}
+
+void ChunkHeader::deserializeV2(const flatbuf::ChunkHeader& h,
+                                ChunkMetadata& chunk) {
+  DCHECK_EQ(h.ver(), 2);
+  chunk.handle = Handle(h.handle());
+  chunk.buffer = Buffer(h.buffer());
+  chunk.nchunks = h.nchunks();
+  chunk.index = chunk_t(h.index());
+  chunk.addr = addr_t(h.addr());
+  chunk.size = h.size();
 }
 
 void ChunkHeader::deserializeV1(const flatbuf::ChunkHeader& h,

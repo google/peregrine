@@ -1,6 +1,9 @@
 #include "src/internal/chunk/chunk_flatbuf.h"
 
+#include <cstdint>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -27,6 +30,26 @@ TEST(ChunkSerializationTest, Serde) {
   ASSERT_NE(chunk, m1);
   ASSERT_TRUE(ChunkHeader::Deserialize(s, m1));
   EXPECT_EQ(chunk, m1);
+}
+
+TEST(ChunkSerializationTest, FromV1) {
+  const std::vector<uint8_t> v1 = {
+      112, 103, 1, 0, 52, 18, 0, 0, 239, 190, 0,   0,   10, 0, 0, 0,
+      1,   0,   0, 0, 0,  4,  0, 0, 0,   4,   255, 255, 0,  0, 0, 0,
+      0,   0,   0, 0, 0,  0,  0, 0, 0,   0,   0,   0,   0,  0, 0, 0,
+      0,   0,   0, 0, 0,  0,  0, 0, 0,   0,   0,   0,   0,  0, 0, 0};
+  ASSERT_EQ(v1.size(), ChunkHeader::kSize);
+
+  std::string_view s(reinterpret_cast<const char*>(v1.data()), v1.size());
+
+  ChunkMetadata m1;
+  ASSERT_TRUE(ChunkHeader::Deserialize(s, m1));
+  EXPECT_EQ(m1.handle, kHandle);
+  EXPECT_EQ(m1.buffer, kBuffer);
+  EXPECT_EQ(m1.nchunks, kNumChunks);
+  EXPECT_EQ(m1.index, kChunkIndex);
+  EXPECT_EQ((m1.addr - kBufferBaseAddr).value(), kChunkSize);
+  EXPECT_EQ(m1.size, kChunkSize);
 }
 
 TEST(ChunkSerializationTest, FixedSize) {
