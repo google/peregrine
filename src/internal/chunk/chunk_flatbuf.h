@@ -24,7 +24,7 @@ class ChunkHeader final {
 
   // Serializes the chunk metadata to a fixed-size flatbuffer string.
   static std::string Serialize(const ChunkMetadata& m) {
-    return serializeV2(m);
+    return serializeV1(m);
   }
 
   // Parses the chunk metadata from its fixed-size flatbuffer serialization.
@@ -33,13 +33,8 @@ class ChunkHeader final {
 
  private:
   // Serializes the chunk metadata to a fixed-size flatbuffer string.
-  static std::string serializeV2(const ChunkMetadata& m);
+  static std::string serializeV1(const ChunkMetadata& m);
 
-  // Parses the chunk metadata from a flatbuffer struct.
-  static void deserializeV2(const flatbuf::ChunkHeader& h,
-                            ChunkMetadata& chunk);
-
- private:
   // Parses the chunk metadata from a flatbuffer struct.
   static void deserializeV1(const flatbuf::ChunkHeader& h,
                             ChunkMetadata& chunk);
