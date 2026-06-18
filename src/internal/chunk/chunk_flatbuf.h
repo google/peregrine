@@ -46,7 +46,7 @@ class ChunkHeader final {
  private:
   // Magic number to identify the chunk serialization format. Do not change!
   static constexpr uint16_t kMagic = (uint16_t)flatbuf::Constant::MAGIC;
-  static_assert(kMagic == 0x7067);  // 'p' 'g' in ascii
+  static_assert(kMagic == 0x6770);  //  'pg' in big-endian order
 };
 
 }  // namespace peregrine::internal
