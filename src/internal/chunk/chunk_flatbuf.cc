@@ -19,22 +19,19 @@ namespace peregrine::internal {
 
 static_assert(assumptions::kChunkMetadataSerializesToFixedSizeFlatBufString);
 
-// Serializes the chunk metadata to a fixed-size flatbuffer string.
-std::string ChunkHeader::Serialize(const ChunkMetadata& m) {
-  return serializeV1(m);
-}
-
-// Parses the chunk metadata from its fixed-size flatbuffer serialization.
-// Returns true iff the parsing is successful.
 bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
   flatbuf::ChunkHeader h;
   DCHECK_EQ(sizeof(h), kSize);
   if (s.size() != sizeof(h)) {
     return false;
   }
-  std::memcpy(&h, s.data(), sizeof(h));
 
-  // NOTE: Do not remove any existing case. Only append new cases.
+  std::memcpy(&h, s.data(), sizeof(h));
+  if (h.magic() != kMagic) {
+    return false;
+  }
+
+  // NOTE: Do not remove any existing case. Only prepend new cases.
   const uint8_t ver = h.ver();
   switch (ver) {
     case 1:
@@ -47,18 +44,11 @@ bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
 }
 
 std::string ChunkHeader::serializeV1(const ChunkMetadata& m) {
-  const flatbuf::ChunkHeader h(/*ver=*/1, m.handle.value(), m.buffer.value(),
+  constexpr uint16_t kVer = 1;
+  const flatbuf::ChunkHeader h(kMagic, kVer, m.handle.value(), m.buffer.value(),
                                m.nchunks, m.index.value(), m.size,
                                m.addr.value(), /*paddings=*/0, 0, 0, 0);
-
-  flatbuffers::FlatBufferBuilder builder(kSize * 2);
-  builder.Align(8);
-  builder.PushBytes(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
-
-  const uint8_t* buf = builder.GetCurrentBufferPointer();
-  const size_t size = builder.GetSize();
-  DCHECK_EQ(size, kSize);
-  return std::string(reinterpret_cast<const char*>(buf), size);
+  return serialize(h);
 }
 
 void ChunkHeader::deserializeV1(const flatbuf::ChunkHeader& h,
@@ -70,6 +60,17 @@ void ChunkHeader::deserializeV1(const flatbuf::ChunkHeader& h,
   chunk.index = chunk_t(h.index());
   chunk.addr = addr_t(h.addr());
   chunk.size = h.size();
+}
+
+std::string ChunkHeader::serialize(const flatbuf::ChunkHeader& h) {
+  flatbuffers::FlatBufferBuilder builder(sizeof(h) * 2);
+  builder.Align(8);
+  builder.PushBytes(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
+
+  const uint8_t* buf = builder.GetCurrentBufferPointer();
+  const size_t size = builder.GetSize();
+  DCHECK_EQ(size, kSize);
+  return std::string(reinterpret_cast<const char*>(buf), size);
 }
 
 }  // namespace peregrine::internal

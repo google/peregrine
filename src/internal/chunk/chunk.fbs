@@ -2,11 +2,19 @@ namespace peregrine.internal.flatbuf;
 
 // `ChunkHeader` is used to serialize `ChunkMetadata` in chunk.h.
 // They must be kept in sync.
+
+// Do not change.
+enum Constant:uint16 {
+  MAGIC = 0x7067,  // 'p' 'g' in ascii
+}
+
 struct ChunkHeader {
-  ver:uint32;  // Do not change the first field.
+  // Two fixed fields. Do not change.
+  magic:uint16;
+  ver:uint16;
 
   // The following fields can change.
-  // When they change, the `ver` field must be incremented in your serializer.
+  // When they do, the `ver` field must be incremented in the new serializer.
   handle:uint32;
   buffer:uint32;
   nchunks:uint32;
