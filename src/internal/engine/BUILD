@@ -10,7 +10,6 @@ cc_library(
     deps = [
         "//src/api:transport_types",
         "//src/internal:assumptions",
-        "//src/internal:coding_style",
         "//src/internal/base:endpoint",
         "//src/internal/socket:acceptor",
         "//src/internal/socket:socket_tcp",

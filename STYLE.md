@@ -1,0 +1,1 @@
+We follow Google's [C++ coding style](https://google.github.io/styleguide/cppguide.html).

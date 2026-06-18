@@ -15,7 +15,6 @@
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
-#include "src/internal/coding_style.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/util/util.h"
@@ -29,8 +28,6 @@ namespace peregrine::internal {
 // It is thread-safe.
 class Engine {
   static_assert(assumptions::kTransportImplementationHasItsOwnThreads);
-  static_assert(coding_style::kClassPrivateFunctionNamesStartWithLowercase);
-  static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
 
  public:
   // Constructor.
