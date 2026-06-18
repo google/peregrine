@@ -28,6 +28,7 @@ std::string ChunkHeader::Serialize(const ChunkMetadata& m) {
 // Returns true iff the parsing is successful.
 bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
   flatbuf::ChunkHeader h;
+  DCHECK_EQ(sizeof(h), kSize);
   if (s.size() != sizeof(h)) {
     return false;
   }
@@ -48,7 +49,7 @@ bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
 std::string ChunkHeader::serializeV1(const ChunkMetadata& m) {
   const flatbuf::ChunkHeader h(/*ver=*/1, m.handle.value(), m.buffer.value(),
                                m.nchunks, m.index.value(), m.size,
-                               m.addr.value());
+                               m.addr.value(), /*paddings=*/0, 0, 0, 0);
 
   flatbuffers::FlatBufferBuilder builder(kSize * 2);
   builder.Align(8);

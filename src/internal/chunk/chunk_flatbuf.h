@@ -18,7 +18,7 @@ class ChunkHeader final {
 
  public:
   // Note: change of this value will cause breaks!
-  static constexpr size_t kSize = 32;
+  static constexpr size_t kSize = 64;
   static_assert(sizeof(flatbuf::ChunkHeader) == kSize);
 
   // Serializes the chunk metadata to a fixed-size flatbuffer string.
