@@ -22,14 +22,6 @@ cc_library(
 )
 
 cc_library(
-    name = "types",
-    hdrs = ["types.h"],
-    deps = [
-        ":transport_types",
-    ],
-)
-
-cc_library(
     name = "transport_types",
     srcs = ["transport_types.cc"],
     hdrs = ["transport_types.h"],
