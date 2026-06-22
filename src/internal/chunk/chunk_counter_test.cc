@@ -11,25 +11,17 @@ TEST(ChunkCounterTest, OneWriter) {
 
   EXPECT_EQ(counter.TotalNumChunks(), 2);
   EXPECT_TRUE(counter.IsEmpty());
-  EXPECT_FALSE(counter.IsCompleted());
-
-  EXPECT_TRUE(counter.Acquire(chunk_t(0)));
+  EXPECT_FALSE(counter.IsDone());
   EXPECT_FALSE(counter.IsBusy(chunk_t(0)));
-  EXPECT_TRUE(counter.IsEmpty());
-  EXPECT_FALSE(counter.IsCompleted());
 
-  counter.Release(chunk_t(0), /*success=*/false);
+  counter.Set(chunk_t(0));
   EXPECT_FALSE(counter.IsEmpty());
-  EXPECT_FALSE(counter.IsCompleted());
-
-  EXPECT_TRUE(counter.Acquire(chunk_t(1)));
+  EXPECT_FALSE(counter.IsDone());
   EXPECT_FALSE(counter.IsBusy(chunk_t(1)));
-  EXPECT_FALSE(counter.IsEmpty());
-  EXPECT_FALSE(counter.IsCompleted());
 
-  counter.Release(chunk_t(1), /*success=*/true);
+  counter.Set(chunk_t(1));
   EXPECT_FALSE(counter.IsEmpty());
-  EXPECT_TRUE(counter.IsCompleted());
+  EXPECT_TRUE(counter.IsDone());
 }
 
 }  // namespace

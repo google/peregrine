@@ -154,7 +154,7 @@ TEST_P(TransferTest, SendAndRecv) {
   std::thread rcvr([&]() {
     while (!stop.HasBeenNotified()) {
       Transfer::RecvChunk(channel, GenLookup(track));
-      if (!track || !chunk_tracker_.IsCompleted()) {
+      if (!track || !chunk_tracker_.IsDone()) {
         continue;
       }
     }

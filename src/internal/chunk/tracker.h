@@ -17,14 +17,17 @@ class Tracker {
   // Returns the total number of chunks.
   virtual uint32_t TotalNumChunks() const = 0;
 
+  // Returns true iff no chunk has been read/written yet.
+  virtual bool IsEmpty() const = 0;
+
+  // Returns true iff all the chunks have been read/written successfully.
+  virtual bool IsDone() const = 0;
+
   // Returns true iff the `index`-th chunk is being busy written.
   virtual bool IsBusy(chunk_t index) const = 0;
 
-  // Returns true iff no chunk has been written yet.
-  virtual bool IsEmpty() const = 0;
-
-  // Returns true iff all the chunks have been written successfully.
-  virtual bool IsCompleted() const = 0;
+  // Sets the `index`-th chunk to indicate it has been read.
+  virtual void Set(chunk_t index) = 0;
 
   // Gets the exclusive data write access to the `index`-th chunk.
   // Returns true if the permission is granted.

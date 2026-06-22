@@ -23,14 +23,17 @@ class ChunkCounter final : public Tracker {
   // Returns the total number of chunks.
   uint32_t TotalNumChunks() const override { return total_num_chunks_; }
 
-  // Returns true iff the `index`-th chunk is being busy written.
-  constexpr bool IsBusy(chunk_t index) const override { return false; }
-
   // Returns true iff no chunk has been written yet.
   bool IsEmpty() const override { return numChunks() == 0; }
 
   // Returns true iff all the chunks have been written successfully.
-  bool IsCompleted() const override { return numChunks() == total_num_chunks_; }
+  bool IsDone() const override { return numChunks() == total_num_chunks_; }
+
+  // Returns true iff the `index`-th chunk is being busy written.
+  constexpr bool IsBusy(chunk_t index) const override { return false; }
+
+  // Sets the `index`-th chunk to indicate it has been read.
+  void Set(chunk_t index) override { incNumChunks(); }
 
   // Gets the exclusive data write access to the `index`-th chunk.
   constexpr bool Acquire(chunk_t index) override { return true; }

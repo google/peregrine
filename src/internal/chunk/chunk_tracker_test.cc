@@ -27,7 +27,7 @@ TEST(ChunkTrackerTest, OneWriter) {
   EXPECT_TRUE(tracker.IsBusy(i0));
   tracker.Release(i0, /*success=*/false);
   EXPECT_FALSE(tracker.IsBusy(i0));
-  EXPECT_FALSE(tracker.IsCompleted());
+  EXPECT_FALSE(tracker.IsDone());
   EXPECT_TRUE(tracker.IsEmpty());
 
   // Acquire the chunk #0 again and write a DONE.
@@ -35,7 +35,7 @@ TEST(ChunkTrackerTest, OneWriter) {
   EXPECT_TRUE(tracker.IsBusy(i0));
   tracker.Release(i0, /*success=*/true);
   EXPECT_FALSE(tracker.IsBusy(i0));
-  EXPECT_FALSE(tracker.IsCompleted());
+  EXPECT_FALSE(tracker.IsDone());
   EXPECT_FALSE(tracker.IsEmpty());
 
   // Acquire the chunk #1 and write a DONE.
@@ -44,7 +44,7 @@ TEST(ChunkTrackerTest, OneWriter) {
   EXPECT_TRUE(tracker.IsBusy(i1));
   tracker.Release(i1, /*success=*/true);
   EXPECT_FALSE(tracker.IsBusy(i1));
-  EXPECT_TRUE(tracker.IsCompleted());
+  EXPECT_TRUE(tracker.IsDone());
   EXPECT_FALSE(tracker.IsEmpty());
 
   // Acquire won't succeed because all the chunks are DONE.
@@ -58,7 +58,7 @@ class ChunkTrackerStressTest : public ::testing::Test {
       : tracker_(std::make_unique<ChunkTracker>(kTotalNumChunks)) {
     CHECK_EQ(tracker_->TotalNumChunks(), kTotalNumChunks);
     CHECK(tracker_->IsEmpty());
-    CHECK(!tracker_->IsCompleted());
+    CHECK(!tracker_->IsDone());
   }
 
   chunk_t RandomChunkIndex(absl::BitGen& bitgen) {
@@ -87,7 +87,7 @@ TEST_F(ChunkTrackerStressTest, MultipleWriters) {
   for (int n = 0; n < kNumThreads; ++n) {
     threads.emplace_back([this]() {
       absl::BitGen bitgen;
-      while (!tracker_->IsCompleted()) {
+      while (!tracker_->IsDone()) {
         const chunk_t i = RandomChunkIndex(bitgen);
         if (tracker_->Acquire(i)) {
           SimulateWork(bitgen, i);
@@ -102,7 +102,7 @@ TEST_F(ChunkTrackerStressTest, MultipleWriters) {
     t.join();
   }
 
-  EXPECT_TRUE(tracker_->IsCompleted());
+  EXPECT_TRUE(tracker_->IsDone());
   LOG(INFO) << tracker_;
 }
 
