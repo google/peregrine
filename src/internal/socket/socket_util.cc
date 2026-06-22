@@ -16,53 +16,55 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "src/internal/base/types.h"
 
 namespace peregrine::internal {
 
-int CreateSocket(int family, int type, bool nonblocking) {
+fd_t CreateSocket(int family, int type, bool nonblocking) {
   DCHECK(family == AF_INET || family == AF_INET6);
   DCHECK(type == SOCK_STREAM || type == SOCK_DGRAM);
-  const int fd = ::socket(family, type | SOCK_CLOEXEC, /*protocol=*/0);
-  if (fd < 0) {
+  const int ret = ::socket(family, type | SOCK_CLOEXEC, /*protocol=*/0);
+  if (ret < 0) {
     const auto last_errno = errno;
     LOG(WARNING) << ErrorMsg("socket", last_errno);
-    return -1;
+    return fd_t(-1);
   }
+  const fd_t fd(ret);
   DCHECK(IsBlockingMode(fd));
   if (!nonblocking) {
     return fd;
   }
   if (!SetNonBlockingMode(fd)) {
-    close(fd);  // release the socket resource.
-    return -1;
+    ::close(fd.value());  // release the socket resource.
+    return fd_t(-1);
   }
   DCHECK(IsNonBlockingMode(fd));
   return fd;
 }
 
-bool IsBlockingMode(int fd) {
-  const int flags = fcntl(fd, F_GETFL, 0);
+bool IsBlockingMode(fd_t fd) {
+  const int flags = ::fcntl(fd.value(), F_GETFL, 0);
   return flags >= 0 && !(flags & O_NONBLOCK);
 }
 
-bool IsNonBlockingMode(int fd) {
-  const int flags = fcntl(fd, F_GETFL, 0);
+bool IsNonBlockingMode(fd_t fd) {
+  const int flags = ::fcntl(fd.value(), F_GETFL, 0);
   return flags >= 0 && (flags & O_NONBLOCK);
 }
 
-bool __set_blocking_mode(int fd, bool nonblocking) {
-  const int flags = fcntl(fd, F_GETFL, /*cmd*/ 0);
+bool __set_blocking_mode(fd_t fd, bool nonblocking) {
+  const int flags = ::fcntl(fd.value(), F_GETFL, /*cmd*/ 0);
   if ABSL_PREDICT_FALSE (flags < 0) {
     return false;
   }
   const int cmd = nonblocking ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
-  return fcntl(fd, F_SETFL, cmd) >= 0;
+  return ::fcntl(fd.value(), F_SETFL, cmd) >= 0;
 }
 
-std::string SelfAddrPort(const int fd) {
+std::string SelfAddrPort(const fd_t fd) {
   struct sockaddr_storage ss;
   socklen_t len = sizeof(ss);
-  if (getsockname(fd, (struct sockaddr*)&ss, &len) == 0) {
+  if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return ToIpAddrPortString(ss);
   } else {
     const auto last_errno = errno;
@@ -71,10 +73,10 @@ std::string SelfAddrPort(const int fd) {
   }
 }
 
-std::string PeerAddrPort(const int fd) {
+std::string PeerAddrPort(const fd_t fd) {
   struct sockaddr_storage ss;
   socklen_t len = sizeof(ss);
-  if (getpeername(fd, (struct sockaddr*)&ss, &len) == 0) {
+  if (::getpeername(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return ToIpAddrPortString(ss);
   } else if (errno == ENOTCONN) {
     return "*";

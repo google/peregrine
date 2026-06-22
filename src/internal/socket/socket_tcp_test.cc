@@ -13,6 +13,7 @@
 #include "absl/synchronization/notification.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/types.h"
 #include "src/internal/util/test_util.h"
 
 namespace peregrine::internal::testing {
@@ -57,9 +58,9 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const int new_fd = listener_->Accept();
+    const fd_t new_fd = listener_->Accept();
 
-    CHECK_GE(new_fd, 0);
+    CHECK_GE(new_fd.value(), 0);
     auto new_socket = TcpSocket::Create(new_fd, AF_INET);
     DCHECK(new_socket->IsConnected());
     DCHECK(new_socket->IsBlocking());
@@ -96,9 +97,9 @@ TEST_F(TcpIPv6SocketTest, BigData) {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const int new_fd = listener_->Accept();
+    const fd_t new_fd = listener_->Accept();
 
-    CHECK_GE(new_fd, 0);
+    CHECK_GE(new_fd.value(), 0);
     auto new_socket = TcpSocket::Create(new_fd, AF_INET6);
     DCHECK(new_socket->IsConnected());
     DCHECK(new_socket->IsBlocking());

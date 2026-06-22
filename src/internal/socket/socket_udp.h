@@ -61,13 +61,13 @@ class UdpSocket final : public SocketBase {
  private:
   // Constructor with a valid file descriptor `fd`.
   // The `fd` comes from a successful `Create()` call.
-  UdpSocket(int fd, int family) : SocketBase(fd, family, /*connected=*/false) {
+  UdpSocket(fd_t fd, int family) : SocketBase(fd, family, /*connected=*/false) {
     DCHECK(invariant());
   }
 
  private:
   // Returns a success message for the last socket operation.
-  static std::string okMsg(std::string_view func, int fd) {
+  static std::string okMsg(std::string_view func, fd_t fd) {
     return SuccessMsg(kUdp, func, fd);
   }
 

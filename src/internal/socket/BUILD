@@ -11,6 +11,7 @@ cc_library(
         ":socket_tcp",
         ":socket_util",
         "//src/internal/base:endpoint",
+        "//src/internal/base:types",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
@@ -66,6 +67,7 @@ cc_library(
     srcs = ["socket_util.cc"],
     hdrs = ["socket_util.h"],
     deps = [
+        "//src/internal/base:types",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -79,6 +81,7 @@ cc_test(
     srcs = ["socket_util_test.cc"],
     deps = [
         ":socket_util",
+        "//src/internal/base:types",
         "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],
@@ -89,6 +92,7 @@ cc_library(
     hdrs = ["socket_base.h"],
     deps = [
         ":socket_util",
+        "//src/internal/base:types",
         "//src/util:macro",
         "@abseil-cpp//absl/log:check",
     ],
@@ -103,6 +107,7 @@ cc_library(
         ":socket_util",
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
+        "//src/internal/base:types",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -118,6 +123,7 @@ cc_test(
         ":socket_tcp",
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
+        "//src/internal/base:types",
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",

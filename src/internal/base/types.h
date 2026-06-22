@@ -21,6 +21,9 @@ using IoVec = ::iovec;
 // `Buffer` uniquely identifies a buffer (a contiguous memory space).
 DEFINE_STRONG_INT_TYPE(Buffer, uint32_t);
 
+// Socket file descriptor.
+DEFINE_STRONG_INT_TYPE(fd_t, int);
+
 }  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_BASE_TYPES_H_

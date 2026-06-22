@@ -11,6 +11,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "src/internal/base/types.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -20,8 +21,8 @@ TEST(SocketUtilTest, Basic) {
     for (int type : {SOCK_STREAM, SOCK_DGRAM}) {
       const std::string proto = type == SOCK_STREAM ? "tcp" : "udp";
       for (bool nonblocking : {true, false}) {
-        const int fd = CreateSocket(family, type, nonblocking);
-        ASSERT_GE(fd, 0);
+        const fd_t fd = CreateSocket(family, type, nonblocking);
+        ASSERT_GE(fd.value(), 0);
         LOG(INFO) << SuccessMsg(proto, "created", fd);
 
         int on = 1, off = 0;
@@ -45,7 +46,7 @@ TEST(SocketUtilTest, Basic) {
 
         LOG(INFO) << "ip:port pair = " << AddrPortPair(fd);
         LOG(INFO) << SuccessMsg(proto, "close", fd);
-        ASSERT_EQ(close(fd), 0);
+        ASSERT_EQ(::close(fd.value()), 0);
       }
     }
   }

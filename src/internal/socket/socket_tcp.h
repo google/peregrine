@@ -14,6 +14,7 @@
 #include "absl/log/check.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/types.h"
 #include "src/internal/socket/socket_base.h"
 #include "src/internal/socket/socket_util.h"
 
@@ -28,7 +29,7 @@ class TcpSocket final : public SocketBase {
   static std::unique_ptr<TcpSocket> Create(int family);
 
   // Creates a connected tcp socket.
-  static std::unique_ptr<TcpSocket> Create(int fd, int family);
+  static std::unique_ptr<TcpSocket> Create(fd_t fd, int family);
 
   // Destructor closes the socket.
   ~TcpSocket();
@@ -39,7 +40,7 @@ class TcpSocket final : public SocketBase {
   // Accepts a new connection to this listening socket. Returns the new spawn
   // socket file descriptor if successful. Return -2 if the socket is shut down.
   // Otherwise, returns -1.
-  int Accept() const;
+  fd_t Accept() const;
 
   // Connects to the `peer` endpoint.
   bool Connect(const Endpoint& peer);
@@ -59,14 +60,14 @@ class TcpSocket final : public SocketBase {
  private:
   // Constructor with a valid file descriptor `fd`.
   // The `fd` comes from a successful `Create()` or `Accept()` call.
-  TcpSocket(int fd, int family, bool connected)
+  TcpSocket(fd_t fd, int family, bool connected)
       : SocketBase(fd, family, connected) {
     DCHECK(invariant());
   }
 
  private:
   // Returns a success message for the last socket operation.
-  static std::string okMsg(std::string_view func, int fd) {
+  static std::string okMsg(std::string_view func, fd_t fd) {
     return SuccessMsg(kTcp, func, fd);
   }
 

@@ -39,8 +39,8 @@ class MemMsgChannel final : public Channel {
   // received packet has no payload. Returns -1 on error.
   virtual ssize_t Read(Byte* buf, size_t len) override ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Shuts down the channel.
-  void Shutdown() override {}
+  // Closes the channel.
+  void Close() override {}
 
   // Returns a string representation for the channel.
   std::string ToString() const override {

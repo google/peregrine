@@ -5,6 +5,7 @@
 #include <sys/types.h>
 
 #include "absl/log/check.h"
+#include "src/internal/base/types.h"
 #include "src/internal/socket/socket_util.h"
 #include "src/util/macro.h"
 
@@ -20,10 +21,10 @@ class SocketBase {
   int family() const { return family_; }
 
   // Returns the socket file descriptor.
-  int fd() const { return fd_; }
+  fd_t fd() const { return fd_; }
 
   // Returns true iff the socket is up and running.
-  bool IsValid() const { return fd_ >= 0; }
+  bool IsValid() const { return fd_.value() >= 0; }
 
   // Returns true iff the socket is connected.
   bool IsConnected() const { return connected_; }
@@ -36,7 +37,7 @@ class SocketBase {
 
  protected:
   // Constructor.
-  SocketBase(int fd, int family, bool connected)
+  SocketBase(fd_t fd, int family, bool connected)
       : fd_(fd), family_(family), connected_(connected) {
     DCHECK(invariant());
   }
@@ -48,7 +49,7 @@ class SocketBase {
   SocketBase(SocketBase&& o) noexcept
       : fd_(o.fd_), family_(o.family_), connected_(o.connected_) {
     DCHECK(o.invariant());
-    o.fd_ = -1;
+    o.fd_ = fd_t(-1);
   }
 
   // Move assignment operator.
@@ -58,21 +59,21 @@ class SocketBase {
       fd_ = o.fd_;
       family_ = o.family_;
       connected_ = o.connected_;
-      o.fd_ = -1;
+      o.fd_ = fd_t(-1);
     }
     return *this;
   }
 
   // Destructor.
-  ~SocketBase() { fd_ = -1; }
+  ~SocketBase() { fd_ = fd_t(-1); }
 
   // Returns true iff the invariant holds.
   bool invariant() const {
-    return fd_ >= 0 && (family_ == AF_INET || family_ == AF_INET6);
+    return fd_.value() >= 0 && (family_ == AF_INET || family_ == AF_INET6);
   }
 
  protected:
-  int fd_;
+  fd_t fd_;
   int family_;
   bool connected_;
 };

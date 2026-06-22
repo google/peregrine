@@ -19,14 +19,15 @@
 #include "absl/strings/str_cat.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/types.h"
 #include "src/internal/socket/socket_util.h"
 
 namespace peregrine::internal {
 
 std::unique_ptr<TcpSocket> TcpSocket::Create(int family) {
   constexpr bool kNonblocking = false;
-  const int fd = CreateSocket(family, SOCK_STREAM, kNonblocking);
-  if ABSL_PREDICT_FALSE (fd < 0) {
+  const fd_t fd = CreateSocket(family, SOCK_STREAM, kNonblocking);
+  if ABSL_PREDICT_FALSE (fd.value() < 0) {
     return nullptr;
   } else {
     LOG(INFO) << okMsg("created", fd);
@@ -34,50 +35,50 @@ std::unique_ptr<TcpSocket> TcpSocket::Create(int family) {
   }
 }
 
-std::unique_ptr<TcpSocket> TcpSocket::Create(int fd, int family) {
+std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family) {
   return absl::WrapUnique(new TcpSocket(fd, family, /*connected=*/true));
 }
 
 TcpSocket::~TcpSocket() {
   DCHECK(invariant());
   LOG(INFO) << okMsg("shutdown");
-  ::shutdown(fd_, SHUT_RDWR);  // no more send/recv
+  Shutdown(fd_);  // no more send/recv
   LOG(INFO) << okMsg("closing");
   connected_ = false;
-  ::close(fd_);
+  ::close(fd_.value());
 }
 
 namespace {
-auto BindV4(int fd, const Endpoint& local) {
+int BindV4(fd_t fd, const Endpoint& local) {
   const struct sockaddr_in sa = local.BuildIPv4Sockaddr();
-  return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
+  return ::bind(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto BindV6(int fd, const Endpoint& local) {
+int BindV6(fd_t fd, const Endpoint& local) {
   const struct sockaddr_in6 sa = local.BuildIPv6Sockaddr();
-  return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
+  return ::bind(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV4(int fd, const Endpoint& peer) {
+int ConnectV4(fd_t fd, const Endpoint& peer) {
   const struct sockaddr_in sa = peer.BuildIPv4Sockaddr();
-  return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
+  return ::connect(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV6(int fd, const Endpoint& peer) {
+int ConnectV6(fd_t fd, const Endpoint& peer) {
   const struct sockaddr_in6 sa = peer.BuildIPv6Sockaddr();
-  return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
+  return ::connect(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto AcceptV4(int fd) {
+int AcceptV4(fd_t fd) {
   struct sockaddr_in sa;
   socklen_t len = sizeof(sa);
-  return ::accept4(fd, (struct sockaddr*)&sa, &len, SOCK_CLOEXEC);
+  return ::accept4(fd.value(), (struct sockaddr*)&sa, &len, SOCK_CLOEXEC);
 }
 
-auto AcceptV6(int fd) {
+int AcceptV6(fd_t fd) {
   struct sockaddr_in6 sa;
   socklen_t len = sizeof(sa);
-  return ::accept4(fd, (struct sockaddr*)&sa, &len, SOCK_CLOEXEC);
+  return ::accept4(fd.value(), (struct sockaddr*)&sa, &len, SOCK_CLOEXEC);
 }
 }  // namespace
 
@@ -93,7 +94,7 @@ bool TcpSocket::Listen(const Endpoint& local) const {
     const auto last_errno = errno;
     LOG(WARNING) << errMsg("bind", last_errno);
     return false;
-  } else if (ABSL_PREDICT_FALSE(::listen(fd_, SOMAXCONN) < 0)) {
+  } else if (ABSL_PREDICT_FALSE(::listen(fd_.value(), SOMAXCONN) < 0)) {
     const auto last_errno = errno;
     LOG(WARNING) << errMsg("listen", last_errno);
     return false;
@@ -103,21 +104,22 @@ bool TcpSocket::Listen(const Endpoint& local) const {
   }
 }
 
-int TcpSocket::Accept() const {
+fd_t TcpSocket::Accept() const {
   const auto accept = family_ == AF_INET ? AcceptV4 : AcceptV6;
-  const int new_fd = accept(fd_);
-  if ABSL_PREDICT_FALSE (new_fd < 0) {
+  const int ret = accept(fd_);
+  if ABSL_PREDICT_FALSE (ret < 0) {
     // At this point, shutdown() is the only reason that can cause EINVAL.
     if (const auto last_errno = errno; last_errno == EINVAL) {
       LOG(WARNING) << okMsg("accept shutdown");
       DCHECK(IsShutdown(-2));
-      return -2;
+      return fd_t(-2);
     } else {
       LOG(WARNING) << errMsg("accept", last_errno);
-      return -1;
+      return fd_t(-1);
     }
   } else {
-    DCHECK_GE(new_fd, 0);
+    const fd_t new_fd(ret);
+    DCHECK_GE(new_fd.value(), 0);
     LOG(INFO) << okMsg("accepted", new_fd);
     return new_fd;
   }
@@ -142,7 +144,7 @@ bool TcpSocket::Send(const Byte* const buf, const size_t len) const {
   size_t sent = 0;
   ssize_t left = len;
   while (left > 0) {
-    const ssize_t bytes = ::send(fd_, ptr, left, /*flags=*/0);
+    const ssize_t bytes = ::send(fd_.value(), ptr, left, /*flags=*/0);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       DCHECK_LE(bytes, left);
       ptr += bytes;
@@ -174,7 +176,7 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
   size_t rcvd = 0;
   ssize_t left = len;
   while (left > 0) {
-    const ssize_t bytes = ::recv(fd_, ptr, left, /*flags=*/0);
+    const ssize_t bytes = ::recv(fd_.value(), ptr, left, /*flags=*/0);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       DCHECK_LE(bytes, left);
       ptr += bytes;

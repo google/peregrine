@@ -27,8 +27,8 @@ namespace peregrine::internal {
 
 std::unique_ptr<UdpSocket> UdpSocket::Create(int family) {
   constexpr bool kNonblocking = false;
-  const int fd = CreateSocket(family, SOCK_DGRAM, kNonblocking);
-  if ABSL_PREDICT_FALSE (fd < 0) {
+  const fd_t fd = CreateSocket(family, SOCK_DGRAM, kNonblocking);
+  if ABSL_PREDICT_FALSE (fd.value() < 0) {
     return nullptr;
   } else {
     LOG(INFO) << okMsg("created", fd);
@@ -40,28 +40,28 @@ UdpSocket::~UdpSocket() {
   DCHECK(invariant());
   LOG(INFO) << okMsg("closing");
   connected_ = false;
-  ::close(fd_);
+  ::close(fd_.value());
 }
 
 namespace {
-auto BindV4(int fd, const Endpoint& local) {
+int BindV4(fd_t fd, const Endpoint& local) {
   const struct sockaddr_in sa = local.BuildIPv4Sockaddr();
-  return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
+  return ::bind(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto BindV6(int fd, const Endpoint& local) {
+int BindV6(fd_t fd, const Endpoint& local) {
   const struct sockaddr_in6 sa = local.BuildIPv6Sockaddr();
-  return ::bind(fd, (struct sockaddr*)&sa, sizeof(sa));
+  return ::bind(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV4(int fd, const Endpoint& peer) {
+int ConnectV4(fd_t fd, const Endpoint& peer) {
   const struct sockaddr_in sa = peer.BuildIPv4Sockaddr();
-  return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
+  return ::connect(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
 }
 
-auto ConnectV6(int fd, const Endpoint& peer) {
+int ConnectV6(fd_t fd, const Endpoint& peer) {
   const struct sockaddr_in6 sa = peer.BuildIPv6Sockaddr();
-  return ::connect(fd, (struct sockaddr*)&sa, sizeof(sa));
+  return ::connect(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
 }
 }  // namespace
 
@@ -93,7 +93,7 @@ bool UdpSocket::Connect(const Endpoint& peer) {
 bool UdpSocket::Send(const Byte* const buf, const size_t len) const {
   DCHECK(connected_);
 
-  const ssize_t bytes = ::send(fd_, buf, len, /*flags=*/0);
+  const ssize_t bytes = ::send(fd_.value(), buf, len, /*flags=*/0);
   DCHECK(bytes == len || bytes < 0);
   if ABSL_PREDICT_TRUE (bytes == len) {
     VLOG(1) << ioMsg("send", bytes);
@@ -111,7 +111,7 @@ bool UdpSocket::Send(const Byte* const buf, const size_t len) const {
 ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
   DCHECK(connected_);
 
-  const ssize_t bytes = ::recv(fd_, buf, len, /*flags=*/0);
+  const ssize_t bytes = ::recv(fd_.value(), buf, len, /*flags=*/0);
   DCHECK_LE(bytes, len);
   if ABSL_PREDICT_TRUE (bytes > 0) {
     VLOG(1) << ioMsg("recv", bytes);
@@ -133,7 +133,7 @@ bool UdpSocket::SendV(const IoVec* const iov, const int n,
   DCHECK(connected_);
   DCHECK_EQ(TotalLength(iov, n), len);
 
-  const ssize_t bytes = ::writev(fd_, iov, n);
+  const ssize_t bytes = ::writev(fd_.value(), iov, n);
   DCHECK(bytes == len || bytes < 0);
   if ABSL_PREDICT_TRUE (bytes == len) {
     VLOG(1) << ioMsg("writev", bytes);
@@ -153,7 +153,7 @@ ssize_t UdpSocket::RecvV(const IoVec* const iov, const int n,
   DCHECK(connected_);
   DCHECK_EQ(TotalLength(iov, n), len);
 
-  const ssize_t bytes = ::readv(fd_, iov, n);
+  const ssize_t bytes = ::readv(fd_.value(), iov, n);
   DCHECK_LE(bytes, len);
   if ABSL_PREDICT_TRUE (bytes > 0) {
     VLOG(1) << ioMsg("readv", bytes);

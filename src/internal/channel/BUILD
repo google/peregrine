@@ -55,6 +55,7 @@ cc_library(
         "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/socket:socket_tcp",
+        "//src/internal/socket:socket_util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",

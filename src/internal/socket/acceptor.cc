@@ -11,6 +11,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_util.h"
 
@@ -46,11 +47,11 @@ void TcpAcceptor::Start(AcceptCallback accept) {
   const int family = listener_->family();
   while (!stop_.load(std::memory_order_relaxed)) {
     DCHECK(listener_->IsBlocking());
-    const int fd = listener_->Accept();
-    if ABSL_PREDICT_FALSE (fd < 0) {
-      if (IsShutdown(fd)) return;
+    const fd_t fd = listener_->Accept();
+    if ABSL_PREDICT_FALSE (fd.value() < 0) {
+      if (IsShutdown(fd.value())) return;
       // TODO(yongx): Handle errors.
-      DCHECK_EQ(fd, -1);
+      DCHECK_EQ(fd.value(), -1);
       continue;
     }
     std::unique_ptr<TcpSocket> socket = TcpSocket::Create(fd, family);
@@ -65,8 +66,7 @@ void TcpAcceptor::Start(AcceptCallback accept) {
 void TcpAcceptor::Stop() {
   stop_.store(true, std::memory_order_relaxed);
   DCHECK(invariant());
-  // Shuts down the listening socket to unblock its Accept() call.
-  ::shutdown(listener_->fd(), SHUT_RDWR);
+  Shutdown(listener_->fd());  // unblocks Accept()
   LOG(INFO) << kAcceptor << "stopped, " << *listener_;
 }
 

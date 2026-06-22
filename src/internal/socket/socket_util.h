@@ -10,40 +10,44 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "src/internal/base/types.h"
 
 namespace peregrine::internal {
 
 // Creates a new socket.
 // Returns its file descriptor if successful, or -1 otherwise.
-int CreateSocket(int family, int type, bool nonblocking);
+fd_t CreateSocket(int family, int type, bool nonblocking);
 
 // Sets socket option. Returns true if successful, false otherwise.
-inline bool SetOption(int fd, int opt, const void* val, socklen_t len) {
-  return setsockopt(fd, SOL_SOCKET, opt, val, len) >= 0;
+inline bool SetOption(fd_t fd, int opt, const void* val, socklen_t len) {
+  return ::setsockopt(fd.value(), SOL_SOCKET, opt, val, len) >= 0;
 }
 
 // Returns true iff the socket `fd` is in blocking mode.
-bool IsBlockingMode(int fd);
+bool IsBlockingMode(fd_t fd);
 
 // Returns true iff the socket `fd` is in non-blocking mode.
-bool IsNonBlockingMode(int fd);
+bool IsNonBlockingMode(fd_t fd);
 
 // Sets the socket to the specified blocking mode.
 // Returns true if successful, false otherwise.
 // For internal use only.
-bool __set_blocking_mode(int fd, bool nonblocking);
+bool __set_blocking_mode(fd_t fd, bool nonblocking);
 
 // Sets the socket to blocking mode.
 // Returns true if successful, false otherwise.
-inline bool SetBlockingMode(int fd) {
+inline bool SetBlockingMode(fd_t fd) {
   return __set_blocking_mode(fd, /*nonblocking=*/false);
 }
 
 // Sets the socket to non-blocking mode.
 // Returns true if successful, false otherwise.
-inline bool SetNonBlockingMode(int fd) {
+inline bool SetNonBlockingMode(fd_t fd) {
   return __set_blocking_mode(fd, /*nonblocking=*/true);
 }
+
+// Shuts down the (tcp) socket.
+inline void Shutdown(fd_t fd) { ::shutdown(fd.value(), SHUT_RDWR); }
 
 // Returns true iff the tcp listen socket Accept() call was shut down.
 inline bool IsShutdown(int ret) { return ret == -2; }
@@ -60,13 +64,13 @@ inline bool WouldBlock(int last_errno) {
 inline bool InProgress(int last_errno) { return last_errno == EINPROGRESS; }
 
 // Returns a self ip:port string for the socket `fd`.
-std::string SelfAddrPort(int fd);
+std::string SelfAddrPort(fd_t fd);
 
 // Returns a peer ip:port string for the socket `fd`.
-std::string PeerAddrPort(int fd);
+std::string PeerAddrPort(fd_t fd);
 
 // Returns a string of self/peer ip:port pair for the socket `fd`.
-inline std::string AddrPortPair(int fd) {
+inline std::string AddrPortPair(fd_t fd) {
   return absl::StrCat(SelfAddrPort(fd), " <> ", PeerAddrPort(fd));
 }
 
@@ -75,23 +79,23 @@ std::string ToIpAddrPortString(const struct sockaddr_storage& ss);
 
 // Returns a success message for the last socket operation.
 inline std::string SuccessMsg(std::string_view who, std::string_view what,
-                              int fd) {
-  return absl::StrCat(who, " socket ", what, ", fd=", fd, " ",
+                              fd_t fd) {
+  return absl::StrCat(who, " socket ", what, ", fd=", fd.value(), " ",
                       AddrPortPair(fd));
 }
 
 // Returns a success message for the last socket send/recv call.
 inline std::string SuccessMsg(std::string_view who, std::string_view what,
-                              int fd, size_t bytes) {
-  return absl::StrCat(who, " socket ", what, ", fd=", fd, " ", AddrPortPair(fd),
-                      " #bytes=", bytes);
+                              fd_t fd, size_t bytes) {
+  return absl::StrCat(who, " socket ", what, ", fd=", fd.value(), " ",
+                      AddrPortPair(fd), " #bytes=", bytes);
 }
 
 // Returns an error message for the last socket operation.
-inline std::string ErrorMsg(std::string_view who, std::string_view what, int fd,
-                            int last_errno) {
+inline std::string ErrorMsg(std::string_view who, std::string_view what,
+                            fd_t fd, int last_errno) {
   return absl::StrFormat("%s socket %s failed: fd=%d %s errno=%d (%s)", who,
-                         what, fd, AddrPortPair(fd), last_errno,
+                         what, fd.value(), AddrPortPair(fd), last_errno,
                          std::strerror(last_errno));
 }
 
