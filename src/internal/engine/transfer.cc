@@ -23,7 +23,8 @@
 
 namespace peregrine::internal {
 
-bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
+bool Transfer::SendChunk(Channel* const channel, const Handle handle,
+                         const Buffer buffer, const ChunkMetadata& chunk,
                          const ChunkPayloadView payload) {
   // Step 1: build two iovecs: header + payload.
   const std::string header = ChunkHeader::Serialize(chunk);
@@ -35,16 +36,26 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
   DCHECK(IsMatch(chunk, payload));
 
   // Step 2: send chunk header and payload.
-  return channel->Write(iovecs);
+  if ABSL_PREDICT_FALSE (!channel->Write(iovecs)) {
+    return false;
+  }
+
+  // Step 3: track chunk departure.
+  Tracker* const tracker = send_.FindOrCreate(handle, buffer, chunk.nchunks);
+  DCHECK_NE(tracker, nullptr);
+  if ABSL_PREDICT_TRUE (tracker != nullptr) {
+    tracker->Set(chunk.index);
+  }
+  return true;
 }
 
-bool Transfer::RecvChunk(Channel* const channel, ChunkTrackerLookup lookup) {
+bool Transfer::RecvChunk(Channel* const channel) {
   const ChannelType t = channel->Type();
   if ABSL_PREDICT_TRUE (IsReliableStream(t)) {
-    return recvChunkStream(channel, std::move(lookup));
+    return recvChunkStream(channel);
   } else {
     DCHECK(IsUnreliableMessage(t));
-    return recvChunkMsg(channel, std::move(lookup));
+    return recvChunkMsg(channel);
   }
 }
 
@@ -53,10 +64,8 @@ bool Transfer::deserialize(Byte* buf, ChunkMetadata& chunk) {
   return ChunkHeader::Deserialize(s, chunk) && chunk.IsValid();
 }
 
-bool Transfer::recvChunkStream(Channel* const channel,
-                               ChunkTrackerLookup lookup) {
+bool Transfer::recvChunkStream(Channel* const channel) {
   DCHECK(IsReliableStream(channel->Type()));
-  DCHECK_NE(lookup, nullptr);
 
   // Step 1: read chunk header.
   Byte buf[ChunkHeader::kSize];
@@ -75,9 +84,11 @@ bool Transfer::recvChunkStream(Channel* const channel,
   }
 
   // Step 3: find chunk tracker.
-  Tracker* const tracker = lookup(chunk.handle, chunk.buffer);
+  Tracker* const tracker =
+      recv_.FindOrCreate(chunk.handle, chunk.buffer, chunk.nchunks);
+  DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
-    LOG(WARNING) << "failed to find chunk tracker for: " << chunk.buffer;
+    LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();
     return drainStream(channel, chunk.size);
   }
 
@@ -98,9 +109,8 @@ bool Transfer::recvChunkStream(Channel* const channel,
   }
 }
 
-bool Transfer::recvChunkMsg(Channel* const channel, ChunkTrackerLookup lookup) {
+bool Transfer::recvChunkMsg(Channel* const channel) {
   DCHECK(IsUnreliableMessage(channel->Type()));
-  DCHECK_NE(lookup, nullptr);
 
   // Step 1: read chunk header.
   Byte buf[kTmpBufSize];
@@ -129,7 +139,9 @@ bool Transfer::recvChunkMsg(Channel* const channel, ChunkTrackerLookup lookup) {
   }
 
   // Step 4: find chunk tracker.
-  Tracker* const tracker = lookup(chunk.handle, chunk.buffer);
+  Tracker* const tracker =
+      recv_.FindOrCreate(chunk.handle, chunk.buffer, chunk.nchunks);
+  DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();
     return false;

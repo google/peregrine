@@ -33,12 +33,10 @@ inline constexpr bool kAbslHashIsStableOnlyInOneProcessInvocation = true;
 // the last one, which may be smaller.
 //
 // Over the wire, each chunk has two parts: (1) the header, which contains
-// chunk metadata (buffer id, chunk size, chunk index, etc.), and (2) the
-// payload, which contains the actual chunk data. On the receive side, it has
-// to read the chunk header first to get the chunk metadata, esp. the chunk
-// index (to figure out the destination memory address) and the chunk size.
-// It then reads the payload and place it in its destination memory. (The tail
-// chunk maybe shorter than the fixed chunk size. It is handled specially.)
+// chunk metadata (buffer id, #chunks, chunk index/address/size, etc.), and
+// (2) the payload, which contains the actual chunk data. On the receive side,
+// it has to read the chunk header first to get the chunk metadata. It then
+// reads the payload and place it in its destination memory.
 inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
 
 // Assumptions about network MTU.

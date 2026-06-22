@@ -11,23 +11,16 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/strings/str_cat.h"
-#include "absl/synchronization/notification.h"
-#include "absl/time/clock.h"
-#include "absl/time/time.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
-#include "src/internal/chunk/chunk_counter.h"
-#include "src/internal/chunk/chunk_tracker.h"
-#include "src/internal/chunk/tracker.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -49,17 +42,15 @@ constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
 static_assert(kBufSize % kNumChunks != 0);
 
-using TestParams = std::tuple<ChannelType, /*track=*/bool>;
+using TestParams = std::tuple<ChannelType>;
 
 std::string ToString(const TestParamInfo<TestParams>& info) {
   const ChannelType type = std::get<0>(info.param);
-  const bool track = std::get<1>(info.param);
-  const std::string track_str = track ? "ChunkTracker" : "ChunkCounter";
   switch (type) {
     case kReliableStream:
-      return absl::StrCat("Channel_ReliableStream_", track_str);
+      return absl::StrCat("Channel_ReliableStream");
     case kUnreliableMessage:
-      return absl::StrCat("Channel_UnreliableMessage_", track_str);
+      return absl::StrCat("Channel_UnreliableMessage");
     default:
       DCHECK(false) << "Unreachable";
   }
@@ -67,12 +58,7 @@ std::string ToString(const TestParamInfo<TestParams>& info) {
 
 class TransferTest : public ::testing::TestWithParam<TestParams> {
  protected:
-  TransferTest()
-      : src_(kBufSize),
-        dst_(kBufSize),
-        chunk_counter_(kNumChunks),
-        chunk_tracker_(kNumChunks) {
-    DCHECK(chunk_tracker_.IsEmpty());
+  TransferTest() : src_(kBufSize), dst_(kBufSize) {
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = static_cast<Byte>(0);
@@ -109,26 +95,16 @@ class TransferTest : public ::testing::TestWithParam<TestParams> {
     }
   }
 
-  absl::AnyInvocable<Tracker*(Handle, Buffer)> GenLookup(bool track) {
-    if (track) {
-      return [this](Handle, Buffer) { return &chunk_tracker_; };
-    } else {
-      return [this](Handle, Buffer) { return &chunk_counter_; };
-    }
-  }
-
  protected:
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
-  ChunkCounter chunk_counter_;
-  ChunkTracker chunk_tracker_;
+  Transfer xfer_;
 };
 
 INSTANTIATE_TEST_SUITE_P(
     , TransferTest,
-    ::testing::Combine(::testing::Values(kReliableStream, kUnreliableMessage),
-                       ::testing::Bool()),
+    ::testing::Combine(::testing::Values(kReliableStream, kUnreliableMessage)),
     ToString);
 
 TEST_P(TransferTest, SendAndRecv) {
@@ -137,34 +113,29 @@ TEST_P(TransferTest, SendAndRecv) {
 
   const auto param = GetParam();
   const ChannelType type = std::get<0>(param);
-  const bool track = std::get<1>(param);
 
   std::unique_ptr<Channel> ch = CreateChannel(type);
   Channel* const channel = ch.get();
   ASSERT_NE(channel, nullptr);
 
-  absl::Notification stop;
   std::thread sndr([&]() {
     for (uint32_t i = 0; i < kNumChunks; ++i) {
       const ChunkMetadata chunk = GenChunk(i);
       const ChunkPayloadView payload = GenPayload(i);
-      CHECK(Transfer::SendChunk(channel, chunk, payload));
+      CHECK(xfer_.SendChunk(channel, kHandle, kBuffer, chunk, payload));
     }
   });
   std::thread rcvr([&]() {
-    while (!stop.HasBeenNotified()) {
-      Transfer::RecvChunk(channel, GenLookup(track));
-      if (!track || !chunk_tracker_.IsDone()) {
-        continue;
-      }
+    while (!xfer_.IsRecvDone(kHandle)) {
+      xfer_.RecvChunk(channel);
     }
   });
 
-  absl::SleepFor(absl::Seconds(3));
-  stop.Notify();
-
   sndr.join();
   rcvr.join();
+
+  EXPECT_TRUE(xfer_.IsSendDone(kHandle));
+  EXPECT_TRUE(xfer_.IsRecvDone(kHandle));
 
   // Postcondition: dst is the same as src.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));
