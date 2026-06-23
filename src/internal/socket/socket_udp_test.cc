@@ -73,7 +73,7 @@ TEST_F(UdpSocketIPv4Test, SendRecv) {
     CHECK(sskt_->Connect(rcvr_));
     DCHECK(sskt_->IsConnected());
     DCHECK(sskt_->IsBlocking());
-    CHECK(sskt_->Send(message.data(), kMsgSize));
+    CHECK_EQ(sskt_->Send(message.data(), kMsgSize), kMsgSize);
   });
 
   // Wait for both threads to finish.
@@ -121,7 +121,7 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
         {.iov_base = (void*)(message.data() + 1), .iov_len = kMsgSize - 1},
     };
     DCHECK(sskt_->IsBlocking());
-    CHECK(sskt_->SendV(send_iov, kSN, kMsgSize));
+    CHECK_EQ(sskt_->SendV(send_iov, kSN, kMsgSize), kMsgSize);
   });
 
   // Wait for both threads to finish.

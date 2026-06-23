@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -90,26 +91,27 @@ bool UdpSocket::Connect(const Endpoint& peer) {
   }
 }
 
-bool UdpSocket::Send(const Byte* const buf, const size_t len) const {
-  DCHECK(connected_);
+ssize_t UdpSocket::Send(const Byte* const buf, const size_t len) const {
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  DCHECK(IsBlocking());
 
   const ssize_t bytes = ::send(fd_.value(), buf, len, /*flags=*/0);
   DCHECK(bytes == len || bytes < 0);
   if ABSL_PREDICT_TRUE (bytes == len) {
     VLOG(1) << ioMsg("send", bytes);
-    return true;
+    return bytes;
   }
   const auto last_errno = errno;
-  if (Interrupted(last_errno)) {
-    return false;
-  } else {
-    LOG(WARNING) << errMsg("send", last_errno);
-    return false;
-  }
+  if (Interrupted(last_errno)) return 0;
+  LOG(WARNING) << errMsg("send", last_errno);
+  return -1;
 }
 
 ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
-  DCHECK(connected_);
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  DCHECK(IsBlocking());
 
   const ssize_t bytes = ::recv(fd_.value(), buf, len, /*flags=*/0);
   DCHECK_LE(bytes, len);
@@ -128,30 +130,31 @@ ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
   }
 }
 
-bool UdpSocket::SendV(const IoVec* const iov, const int n,
-                      const size_t len) const {
-  DCHECK(connected_);
+ssize_t UdpSocket::SendV(const IoVec* const iov, const int n,
+                         const size_t len) const {
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
   DCHECK_EQ(TotalLength(iov, n), len);
+  DCHECK(IsBlocking());
 
   const ssize_t bytes = ::writev(fd_.value(), iov, n);
   DCHECK(bytes == len || bytes < 0);
   if ABSL_PREDICT_TRUE (bytes == len) {
     VLOG(1) << ioMsg("writev", bytes);
-    return true;
+    return bytes;
   }
   const auto last_errno = errno;
-  if (Interrupted(last_errno)) {
-    return false;
-  } else {
-    LOG(WARNING) << errMsg("writev", last_errno);
-    return false;
-  }
+  if (Interrupted(last_errno)) return 0;
+  LOG(WARNING) << errMsg("writev", last_errno);
+  return -1;
 }
 
 ssize_t UdpSocket::RecvV(const IoVec* const iov, const int n,
                          const size_t len) const {
-  DCHECK(connected_);
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
   DCHECK_EQ(TotalLength(iov, n), len);
+  DCHECK(IsBlocking());
 
   const ssize_t bytes = ::readv(fd_.value(), iov, n);
   DCHECK_LE(bytes, len);

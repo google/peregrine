@@ -45,9 +45,10 @@ class TcpSocket final : public SocketBase {
   // Connects to the `peer` endpoint.
   bool Connect(const Endpoint& peer);
 
-  // Sends `len` bytes of data from the `buf`. Returns true if all the data has
-  // been sent successfully. Otherwise, returns false.
-  bool Send(const Byte* buf, size_t len) const;
+  // Sends `len` bytes of data from the `buf`.
+  // Returns the number of bytes sent if successful. Zero byte means no data
+  // has been sent due to non-error reasons. Returns -1 on error.
+  ssize_t Send(const Byte* buf, size_t len) const;
 
   // Receives exactly `len` bytes of data into the `buf`.
   // Returns the number of bytes received if successful. Zero byte means the

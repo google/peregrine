@@ -73,7 +73,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
     CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsConnected());
     DCHECK(connector_->IsBlocking());
-    CHECK(connector_->Send(message.data(), kMsgSize));
+    CHECK_EQ(connector_->Send(message.data(), kMsgSize), kMsgSize);
   });
 
   // Wait for both threads to finish.
@@ -112,7 +112,7 @@ TEST_F(TcpIPv6SocketTest, BigData) {
     CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsConnected());
     DCHECK(connector_->IsBlocking());
-    CHECK(connector_->Send(send_buf.data(), kDataSize));
+    CHECK_EQ(connector_->Send(send_buf.data(), kDataSize), kDataSize);
   });
 
   // Wait for both threads to finish.

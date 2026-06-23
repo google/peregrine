@@ -20,11 +20,11 @@ bool UdpChannel::Write(absl::Span<const IoVec> iovecs) {
     const IoVec& v = iovecs.front();
     const Byte* const buf = reinterpret_cast<const Byte*>(v.iov_base);
     const size_t len = v.iov_len;
-    return socket_->Send(buf, len);
+    return socket_->Send(buf, len) == len;
   } else {
     const IoVec* iov = iovecs.data();
     const size_t len = TotalLength(iov, n);
-    return socket_->SendV(iov, n, len);
+    return socket_->SendV(iov, n, len) == len;
   }
 }
 

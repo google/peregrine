@@ -8,6 +8,7 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -138,8 +139,11 @@ bool TcpSocket::Connect(const Endpoint& peer) {
   }
 }
 
-bool TcpSocket::Send(const Byte* const buf, const size_t len) const {
+ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {
   DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  DCHECK(IsBlocking());
+
   const Byte* ptr = buf;
   size_t sent = 0;
   ssize_t left = len;
@@ -157,21 +161,24 @@ bool TcpSocket::Send(const Byte* const buf, const size_t len) const {
       if ABSL_PREDICT_TRUE (bytes < 0) {
         if (Interrupted(last_errno)) continue;
         LOG(WARNING) << errMsg("send", last_errno);
-        return false;
+        return -1;
       } else {  // rarely happens
         DCHECK_EQ(bytes, 0);
         LOG(WARNING) << errMsg("send zero", last_errno);
-        return false;
+        return 0;
       }
     }
   }
   DCHECK_EQ(left, 0);
   DCHECK_EQ(sent, len);
-  return true;
+  return sent;
 }
 
 ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
   DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  DCHECK(IsBlocking());
+
   Byte* ptr = buf;
   size_t rcvd = 0;
   ssize_t left = len;

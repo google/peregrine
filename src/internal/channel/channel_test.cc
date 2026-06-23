@@ -96,13 +96,11 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
     util::RandomNonZero(absl::MakeSpan(in));
     ASSERT_THAT(out, Pointwise(Ne(), in));
 
-    // Write to one channel the message plus an empty one.
+    // Write to one channel the message.
     EXPECT_TRUE(sndr->Write({{in.data(), kMsgSize}}));
-    EXPECT_TRUE(sndr->Write({{nullptr, 0}}));
 
     // Read from the other channel twice.
     EXPECT_EQ(rcvr->Read(out.data(), kMsgSize), kMsgSize);
-    EXPECT_EQ(rcvr->Read(out.data(), 0), 0);
 
     // Check that the data read is the same as written.
     EXPECT_THAT(out, Pointwise(Eq(), in));

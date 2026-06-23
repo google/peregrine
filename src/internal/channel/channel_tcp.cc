@@ -1,5 +1,6 @@
 #include "src/internal/channel/channel_tcp.h"
 
+#include <cstddef>
 #include <string>
 
 #include "absl/log/check.h"
@@ -15,7 +16,8 @@ bool TcpChannel::Write(absl::Span<const IoVec> iovecs) {
 
   for (const IoVec& v : iovecs) {
     const Byte* const buf = reinterpret_cast<const Byte*>(v.iov_base);
-    if (!socket_->Send(buf, v.iov_len)) return false;
+    const size_t len = v.iov_len;
+    if (socket_->Send(buf, len) != len) return false;
   }
   return true;
 }
