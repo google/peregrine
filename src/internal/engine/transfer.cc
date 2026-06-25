@@ -23,8 +23,7 @@
 
 namespace peregrine::internal {
 
-bool Transfer::SendChunk(Channel* const channel, const Handle handle,
-                         const Buffer buffer, const ChunkMetadata& chunk,
+bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
                          const ChunkPayloadView payload) {
   // Step 1: build two iovecs: header + payload.
   const std::string header = ChunkHeader::Serialize(chunk);
@@ -41,7 +40,8 @@ bool Transfer::SendChunk(Channel* const channel, const Handle handle,
   }
 
   // Step 3: track chunk departure.
-  Tracker* const tracker = send_.FindOrCreate(handle, buffer, chunk.nchunks);
+  Tracker* const tracker =
+      send_.FindOrCreate(chunk.handle, chunk.buffer, chunk.nchunks);
   DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_TRUE (tracker != nullptr) {
     tracker->Set(chunk.index);

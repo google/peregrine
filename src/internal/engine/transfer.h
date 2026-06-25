@@ -6,7 +6,6 @@
 
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
-#include "src/internal/base/types.h"
 #include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
@@ -22,7 +21,8 @@ class Transfer final {
 
  public:
   // Constructor.
-  Transfer() : send_(), recv_() {}
+  Transfer(BufferTracker& send, BufferTracker& recv)
+      : send_(send), recv_(recv) {}
 
   // Disable copy and move.
   DISALLOW_COPY(Transfer);
@@ -32,8 +32,8 @@ class Transfer final {
   ~Transfer() = default;
 
   // Sends chunk metadata and payload to the channel.
-  bool SendChunk(Channel* channel, Handle handle, Buffer buffer,
-                 const ChunkMetadata& chunk, ChunkPayloadView payload);
+  bool SendChunk(Channel* channel, const ChunkMetadata& chunk,
+                 ChunkPayloadView payload);
 
   // Receives chunk metadata and payload from the channel.
   bool RecvChunk(Channel* channel);
@@ -62,8 +62,8 @@ class Transfer final {
   static constexpr size_t kTmpBufSize = 10U << 10;
 
  private:
-  BufferTracker send_;
-  BufferTracker recv_;
+  BufferTracker& send_;
+  BufferTracker& recv_;
 };
 
 }  // namespace peregrine::internal

@@ -18,6 +18,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
+#include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
@@ -58,7 +59,8 @@ std::string ToString(const TestParamInfo<TestParams>& info) {
 
 class TransferTest : public ::testing::TestWithParam<TestParams> {
  protected:
-  TransferTest() : src_(kBufSize), dst_(kBufSize) {
+  TransferTest()
+      : src_(kBufSize), dst_(kBufSize), send_(), recv_(), xfer_(send_, recv_) {
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = static_cast<Byte>(0);
@@ -99,6 +101,8 @@ class TransferTest : public ::testing::TestWithParam<TestParams> {
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
+  BufferTracker send_;
+  BufferTracker recv_;
   Transfer xfer_;
 };
 
@@ -122,7 +126,7 @@ TEST_P(TransferTest, SendAndRecv) {
     for (uint32_t i = 0; i < kNumChunks; ++i) {
       const ChunkMetadata chunk = GenChunk(i);
       const ChunkPayloadView payload = GenPayload(i);
-      CHECK(xfer_.SendChunk(channel, kHandle, kBuffer, chunk, payload));
+      CHECK(xfer_.SendChunk(channel, chunk, payload));
     }
   });
   std::thread rcvr([&]() {

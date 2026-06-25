@@ -54,6 +54,7 @@ cc_test(
         "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:types",
+        "//src/internal/buffer:buffer_tracker",
         "//src/internal/channel",
         "//src/internal/channel:channel_test_util",
         "//src/internal/chunk",
