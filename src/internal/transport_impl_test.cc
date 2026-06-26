@@ -102,10 +102,9 @@ TEST_F(TransportImplTest, Write) {
 
   // Use another thread to emulate a remote process.
   std::thread b([]() {
-    // TODO(yongx): nothing needed yet.
+    // No code is needed.
   });
 
-  absl::SleepFor(absl::Seconds(1));
   a.join();
   b.join();
 
