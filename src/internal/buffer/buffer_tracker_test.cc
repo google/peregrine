@@ -23,6 +23,8 @@ class BufferTrackerTest : public ::testing::Test {
 };
 
 TEST_F(BufferTrackerTest, Send) {
+  ASSERT_TRUE(tracker_.Add(kHandle));
+  ASSERT_TRUE(tracker_.Contains(kHandle));
   Tracker* send = tracker_.FindOrCreate(kHandle, kBuffer, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
@@ -38,6 +40,8 @@ TEST_F(BufferTrackerTest, Send) {
 }
 
 TEST_F(BufferTrackerTest, Recv) {
+  ASSERT_TRUE(tracker_.Add(kHandle));
+  ASSERT_TRUE(tracker_.Contains(kHandle));
   Tracker* recv = tracker_.FindOrCreate(kHandle, kBuffer, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {

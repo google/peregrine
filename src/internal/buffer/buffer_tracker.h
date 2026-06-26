@@ -28,6 +28,9 @@ class BufferTracker {
   // Destructor.
   ~BufferTracker() = default;
 
+  // Returns true iff the `handle` is being tracked.
+  bool Contains(Handle handle) const ABSL_LOCKS_EXCLUDED(mu_);
+
   // Returns true iff there are no buffers being tracked.
   bool IsEmpty() const ABSL_LOCKS_EXCLUDED(mu_);
 
@@ -40,7 +43,11 @@ class BufferTracker {
   Tracker* FindOrCreate(Handle handle, Buffer buffer, uint32_t num_chunks)
       ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Removes the tracker for the given `handle` and `buffer`.
+  // Adds the tracker for the given `handle`.
+  // Returns true iff the handle was not already in the tracker.
+  bool Add(Handle handle) ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Removes the tracker for the given `handle`.
   void Remove(Handle handle) ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
