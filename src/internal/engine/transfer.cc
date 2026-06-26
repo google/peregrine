@@ -16,6 +16,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
+#include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_flatbuf.h"
@@ -35,18 +36,7 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
   DCHECK(IsMatch(chunk, payload));
 
   // Step 2: send chunk header and payload.
-  if ABSL_PREDICT_FALSE (!channel->Write(iovecs)) {
-    return false;
-  }
-
-  // Step 3: track chunk departure.
-  Tracker* const tracker =
-      send_.FindOrCreate(chunk.handle, chunk.buffer, chunk.nchunks);
-  DCHECK_NE(tracker, nullptr);
-  if ABSL_PREDICT_TRUE (tracker != nullptr) {
-    tracker->Set(chunk.index);
-  }
-  return true;
+  return channel->Write(iovecs);
 }
 
 bool Transfer::RecvChunk(Channel* const channel) {
@@ -62,6 +52,20 @@ bool Transfer::RecvChunk(Channel* const channel) {
 bool Transfer::deserialize(Byte* buf, ChunkMetadata& chunk) {
   std::string_view s(reinterpret_cast<const char*>(buf), ChunkHeader::kSize);
   return ChunkHeader::Deserialize(s, chunk) && chunk.IsValid();
+}
+
+Tracker* Transfer::getTracker(const ChunkMetadata& chunk) const {
+  BufferTracker& t = chunk.IsAck() ? send_ : recv_;
+  return t.FindOrCreate(chunk.handle, chunk.buffer, chunk.nchunks);
+}
+
+bool Transfer::sendAck(Channel* channel, ChunkMetadata& chunk) {
+  chunk.size = 0;
+  DCHECK(chunk.IsAck());
+  const std::string header = ChunkHeader::Serialize(chunk);
+  DCHECK_EQ(header.size(), ChunkHeader::kSize);
+  const IoVec iov((void*)header.data(), header.size());
+  return channel->Write({iov});
 }
 
 bool Transfer::recvChunkStream(Channel* const channel) {
@@ -84,29 +88,43 @@ bool Transfer::recvChunkStream(Channel* const channel) {
   }
 
   // Step 3: find chunk tracker.
-  Tracker* const tracker =
-      recv_.FindOrCreate(chunk.handle, chunk.buffer, chunk.nchunks);
+  Tracker* const tracker = getTracker(chunk);
   DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();
     return drainStream(channel, chunk.size);
   }
 
+  // Step 3: process ack chunk.
+  if (chunk.IsAck()) {
+    tracker->Set(chunk.index);
+    return true;
+  }
+
   // Step 4: acquire chunk write permission and process chunk payload.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
+  bool success = false;
   const bool permission = tracker->Acquire(index);
   if ABSL_PREDICT_TRUE (permission) {
     // Permission is granted, read payload and track its arrival.
     const size_t size = chunk.size;
-    const bool status = channel->Read(chunk.DstAddr(), size) == size;
-    tracker->Release(index, status);
-    return status;
+    success = (channel->Read(chunk.DstAddr(), size) == size);
+    tracker->Release(index, success);
   } else {
     // The same chunk is being, or has been, written.
     LOG(WARNING) << "busy/done chunk #" << index.value();
     return drainStream(channel, chunk.size);
   }
+
+  // Step 5: send back an ack.
+  if ABSL_PREDICT_TRUE (success) {
+    if (!sendAck(channel, chunk)) {
+      LOG(WARNING) << "failed to send ack";
+      return false;
+    }
+  }
+  return success;
 }
 
 bool Transfer::recvChunkMsg(Channel* const channel) {
@@ -139,15 +157,20 @@ bool Transfer::recvChunkMsg(Channel* const channel) {
   }
 
   // Step 4: find chunk tracker.
-  Tracker* const tracker =
-      recv_.FindOrCreate(chunk.handle, chunk.buffer, chunk.nchunks);
+  Tracker* const tracker = getTracker(chunk);
   DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();
     return false;
   }
 
-  // Step 5: acquire chunk write permission and process chunk payload.
+  // Step 5: process ack chunk.
+  if (chunk.IsAck()) {
+    tracker->Set(chunk.index);
+    return true;
+  }
+
+  // Step 6: acquire chunk write permission and process chunk payload.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
   const bool permission = tracker->Acquire(index);
@@ -158,6 +181,13 @@ bool Transfer::recvChunkMsg(Channel* const channel) {
   } else {
     // The same chunk is being, or has been, written.
     LOG(WARNING) << "busy/done chunk #" << index.value();
+    return true;
+  }
+
+  // Step 7: send back an ack.
+  if (!sendAck(channel, chunk)) {
+    LOG(WARNING) << "failed to send ack";
+    return false;
   }
   return true;
 }

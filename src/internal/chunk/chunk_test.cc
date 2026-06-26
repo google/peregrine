@@ -16,6 +16,7 @@ class ChunkTest : public ::testing::Test {
         payload1_(GenPayload(kChunkSize)),
         payload2_(GenPayload(kChunkSize - 1)) {
     CHECK(chunk_.IsValid());
+    CHECK(!chunk_.IsAck());
   }
 
  protected:

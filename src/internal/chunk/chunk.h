@@ -34,11 +34,14 @@ struct ChunkMetadata final {
   // Returns true iff the chunk is valid.
   bool IsValid() const {
     DCHECK_LE(0, index.value());
-    return 1 <= nchunks && index.value() < nchunks && 1 <= size;
+    return 1 <= nchunks && index.value() < nchunks;
   }
 
   // Returns the destination memory address for the chunk.
   Byte* DstAddr() const { return reinterpret_cast<Byte*>(addr.value()); }
+
+  // Returns true iff the chunk is an ack.
+  bool IsAck() const { return size == 0; }
 
   // Returns a string representation for the chunk.
   std::string ToString() const;

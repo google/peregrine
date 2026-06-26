@@ -58,7 +58,7 @@ void TcpAcceptor::Start(AcceptCallback accept) {
     DCHECK(socket->IsValid());
     DCHECK(socket->IsConnected());
     DCHECK(socket->IsBlocking());
-    LOG(INFO) << kAcceptor << "accepted, " << *socket;
+    LOG(INFO) << kAcceptor << "made " << *socket;
     accept(std::move(socket));
   }
 }

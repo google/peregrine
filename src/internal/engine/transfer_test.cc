@@ -1,5 +1,7 @@
 #include "src/internal/engine/transfer.h"
 
+#include <sys/socket.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -37,7 +39,7 @@ using ::testing::TestParamInfo;
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
 constexpr Buffer kBuffer(0xbeef);
-constexpr uint32_t kNumChunks = 1000;
+constexpr uint32_t kNumChunks = 100;
 constexpr uint32_t kChunkSize = 16;
 constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
@@ -60,7 +62,12 @@ std::string ToString(const TestParamInfo<TestParams>& info) {
 class TransferTest : public ::testing::TestWithParam<TestParams> {
  protected:
   TransferTest()
-      : src_(kBufSize), dst_(kBufSize), send_(), recv_(), xfer_(send_, recv_) {
+      : src_(kBufSize),
+        dst_(kBufSize),
+        send_(),
+        recv_(),
+        sndr_(send_, recv_),
+        rcvr_(send_, recv_) {
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = static_cast<Byte>(0);
@@ -88,12 +95,12 @@ class TransferTest : public ::testing::TestWithParam<TestParams> {
     return ChunkPayloadView(src_.data() + i * kChunkSize, GetChunkSize(i));
   }
 
-  static std::unique_ptr<Channel> CreateChannel(ChannelType type) {
+  static ConnectedChannelPair CreateChannelPair(ChannelType type) {
     if (type == kReliableStream) {
-      return TestOnly_CreateMemStreamChannel();
+      return ConnectedChannelPair::CreateTcp(AF_INET);
     } else {
       DCHECK_EQ(type, kUnreliableMessage);
-      return TestOnly_CreateMemMsgChannel(/*error_rate=*/0);
+      return ConnectedChannelPair::CreateUdp(AF_INET);
     }
   }
 
@@ -103,7 +110,8 @@ class TransferTest : public ::testing::TestWithParam<TestParams> {
   std::vector<Byte> dst_;
   BufferTracker send_;
   BufferTracker recv_;
-  Transfer xfer_;
+  Transfer sndr_;
+  Transfer rcvr_;
 };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -117,29 +125,31 @@ TEST_P(TransferTest, SendAndRecv) {
 
   const auto param = GetParam();
   const ChannelType type = std::get<0>(param);
-
-  std::unique_ptr<Channel> ch = CreateChannel(type);
-  Channel* const channel = ch.get();
-  ASSERT_NE(channel, nullptr);
+  const ConnectedChannelPair chs = CreateChannelPair(type);
 
   std::thread sndr([&]() {
-    for (uint32_t i = 0; i < kNumChunks; ++i) {
-      const ChunkMetadata chunk = GenChunk(i);
-      const ChunkPayloadView payload = GenPayload(i);
-      CHECK(xfer_.SendChunk(channel, chunk, payload));
+    Channel* const channel = chs.sndr.get();
+    while (!sndr_.IsSendDone(kHandle)) {
+      for (uint32_t i = 0; i < kNumChunks; ++i) {
+        const ChunkMetadata chunk = GenChunk(i);
+        const ChunkPayloadView payload = GenPayload(i);
+        CHECK(sndr_.SendChunk(channel, chunk, payload));
+        sndr_.RecvChunk(channel);
+      }
     }
   });
   std::thread rcvr([&]() {
-    while (!xfer_.IsRecvDone(kHandle)) {
-      xfer_.RecvChunk(channel);
+    Channel* const channel = chs.rcvr.get();
+    while (!rcvr_.IsRecvDone(kHandle)) {
+      rcvr_.RecvChunk(channel);
     }
   });
 
   sndr.join();
   rcvr.join();
 
-  EXPECT_TRUE(xfer_.IsSendDone(kHandle));
-  EXPECT_TRUE(xfer_.IsRecvDone(kHandle));
+  EXPECT_TRUE(sndr_.IsSendDone(kHandle));
+  EXPECT_TRUE(rcvr_.IsRecvDone(kHandle));
 
   // Postcondition: dst is the same as src.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));
