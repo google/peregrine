@@ -66,3 +66,40 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "worker",
+    srcs = ["worker.cc"],
+    hdrs = ["worker.h"],
+    deps = [
+        ":transfer",
+        "//src/api:transport_types",
+        "//src/internal/buffer:buffer_tracker",
+        "//src/internal/channel",
+        "//src/internal/chunk",
+        "//src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "worker_test",
+    srcs = ["worker_test.cc"],
+    deps = [
+        ":worker",
+        "//src/api:transport_types",
+        "//src/internal:assumptions",
+        "//src/internal/base:types",
+        "//src/internal/buffer:buffer_tracker",
+        "//src/internal/channel:channel_test_util",
+        "//src/internal/chunk",
+        "//src/util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
