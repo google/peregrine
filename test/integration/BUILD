@@ -10,8 +10,8 @@ package(
 )
 
 cc_test(
-    name = "integration/simple_test",
-    srcs = ["integration/simple_test.cc"],
+    name = "simple_test",
+    srcs = ["simple_test.cc"],
     deps = [
         "//src/api:transport",
         "//src/api:transport_types",
@@ -23,9 +23,9 @@ cc_test(
 )
 
 py_test(
-    name = "integration/simple_test_py",
-    srcs = ["integration/simple_test.py"],
-    main = "integration/simple_test.py",
+    name = "simple_test_py",
+    srcs = ["simple_test.py"],
+    main = "simple_test.py",
     deps = [
         "//src/api:peregrine",
         "//src/util:util_py",
