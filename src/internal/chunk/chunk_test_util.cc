@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "absl/random/random.h"
+#include "absl/random/bit_gen_ref.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/chunk/chunk.h"
@@ -26,7 +26,7 @@ ChunkMetadata GenChunkMetadata(const chunk_t index) {
   return chunk;
 }
 
-void GenChunkMetadata(absl::BitGen& bitgen, ChunkMetadata& chunk) {
+void GenChunkMetadata(absl::BitGenRef bitgen, ChunkMetadata& chunk) {
   chunk.handle = Handle(util::Random<Handle::ValueType>(bitgen));
   chunk.reqid = ReqId(util::Random<ReqId::ValueType>(bitgen));
   chunk.nchunks = util::Random<uint32_t>(bitgen, 1, 0xffff'ffff);
@@ -35,7 +35,7 @@ void GenChunkMetadata(absl::BitGen& bitgen, ChunkMetadata& chunk) {
   chunk.size = util::Random<uint32_t>(bitgen, 1, 0xffff'ffff);
 }
 
-ChunkMetadata GenChunkMetadata(absl::BitGen& bitgen) {
+ChunkMetadata GenChunkMetadata(absl::BitGenRef bitgen) {
   ChunkMetadata chunk;
   GenChunkMetadata(bitgen, chunk);
   return chunk;

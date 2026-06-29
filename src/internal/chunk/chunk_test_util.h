@@ -4,7 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "absl/random/random.h"
+#include "absl/random/bit_gen_ref.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
@@ -29,10 +29,10 @@ void GenChunkMetadata(ChunkMetadata& chunk, chunk_t index = kChunkIndex);
 ChunkMetadata GenChunkMetadata(chunk_t index = kChunkIndex);
 
 // Generates random chunk metadata.
-void GenChunkMetadata(absl::BitGen& bitgen, ChunkMetadata& chunk);
+void GenChunkMetadata(absl::BitGenRef bitgen, ChunkMetadata& chunk);
 
 // Generates random chunk metadata.
-ChunkMetadata GenChunkMetadata(absl::BitGen& bitgen);
+ChunkMetadata GenChunkMetadata(absl::BitGenRef bitgen);
 
 // Generates chunk payload view.
 ChunkPayloadView GenPayload(size_t size);

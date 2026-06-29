@@ -98,6 +98,7 @@ cc_test(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
         "@abseil-cpp//absl/random:distributions",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
@@ -115,6 +116,6 @@ cc_library(
         "//src/internal:assumptions",
         "//src/internal/base:types",
         "//src/util",
-        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:bit_gen_ref",
     ],
 )

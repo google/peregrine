@@ -8,6 +8,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/distributions.h"
 #include "absl/random/random.h"
 #include "absl/time/clock.h"
@@ -61,14 +62,16 @@ class ChunkTrackerStressTest : public ::testing::Test {
     CHECK(!tracker_->IsDone());
   }
 
-  chunk_t RandomChunkIndex(absl::BitGen& bitgen) {
+  chunk_t RandomChunkIndex(absl::BitGenRef bitgen) {
     using T = chunk_t::ValueType;
     return chunk_t(util::Random<T>(bitgen, 0, kTotalNumChunks - 1));
   }
 
-  bool Success(absl::BitGen& bitgen) { return absl::Bernoulli(bitgen, 0.75); }
+  bool IsSuccess(absl::BitGenRef bitgen) {
+    return absl::Bernoulli(bitgen, 0.75);
+  }
 
-  void SimulateWork(absl::BitGen& bitgen, chunk_t i) {
+  void SimulateWork(absl::BitGenRef bitgen, chunk_t i) {
     const int n = util::Random(bitgen, 5, 10);
     absl::SleepFor(absl::Milliseconds(n));
   }
@@ -91,7 +94,7 @@ TEST_F(ChunkTrackerStressTest, MultipleWriters) {
         const chunk_t i = RandomChunkIndex(bitgen);
         if (tracker_->Acquire(i)) {
           SimulateWork(bitgen, i);
-          tracker_->Release(i, Success(bitgen));
+          tracker_->Release(i, IsSuccess(bitgen));
         } else {
           absl::SleepFor(absl::Milliseconds(1));
         }

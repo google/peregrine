@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include "absl/log/check.h"
+#include "absl/random/bit_gen_ref.h"
 #include "absl/random/random.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
@@ -15,7 +16,7 @@ namespace peregrine::util {
 
 // Generates a random integer in the range `[min, max]`, inclusively.
 template <typename T>
-T Random(absl::BitGen& gen, T min = std::numeric_limits<T>::min(),
+T Random(absl::BitGenRef gen, T min = std::numeric_limits<T>::min(),
          T max = std::numeric_limits<T>::max()) {
   static_assert(std::is_integral_v<T>);
   DCHECK_LE(min, max);
@@ -23,7 +24,7 @@ T Random(absl::BitGen& gen, T min = std::numeric_limits<T>::min(),
 }
 
 // Generates a random boolean value.
-inline bool Toss(absl::BitGen& bitgen) {
+inline bool Toss(absl::BitGenRef bitgen) {
   return Random<uint8_t>(bitgen, 0, 1) == 0;
 }
 
@@ -31,7 +32,7 @@ inline bool Toss(absl::BitGen& bitgen) {
 void RandomNonZero(absl::Span<Byte> data);
 
 // Generates random non-zero bytes.
-void RandomNonZero(absl::BitGen& bitgen, absl::Span<Byte> data);
+void RandomNonZero(absl::BitGenRef bitgen, absl::Span<Byte> data);
 
 // Calculates the `xxHash64` for the data.
 inline uint64_t CalcXxh64Hash(absl::Span<const Byte> data) {
