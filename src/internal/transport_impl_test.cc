@@ -1,11 +1,13 @@
 #include <cstddef>
 #include <string>
 #include <thread>  // NOLINT
+#include <tuple>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -21,11 +23,17 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
-class TransportImplTest : public ::testing::Test {
-  static constexpr size_t kBufSize = (1UL << 20) - 1;
+using Param = std::tuple</*buf_size=*/size_t>;
 
+std::string ToString(const ::testing::TestParamInfo<Param>& info) {
+  const size_t size = std::get<0>(info.param);
+  DCHECK_GE(size, 1);
+  return absl::StrCat("TransportImplTest_BufSize_", size);
+}
+
+class TransportImplTest : public ::testing::TestWithParam<Param> {
  protected:
-  TransportImplTest() : a_(kBufSize), b_(kBufSize) {
+  TransportImplTest() : size_(std::get<0>(GetParam())), a_(size_), b_(size_) {
     DCHECK_EQ(a_.DataSize(), b_.DataSize());
   }
 
@@ -35,12 +43,25 @@ class TransportImplTest : public ::testing::Test {
         ToString(req.op), h.value(), ToString(s), ThreadId());
   }
 
+  void WaitForCompletion(Transport& t, const Handle h, const Request& req) {
+    while (true) {
+      ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
+      LOG(INFO) << Info(req, h, s);
+      if (IsCompleted(s)) break;
+      absl::SleepFor(absl::Seconds(1));
+    }
+  }
+
  protected:
+  const size_t size_;
   util::App a_;
   util::App b_;
 };
 
-TEST_F(TransportImplTest, Read) {
+INSTANTIATE_TEST_SUITE_P(, TransportImplTest,
+                         ::testing::Values(1, 97, 65536, 1048575), ToString);
+
+TEST_P(TransportImplTest, Read) {
   a_.ClearData();
   b_.GenData();
   ASSERT_THAT(a_.Data(), Pointwise(Ne(), b_.Data()));
@@ -56,12 +77,7 @@ TEST_F(TransportImplTest, Read) {
         .len = a_.DataSize(),
     };
     ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, {req}));
-    while (true) {
-      ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
-      LOG(INFO) << Info(req, h, s);
-      if (IsCompleted(s)) break;
-      absl::SleepFor(absl::Seconds(1));
-    }
+    WaitForCompletion(t, h, req);
   });
 
   // Use another thread to emulate a remote process.
@@ -76,7 +92,7 @@ TEST_F(TransportImplTest, Read) {
   EXPECT_THAT(a_.Data(), Pointwise(Eq(), b_.Data()));
 }
 
-TEST_F(TransportImplTest, Write) {
+TEST_P(TransportImplTest, Write) {
   a_.GenData();
   b_.ClearData();
   ASSERT_THAT(b_.Data(), Pointwise(Ne(), a_.Data()));
@@ -92,12 +108,7 @@ TEST_F(TransportImplTest, Write) {
         .len = a_.DataSize(),
     };
     ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, {req}));
-    while (true) {
-      ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
-      LOG(INFO) << Info(req, h, s);
-      if (IsCompleted(s)) break;
-      absl::SleepFor(absl::Seconds(1));
-    }
+    WaitForCompletion(t, h, req);
   });
 
   // Use another thread to emulate a remote process.

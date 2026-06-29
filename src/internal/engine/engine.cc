@@ -148,8 +148,7 @@ void Engine::mainLoop() {
 
 void Engine::process(const Entry& entry) {
   if (entry.request.op == Op::kWrite) {
-    const int kNumChannels = 1;
-    connect(entry.peer, kNumChannels);
+    connect(entry.peer, /*num_channels=*/8);
     if (workers_.empty()) {
       // TODO(yongx): handle error by failing the request.
       return;
@@ -191,8 +190,7 @@ void Engine::processWrite(const Handle handle, const ReqId reqid,
 void Engine::processRead(const Handle handle, const ReqId reqid,
                          const Request& request) {
   // TODO(yongx): implement read.
-  constexpr uint32_t kNumChunks = 1;
-  auto tracker = incoming_.FindOrCreate(handle, reqid, kNumChunks);
+  auto tracker = incoming_.FindOrCreate(handle, reqid, /*num_channels=*/1);
   std::memcpy(request.laddr, request.raddr, request.len);
   tracker->Set(chunk_t(0));
 }

@@ -17,7 +17,7 @@ class SimpleTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()
-    self.data = b"Peregrine Read/Write Integration!"
+    self.data = b"Peregrine Python Tests!"
     self.assertNotEqual(len(self.data) % 2, 0)
     port1 = util.find_free_port(socket.AF_INET, tcp=True)
     port2 = util.find_free_port(socket.AF_INET, tcp=True)
