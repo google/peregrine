@@ -49,6 +49,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/types:span",
+        "@xxhash",
     ],
 )
 

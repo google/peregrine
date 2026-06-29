@@ -1,24 +1,77 @@
+# For benchmarks only.
+
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(
     default_testonly = True,
     default_visibility = ["//visibility:private"],
 )
 
-cc_binary(
-    name = "pg_2node",
-    srcs = ["pg_2node.cc"],
+cc_library(
+    name = "flags",
+    srcs = ["flags.cc"],
+    hdrs = ["flags.h"],
     deps = [
+        ":types",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "types",
+    srcs = ["types.cc"],
+    hdrs = ["types.h"],
+    deps = [
+        "//third_party/gloop/util/intops",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/numeric:bits",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "types_test",
+    srcs = ["types_test.cc"],
+    deps = [
+        ":types",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "pg",
+    srcs = ["pg.cc"],
+    hdrs = ["pg.h"],
+    deps = [
+        ":types",
         "//src/api:transport",
         "//src/api:transport_types",
         "//src/api:transport_util",
         "//src/util",
-        "@abseil-cpp//absl/flags:flag",
-        "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/log:initialize",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_binary(
+    name = "pg_2node",
+    srcs = ["pg_2node.cc"],
+    deps = [
+        ":flags",
+        ":pg",
+        ":types",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log:initialize",
     ],
 )
