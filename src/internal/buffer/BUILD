@@ -24,6 +24,7 @@ cc_test(
     srcs = ["buffer_tracker_test.cc"],
     deps = [
         ":buffer_tracker",
+        "//src/api:transport_types",
         "//src/internal/chunk",
         "//src/internal/chunk:chunk_test_util",
         "//src/internal/chunk:tracker",

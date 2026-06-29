@@ -20,6 +20,8 @@ std::string ToString(const Op op) {
 
 std::string ToString(const Status s) {
   switch (s) {
+    case Status::kNotFound:
+      return "NotFound";
     case Status::kInProgress:
       return "InProgress";
     case Status::kSuccess:

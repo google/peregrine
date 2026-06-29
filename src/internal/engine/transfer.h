@@ -42,11 +42,15 @@ class Transfer final {
 
   // Returns true iff all the buffers of the `handle` have been delivered,
   // i.e, the buffers sent by this endpoint have been received by the peer.
-  bool IsSendDone(Handle handle) const { return outgoing_.IsDone(handle); }
+  bool IsSendDone(Handle handle) const {
+    return outgoing_.Check(handle) == Status::kSuccess;
+  }
 
   // Returns true iff all the buffers of the `handle` sent by the peer have
   // been received by this endpoint.
-  bool IsRecvDone(Handle handle) const { return incoming_.IsDone(handle); }
+  bool IsRecvDone(Handle handle) const {
+    return incoming_.Check(handle) == Status::kSuccess;
+  }
 
  private:
   // Deserializes chunk metadata and returns true iff the chunk is valid.

@@ -4,6 +4,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "src/api/transport_types.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_test_util.h"
 #include "src/internal/chunk/tracker.h"
@@ -15,7 +16,7 @@ class BufferTrackerTest : public ::testing::Test {
  protected:
   BufferTrackerTest() : tracker_() {
     CHECK(tracker_.IsEmpty());
-    CHECK(!tracker_.IsDone(kHandle));
+    CHECK_EQ(tracker_.Check(kHandle), Status::kNotFound);
   }
 
  protected:
@@ -24,37 +25,35 @@ class BufferTrackerTest : public ::testing::Test {
 
 TEST_F(BufferTrackerTest, Send) {
   ASSERT_TRUE(tracker_.Add(kHandle));
-  ASSERT_TRUE(tracker_.Contains(kHandle));
   Tracker* send = tracker_.FindOrCreate(kHandle, kBuffer, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
-    EXPECT_FALSE(tracker_.IsDone(kHandle));
+    EXPECT_EQ(tracker_.Check(kHandle), Status::kInProgress);
     const chunk_t index(i);
     send->Set(index);
   }
-  EXPECT_TRUE(tracker_.IsDone(kHandle));
+  EXPECT_EQ(tracker_.Check(kHandle), Status::kSuccess);
 
   tracker_.Remove(kHandle);
   EXPECT_TRUE(tracker_.IsEmpty());
-  EXPECT_FALSE(tracker_.IsDone(kHandle));
+  EXPECT_EQ(tracker_.Check(kHandle), Status::kNotFound);
 }
 
 TEST_F(BufferTrackerTest, Recv) {
   ASSERT_TRUE(tracker_.Add(kHandle));
-  ASSERT_TRUE(tracker_.Contains(kHandle));
   Tracker* recv = tracker_.FindOrCreate(kHandle, kBuffer, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
-    EXPECT_FALSE(tracker_.IsDone(kHandle));
+    EXPECT_EQ(tracker_.Check(kHandle), Status::kInProgress);
     const chunk_t index(i);
     ASSERT_TRUE(recv->Acquire(index));
     recv->Release(index, /*success=*/true);
   }
-  EXPECT_TRUE(tracker_.IsDone(kHandle));
+  EXPECT_EQ(tracker_.Check(kHandle), Status::kSuccess);
 
   tracker_.Remove(kHandle);
   EXPECT_TRUE(tracker_.IsEmpty());
-  EXPECT_FALSE(tracker_.IsDone(kHandle));
+  EXPECT_EQ(tracker_.Check(kHandle), Status::kNotFound);
 }
 
 }  // namespace

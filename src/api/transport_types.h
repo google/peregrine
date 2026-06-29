@@ -42,6 +42,7 @@ struct Request final {
 
 // Transport operation status.
 enum class Status : int {
+  kNotFound = 2,
   kInProgress = 1,
   kSuccess = 0,
   kFailure = -1,
@@ -52,7 +53,7 @@ constexpr bool IsInProgress(const Status s) { return s == Status::kInProgress; }
 
 // Returns true iff the transport operation is already completed,
 // either successfully or with failure.
-constexpr bool IsCompleted(const Status s) { return s != Status::kInProgress; }
+constexpr bool IsCompleted(const Status s) { return static_cast<int>(s) <= 0; }
 
 // Returns a string representation of the transport operation status.
 std::string ToString(Status s);

@@ -28,20 +28,11 @@ class BufferTracker {
   // Destructor.
   ~BufferTracker() = default;
 
-  // Returns true iff the `handle` is being tracked.
-  bool Contains(Handle handle) const ABSL_LOCKS_EXCLUDED(mu_);
-
   // Returns true iff there are no buffers being tracked.
   bool IsEmpty() const ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Returns true iff all the buffers of the `handle` have been completed.
-  bool IsDone(Handle handle) const ABSL_LOCKS_EXCLUDED(mu_);
-
-  // Finds a buffer tracker for the given `handle` and `buffer`.
-  // If not found, creates a new one with the given `num_chunks`.
-  // Returns the (always non-null) tracker pointer.
-  Tracker* FindOrCreate(Handle handle, Buffer buffer, uint32_t num_chunks)
-      ABSL_LOCKS_EXCLUDED(mu_);
+  // Returns the status of the `handle`.
+  Status Check(Handle handle) const ABSL_LOCKS_EXCLUDED(mu_);
 
   // Adds the tracker for the given `handle`.
   // Returns true iff the handle was not already in the tracker.
@@ -49,6 +40,12 @@ class BufferTracker {
 
   // Removes the tracker for the given `handle`.
   void Remove(Handle handle) ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Finds a buffer tracker for the given `handle` and `buffer`.
+  // If not found, creates a new one with the given `num_chunks`.
+  // Returns the (always non-null) tracker pointer.
+  Tracker* FindOrCreate(Handle handle, Buffer buffer, uint32_t num_chunks)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
   using BufferMap = absl::flat_hash_map<Buffer, std::unique_ptr<Tracker>>;

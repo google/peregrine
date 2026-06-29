@@ -100,14 +100,12 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
     handle = genHandle();
     buffer = genBuffer();
   }
-
   if (request.op == Op::kWrite) {
     if (!outgoing_.Add(handle)) return AlreadyExistsError(handle);
   } else {
     DCHECK_EQ(request.op, Op::kRead);
     if (!incoming_.Add(handle)) return AlreadyExistsError(handle);
   }
-
   {
     absl::MutexLock _(mu_);
     reqs_.emplace_back(peer, handle, buffer, request);
@@ -116,20 +114,12 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
 }
 
 absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
-  if (outgoing_.Contains(handle)) {
-    if (outgoing_.IsDone(handle)) {
-      outgoing_.Remove(handle);
-      return Status::kSuccess;
-    } else {
-      return Status::kInProgress;
-    }
-  }
-  if (incoming_.Contains(handle)) {
-    if (incoming_.IsDone(handle)) {
-      incoming_.Remove(handle);
-      return Status::kSuccess;
-    } else {
-      return Status::kInProgress;
+  for (auto* tracker : {&outgoing_, &incoming_}) {
+    if (const Status s = tracker->Check(handle); IsInProgress(s)) {
+      return s;
+    } else if (IsCompleted(s)) {
+      tracker->Remove(handle);
+      return s;
     }
   }
   return NotFoundError(handle);

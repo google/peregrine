@@ -106,7 +106,7 @@ TEST_F(WorkerTest, SendRecv) {
   });
 
   std::jthread r([&]() {
-    while (!rcvr_.incoming.IsDone(kHandle)) {
+    while (rcvr_.incoming.Check(kHandle) != Status::kSuccess) {
       absl::SleepFor(absl::Milliseconds(10));
     }
   });

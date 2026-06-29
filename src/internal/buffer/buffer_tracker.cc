@@ -13,29 +13,34 @@
 
 namespace peregrine::internal {
 
-bool BufferTracker::Contains(const Handle handle) const {
-  absl::MutexLock _(mu_);
-  return trackers_.contains(handle);
-}
-
 bool BufferTracker::IsEmpty() const {
   absl::MutexLock _(mu_);
   return trackers_.empty();
 }
 
-bool BufferTracker::IsDone(const Handle handle) const {
+Status BufferTracker::Check(const Handle handle) const {
   absl::MutexLock _(mu_);
   const auto it = trackers_.find(handle);
   if ABSL_PREDICT_FALSE (it == trackers_.end()) {
-    return false;
+    return Status::kNotFound;
   }
   if (it->second.empty()) {
-    return false;
+    return Status::kInProgress;
   }
   for (const auto& [buffer, tracker] : it->second) {
-    if (!tracker->IsDone()) return false;
+    if (!tracker->IsDone()) return Status::kInProgress;
   }
-  return true;
+  return Status::kSuccess;
+}
+
+bool BufferTracker::Add(const Handle handle) {
+  absl::MutexLock _(mu_);
+  return trackers_.try_emplace(handle, BufferMap()).second;
+}
+
+void BufferTracker::Remove(const Handle handle) {
+  absl::MutexLock _(mu_);
+  trackers_.erase(handle);
 }
 
 Tracker* BufferTracker::FindOrCreate(const Handle handle, const Buffer buffer,
@@ -47,16 +52,6 @@ Tracker* BufferTracker::FindOrCreate(const Handle handle, const Buffer buffer,
     tracker = std::make_unique<ChunkTracker>(num_chunks);
   }
   return tracker.get();
-}
-
-bool BufferTracker::Add(const Handle handle) {
-  absl::MutexLock _(mu_);
-  return trackers_.try_emplace(handle, BufferMap()).second;
-}
-
-void BufferTracker::Remove(const Handle handle) {
-  absl::MutexLock _(mu_);
-  trackers_.erase(handle);
 }
 
 }  // namespace peregrine::internal

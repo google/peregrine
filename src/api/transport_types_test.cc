@@ -17,6 +17,10 @@ TEST(TransportOp, ToString) {
 }
 
 TEST(TransportStatus, Values) {
+  EXPECT_FALSE(IsInProgress(Status::kNotFound));
+  EXPECT_FALSE(IsCompleted(Status::kNotFound));
+  LOG(INFO) << "Status: " << Status::kNotFound;
+
   EXPECT_TRUE(IsInProgress(Status::kInProgress));
   EXPECT_FALSE(IsCompleted(Status::kInProgress));
   LOG(INFO) << "Status: " << Status::kInProgress;
