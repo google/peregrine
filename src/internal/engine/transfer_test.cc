@@ -61,17 +61,12 @@ std::string ToString(const TestParamInfo<TestParams>& info) {
 
 class TransferTest : public ::testing::TestWithParam<TestParams> {
  protected:
-  TransferTest()
-      : src_(kBufSize),
-        dst_(kBufSize),
-        send_(),
-        recv_(),
-        sndr_(send_, recv_),
-        rcvr_(send_, recv_) {
+  TransferTest() : src_(kBufSize), dst_(kBufSize), a_(), b_() {
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = static_cast<Byte>(0);
     }
+    DCHECK_NE(src_.data(), dst_.data());
   }
 
   static uint32_t GetChunkSize(uint32_t i) {
@@ -104,14 +99,20 @@ class TransferTest : public ::testing::TestWithParam<TestParams> {
     }
   }
 
+ private:
+  struct Host {
+    BufferTracker outgoing;
+    BufferTracker incoming;
+    Transfer xfer;
+    Host() : outgoing(), incoming(), xfer(outgoing, incoming) {}
+  };
+
  protected:
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
-  BufferTracker send_;
-  BufferTracker recv_;
-  Transfer sndr_;
-  Transfer rcvr_;
+  Host a_;
+  Host b_;
 };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -119,7 +120,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Combine(::testing::Values(kReliableStream, kUnreliableMessage)),
     ToString);
 
-TEST_P(TransferTest, SendAndRecv) {
+TEST_P(TransferTest, SendRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
@@ -127,29 +128,39 @@ TEST_P(TransferTest, SendAndRecv) {
   const ChannelType type = std::get<0>(param);
   const ConnectedChannelPair chs = CreateChannelPair(type);
 
-  std::thread sndr([&]() {
+  // A sends data chunks to B.
+  std::thread a_send([&]() {
     Channel* const channel = chs.sndr.get();
-    while (!sndr_.IsSendDone(kHandle)) {
+    while (!a_.xfer.IsSendDone(kHandle)) {
       for (uint32_t i = 0; i < kNumChunks; ++i) {
         const ChunkMetadata chunk = GenChunk(i);
         const ChunkPayloadView payload = GenPayload(i);
-        CHECK(sndr_.SendChunk(channel, chunk, payload));
-        sndr_.RecvChunk(channel);
+        CHECK(a_.xfer.SendChunk(channel, chunk, payload));
       }
     }
   });
-  std::thread rcvr([&]() {
-    Channel* const channel = chs.rcvr.get();
-    while (!rcvr_.IsRecvDone(kHandle)) {
-      rcvr_.RecvChunk(channel);
+  // A receives ack chunks from B.
+  std::thread a_recv([&]() {
+    Channel* const channel = chs.sndr.get();
+    while (!a_.xfer.IsSendDone(kHandle)) {
+      a_.xfer.RecvChunk(channel);
     }
   });
 
-  sndr.join();
-  rcvr.join();
+  // B receives data chunks from A and sends ack chunks to A.
+  std::thread b_recv([&]() {
+    Channel* const channel = chs.rcvr.get();
+    while (!b_.xfer.IsRecvDone(kHandle)) {
+      b_.xfer.RecvChunk(channel);
+    }
+  });
 
-  EXPECT_TRUE(sndr_.IsSendDone(kHandle));
-  EXPECT_TRUE(rcvr_.IsRecvDone(kHandle));
+  a_send.join();
+  a_recv.join();
+  b_recv.join();
+
+  EXPECT_TRUE(a_.xfer.IsSendDone(kHandle));
+  EXPECT_TRUE(b_.xfer.IsRecvDone(kHandle));
 
   // Postcondition: dst is the same as src.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));

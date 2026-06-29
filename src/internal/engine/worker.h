@@ -1,8 +1,8 @@
 #ifndef PEREGRINE_SRC_INTERNAL_ENGINE_WORKER_H_
 #define PEREGRINE_SRC_INTERNAL_ENGINE_WORKER_H_
 
+#include <deque>
 #include <memory>
-#include <queue>
 #include <thread>  // NOLINT
 
 #include "absl/base/thread_annotations.h"
@@ -22,7 +22,7 @@ namespace peregrine::internal {
 class Worker {
  public:
   // Constructor.
-  Worker(BufferTracker& send, BufferTracker& recv,
+  Worker(BufferTracker& outgoing, BufferTracker& incoming,
          std::unique_ptr<Channel> channel);
 
   // Disallows copy and assign.
@@ -32,8 +32,8 @@ class Worker {
   // Destructor.
   ~Worker();
 
-  // Sends a chunk.
-  void SendChunk(const Byte* chunk_src_addr, const ChunkMetadata& chunk)
+  // Enqueues a chunk to be sent later.
+  void EnqueueChunk(const Byte* chunk_src_addr, const ChunkMetadata& chunk)
       ABSL_LOCKS_EXCLUDED(mu_);
 
   // Runs a loop to send chunks until the destructor is called.
@@ -60,7 +60,7 @@ class Worker {
  private:
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);
-  std::queue<Entry> chunks_ ABSL_GUARDED_BY(mu_);
+  std::deque<Entry> chunks_ ABSL_GUARDED_BY(mu_);
 
   Transfer xfer_;
   std::unique_ptr<Channel> channel_;

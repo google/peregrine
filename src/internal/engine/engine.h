@@ -55,14 +55,14 @@ class Engine {
   };
 
  private:
-  // Acceptor callback with the given `socket`.
+  // Accepts the incoming `socket`.
   void accept(std::unique_ptr<TcpSocket> socket);
 
-  // Connects to the `peer` with the given number of channels.
+  // Connects to the `peer` with the given #channels.
   void connect(const Endpoint& peer, int num_channels);
 
-  // Adds a worker with the given `channel`.
-  void addWorker(std::unique_ptr<Channel> channel);
+  // Adds a worker with the given channel `ch`.
+  void addWorker(std::unique_ptr<Channel> ch);
 
  private:
   // Generates a random handle.
@@ -101,13 +101,12 @@ class Engine {
   absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
   std::deque<Entry> reqs_ ABSL_GUARDED_BY(mu_);
 
-  BufferTracker send_;
-  BufferTracker recv_;
+  BufferTracker outgoing_;
+  BufferTracker incoming_;
 
   std::unique_ptr<TcpAcceptor> acceptor_;
   std::jthread acceptor_thread_;
   std::jthread main_thread_;
-
   std::vector<std::unique_ptr<Worker>> workers_;
 };
 

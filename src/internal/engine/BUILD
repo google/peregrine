@@ -100,6 +100,7 @@ cc_test(
         "//src/internal:assumptions",
         "//src/internal/base:types",
         "//src/internal/buffer:buffer_tracker",
+        "//src/internal/channel",
         "//src/internal/channel:channel_test_util",
         "//src/internal/chunk",
         "//src/util",

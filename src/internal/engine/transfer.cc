@@ -26,16 +26,16 @@ namespace peregrine::internal {
 
 bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
                          const ChunkPayloadView payload) {
-  // Step 1: build two iovecs: header + payload.
+  DCHECK(IsMatch(chunk, payload));
+
+  // Step 1: build chunk header and payload.
   const std::string header = ChunkHeader::Serialize(chunk);
-  DCHECK_EQ(header.size(), ChunkHeader::kSize);
   const std::array<const IoVec, 2> iovecs = {
       IoVec((void*)header.data(), header.size()),
       IoVec((void*)payload.data(), payload.size()),
   };
-  DCHECK(IsMatch(chunk, payload));
 
-  // Step 2: send chunk header and payload.
+  // Step 2: send them out.
   return channel->Write(iovecs);
 }
 
@@ -49,13 +49,13 @@ bool Transfer::RecvChunk(Channel* const channel) {
   }
 }
 
-bool Transfer::deserialize(Byte* buf, ChunkMetadata& chunk) {
-  std::string_view s(reinterpret_cast<const char*>(buf), ChunkHeader::kSize);
+bool Transfer::deserialize(Byte* header, ChunkMetadata& chunk) {
+  std::string_view s(reinterpret_cast<const char*>(header), ChunkHeader::kSize);
   return ChunkHeader::Deserialize(s, chunk) && chunk.IsValid();
 }
 
 Tracker* Transfer::getTracker(const ChunkMetadata& chunk) const {
-  BufferTracker& t = chunk.IsAck() ? send_ : recv_;
+  BufferTracker& t = chunk.IsAck() ? outgoing_ : incoming_;
   return t.FindOrCreate(chunk.handle, chunk.buffer, chunk.nchunks);
 }
 
@@ -63,9 +63,12 @@ bool Transfer::sendAck(Channel* channel, ChunkMetadata& chunk) {
   chunk.size = 0;
   DCHECK(chunk.IsAck());
   const std::string header = ChunkHeader::Serialize(chunk);
-  DCHECK_EQ(header.size(), ChunkHeader::kSize);
   const IoVec iov((void*)header.data(), header.size());
-  return channel->Write({iov});
+  if ABSL_PREDICT_FALSE (!channel->Write({iov})) {
+    LOG(WARNING) << "failed to send ack: " << chunk;
+    return false;
+  }
+  return true;
 }
 
 bool Transfer::recvChunkStream(Channel* const channel) {
@@ -80,7 +83,7 @@ bool Transfer::recvChunkStream(Channel* const channel) {
     return false;
   }
 
-  // Step 2: deserialize chunk metadata.
+  // Step 2: deserialize chunk header.
   ChunkMetadata chunk;
   if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
     LOG(WARNING) << "invalid chunk header: " << chunk;
@@ -95,36 +98,26 @@ bool Transfer::recvChunkStream(Channel* const channel) {
     return drainStream(channel, chunk.size);
   }
 
-  // Step 3: process ack chunk.
+  // Step 4: process ack chunk.
   if (chunk.IsAck()) {
     tracker->Set(chunk.index);
     return true;
   }
 
-  // Step 4: acquire chunk write permission and process chunk payload.
+  // Step 5: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
-  bool success = false;
-  const bool permission = tracker->Acquire(index);
-  if ABSL_PREDICT_TRUE (permission) {
-    // Permission is granted, read payload and track its arrival.
+  if ABSL_PREDICT_TRUE (tracker->Acquire(index)) {
+    // Write permission granted, read payload and track data arrival.
     const size_t size = chunk.size;
-    success = (channel->Read(chunk.DstAddr(), size) == size);
+    const bool success = (channel->Read(chunk.DstAddr(), size) == size);
     tracker->Release(index, success);
+    return success && sendAck(channel, chunk);
   } else {
     // The same chunk is being, or has been, written.
     LOG(WARNING) << "busy/done chunk #" << index.value();
     return drainStream(channel, chunk.size);
   }
-
-  // Step 5: send back an ack.
-  if ABSL_PREDICT_TRUE (success) {
-    if (!sendAck(channel, chunk)) {
-      LOG(WARNING) << "failed to send ack";
-      return false;
-    }
-  }
-  return success;
 }
 
 bool Transfer::recvChunkMsg(Channel* const channel) {
@@ -135,24 +128,23 @@ bool Transfer::recvChunkMsg(Channel* const channel) {
   static_assert(ChunkHeader::kSize < kTmpBufSize);
   const ssize_t len = channel->Read(buf, kTmpBufSize);
   if ABSL_PREDICT_FALSE (std::cmp_less(len, ChunkHeader::kSize)) {
-    // TODO(yongx): handle the error.
     LOG(WARNING) << "failed to read chunk header: " << len;
     return false;
   }
 
-  // Step 2: deserialize chunk metadata.
+  // Step 2: deserialize chunk header.
   ChunkMetadata chunk;
   if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
     LOG(WARNING) << "invalid chunk header: " << chunk;
     return false;
   }
 
-  // Step 3: read chunk payload.
+  // Step 3: check chunk payload size.
   const ChunkPayloadView payload(buf + ChunkHeader::kSize,
                                  len - ChunkHeader::kSize);
   if ABSL_PREDICT_FALSE (!IsMatch(chunk, payload)) {
     LOG(WARNING) << "mismatched chunk metadata: " << chunk
-                 << " vs payload size " << payload.size();
+                 << " vs payload size: " << payload.size();
     return false;
   }
 
@@ -170,26 +162,19 @@ bool Transfer::recvChunkMsg(Channel* const channel) {
     return true;
   }
 
-  // Step 6: acquire chunk write permission and process chunk payload.
+  // Step 6: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
-  const bool permission = tracker->Acquire(index);
-  if ABSL_PREDICT_TRUE (permission) {
-    // Permission is granted, read payload and track its arrival.
+  if ABSL_PREDICT_TRUE (tracker->Acquire(index)) {
+    // Write permission granted, read payload and track data arrival.
     std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
     tracker->Release(index, true);
+    return sendAck(channel, chunk);
   } else {
     // The same chunk is being, or has been, written.
     LOG(WARNING) << "busy/done chunk #" << index.value();
     return true;
   }
-
-  // Step 7: send back an ack.
-  if (!sendAck(channel, chunk)) {
-    LOG(WARNING) << "failed to send ack";
-    return false;
-  }
-  return true;
 }
 
 bool Transfer::drainStream(Channel* const channel, const uint32_t chunk_size) {

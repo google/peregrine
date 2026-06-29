@@ -9,23 +9,24 @@
 #include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/chunk/chunk_flatbuf.h"
 #include "src/internal/chunk/tracker.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
 
-// This class implements chunk transfer between two endpoints. The chunks are
-// arbitrary: they can come from any buffer.
+// This class implements chunk transfer between two endpoints.
+// The chunks are arbitrary: they can come from any buffer.
 // This class is thread-safe.
 class Transfer final {
   static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 
  public:
   // Constructor.
-  Transfer(BufferTracker& send, BufferTracker& recv)
-      : send_(send), recv_(recv) {}
+  Transfer(BufferTracker& outgoing, BufferTracker& incoming)
+      : outgoing_(outgoing), incoming_(incoming) {}
 
-  // Disable copy and move.
+  // Disallows copy/move.
   DISALLOW_COPY(Transfer);
   DISALLOW_MOVE(Transfer);
 
@@ -39,15 +40,17 @@ class Transfer final {
   // Receives chunk metadata and payload from the channel.
   bool RecvChunk(Channel* channel);
 
-  // Returns true iff all the buffers of the `handle` have been sent.
-  bool IsSendDone(Handle handle) const { return send_.IsDone(handle); }
+  // Returns true iff all the buffers of the `handle` have been delivered,
+  // i.e, the buffers sent by this endpoint have been received by the peer.
+  bool IsSendDone(Handle handle) const { return outgoing_.IsDone(handle); }
 
-  // Returns true iff all the buffers of the `handle` have been received.
-  bool IsRecvDone(Handle handle) const { return recv_.IsDone(handle); }
+  // Returns true iff all the buffers of the `handle` sent by the peer have
+  // been received by this endpoint.
+  bool IsRecvDone(Handle handle) const { return incoming_.IsDone(handle); }
 
  private:
   // Deserializes chunk metadata and returns true iff the chunk is valid.
-  static bool deserialize(Byte* buf, ChunkMetadata& chunk);
+  static bool deserialize(Byte* header, ChunkMetadata& chunk);
 
   // Returns the send or recv tracker for the given chunk.
   Tracker* getTracker(const ChunkMetadata& chunk) const;
@@ -56,22 +59,23 @@ class Transfer final {
   bool sendAck(Channel* channel, ChunkMetadata& chunk);
 
  private:
-  // Receives chunk metadata and payload from the stream channel.
+  // Receives chunk metadata and payload from the reliable stream channel.
   bool recvChunkStream(Channel* channel);
 
-  // Receives chunk metadata and payload from the message channel.
+  // Receives chunk metadata and payload from the unreliable message channel.
   bool recvChunkMsg(Channel* channel);
 
-  // Discards chunk payload that is still buffered in the stream channel.
+  // Discards chunk payload still buffered in the reliable stream channel.
   static bool drainStream(Channel* channel, uint32_t chunk_size);
 
  private:
   static_assert(assumptions::kNetworkMtuIsAtMostTenKiloBytes);
   static constexpr size_t kTmpBufSize = 10U << 10;
+  static_assert(ChunkHeader::kSize < kTmpBufSize);
 
  private:
-  BufferTracker& send_;
-  BufferTracker& recv_;
+  BufferTracker& outgoing_;
+  BufferTracker& incoming_;
 };
 
 }  // namespace peregrine::internal

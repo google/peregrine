@@ -17,9 +17,12 @@ namespace peregrine::internal {
 
 constexpr std::string_view kWorker = "worker ";
 
-Worker::Worker(BufferTracker& send, BufferTracker& recv,
+Worker::Worker(BufferTracker& outgoing, BufferTracker& incoming,
                std::unique_ptr<Channel> channel)
-    : stop_(false), chunks_(), xfer_(send, recv), channel_(std::move(channel)) {
+    : stop_(false),
+      chunks_(),
+      xfer_(outgoing, incoming),
+      channel_(std::move(channel)) {
   DCHECK_NE(channel_, nullptr);
   send_thread_ = std::jthread([this]() { SendLoop(); });
   recv_thread_ = std::jthread([this]() { RecvLoop(); });
@@ -35,10 +38,14 @@ Worker::~Worker() {
   LOG(INFO) << kWorker << "destroyed @ " << this;
 }
 
-void Worker::SendChunk(const Byte* const chunk_src_addr,
-                       const ChunkMetadata& chunk) {
+void Worker::EnqueueChunk(const Byte* const chunk_src_addr,
+                          const ChunkMetadata& chunk) {
+  DCHECK_NE(chunk_src_addr, nullptr);
+  DCHECK(chunk.IsValid());
+  DCHECK(!chunk.IsAck());
+
   absl::MutexLock _(mu_);
-  chunks_.push({chunk_src_addr, chunk});
+  chunks_.emplace_back(chunk_src_addr, chunk);
 }
 
 bool Worker::hasSendWork() const { return !chunks_.empty() || stop_; }
@@ -57,7 +64,7 @@ void Worker::SendLoop() {
         return;
       }
       entry = std::move(chunks_.front());
-      chunks_.pop();
+      chunks_.pop_front();
     }
 
     const ChunkMetadata& chunk = entry.chunk;

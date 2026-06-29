@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/chunk/chunk.fbs.h"
 #include "src/internal/chunk/chunk.h"
@@ -24,7 +25,9 @@ class ChunkHeader final {
 
   // Serializes the chunk metadata to a fixed-size flatbuffer string.
   static std::string Serialize(const ChunkMetadata& m) {
-    return serializeV1(m);
+    const std::string s = serializeV1(m);
+    DCHECK_EQ(s.size(), kSize);
+    return s;
   }
 
   // Parses the chunk metadata from its fixed-size flatbuffer serialization.

@@ -1,6 +1,7 @@
 
 #include "src/internal/engine/engine.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -69,22 +70,22 @@ Engine::~Engine() {
 
 void Engine::accept(std::unique_ptr<TcpSocket> socket) {
   DCHECK_NE(socket, nullptr);
-  std::unique_ptr<Channel> channel = CreateTcpChannel(std::move(socket));
-  addWorker(std::move(channel));
+  std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
+  addWorker(std::move(ch));
 }
 
 void Engine::connect(const Endpoint& peer, int num_channels) {
   for (int i = 0; i < 2 * num_channels; ++i) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
     if (socket == nullptr) continue;
-    std::unique_ptr<Channel> channel = CreateTcpChannel(std::move(socket));
-    addWorker(std::move(channel));
+    std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
+    addWorker(std::move(ch));
     if (workers_.size() >= num_channels) break;
   }
 }
 
-void Engine::addWorker(std::unique_ptr<Channel> channel) {
-  auto worker = std::make_unique<Worker>(send_, recv_, std::move(channel));
+void Engine::addWorker(std::unique_ptr<Channel> ch) {
+  auto worker = std::make_unique<Worker>(outgoing_, incoming_, std::move(ch));
   workers_.push_back(std::move(worker));
 }
 
@@ -101,10 +102,10 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
   }
 
   if (request.op == Op::kWrite) {
-    if (!send_.Add(handle)) return AlreadyExistsError(handle);
+    if (!outgoing_.Add(handle)) return AlreadyExistsError(handle);
   } else {
     DCHECK_EQ(request.op, Op::kRead);
-    if (!recv_.Add(handle)) return AlreadyExistsError(handle);
+    if (!incoming_.Add(handle)) return AlreadyExistsError(handle);
   }
 
   {
@@ -115,17 +116,17 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
 }
 
 absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
-  if (send_.Contains(handle)) {
-    if (send_.IsDone(handle)) {
-      send_.Remove(handle);
+  if (outgoing_.Contains(handle)) {
+    if (outgoing_.IsDone(handle)) {
+      outgoing_.Remove(handle);
       return Status::kSuccess;
     } else {
       return Status::kInProgress;
     }
   }
-  if (recv_.Contains(handle)) {
-    if (recv_.IsDone(handle)) {
-      recv_.Remove(handle);
+  if (incoming_.Contains(handle)) {
+    if (incoming_.IsDone(handle)) {
+      incoming_.Remove(handle);
       return Status::kSuccess;
     } else {
       return Status::kInProgress;
@@ -152,9 +153,9 @@ void Engine::mainLoop() {
 
     // step 2: update the buffer tracker.
     if (entry.req.op == Op::kWrite) {
-      send_.Add(entry.handle);
+      outgoing_.Add(entry.handle);
     } else {
-      recv_.Add(entry.handle);
+      incoming_.Add(entry.handle);
     }
 
     // step 3: process the entry.
@@ -179,7 +180,6 @@ void Engine::process(const Entry& entry) {
 
 namespace {
 uint32_t CalcChunkSize(const size_t len, const uint32_t num_chunks) {
-  DCHECK_GE(num_chunks, 1);
   return static_cast<uint32_t>((len + num_chunks - 1) / num_chunks);
 }
 }  // namespace
@@ -187,10 +187,11 @@ uint32_t CalcChunkSize(const size_t len, const uint32_t num_chunks) {
 void Engine::processWrite(const Handle handle, const Buffer buffer,
                           const Request& request) {
   const size_t len = request.len;
-  const uint32_t nchunks = workers_.size();
+  const uint32_t nchunks = std::min(workers_.size(), len);
   const uint32_t size = CalcChunkSize(len, nchunks);
+  DCHECK_GE(size, 1);
   uint64_t offset = 0;
-  for (int i = 0; i < nchunks; ++i, offset += size) {
+  for (int i = 0; i < nchunks && offset < len; ++i, offset += size) {
     const Byte* const chunk_src_addr = request.laddr + offset;
     const Byte* const chunk_dst_addr = request.raddr + offset;
     const ChunkMetadata chunk = {
@@ -201,7 +202,7 @@ void Engine::processWrite(const Handle handle, const Buffer buffer,
         .addr = addr_t(reinterpret_cast<uintptr_t>(chunk_dst_addr)),
         .size = i < nchunks - 1 ? size : static_cast<uint32_t>(len - offset),
     };
-    workers_[i]->SendChunk(chunk_src_addr, chunk);
+    workers_[i]->EnqueueChunk(chunk_src_addr, chunk);
   }
 }
 
@@ -209,7 +210,7 @@ void Engine::processRead(const Handle handle, const Buffer buffer,
                          const Request& request) {
   // TODO(yongx): implement read.
   constexpr uint32_t kNumChunks = 1;
-  auto tracker = recv_.FindOrCreate(handle, buffer, kNumChunks);
+  auto tracker = incoming_.FindOrCreate(handle, buffer, kNumChunks);
   std::memcpy(request.laddr, request.raddr, request.len);
   tracker->Set(chunk_t(0));
 }

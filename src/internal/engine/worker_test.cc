@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <thread>  // NOLINT
 #include <utility>
 #include <vector>
 
@@ -18,6 +19,7 @@
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
 #include "src/internal/buffer/buffer_tracker.h"
+#include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/util/util.h"
@@ -32,8 +34,8 @@ using ::testing::Pointwise;
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
 constexpr Buffer kBuffer(0xbeef);
-constexpr uint32_t kNumChunks = 16;
-constexpr uint32_t kChunkSize = 8;
+constexpr uint32_t kNumChunks = 1024;
+constexpr uint32_t kChunkSize = 64;
 constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
 static_assert(kBufSize % kNumChunks != 0);
@@ -43,15 +45,14 @@ class WorkerTest : public ::testing::Test {
   WorkerTest()
       : src_(kBufSize),
         dst_(kBufSize),
-        send_(),
-        recv_(),
-        chs_(ConnectedChannelPair::CreateTcp(AF_INET)),
-        sndr_(send_, recv_, std::move(chs_.sndr)),
-        rcvr_(send_, recv_, std::move(chs_.rcvr)) {
+        chs_(ConnectedChannelPair::CreateTcp(AF_INET6)),
+        sndr_(std::move(chs_.sndr)),
+        rcvr_(std::move(chs_.rcvr)) {
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = Byte(0);
     }
+    DCHECK_NE(src_.data(), dst_.data());
   }
 
   static uint32_t GetChunkSize(uint32_t i) {
@@ -72,35 +73,46 @@ class WorkerTest : public ::testing::Test {
                          .size = GetChunkSize(i)};
   }
 
-  void SendChunks() {
-    static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
-    for (int i = 0; i < kNumChunks; ++i) {
-      const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
-      const Byte* const chunk_src_addr = src_.data() + offset;
-      sndr_.SendChunk(chunk_src_addr, GenChunk(i));
-    }
-  }
+ private:
+  struct Host {
+    BufferTracker outgoing;
+    BufferTracker incoming;
+    Worker worker;
+    explicit Host(std::unique_ptr<Channel> channel)
+        : outgoing(),
+          incoming(),
+          worker(outgoing, incoming, std::move(channel)) {}
+  };
 
  protected:
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
-  BufferTracker send_;
-  BufferTracker recv_;
   ConnectedChannelPair chs_;
-  Worker sndr_;
-  Worker rcvr_;
+  Host sndr_;
+  Host rcvr_;
 };
 
 TEST_F(WorkerTest, SendRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
-  SendChunks();
+  std::jthread s([&]() {
+    for (int i = 0; i < kNumChunks; ++i) {
+      const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
+      const Byte* const chunk_src_addr = src_.data() + offset;
+      sndr_.worker.EnqueueChunk(chunk_src_addr, GenChunk(i));
+    }
+  });
 
-  while (!recv_.IsDone(kHandle)) {
-    absl::SleepFor(absl::Milliseconds(10));
-  }
+  std::jthread r([&]() {
+    while (!rcvr_.incoming.IsDone(kHandle)) {
+      absl::SleepFor(absl::Milliseconds(10));
+    }
+  });
+
+  s.join();
+  r.join();
 
   // Postcondition: dst is the same as src.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));
