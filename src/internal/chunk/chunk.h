@@ -24,7 +24,7 @@ DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
 struct ChunkMetadata final {
   // LINT.IfChange
   Handle handle;     // handle id (fixed)
-  Buffer buffer;     // buffer id (fixed)
+  ReqId reqid;       // request id (fixed)
   uint32_t nchunks;  // total #chunks (fixed)
   chunk_t index;     // chunk index (variable)
   addr_t addr;       // chunk address (variable)
@@ -48,7 +48,7 @@ struct ChunkMetadata final {
 
   // Equality operator.
   friend bool operator==(const ChunkMetadata& a, const ChunkMetadata& b) {
-    return a.handle == b.handle && a.buffer == b.buffer &&
+    return a.handle == b.handle && a.reqid == b.reqid &&
            a.nchunks == b.nchunks && a.index == b.index && a.addr == b.addr &&
            a.size == b.size;
   }

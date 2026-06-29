@@ -4,9 +4,9 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//src/internal:internal_impl"])
 
 cc_library(
-    name = "buffer_tracker",
-    srcs = ["buffer_tracker.cc"],
-    hdrs = ["buffer_tracker.h"],
+    name = "request_tracker",
+    srcs = ["request_tracker.cc"],
+    hdrs = ["request_tracker.h"],
     deps = [
         "//src/api:transport_types",
         "//src/internal/base:types",
@@ -19,10 +19,10 @@ cc_library(
 )
 
 cc_test(
-    name = "buffer_tracker_test",
-    srcs = ["buffer_tracker_test.cc"],
+    name = "request_tracker_test",
+    srcs = ["request_tracker_test.cc"],
     deps = [
-        ":buffer_tracker",
+        ":request_tracker",
         "//src/api:transport_types",
         "//src/internal/chunk",
         "//src/internal/chunk:chunk_test_util",

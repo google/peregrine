@@ -18,8 +18,9 @@ using HashValue = uint64_t;
 // io vector
 using IoVec = ::iovec;
 
-// `Buffer` uniquely identifies a buffer (a contiguous memory space).
-DEFINE_STRONG_INT_TYPE(Buffer, uint32_t);
+// `ReqId` uniquely identifies a read/write request in one process.
+// `Request` is defined in `src/api/transport_types.h`.
+DEFINE_STRONG_INT_TYPE(ReqId, uint32_t);
 
 // Socket file descriptor.
 DEFINE_STRONG_INT_TYPE(fd_t, int);

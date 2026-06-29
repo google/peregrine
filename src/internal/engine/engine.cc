@@ -94,21 +94,18 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
   DCHECK(request.IsValid());
 
   Handle handle;
-  Buffer buffer;
+  ReqId reqid;
   {
     absl::MutexLock _(mu_);
     handle = genHandle();
-    buffer = genBuffer();
+    reqid = genReqId();
   }
-  if (request.op == Op::kWrite) {
-    if (!outgoing_.Add(handle)) return AlreadyExistsError(handle);
-  } else {
-    DCHECK_EQ(request.op, Op::kRead);
-    if (!incoming_.Add(handle)) return AlreadyExistsError(handle);
+  if (!getRequestTracker(request).Add(handle)) {
+    return AlreadyExistsError(handle);
   }
   {
     absl::MutexLock _(mu_);
-    reqs_.emplace_back(peer, handle, buffer, request);
+    reqs_.emplace_back(peer, handle, reqid, request);
   }
   return handle;
 }
@@ -141,12 +138,8 @@ void Engine::mainLoop() {
       reqs_.pop_front();
     }
 
-    // step 2: update the buffer tracker.
-    if (entry.req.op == Op::kWrite) {
-      outgoing_.Add(entry.handle);
-    } else {
-      incoming_.Add(entry.handle);
-    }
+    // step 2: update the request tracker.
+    getRequestTracker(entry.request).Add(entry.handle);
 
     // step 3: process the entry.
     process(entry);
@@ -154,17 +147,16 @@ void Engine::mainLoop() {
 }
 
 void Engine::process(const Entry& entry) {
-  const Request& req = entry.req;
-  if (req.op == Op::kWrite) {
+  if (entry.request.op == Op::kWrite) {
     const int kNumChannels = 1;
     connect(entry.peer, kNumChannels);
     if (workers_.empty()) {
       // TODO(yongx): handle error by failing the request.
       return;
     }
-    processWrite(entry.handle, entry.buffer, req);
+    processWrite(entry.handle, entry.reqid, entry.request);
   } else {
-    processRead(entry.handle, entry.buffer, req);
+    processRead(entry.handle, entry.reqid, entry.request);
   }
 }
 
@@ -174,7 +166,7 @@ uint32_t CalcChunkSize(const size_t len, const uint32_t num_chunks) {
 }
 }  // namespace
 
-void Engine::processWrite(const Handle handle, const Buffer buffer,
+void Engine::processWrite(const Handle handle, const ReqId reqid,
                           const Request& request) {
   const size_t len = request.len;
   const uint32_t nchunks = std::min(workers_.size(), len);
@@ -186,7 +178,7 @@ void Engine::processWrite(const Handle handle, const Buffer buffer,
     const Byte* const chunk_dst_addr = request.raddr + offset;
     const ChunkMetadata chunk = {
         .handle = handle,
-        .buffer = buffer,
+        .reqid = reqid,
         .nchunks = nchunks,
         .index = chunk_t(i),
         .addr = addr_t(reinterpret_cast<uintptr_t>(chunk_dst_addr)),
@@ -196,11 +188,11 @@ void Engine::processWrite(const Handle handle, const Buffer buffer,
   }
 }
 
-void Engine::processRead(const Handle handle, const Buffer buffer,
+void Engine::processRead(const Handle handle, const ReqId reqid,
                          const Request& request) {
   // TODO(yongx): implement read.
   constexpr uint32_t kNumChunks = 1;
-  auto tracker = incoming_.FindOrCreate(handle, buffer, kNumChunks);
+  auto tracker = incoming_.FindOrCreate(handle, reqid, kNumChunks);
   std::memcpy(request.laddr, request.raddr, request.len);
   tracker->Set(chunk_t(0));
 }

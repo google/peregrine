@@ -6,11 +6,11 @@
 
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
-#include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_flatbuf.h"
 #include "src/internal/chunk/chunk_tracker.h"
+#include "src/internal/request/request_tracker.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -23,7 +23,7 @@ class Transfer final {
 
  public:
   // Constructor.
-  Transfer(BufferTracker& outgoing, BufferTracker& incoming)
+  Transfer(RequestTracker& outgoing, RequestTracker& incoming)
       : outgoing_(outgoing), incoming_(incoming) {}
 
   // Disallows copy/move.
@@ -78,8 +78,8 @@ class Transfer final {
   static_assert(ChunkHeader::kSize < kTmpBufSize);
 
  private:
-  BufferTracker& outgoing_;
-  BufferTracker& incoming_;
+  RequestTracker& outgoing_;
+  RequestTracker& incoming_;
 };
 
 }  // namespace peregrine::internal

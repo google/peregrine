@@ -20,10 +20,10 @@
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
-#include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/request/request_tracker.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -38,7 +38,7 @@ using ::testing::TestParamInfo;
 
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
-constexpr Buffer kBuffer(0xbeef);
+constexpr ReqId kReqId(0xbeef);
 constexpr uint32_t kNumChunks = 100;
 constexpr uint32_t kChunkSize = 16;
 constexpr uint32_t kLastChunkSize = kChunkSize - 1;
@@ -78,7 +78,7 @@ class TransferTest : public ::testing::TestWithParam<TestParams> {
     DCHECK_LT(i, kNumChunks);
     return ChunkMetadata{
         .handle = kHandle,
-        .buffer = kBuffer,
+        .reqid = kReqId,
         .nchunks = kNumChunks,
         .index = chunk_t(i),
         .addr =
@@ -101,8 +101,8 @@ class TransferTest : public ::testing::TestWithParam<TestParams> {
 
  private:
   struct Host {
-    BufferTracker outgoing;
-    BufferTracker incoming;
+    RequestTracker outgoing;
+    RequestTracker incoming;
     Transfer xfer;
     Host() : outgoing(), incoming(), xfer(outgoing, incoming) {}
   };

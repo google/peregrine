@@ -16,7 +16,7 @@ struct ChunkHeader {
   // The following fields can change.
   // When they do, the `ver` field must be incremented in the new serializer.
   handle:uint32;
-  buffer:uint32;
+  reqid:uint32;
   nchunks:uint32;
   index:uint32;
   size:uint32;

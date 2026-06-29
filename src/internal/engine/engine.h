@@ -16,9 +16,9 @@
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
-#include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/engine/worker.h"
+#include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/util/util.h"
@@ -50,8 +50,8 @@ class Engine {
   struct Entry {
     Endpoint peer;
     Handle handle;
-    Buffer buffer;
-    Request req;
+    ReqId reqid;
+    Request request;
   };
 
  private:
@@ -71,10 +71,15 @@ class Engine {
     return Handle(util::Random<Handle::ValueType>(bitgen_));
   }
 
-  // Generates a random buffer.
-  Buffer genBuffer() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
-    static_assert(std::is_same_v<Buffer::ValueType, uint32_t>);
-    return Buffer(util::Random<Buffer::ValueType>(bitgen_));
+  // Generates a random request id.
+  ReqId genReqId() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+    static_assert(std::is_same_v<ReqId::ValueType, uint32_t>);
+    return ReqId(util::Random<ReqId::ValueType>(bitgen_));
+  }
+
+  // Returns the tracker for the request.
+  RequestTracker& getRequestTracker(const Request& request) {
+    return request.op == Op::kWrite ? outgoing_ : incoming_;
   }
 
   // Returns true iff there are pending requests or the destructor is called.
@@ -88,11 +93,11 @@ class Engine {
   void process(const Entry& entry) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Processes a write request.
-  void processWrite(Handle handle, Buffer buffer, const Request& request)
+  void processWrite(Handle handle, ReqId reqid, const Request& request)
       ABSL_LOCKS_EXCLUDED(mu_);
 
   // Processes a read request.
-  void processRead(Handle handle, Buffer buffer, const Request& request)
+  void processRead(Handle handle, ReqId reqid, const Request& request)
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
@@ -101,8 +106,8 @@ class Engine {
   absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
   std::deque<Entry> reqs_ ABSL_GUARDED_BY(mu_);
 
-  BufferTracker outgoing_;
-  BufferTracker incoming_;
+  RequestTracker outgoing_;
+  RequestTracker incoming_;
 
   std::unique_ptr<TcpAcceptor> acceptor_;
   std::jthread acceptor_thread_;

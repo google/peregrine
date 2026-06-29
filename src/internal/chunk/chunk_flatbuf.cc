@@ -45,7 +45,7 @@ bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
 
 std::string ChunkHeader::serializeV1(const ChunkMetadata& m) {
   constexpr uint16_t kVer = 1;
-  const flatbuf::ChunkHeader h(kMagic, kVer, m.handle.value(), m.buffer.value(),
+  const flatbuf::ChunkHeader h(kMagic, kVer, m.handle.value(), m.reqid.value(),
                                m.nchunks, m.index.value(), m.size,
                                m.addr.value(), /*paddings=*/0, 0, 0, 0);
   return serialize(h);
@@ -55,7 +55,7 @@ void ChunkHeader::deserializeV1(const flatbuf::ChunkHeader& h,
                                 ChunkMetadata& chunk) {
   DCHECK_EQ(h.ver(), 1);
   chunk.handle = Handle(h.handle());
-  chunk.buffer = Buffer(h.buffer());
+  chunk.reqid = ReqId(h.reqid());
   chunk.nchunks = h.nchunks();
   chunk.index = chunk_t(h.index());
   chunk.addr = addr_t(h.addr());

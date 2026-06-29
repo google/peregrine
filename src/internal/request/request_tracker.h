@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_INTERNAL_BUFFER_BUFFER_TRACKER_H_
-#define PEREGRINE_SRC_INTERNAL_BUFFER_BUFFER_TRACKER_H_
+#ifndef PEREGRINE_SRC_INTERNAL_REQUEST_REQUEST_TRACKER_H_
+#define PEREGRINE_SRC_INTERNAL_REQUEST_REQUEST_TRACKER_H_
 
 #include <cstdint>
 #include <memory>
@@ -14,21 +14,21 @@
 
 namespace peregrine::internal {
 
-// This class tracks chunk departure/arrival for all the buffers and handles.
+// This class tracks chunk departure/arrival for all the requests and handles.
 // It is thread-safe.
-class BufferTracker {
+class RequestTracker {
  public:
   // Constructor.
-  BufferTracker() = default;
+  RequestTracker() = default;
 
   // Disable copy and move.
-  DISALLOW_COPY(BufferTracker);
-  DISALLOW_MOVE(BufferTracker);
+  DISALLOW_COPY(RequestTracker);
+  DISALLOW_MOVE(RequestTracker);
 
   // Destructor.
-  ~BufferTracker() = default;
+  ~RequestTracker() = default;
 
-  // Returns true iff there are no buffers being tracked.
+  // Returns true iff there are no requests being tracked.
   bool IsEmpty() const ABSL_LOCKS_EXCLUDED(mu_);
 
   // Returns the status of the `handle`.
@@ -41,20 +41,20 @@ class BufferTracker {
   // Removes the tracker for the given `handle`.
   void Remove(Handle handle) ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Finds a buffer tracker for the given `handle` and `buffer`.
+  // Finds a request tracker for the given `handle` and `reqid`.
   // If not found, creates a new one with the given `num_chunks`.
   // Returns the (always non-null) tracker pointer.
-  ChunkTracker* FindOrCreate(Handle handle, Buffer buffer, uint32_t num_chunks)
+  ChunkTracker* FindOrCreate(Handle handle, ReqId reqid, uint32_t num_chunks)
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
-  using BufferMap = absl::flat_hash_map<Buffer, std::unique_ptr<ChunkTracker>>;
+  using ReqMap = absl::flat_hash_map<ReqId, std::unique_ptr<ChunkTracker>>;
 
  private:
   mutable absl::Mutex mu_;
-  absl::flat_hash_map<Handle, BufferMap> trackers_ ABSL_GUARDED_BY(mu_);
+  absl::flat_hash_map<Handle, ReqMap> trackers_ ABSL_GUARDED_BY(mu_);
 };
 
 }  // namespace peregrine::internal
 
-#endif  // PEREGRINE_SRC_INTERNAL_BUFFER_BUFFER_TRACKER_H_
+#endif  // PEREGRINE_SRC_INTERNAL_REQUEST_REQUEST_TRACKER_H_

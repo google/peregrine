@@ -13,7 +13,7 @@ namespace peregrine::internal::testing {
 
 void GenChunkMetadata(ChunkMetadata& chunk, const chunk_t index) {
   chunk.handle = kHandle;
-  chunk.buffer = kBuffer;
+  chunk.reqid = kReqId;
   chunk.nchunks = kNumChunks;
   chunk.index = index;
   chunk.addr = addr_t(kBufferBaseAddr.value() + index.value() * kChunkSize);
@@ -28,7 +28,7 @@ ChunkMetadata GenChunkMetadata(const chunk_t index) {
 
 void GenChunkMetadata(absl::BitGen& bitgen, ChunkMetadata& chunk) {
   chunk.handle = Handle(util::Random<Handle::ValueType>(bitgen));
-  chunk.buffer = Buffer(util::Random<Buffer::ValueType>(bitgen));
+  chunk.reqid = ReqId(util::Random<ReqId::ValueType>(bitgen));
   chunk.nchunks = util::Random<uint32_t>(bitgen, 1, 0xffff'ffff);
   chunk.index = chunk_t(util::Random<uint32_t>(bitgen, 0, chunk.nchunks - 1));
   chunk.addr = addr_t(util::Random<addr_t::ValueType>(bitgen));

@@ -9,15 +9,15 @@
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 #include "src/api/transport_types.h"
-#include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/request/request_tracker.h"
 
 namespace peregrine::internal {
 
 constexpr std::string_view kWorker = "worker ";
 
-Worker::Worker(BufferTracker& outgoing, BufferTracker& incoming,
+Worker::Worker(RequestTracker& outgoing, RequestTracker& incoming,
                std::unique_ptr<Channel> channel)
     : stop_(false),
       chunks_(),

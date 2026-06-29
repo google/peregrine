@@ -8,10 +8,10 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "src/api/transport_types.h"
-#include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/engine/transfer.h"
+#include "src/internal/request/request_tracker.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -22,7 +22,7 @@ namespace peregrine::internal {
 class Worker {
  public:
   // Constructor.
-  Worker(BufferTracker& outgoing, BufferTracker& incoming,
+  Worker(RequestTracker& outgoing, RequestTracker& incoming,
          std::unique_ptr<Channel> channel);
 
   // Disallows copy and assign.

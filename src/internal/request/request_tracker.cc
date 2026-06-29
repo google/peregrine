@@ -1,4 +1,4 @@
-#include "src/internal/buffer/buffer_tracker.h"
+#include "src/internal/request/request_tracker.h"
 
 #include <cstdint>
 #include <memory>
@@ -12,12 +12,12 @@
 
 namespace peregrine::internal {
 
-bool BufferTracker::IsEmpty() const {
+bool RequestTracker::IsEmpty() const {
   absl::MutexLock _(mu_);
   return trackers_.empty();
 }
 
-Status BufferTracker::Check(const Handle handle) const {
+Status RequestTracker::Check(const Handle handle) const {
   absl::MutexLock _(mu_);
   const auto it = trackers_.find(handle);
   if ABSL_PREDICT_FALSE (it == trackers_.end()) {
@@ -26,28 +26,28 @@ Status BufferTracker::Check(const Handle handle) const {
   if (it->second.empty()) {
     return Status::kInProgress;
   }
-  for (const auto& [buffer, tracker] : it->second) {
+  for (const auto& [request, tracker] : it->second) {
     if (!tracker->IsDone()) return Status::kInProgress;
   }
   return Status::kSuccess;
 }
 
-bool BufferTracker::Add(const Handle handle) {
+bool RequestTracker::Add(const Handle handle) {
   absl::MutexLock _(mu_);
-  return trackers_.try_emplace(handle, BufferMap()).second;
+  return trackers_.try_emplace(handle, ReqMap()).second;
 }
 
-void BufferTracker::Remove(const Handle handle) {
+void RequestTracker::Remove(const Handle handle) {
   absl::MutexLock _(mu_);
   trackers_.erase(handle);
 }
 
-ChunkTracker* BufferTracker::FindOrCreate(const Handle handle,
-                                          const Buffer buffer,
-                                          const uint32_t num_chunks) {
+ChunkTracker* RequestTracker::FindOrCreate(const Handle handle,
+                                           const ReqId reqid,
+                                           const uint32_t num_chunks) {
   absl::MutexLock _(mu_);
-  BufferMap& buffer_map = trackers_[handle];
-  std::unique_ptr<ChunkTracker>& tracker = buffer_map[buffer];
+  ReqMap& map = trackers_[handle];
+  std::unique_ptr<ChunkTracker>& tracker = map[reqid];
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     tracker = std::make_unique<ChunkTracker>(num_chunks);
   }

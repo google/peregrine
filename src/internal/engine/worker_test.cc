@@ -18,10 +18,10 @@
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
-#include "src/internal/buffer/buffer_tracker.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/request/request_tracker.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -33,7 +33,7 @@ using ::testing::Pointwise;
 
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
-constexpr Buffer kBuffer(0xbeef);
+constexpr ReqId kReqId(0xbeef);
 constexpr uint32_t kNumChunks = 1024;
 constexpr uint32_t kChunkSize = 64;
 constexpr uint32_t kLastChunkSize = kChunkSize - 1;
@@ -66,7 +66,7 @@ class WorkerTest : public ::testing::Test {
     const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
     const addr_t dst_chunk_addr(dst_buffer_addr + offset);
     return ChunkMetadata{.handle = kHandle,
-                         .buffer = kBuffer,
+                         .reqid = kReqId,
                          .nchunks = kNumChunks,
                          .index = chunk_t(i),
                          .addr = dst_chunk_addr,
@@ -75,8 +75,8 @@ class WorkerTest : public ::testing::Test {
 
  private:
   struct Host {
-    BufferTracker outgoing;
-    BufferTracker incoming;
+    RequestTracker outgoing;
+    RequestTracker incoming;
     Worker worker;
     explicit Host(std::unique_ptr<Channel> channel)
         : outgoing(),
