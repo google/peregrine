@@ -14,18 +14,6 @@ cc_library(
 )
 
 cc_library(
-    name = "channel_util",
-    hdrs = ["channel_util.h"],
-    deps = [
-        ":channel",
-        ":channel_tcp",
-        ":channel_udp",
-        "//src/internal/socket:socket_tcp",
-        "//src/internal/socket:socket_udp",
-    ],
-)
-
-cc_library(
     name = "channel_test_util",
     testonly = True,
     srcs = ["channel_test_util.cc"],
@@ -128,6 +116,38 @@ cc_test(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "channel_util",
+    srcs = ["channel_util.cc"],
+    hdrs = ["channel_util.h"],
+    deps = [
+        ":channel",
+        ":channel_tcp",
+        ":channel_udp",
+        "//src/internal/base:endpoint",
+        "//src/internal/socket:connector",
+        "//src/internal/socket:socket_tcp",
+        "//src/internal/socket:socket_udp",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "channel_util_test",
+    srcs = ["channel_util_test.cc"],
+    deps = [
+        ":channel_util",
+        "//src/internal/base:endpoint",
+        "//src/internal/socket:acceptor",
+        "//src/internal/socket:socket_tcp",
+        "//src/internal/util:test_util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
 )

@@ -3,7 +3,9 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
+#include "src/internal/base/endpoint.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_tcp.h"
 #include "src/internal/channel/channel_udp.h"
@@ -23,6 +25,11 @@ inline std::unique_ptr<Channel> CreateUdpChannel(
     std::unique_ptr<UdpSocket> socket) {
   return std::make_unique<UdpChannel>(std::move(socket));
 }
+
+using Channels = std::vector<std::unique_ptr<Channel>>;
+
+// Creates a number of channels connected to the peer.
+Channels Create(const Endpoint& peer, int num_channels);
 
 }  // namespace peregrine::internal
 

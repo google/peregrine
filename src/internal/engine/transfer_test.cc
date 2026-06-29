@@ -34,7 +34,6 @@ using ChannelType::kUnreliableMessage;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
-using ::testing::TestParamInfo;
 
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
@@ -45,9 +44,9 @@ constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
 static_assert(kBufSize % kNumChunks != 0);
 
-using TestParams = std::tuple<ChannelType>;
+using Param = std::tuple<ChannelType>;
 
-std::string ToString(const TestParamInfo<TestParams>& info) {
+std::string ToString(const ::testing::TestParamInfo<Param>& info) {
   const ChannelType type = std::get<0>(info.param);
   switch (type) {
     case kReliableStream:
@@ -59,7 +58,7 @@ std::string ToString(const TestParamInfo<TestParams>& info) {
   }
 }
 
-class TransferTest : public ::testing::TestWithParam<TestParams> {
+class TransferTest : public ::testing::TestWithParam<Param> {
  protected:
   TransferTest() : src_(kBufSize), dst_(kBufSize), a_(), b_() {
     for (int i = 0; i < kBufSize; ++i) {

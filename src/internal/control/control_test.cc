@@ -18,15 +18,15 @@
 namespace peregrine::internal::testing {
 namespace {
 
-using TestParams = std::tuple</*family=*/int>;
+using Param = std::tuple</*family=*/int>;
 
-std::string ToString(const ::testing::TestParamInfo<TestParams>& info) {
+std::string ToString(const ::testing::TestParamInfo<Param>& info) {
   const int family = std::get<0>(info.param);
   DCHECK(family == AF_INET || family == AF_INET6);
-  return absl::StrCat("IPv", family == AF_INET ? "4" : "6");
+  return absl::StrCat("ControlTest_ipv", family == AF_INET ? "4" : "6");
 }
 
-class ControlTest : public ::testing::TestWithParam<TestParams> {
+class ControlTest : public ::testing::TestWithParam<Param> {
  protected:
   ControlTest()
       : family_(std::get<0>(GetParam())),
