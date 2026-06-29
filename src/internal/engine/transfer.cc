@@ -20,7 +20,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_flatbuf.h"
-#include "src/internal/chunk/tracker.h"
+#include "src/internal/chunk/chunk_tracker.h"
 
 namespace peregrine::internal {
 
@@ -54,7 +54,7 @@ bool Transfer::deserialize(Byte* header, ChunkMetadata& chunk) {
   return ChunkHeader::Deserialize(s, chunk) && chunk.IsValid();
 }
 
-Tracker* Transfer::getTracker(const ChunkMetadata& chunk) const {
+ChunkTracker* Transfer::getChunkTracker(const ChunkMetadata& chunk) const {
   BufferTracker& t = chunk.IsAck() ? outgoing_ : incoming_;
   return t.FindOrCreate(chunk.handle, chunk.buffer, chunk.nchunks);
 }
@@ -91,7 +91,7 @@ bool Transfer::recvChunkStream(Channel* const channel) {
   }
 
   // Step 3: find chunk tracker.
-  Tracker* const tracker = getTracker(chunk);
+  ChunkTracker* const tracker = getChunkTracker(chunk);
   DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();
@@ -149,7 +149,7 @@ bool Transfer::recvChunkMsg(Channel* const channel) {
   }
 
   // Step 4: find chunk tracker.
-  Tracker* const tracker = getTracker(chunk);
+  ChunkTracker* const tracker = getChunkTracker(chunk);
   DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker: " << chunk.buffer.value();

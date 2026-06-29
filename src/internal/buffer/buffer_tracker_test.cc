@@ -7,7 +7,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_test_util.h"
-#include "src/internal/chunk/tracker.h"
+#include "src/internal/chunk/chunk_tracker.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -25,7 +25,7 @@ class BufferTrackerTest : public ::testing::Test {
 
 TEST_F(BufferTrackerTest, Send) {
   ASSERT_TRUE(tracker_.Add(kHandle));
-  Tracker* send = tracker_.FindOrCreate(kHandle, kBuffer, kNumChunks);
+  ChunkTracker* send = tracker_.FindOrCreate(kHandle, kBuffer, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(tracker_.Check(kHandle), Status::kInProgress);
@@ -41,7 +41,7 @@ TEST_F(BufferTrackerTest, Send) {
 
 TEST_F(BufferTrackerTest, Recv) {
   ASSERT_TRUE(tracker_.Add(kHandle));
-  Tracker* recv = tracker_.FindOrCreate(kHandle, kBuffer, kNumChunks);
+  ChunkTracker* recv = tracker_.FindOrCreate(kHandle, kBuffer, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(tracker_.Check(kHandle), Status::kInProgress);

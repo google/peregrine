@@ -10,7 +10,6 @@
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "src/internal/chunk/chunk.h"
-#include "src/internal/chunk/tracker.h"
 #include "src/internal/lib/bitset.h"
 #include "src/util/macro.h"
 
@@ -45,7 +44,7 @@ namespace peregrine::internal {
 // other writers can attempt to write the chunk again.
 //
 // This class is thread-safe.
-class ChunkTracker final : public Tracker {
+class ChunkTracker final {
  public:
   // Constructs a tracker with `total_num_chunks` chunk states.
   explicit ChunkTracker(uint32_t total_num_chunks);

@@ -44,7 +44,7 @@ cc_library(
         "//src/internal/channel",
         "//src/internal/chunk",
         "//src/internal/chunk:chunk_flatbuf",
-        "//src/internal/chunk:tracker",
+        "//src/internal/chunk:chunk_tracker",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",

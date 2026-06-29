@@ -9,7 +9,6 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/chunk/chunk_tracker.h"
-#include "src/internal/chunk/tracker.h"
 
 namespace peregrine::internal {
 
@@ -43,11 +42,12 @@ void BufferTracker::Remove(const Handle handle) {
   trackers_.erase(handle);
 }
 
-Tracker* BufferTracker::FindOrCreate(const Handle handle, const Buffer buffer,
-                                     const uint32_t num_chunks) {
+ChunkTracker* BufferTracker::FindOrCreate(const Handle handle,
+                                          const Buffer buffer,
+                                          const uint32_t num_chunks) {
   absl::MutexLock _(mu_);
   BufferMap& buffer_map = trackers_[handle];
-  std::unique_ptr<Tracker>& tracker = buffer_map[buffer];
+  std::unique_ptr<ChunkTracker>& tracker = buffer_map[buffer];
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     tracker = std::make_unique<ChunkTracker>(num_chunks);
   }

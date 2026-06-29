@@ -9,7 +9,7 @@
 #include "absl/synchronization/mutex.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
-#include "src/internal/chunk/tracker.h"
+#include "src/internal/chunk/chunk_tracker.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -44,11 +44,11 @@ class BufferTracker {
   // Finds a buffer tracker for the given `handle` and `buffer`.
   // If not found, creates a new one with the given `num_chunks`.
   // Returns the (always non-null) tracker pointer.
-  Tracker* FindOrCreate(Handle handle, Buffer buffer, uint32_t num_chunks)
+  ChunkTracker* FindOrCreate(Handle handle, Buffer buffer, uint32_t num_chunks)
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
-  using BufferMap = absl::flat_hash_map<Buffer, std::unique_ptr<Tracker>>;
+  using BufferMap = absl::flat_hash_map<Buffer, std::unique_ptr<ChunkTracker>>;
 
  private:
   mutable absl::Mutex mu_;

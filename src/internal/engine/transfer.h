@@ -10,7 +10,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_flatbuf.h"
-#include "src/internal/chunk/tracker.h"
+#include "src/internal/chunk/chunk_tracker.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -56,8 +56,8 @@ class Transfer final {
   // Deserializes chunk metadata and returns true iff the chunk is valid.
   static bool deserialize(Byte* header, ChunkMetadata& chunk);
 
-  // Returns the send or recv tracker for the given chunk.
-  Tracker* getTracker(const ChunkMetadata& chunk) const;
+  // Returns the outgoing or incoming chunk tracker for the given chunk.
+  ChunkTracker* getChunkTracker(const ChunkMetadata& chunk) const;
 
   // Sends an ack chunk with no payload to the channel.
   bool sendAck(Channel* channel, ChunkMetadata& chunk);
