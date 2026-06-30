@@ -1,4 +1,4 @@
-#include "test/benchmark/pg.h"
+#include "test/benchmark/peregrine_util.h"
 
 #include <sys/socket.h>
 
@@ -49,9 +49,8 @@ std::string GetEndpoint(bool ipv4, uint16_t port) {
 
 void RunRcvr(bool ipv4, uint16_t port, uint64_t xfer_size) {
   // Allocate buffer and fill with zeros.
-  const std::vector<Byte> buffer(xfer_size, 0);
-  DCHECK(
-      std::all_of(buffer.begin(), buffer.end(), [](Byte b) { return b == 0; }));
+  const std::vector<Byte> buf(xfer_size, 0);
+  DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b == 0; }));
 
   // Create transport.
   const std::string self = GetEndpoint(ipv4, port);
@@ -65,7 +64,7 @@ void RunRcvr(bool ipv4, uint16_t port, uint64_t xfer_size) {
       "Buffer size : %s\n"
       "Listening at: %s\n"
       "Press Ctrl+C to terminate.",
-      buffer.data(), ToString(buffer.size()), self);
+      buf.data(), ToString(buf.size()), self);
 
   // Wait indefinitely.
   while (true) {
@@ -76,10 +75,9 @@ void RunRcvr(bool ipv4, uint16_t port, uint64_t xfer_size) {
 void RunSndr(bool ipv4, uint16_t port, uint64_t xfer_size,
              std::string_view peer, void* raddr, uint32_t num_xfers) {
   // Allocate buffer and fill with non-zero data.
-  std::vector<Byte> buffer(xfer_size);
-  RandomNonZero(absl::MakeSpan(buffer));
-  DCHECK(
-      std::all_of(buffer.begin(), buffer.end(), [](Byte b) { return b != 0; }));
+  std::vector<Byte> buf(xfer_size);
+  RandomNonZero(absl::MakeSpan(buf));
+  DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b != 0; }));
 
   // Create transport.
   const std::string self = GetEndpoint(ipv4, port);
@@ -94,8 +92,8 @@ void RunSndr(bool ipv4, uint16_t port, uint64_t xfer_size,
       "Buffer hash : 0x%x\n"
       "Listening at: %s\n"
       "Sending to  : %s at raddr %p\n",
-      buffer.data(), ToString(buffer.size()), util::CalcXxh64Hash(buffer), self,
-      peer, raddr);
+      buf.data(), ToString(buf.size()), util::CalcXxh64Hash(buf), self, peer,
+      raddr);
 
   uint64_t total_bytes = 0;
   absl::Duration total_dur = absl::ZeroDuration();
@@ -105,7 +103,7 @@ void RunSndr(bool ipv4, uint16_t port, uint64_t xfer_size,
     // Post a request.
     const Request req = {
         .op = Op::kWrite,
-        .laddr = buffer.data(),
+        .laddr = buf.data(),
         .raddr = reinterpret_cast<Byte*>(raddr),
         .len = static_cast<size_t>(xfer_size),
     };

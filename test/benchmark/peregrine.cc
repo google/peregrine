@@ -6,7 +6,7 @@
 #include "absl/flags/parse.h"
 #include "absl/log/initialize.h"
 #include "test/benchmark/flags.h"
-#include "test/benchmark/pg.h"
+#include "test/benchmark/peregrine_util.h"
 #include "test/benchmark/types.h"
 
 namespace {

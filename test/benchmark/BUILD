@@ -46,9 +46,9 @@ cc_test(
 )
 
 cc_library(
-    name = "pg",
-    srcs = ["pg.cc"],
-    hdrs = ["pg.h"],
+    name = "peregrine_util",
+    srcs = ["peregrine_util.cc"],
+    hdrs = ["peregrine_util.h"],
     deps = [
         ":types",
         "//src/api:transport",
@@ -65,11 +65,11 @@ cc_library(
 )
 
 cc_binary(
-    name = "pg_2node",
-    srcs = ["pg_2node.cc"],
+    name = "peregrine",
+    srcs = ["peregrine.cc"],
     deps = [
         ":flags",
-        ":pg",
+        ":peregrine_util",
         ":types",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",

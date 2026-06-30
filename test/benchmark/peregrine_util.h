@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_TEST_BENCHMARK_PG_H_
-#define PEREGRINE_TEST_BENCHMARK_PG_H_
+#ifndef PEREGRINE_TEST_BENCHMARK_PEREGRINE_UTIL_H_
+#define PEREGRINE_TEST_BENCHMARK_PEREGRINE_UTIL_H_
 
 #include <stdint.h>
 
@@ -16,4 +16,4 @@ void RunSndr(bool ipv4, uint16_t port, uint64_t xfer_size,
 
 }  // namespace peregrine::benchmark
 
-#endif  // PEREGRINE_TEST_BENCHMARK_PG_H_
+#endif  // PEREGRINE_TEST_BENCHMARK_PEREGRINE_UTIL_H_
