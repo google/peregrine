@@ -79,6 +79,7 @@ cc_library(
     deps = [
         ":transfer",
         "//src/api:transport_types",
+        "//src/internal/base:endpoint",
         "//src/internal/channel",
         "//src/internal/chunk",
         "//src/internal/request:request_tracker",
@@ -97,6 +98,7 @@ cc_test(
         ":worker",
         "//src/api:transport_types",
         "//src/internal:assumptions",
+        "//src/internal/base:endpoint",
         "//src/internal/base:types",
         "//src/internal/channel",
         "//src/internal/channel:channel_test_util",
@@ -105,6 +107,7 @@ cc_test(
         "//src/util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],

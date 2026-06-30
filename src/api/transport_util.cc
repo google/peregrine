@@ -34,7 +34,7 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
   }
 
   const int n = std::min(std::max(1, num_conns_per_peer), 100);
-  return std::make_unique<TransportImpl>(std::move(acceptor), n);
+  return std::make_unique<TransportImpl>(std::move(acceptor), self, n);
 }
 
 }  // namespace peregrine

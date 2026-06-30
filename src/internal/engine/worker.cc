@@ -9,33 +9,39 @@
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 #include "src/api/transport_types.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
 
 namespace peregrine::internal {
 
-constexpr std::string_view kWorker = "worker ";
+void Worker::log(std::string_view msg) const {
+  LOG(INFO) << "worker #" << id_ << " " << msg << " @ " << self_;
+}
 
-Worker::Worker(RequestTracker& outgoing, RequestTracker& incoming,
-               std::unique_ptr<Channel> channel)
-    : stop_(false),
+Worker::Worker(const Endpoint& self, int id, RequestTracker& outgoing,
+               RequestTracker& incoming, std::unique_ptr<Channel> channel)
+    : self_(self),
+      id_(id),
+      stop_(false),
       chunks_(),
       xfer_(outgoing, incoming),
       channel_(std::move(channel)) {
   DCHECK_NE(channel_, nullptr);
   send_thread_ = std::jthread([this]() { SendLoop(); });
   recv_thread_ = std::jthread([this]() { RecvLoop(); });
-  LOG(INFO) << kWorker << "created @ " << this;
+  log("created");
 }
 
 Worker::~Worker() {
   {
     absl::MutexLock _(mu_);
     stop_ = true;
+    channel_->Shutdown();
   }
   // all threads are joined in their destructor.
-  LOG(INFO) << kWorker << "destroyed @ " << this;
+  log("destroyed");
 }
 
 void Worker::EnqueueChunk(const Byte* const chunk_src_addr,
@@ -51,15 +57,14 @@ void Worker::EnqueueChunk(const Byte* const chunk_src_addr,
 bool Worker::hasSendWork() const { return !chunks_.empty() || stop_; }
 
 void Worker::SendLoop() {
-  LOG(INFO) << kWorker << "send loop @ " << this;
+  log("send loop started");
   while (true) {
     Entry entry;
     {
       absl::MutexLock _(mu_);
       mu_.Await(absl::Condition(this, &Worker::hasSendWork));
       if (chunks_.empty()) {
-        channel_->Shutdown();
-        LOG(INFO) << kWorker << "send loop stopped @ " << this;
+        log("send loop stopped");
         DCHECK(stop_);
         return;
       }
@@ -72,26 +77,25 @@ void Worker::SendLoop() {
     const auto payload = entry.GenPayload();
     if (!xfer_.SendChunk(channel_.get(), chunk, payload)) {
       // TODO(yongx): Handle errors.
-      LOG(WARNING) << kWorker << "send chunk failed @ " << this;
+      log("send chunk failed");
       break;
     }
   }
 }
 
 void Worker::RecvLoop() {
-  LOG(INFO) << kWorker << "recv loop @ " << this;
+  log("recv loop started");
   while (true) {
     {
       absl::MutexLock _(mu_);
       if (stop_) {
-        channel_->Shutdown();
-        LOG(INFO) << kWorker << "recv loop stopped @ " << this;
+        log("recv loop stopped");
         return;
       }
     }
     if (!xfer_.RecvChunk(channel_.get())) {
       // TODO(yongx): Handle errors.
-      LOG(WARNING) << kWorker << "recv chunk failed @ " << this;
+      log("recv chunk failed");
       break;
     }
   }

@@ -3,11 +3,13 @@
 
 #include <deque>
 #include <memory>
+#include <string_view>
 #include <thread>  // NOLINT
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "src/api/transport_types.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/engine/transfer.h"
@@ -22,8 +24,8 @@ namespace peregrine::internal {
 class Worker {
  public:
   // Constructor.
-  Worker(RequestTracker& outgoing, RequestTracker& incoming,
-         std::unique_ptr<Channel> channel);
+  Worker(const Endpoint& self, int id, RequestTracker& outgoing,
+         RequestTracker& incoming, std::unique_ptr<Channel> channel);
 
   // Disallows copy and assign.
   DISALLOW_COPY(Worker);
@@ -46,6 +48,9 @@ class Worker {
   // Returns true iff there are pending chunks or the destructor is called.
   bool hasSendWork() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
+  // Logs a message.
+  void log(std::string_view msg) const;
+
  private:
   struct Entry {
     const Byte* chunk_src_addr;
@@ -58,6 +63,9 @@ class Worker {
   };
 
  private:
+  const Endpoint self_;
+  const int id_;
+
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);
   std::deque<Entry> chunks_ ABSL_GUARDED_BY(mu_);

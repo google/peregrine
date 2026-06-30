@@ -13,10 +13,12 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/random/random.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
@@ -46,8 +48,10 @@ class WorkerTest : public ::testing::Test {
       : src_(kBufSize),
         dst_(kBufSize),
         chs_(ConnectedChannelPair::CreateTcp(AF_INET6)),
-        sndr_(std::move(chs_.sndr)),
-        rcvr_(std::move(chs_.rcvr)) {
+        s_(Endpoint::Create("[::1]:10005")),
+        r_(Endpoint::Create("[::1]:10000")),
+        sndr_(s_, 5, std::move(chs_.sndr)),
+        rcvr_(r_, 0, std::move(chs_.rcvr)) {
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = Byte(0);
@@ -78,10 +82,11 @@ class WorkerTest : public ::testing::Test {
     RequestTracker outgoing;
     RequestTracker incoming;
     Worker worker;
-    explicit Host(std::unique_ptr<Channel> channel)
+    explicit Host(const Endpoint& self, int id,
+                  std::unique_ptr<Channel> channel)
         : outgoing(),
           incoming(),
-          worker(outgoing, incoming, std::move(channel)) {}
+          worker(self, id, outgoing, incoming, std::move(channel)) {}
   };
 
  protected:
@@ -89,6 +94,8 @@ class WorkerTest : public ::testing::Test {
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
   ConnectedChannelPair chs_;
+  const Endpoint s_;
+  const Endpoint r_;
   Host sndr_;
   Host rcvr_;
 };
@@ -97,17 +104,22 @@ TEST_F(WorkerTest, SendRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
+  absl::Notification done;
   std::jthread s([&]() {
-    for (int i = 0; i < kNumChunks; ++i) {
-      const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
-      const Byte* const chunk_src_addr = src_.data() + offset;
-      sndr_.worker.EnqueueChunk(chunk_src_addr, GenChunk(i));
+    while (sndr_.outgoing.Check(kHandle) != Status::kSuccess) {
+      for (int i = 0; i < kNumChunks; ++i) {
+        const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
+        const Byte* const chunk_src_addr = src_.data() + offset;
+        sndr_.worker.EnqueueChunk(chunk_src_addr, GenChunk(i));
+      }
+      absl::SleepFor(absl::Milliseconds(100));
     }
+    done.Notify();
   });
 
   std::jthread r([&]() {
-    while (rcvr_.incoming.Check(kHandle) != Status::kSuccess) {
-      absl::SleepFor(absl::Milliseconds(10));
+    while (!done.HasBeenNotified()) {
+      absl::SleepFor(absl::Milliseconds(100));
     }
   });
 

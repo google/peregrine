@@ -41,9 +41,11 @@ absl::Status NotFoundError(const Handle h) {
 }
 }  // namespace
 
-Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, int num_conns_per_peer)
-    : num_conns_per_peer_(num_conns_per_peer),
-      stopping_(false),
+Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, const Endpoint& self,
+               int num_conns_per_peer)
+    : self_(self),
+      num_conns_per_peer_(num_conns_per_peer),
+      stop_(false),
       acceptor_(std::move(acceptor)) {
   DCHECK_GE(num_conns_per_peer_, 1);
   DCHECK_LE(num_conns_per_peer_, 100);
@@ -60,23 +62,25 @@ Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, int num_conns_per_peer)
   // Start a main loop thread.
   main_thread_ = std::jthread([this]() { mainLoop(); });
 
-  LOG(INFO) << kEngine << "created @ " << this;
+  LOG(INFO) << kEngine << "created @ " << self_;
 }
 
 Engine::~Engine() {
   {
     absl::MutexLock _(mu_);
     acceptor_->Stop();
-    stopping_ = true;
+    stop_ = true;
   }
   // all threads are joined in their destructor.
-  LOG(INFO) << kEngine << "destroyed @ " << this;
+  LOG(INFO) << kEngine << "destroyed @ " << self_;
 }
 
 void Engine::accept(std::unique_ptr<TcpSocket> socket) {
   DCHECK_NE(socket, nullptr);
   std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-  addWorker(std::move(ch));
+  auto rw = std::make_unique<Worker>(self_, -(1 + recv_workers_.size()),
+                                     outgoing_, incoming_, std::move(ch));
+  recv_workers_.push_back(std::move(rw));
 }
 
 void Engine::connect(const Endpoint& peer, int num_channels) {
@@ -84,14 +88,11 @@ void Engine::connect(const Endpoint& peer, int num_channels) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
     if (socket == nullptr) continue;
     std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-    addWorker(std::move(ch));
-    if (workers_.size() >= num_channels) break;
+    auto sw = std::make_unique<Worker>(self_, 1 + send_workers_.size(),
+                                       outgoing_, incoming_, std::move(ch));
+    send_workers_.push_back(std::move(sw));
+    if (send_workers_.size() >= num_channels) break;
   }
-}
-
-void Engine::addWorker(std::unique_ptr<Channel> ch) {
-  auto worker = std::make_unique<Worker>(outgoing_, incoming_, std::move(ch));
-  workers_.push_back(std::move(worker));
 }
 
 absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
@@ -127,7 +128,7 @@ absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
   return NotFoundError(handle);
 }
 
-bool Engine::hasWork() const { return !reqs_.empty() || stopping_; }
+bool Engine::hasWork() const { return !reqs_.empty() || stop_; }
 
 void Engine::mainLoop() {
   while (true) {
@@ -136,7 +137,7 @@ void Engine::mainLoop() {
       absl::MutexLock _(mu_);
       mu_.Await(absl::Condition(this, &Engine::hasWork));
       if (reqs_.empty()) {
-        DCHECK(stopping_);  // destructor called
+        DCHECK(stop_);  // destructor called
         return;
       }
       entry = std::move(reqs_.front());
@@ -154,7 +155,7 @@ void Engine::mainLoop() {
 void Engine::process(const Entry& entry) {
   if (entry.request.op == Op::kWrite) {
     connect(entry.peer, num_conns_per_peer_);
-    if (workers_.empty()) {
+    if (send_workers_.empty()) {
       // TODO(yongx): handle error by failing the request.
       return;
     }
@@ -173,7 +174,7 @@ uint32_t CalcChunkSize(const size_t len, const uint32_t num_chunks) {
 void Engine::processWrite(const Handle handle, const ReqId reqid,
                           const Request& request) {
   const size_t len = request.len;
-  const uint32_t nchunks = std::min(workers_.size(), len);
+  const uint32_t nchunks = std::min(send_workers_.size(), len);
   const uint32_t size = CalcChunkSize(len, nchunks);
   DCHECK_GE(size, 1);
   uint64_t offset = 0;
@@ -188,7 +189,7 @@ void Engine::processWrite(const Handle handle, const ReqId reqid,
         .addr = addr_t(reinterpret_cast<uintptr_t>(chunk_dst_addr)),
         .size = i < nchunks - 1 ? size : static_cast<uint32_t>(len - offset),
     };
-    workers_[i]->EnqueueChunk(chunk_src_addr, chunk);
+    send_workers_[i]->EnqueueChunk(chunk_src_addr, chunk);
   }
 }
 

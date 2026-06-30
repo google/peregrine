@@ -123,10 +123,13 @@ TEST_P(TransferTest, SendRecv) {
   const ChannelType type = std::get<0>(param);
   const ConnectedChannelPair chs = CreateChannelPair(type);
 
+  // Completion means A's send is done since B acks A's data chunks.
+  auto done = [this]() { return a_.xfer.IsSendDone(kHandle); };
+
   // A sends data chunks to B.
   std::thread a_send([&]() {
     Channel* const channel = chs.sndr.get();
-    while (!a_.xfer.IsSendDone(kHandle)) {
+    while (!done()) {
       for (uint32_t i = 0; i < kNumChunks; ++i) {
         const ChunkMetadata chunk = GenChunk(i);
         const ChunkPayloadView payload = GenPayload(i);
@@ -137,7 +140,7 @@ TEST_P(TransferTest, SendRecv) {
   // A receives ack chunks from B.
   std::thread a_recv([&]() {
     Channel* const channel = chs.sndr.get();
-    while (!a_.xfer.IsSendDone(kHandle)) {
+    while (!done()) {
       a_.xfer.RecvChunk(channel);
     }
   });
@@ -145,7 +148,7 @@ TEST_P(TransferTest, SendRecv) {
   // B receives data chunks from A (and sends ack chunks to A).
   std::thread b_recv([&]() {
     Channel* const channel = chs.rcvr.get();
-    while (!b_.xfer.IsRecvDone(kHandle)) {
+    while (!done()) {
       b_.xfer.RecvChunk(channel);
     }
   });

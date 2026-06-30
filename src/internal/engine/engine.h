@@ -16,7 +16,6 @@
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
-#include "src/internal/channel/channel.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
@@ -35,7 +34,7 @@ class Engine {
 
  public:
   // Constructor.
-  explicit Engine(std::unique_ptr<TcpAcceptor> acceptor,
+  explicit Engine(std::unique_ptr<TcpAcceptor> acceptor, const Endpoint& self,
                   int num_conns_per_peer);
 
   // Destructor.
@@ -61,9 +60,6 @@ class Engine {
 
   // Connects to the `peer` with the given #channels.
   void connect(const Endpoint& peer, int num_channels);
-
-  // Adds a worker with the given channel `ch`.
-  void addWorker(std::unique_ptr<Channel> ch);
 
  private:
   // Generates a random handle.
@@ -102,10 +98,11 @@ class Engine {
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
+  const Endpoint self_;
   const int num_conns_per_peer_;
 
   absl::Mutex mu_;
-  bool stopping_ ABSL_GUARDED_BY(mu_);
+  bool stop_ ABSL_GUARDED_BY(mu_);
   absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
   std::deque<Entry> reqs_ ABSL_GUARDED_BY(mu_);
 
@@ -115,7 +112,8 @@ class Engine {
   std::unique_ptr<TcpAcceptor> acceptor_;
   std::jthread acceptor_thread_;
   std::jthread main_thread_;
-  std::vector<std::unique_ptr<Worker>> workers_;
+  std::vector<std::unique_ptr<Worker>> send_workers_;
+  std::vector<std::unique_ptr<Worker>> recv_workers_;
 };
 
 }  // namespace peregrine::internal
