@@ -27,8 +27,7 @@ class SimpleTest : public testing::Test {
       : partial_(kBufSize / 2),
         l_(kBufSize, kNumConnsPerPeer),
         r_(kBufSize, kNumConnsPerPeer) {
-    DCHECK_GE(partial_, 1);
-    DCHECK_GE(l_.DataSize() - partial_, 1);
+    CHECK(1 <= partial_ && partial_ < l_.DataSize());
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
   }
 
@@ -36,7 +35,7 @@ class SimpleTest : public testing::Test {
     while (true) {
       ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
       if (IsCompleted(s)) {
-        EXPECT_EQ(s, Status::kSuccess);
+        CHECK_EQ(s, Status::kSuccess);
         break;
       }
       absl::SleepFor(absl::Milliseconds(100));
@@ -58,7 +57,7 @@ TEST_F(SimpleTest, Read) {
   // Local: post a read request.
   Transport& lt = l_.GetTransport();
   const std::string peer = r_.GetEndpoint();
-  const Request& req = {
+  const Request req = {
       .op = Op::kRead,
       .laddr = l_.DataPtr(),
       .raddr = r_.DataPtr(),
@@ -79,26 +78,24 @@ TEST_F(SimpleTest, Write) {
   r_.ClearData();
   ASSERT_THAT(r_.Data(), Pointwise(Ne(), l_.Data()));
 
-  // Local: post a write request.
+  // Local: post multiple write requests.
   Transport& lt = l_.GetTransport();
   const std::string peer = r_.GetEndpoint();
-  const Request& req1 = {
+  const Request req1 = {
       .op = Op::kWrite,
       .laddr = l_.DataPtr(),
       .raddr = r_.DataPtr(),
       .len = partial_,
   };
-  const Request& req2 = {
+  const Request req2 = {
       .op = Op::kWrite,
       .laddr = l_.DataPtr() + partial_,
       .raddr = r_.DataPtr() + partial_,
       .len = l_.DataSize() - partial_,
   };
-  ASSERT_TRUE(req1.IsValid());
-  ASSERT_TRUE(req2.IsValid());
   ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(peer, {req1, req2}));
 
-  // Local: wait for the transport to finish processing the request.
+  // Local: wait for the transport to finish processing the requests.
   WaitForCompletion(lt, h);
 
   // Post-condition: all the remote bytes are equal to the local.

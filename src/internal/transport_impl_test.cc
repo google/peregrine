@@ -48,6 +48,19 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
     DCHECK_EQ(a_.DataSize(), b_.DataSize());
   }
 
+  std::vector<Request> MakeRequests(const Op op) {
+    const auto pa = a_.DataPtr();
+    const auto pb = b_.DataPtr();
+    std::vector<Request> reqs;
+    if (second_ < 1) {
+      reqs.push_back({op, pa, pb, size_});
+    } else {
+      reqs.push_back({op, pa, pb, first_});
+      reqs.push_back({op, pa + first_, pb + first_, second_});
+    }
+    return reqs;
+  }
+
   static std::string Info(const Request& req, const Handle h, const Status s) {
     return absl::StrFormat(
         "TransportImplTest: %s handle = 0x%x, status = %s @ thread #%s",
@@ -114,11 +127,7 @@ TEST_P(TransportImplTest, Read) {
   EXPECT_THAT(a_.Data(), Pointwise(Eq(), b_.Data()));
 }
 
-TEST_P(TransportImplTest, OneWriteRequest) {
-  if (second_ != 0) {
-    GTEST_SKIP() << "Only for one write request";
-  }
-
+TEST_P(TransportImplTest, Write) {
   // Pre-condition: no single byte at B is equal to A.
   a_.GenData();
   b_.ClearData();
@@ -128,58 +137,7 @@ TEST_P(TransportImplTest, OneWriteRequest) {
   std::thread a([this]() {
     Transport& t = a_.GetTransport();
     const std::string peer = b_.GetEndpoint();
-    const Request req = {
-        .op = Op::kWrite,
-        .laddr = a_.DataPtr(),
-        .raddr = b_.DataPtr(),
-        .len = a_.DataSize(),
-    };
-    const std::vector<Request> reqs = {req};
-    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, reqs));
-    WaitForCompletion(t, h, reqs);
-  });
-
-  // Use another thread to emulate a remote process.
-  std::thread b([]() {
-    // No code is needed.
-  });
-
-  a.join();
-  b.join();
-
-  // Post-condition: all the bytes at B are equal to A.
-  EXPECT_THAT(b_.Data(), Pointwise(Eq(), a_.Data()));
-}
-
-TEST_P(TransportImplTest, MultiWriteRequests) {
-  if (second_ == 0) {
-    GTEST_SKIP() << "Only for multiple write requests";
-  }
-
-  // Pre-condition: no single byte at B is equal to A.
-  a_.GenData();
-  b_.ClearData();
-  ASSERT_THAT(b_.Data(), Pointwise(Ne(), a_.Data()));
-
-  // Use one thread to emulate a local process.
-  std::thread a([this]() {
-    Transport& t = a_.GetTransport();
-    const std::string peer = b_.GetEndpoint();
-    DCHECK_GE(first_, 1);
-    DCHECK_GE(second_, 1);
-    const Request req1 = {
-        .op = Op::kWrite,
-        .laddr = a_.DataPtr(),
-        .raddr = b_.DataPtr(),
-        .len = first_,
-    };
-    const Request req2 = {
-        .op = Op::kWrite,
-        .laddr = a_.DataPtr() + first_,
-        .raddr = b_.DataPtr() + first_,
-        .len = second_,
-    };
-    const std::vector<Request> reqs = {req1, req2};
+    const std::vector<Request> reqs = MakeRequests(Op::kWrite);
     ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, reqs));
     WaitForCompletion(t, h, reqs);
   });
