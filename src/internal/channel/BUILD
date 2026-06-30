@@ -146,7 +146,7 @@ cc_test(
         "//src/internal/socket:socket_tcp",
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],

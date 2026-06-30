@@ -24,8 +24,9 @@ class SimpleTest(absltest.TestCase):
     self.assertNotEqual(port1, port2)
     self.local = f"127.0.0.1:{port1}"
     self.remote = f"127.0.0.1:{port2}"
-    self.local_transport = pg.create_transport(self.local)
-    self.remote_transport = pg.create_transport(self.remote)
+    nconns_per_peer = 3
+    self.local_transport = pg.create_transport(self.local, nconns_per_peer)
+    self.remote_transport = pg.create_transport(self.remote, nconns_per_peer)
     logging.info("local endpoint listening on %s", self.local)
     logging.info("remote endpoint listening on %s", self.remote)
 

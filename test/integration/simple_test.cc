@@ -20,9 +20,11 @@ using ::testing::Pointwise;
 
 class SimpleTest : public testing::Test {
   static constexpr size_t kBufSize = (64UL << 20) - 1;
+  static constexpr int kNumConnsPerPeer = 8;
 
  protected:
-  SimpleTest() : l_(kBufSize), r_(kBufSize) {
+  SimpleTest()
+      : l_(kBufSize, kNumConnsPerPeer), r_(kBufSize, kNumConnsPerPeer) {
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
   }
 

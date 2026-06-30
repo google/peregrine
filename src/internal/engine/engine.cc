@@ -41,10 +41,15 @@ absl::Status NotFoundError(const Handle h) {
 }
 }  // namespace
 
-Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor)
-    : stopping_(false), acceptor_(std::move(acceptor)) {
+Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, int num_conns_per_peer)
+    : num_conns_per_peer_(num_conns_per_peer),
+      stopping_(false),
+      acceptor_(std::move(acceptor)) {
+  DCHECK_GE(num_conns_per_peer_, 1);
+  DCHECK_LE(num_conns_per_peer_, 100);
+
   // Start an acceptor thread.
-  DCHECK(acceptor_ != nullptr);
+  DCHECK_NE(acceptor_, nullptr);
   acceptor_thread_ = std::jthread([this]() {
     auto callback = [this](std::unique_ptr<TcpSocket> socket) {
       accept(std::move(socket));
@@ -148,7 +153,7 @@ void Engine::mainLoop() {
 
 void Engine::process(const Entry& entry) {
   if (entry.request.op == Op::kWrite) {
-    connect(entry.peer, /*num_channels=*/8);
+    connect(entry.peer, num_conns_per_peer_);
     if (workers_.empty()) {
       // TODO(yongx): handle error by failing the request.
       return;

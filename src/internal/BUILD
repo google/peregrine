@@ -56,7 +56,6 @@ cc_test(
         "//src/util:app",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",

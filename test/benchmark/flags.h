@@ -10,6 +10,7 @@
 ABSL_DECLARE_FLAG(std::string, role);
 ABSL_DECLARE_FLAG(bool, ipv4);
 ABSL_DECLARE_FLAG(uint16_t, port);
+ABSL_DECLARE_FLAG(int, conn);
 ABSL_DECLARE_FLAG(std::string, peer);
 ABSL_DECLARE_FLAG(std::string, raddr);
 ABSL_DECLARE_FLAG(uint64_t, xfer_size);
@@ -26,6 +27,9 @@ bool ParseIPver();
 
 // Parses the local port.
 uint16_t ParsePort();
+
+// Parses the #connections per peer.
+int ParseNumConns();
 
 // Parses the peer address.
 std::string ParsePeer();

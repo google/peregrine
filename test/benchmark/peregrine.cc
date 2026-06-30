@@ -11,6 +11,7 @@
 
 namespace {
 using ::peregrine::benchmark::ParseIPver;
+using ::peregrine::benchmark::ParseNumConns;
 using ::peregrine::benchmark::ParseNumXfers;
 using ::peregrine::benchmark::ParsePeer;
 using ::peregrine::benchmark::ParsePort;
@@ -31,6 +32,7 @@ int main(int argc, char* argv[]) {
   const bool ipv4 = ParseIPver();
   const Role role = ParseRole();
   const uint16_t port = ParsePort();
+  const int nconns = ParseNumConns();
   const std::string peer = ParsePeer();
   void* const raddr = ParseRemoteAddress();
   const uint32_t num_xfers = ParseNumXfers();
@@ -38,9 +40,9 @@ int main(int argc, char* argv[]) {
 
   // Run receiver or sender.
   if (role == Role::kRcvr) {
-    RunRcvr(ipv4, port, xfer_size);
+    RunRcvr(ipv4, port, nconns, xfer_size);
   } else {
-    RunSndr(ipv4, port, xfer_size, peer, raddr, num_xfers);
+    RunSndr(ipv4, port, nconns, xfer_size, peer, raddr, num_xfers);
   }
   return 0;
 }

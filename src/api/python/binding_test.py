@@ -58,7 +58,7 @@ class BindTest(absltest.TestCase):
     local = f"127.0.0.1:{port1}"
     remote = f"127.0.0.1:{port2}"
 
-    transport = pg.create_transport(local)
+    transport = pg.create_transport(local, num_conns_per_peer=2)
     self.assertIsNotNone(transport)
 
     req = pg.Request(

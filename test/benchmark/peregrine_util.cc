@@ -38,23 +38,23 @@ using ::peregrine::Transport;
 using ::peregrine::util::FindFreePort;
 using ::peregrine::util::RandomNonZero;
 
-std::string GetEndpoint(bool ipv4, uint16_t port) {
+std::string GenEndpoint(bool ipv4, uint16_t port) {
   const int family = ipv4 ? AF_INET : AF_INET6;
+  const std::string_view ip = ipv4 ? "0.0.0.0" : "[::]";
   const uint16_t listen_port = port ?: FindFreePort(family, /*tcp=*/true);
   CHECK_GT(listen_port, 0);
-  return ipv4 ? absl::StrCat("0.0.0.0:", listen_port)
-              : absl::StrCat("[::]:", listen_port);
+  return absl::StrCat(ip, ":", listen_port);
 }
 }  // namespace
 
-void RunRcvr(bool ipv4, uint16_t port, uint64_t xfer_size) {
+void RunRcvr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size) {
   // Allocate buffer and fill with zeros.
   const std::vector<Byte> buf(xfer_size, 0);
   DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b == 0; }));
 
   // Create transport.
-  const std::string self = GetEndpoint(ipv4, port);
-  const std::unique_ptr<Transport> transport = CreateTransport(self);
+  const std::string self = GenEndpoint(ipv4, port);
+  const std::unique_ptr<Transport> transport = CreateTransport(self, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
 
   // Show info (which the sender needs to know).
@@ -72,7 +72,7 @@ void RunRcvr(bool ipv4, uint16_t port, uint64_t xfer_size) {
   }
 }
 
-void RunSndr(bool ipv4, uint16_t port, uint64_t xfer_size,
+void RunSndr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size,
              std::string_view peer, void* raddr, uint32_t num_xfers) {
   // Allocate buffer and fill with non-zero data.
   std::vector<Byte> buf(xfer_size);
@@ -80,20 +80,21 @@ void RunSndr(bool ipv4, uint16_t port, uint64_t xfer_size,
   DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b != 0; }));
 
   // Create transport.
-  const std::string self = GetEndpoint(ipv4, port);
-  const std::unique_ptr<Transport> transport = CreateTransport(self);
+  const std::string self = GenEndpoint(ipv4, port);
+  const std::unique_ptr<Transport> transport = CreateTransport(self, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
 
   // Show info.
   std::cout << absl::StrFormat(
       "Role: sender\n"
+      "Connections : %d\n"
       "Buffer addr : %p\n"
       "Buffer size : %s\n"
       "Buffer hash : 0x%x\n"
       "Listening at: %s\n"
       "Sending to  : %s at raddr %p\n",
-      buf.data(), ToString(buf.size()), util::CalcXxh64Hash(buf), self, peer,
-      raddr);
+      nconns, buf.data(), ToString(buf.size()), util::CalcXxh64Hash(buf), self,
+      peer, raddr);
 
   uint64_t total_bytes = 0;
   absl::Duration total_dur = absl::ZeroDuration();

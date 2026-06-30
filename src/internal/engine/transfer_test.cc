@@ -16,7 +16,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
-#include "absl/strings/str_cat.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
@@ -31,9 +30,12 @@ namespace {
 
 using ChannelType::kReliableStream;
 using ChannelType::kUnreliableMessage;
+using ::testing::Combine;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
+using ::testing::TestParamInfo;
+using ::testing::Values;
 
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
@@ -46,16 +48,11 @@ static_assert(kBufSize % kNumChunks != 0);
 
 using Param = std::tuple<ChannelType>;
 
-std::string ToString(const ::testing::TestParamInfo<Param>& info) {
-  const ChannelType type = std::get<0>(info.param);
-  switch (type) {
-    case kReliableStream:
-      return absl::StrCat("Channel_ReliableStream");
-    case kUnreliableMessage:
-      return absl::StrCat("Channel_UnreliableMessage");
-    default:
-      DCHECK(false) << "Unreachable";
-  }
+std::string ToString(const TestParamInfo<Param>& info) {
+  const ChannelType t = std::get<0>(info.param);
+  DCHECK(t == kReliableStream || t == kUnreliableMessage);
+  return t == kReliableStream ? "ReliableStreamChannel"
+                              : "UnreliableMessageChannel";
 }
 
 class TransferTest : public ::testing::TestWithParam<Param> {
@@ -114,10 +111,9 @@ class TransferTest : public ::testing::TestWithParam<Param> {
   Host b_;
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    , TransferTest,
-    ::testing::Combine(::testing::Values(kReliableStream, kUnreliableMessage)),
-    ToString);
+INSTANTIATE_TEST_SUITE_P(, TransferTest,
+                         Combine(Values(kReliableStream, kUnreliableMessage)),
+                         ToString);
 
 TEST_P(TransferTest, SendRecv) {
   // Precondition: dst is different from src.
@@ -146,7 +142,7 @@ TEST_P(TransferTest, SendRecv) {
     }
   });
 
-  // B receives data chunks from A and sends ack chunks to A.
+  // B receives data chunks from A (and sends ack chunks to A).
   std::thread b_recv([&]() {
     Channel* const channel = chs.rcvr.get();
     while (!b_.xfer.IsRecvDone(kHandle)) {

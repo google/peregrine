@@ -68,7 +68,6 @@ cc_test(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
-        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )

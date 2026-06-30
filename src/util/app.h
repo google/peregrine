@@ -28,11 +28,11 @@ constexpr std::string_view kLocalhost = "127.0.0.1";
 class App final {
  public:
   // Constructor.
-  App(size_t size)
+  App(size_t size, int num_conns_per_peer)
       : data_(size),
         port_(FindFreePort(AF_INET, /*tcp=*/true)),
         endpoint_(absl::StrCat(kLocalhost, ":", port_)),
-        transport_(CreateTransport(endpoint_)) {
+        transport_(CreateTransport(endpoint_, num_conns_per_peer)) {
     DCHECK_GT(size, 0);
     CHECK_NE(transport_, nullptr);  // Crash OK
   }

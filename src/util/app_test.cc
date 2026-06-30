@@ -14,7 +14,8 @@ using ::testing::Ne;
 
 TEST(AppTest, Basic) {
   constexpr size_t kSize = 1024;
-  App app(kSize);
+  constexpr int kNumConnsPerPeer = 1;
+  App app(kSize, kNumConnsPerPeer);
 
   EXPECT_NE(app.DataPtr(), nullptr);
   EXPECT_EQ(app.DataSize(), kSize);

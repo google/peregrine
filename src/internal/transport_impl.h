@@ -23,8 +23,9 @@ namespace peregrine::internal {
 class TransportImpl final : public Transport {
  public:
   // Constructor.
-  explicit TransportImpl(std::unique_ptr<TcpAcceptor> acceptor)
-      : engine_(std::move(acceptor)) {}
+  explicit TransportImpl(std::unique_ptr<TcpAcceptor> acceptor,
+                         int num_conns_per_peer)
+      : engine_(std::move(acceptor), num_conns_per_peer) {}
 
   // Posts a batch of transport `requests` to communicate with the `peer`.
   //

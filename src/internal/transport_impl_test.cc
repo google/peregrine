@@ -7,7 +7,6 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -19,21 +18,28 @@
 namespace peregrine::internal::testing {
 namespace {
 
+using ::testing::Combine;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
+using ::testing::TestParamInfo;
+using ::testing::Values;
 
-using Param = std::tuple</*buf_size=*/size_t>;
+using Param = std::tuple</*buf_size=*/size_t, /*num_conns_per_peer=*/int>;
 
-std::string ToString(const ::testing::TestParamInfo<Param>& info) {
+std::string ToString(const TestParamInfo<Param>& info) {
   const size_t size = std::get<0>(info.param);
-  DCHECK_GE(size, 1);
-  return absl::StrCat("TransportImplTest_BufSize_", size);
+  const int nconns = std::get<1>(info.param);
+  return absl::StrFormat("BufSize_%zu_NumConnsPerPeer_%d", size, nconns);
 }
 
 class TransportImplTest : public ::testing::TestWithParam<Param> {
  protected:
-  TransportImplTest() : size_(std::get<0>(GetParam())), a_(size_), b_(size_) {
+  TransportImplTest()
+      : size_(std::get<0>(GetParam())),
+        nconns_(std::get<1>(GetParam())),
+        a_(size_, nconns_),
+        b_(size_, nconns_) {
     DCHECK_EQ(a_.DataSize(), b_.DataSize());
   }
 
@@ -54,12 +60,15 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
 
  protected:
   const size_t size_;
+  const int nconns_;
   util::App a_;
   util::App b_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, TransportImplTest,
-                         ::testing::Values(1, 97, 65536, 1048575), ToString);
+                         Combine(/*buf_size=*/Values(1, 65536, 1048575),
+                                 /*num_conns_per_peer=*/Values(1, 8, 16)),
+                         ToString);
 
 TEST_P(TransportImplTest, Read) {
   a_.ClearData();

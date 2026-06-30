@@ -17,6 +17,9 @@ ABSL_FLAG(std::string, role, "receiver",
 ABSL_FLAG(uint16_t, port, 0,
           "Local port to listen on (0 let the operating system choose)");
 
+ABSL_FLAG(int, conn, 8,
+          "#Connections to make between this process and each peer");
+
 ABSL_FLAG(std::string, peer, "",
           "Receiver ip_address:port (required for sender)");
 
@@ -50,6 +53,11 @@ Role ParseRole() {
 bool ParseIPver() { return absl::GetFlag(FLAGS_ipv4); }
 
 uint16_t ParsePort() { return absl::GetFlag(FLAGS_port); }
+
+int ParseNumConns() {
+  const int v = absl::GetFlag(FLAGS_conn);
+  return std::min(std::max(1, v), 100);
+}
 
 std::string ParsePeer() { return absl::GetFlag(FLAGS_peer); }
 

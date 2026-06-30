@@ -10,7 +10,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/internal/channel/channel_test_util.h"
@@ -18,12 +18,15 @@
 namespace peregrine::internal::testing {
 namespace {
 
+using ::testing::TestParamInfo;
+using ::testing::Values;
+
 using Param = std::tuple</*family=*/int>;
 
-std::string ToString(const ::testing::TestParamInfo<Param>& info) {
+std::string ToString(const TestParamInfo<Param>& info) {
   const int family = std::get<0>(info.param);
   DCHECK(family == AF_INET || family == AF_INET6);
-  return absl::StrCat("ControlTest_ipv", family == AF_INET ? "4" : "6");
+  return absl::StrFormat("IPv%d", family == AF_INET ? 4 : 6);
 }
 
 class ControlTest : public ::testing::TestWithParam<Param> {
@@ -42,9 +45,7 @@ class ControlTest : public ::testing::TestWithParam<Param> {
 };
 
 INSTANTIATE_TEST_SUITE_P(, ControlTest,
-                         ::testing::Combine(::testing::Values(AF_INET,
-                                                              AF_INET6)),
-                         ToString);
+                         /*family=*/Values(AF_INET, AF_INET6), ToString);
 
 TEST_P(ControlTest, SendRecv) {
   constexpr uint64_t kLaddr = 0x1000;

@@ -35,7 +35,8 @@ class Engine {
 
  public:
   // Constructor.
-  explicit Engine(std::unique_ptr<TcpAcceptor> acceptor);
+  explicit Engine(std::unique_ptr<TcpAcceptor> acceptor,
+                  int num_conns_per_peer);
 
   // Destructor.
   ~Engine();
@@ -101,6 +102,8 @@ class Engine {
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
+  const int num_conns_per_peer_;
+
   absl::Mutex mu_;
   bool stopping_ ABSL_GUARDED_BY(mu_);
   absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
