@@ -46,9 +46,6 @@ inline bool SetNonBlockingMode(fd_t fd) {
   return __set_blocking_mode(fd, /*nonblocking=*/true);
 }
 
-// Shuts down the (tcp) socket.
-inline void Shutdown(fd_t fd) { ::shutdown(fd.value(), SHUT_RDWR); }
-
 // Returns true iff the tcp listen socket Accept() call was shut down.
 inline bool IsShutdown(int ret) { return ret == -2; }
 

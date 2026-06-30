@@ -39,7 +39,7 @@ Control::Control(std::unique_ptr<Channel> channel)
 Control::~Control() {
   {
     absl::MutexLock _(mu_);
-    channel_->Close();
+    channel_->Shutdown();
     stopping_ = true;
   }
   // all threads are joined in their destructors.

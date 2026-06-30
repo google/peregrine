@@ -42,11 +42,16 @@ std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family) {
 
 TcpSocket::~TcpSocket() {
   DCHECK(invariant());
-  LOG(INFO) << okMsg("shutdown");
-  Shutdown(fd_);  // no more send/recv
+  if (connected_) Shutdown();
+  DCHECK(!connected_);
   LOG(INFO) << okMsg("closing");
-  connected_ = false;
   ::close(fd_.value());
+}
+
+void TcpSocket::Shutdown() {
+  LOG(INFO) << okMsg("shutdown");
+  ::shutdown(fd_.value(), SHUT_RDWR);
+  connected_ = false;
 }
 
 namespace {

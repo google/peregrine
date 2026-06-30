@@ -14,7 +14,6 @@
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/socket/socket_tcp.h"
-#include "src/internal/socket/socket_util.h"
 
 namespace peregrine::internal {
 
@@ -44,8 +43,8 @@ class TcpChannel final : public Channel {
     return socket_->Recv(buf, len);
   }
 
-  // Closes the channel.
-  void Close() override { Shutdown(socket_->fd()); }
+  // Shuts down the channel so no more read/write calls.
+  void Shutdown() override { socket_->Shutdown(); }
 
   // Returns a string representation for the channel.
   std::string ToString() const override;

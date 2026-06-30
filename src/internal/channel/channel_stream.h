@@ -34,8 +34,8 @@ class MemStreamChannel final : public Channel {
   // the peer side has closed the connection. Returns -1 on error.
   ssize_t Read(Byte* buf, size_t len) override ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Closes the channel.
-  void Close() override {}
+  // Shuts down the channel so no more read/write calls.
+  void Shutdown() override {}
 
   // Returns a string representation for the channel.
   std::string ToString() const override { return "MemStreamChannel"; }

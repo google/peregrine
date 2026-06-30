@@ -66,12 +66,12 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
     // Check that the data read is the same as written.
     EXPECT_THAT(out, Pointwise(Eq(), in));
 
+    // Shutdown the channels.
+    sndr->Shutdown();
+    rcvr->Shutdown();
+
     LOG(INFO) << *sndr;
     LOG(INFO) << *rcvr;
-
-    // Close the channels.
-    sndr->Close();
-    rcvr->Close();
   }
 }
 
@@ -105,12 +105,12 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
     // Check that the data read is the same as written.
     EXPECT_THAT(out, Pointwise(Eq(), in));
 
+    // Shutdown the channels.
+    sndr->Shutdown();
+    rcvr->Shutdown();
+
     LOG(INFO) << *sndr;
     LOG(INFO) << *rcvr;
-
-    // Close the channels.
-    sndr->Close();
-    rcvr->Close();
   }
 }
 

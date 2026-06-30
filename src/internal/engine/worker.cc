@@ -58,7 +58,7 @@ void Worker::SendLoop() {
       absl::MutexLock _(mu_);
       mu_.Await(absl::Condition(this, &Worker::hasSendWork));
       if (chunks_.empty()) {
-        channel_->Close();
+        channel_->Shutdown();
         LOG(INFO) << kWorker << "send loop stopped @ " << this;
         DCHECK(stop_);
         return;
@@ -84,7 +84,7 @@ void Worker::RecvLoop() {
     {
       absl::MutexLock _(mu_);
       if (stop_) {
-        channel_->Close();
+        channel_->Shutdown();
         LOG(INFO) << kWorker << "recv loop stopped @ " << this;
         return;
       }

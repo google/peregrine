@@ -66,7 +66,7 @@ void TcpAcceptor::Start(AcceptCallback accept) {
 void TcpAcceptor::Stop() {
   stop_.store(true, std::memory_order_relaxed);
   DCHECK(invariant());
-  Shutdown(listener_->fd());  // unblocks Accept()
+  listener_->Shutdown();  // unblocks Accept()
   LOG(INFO) << kAcceptor << "stopped, " << *listener_;
 }
 

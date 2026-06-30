@@ -34,6 +34,9 @@ class TcpSocket final : public SocketBase {
   // Destructor closes the socket.
   ~TcpSocket();
 
+  // Shuts down the socket for both send and recv.
+  void Shutdown();
+
   // Listens on the `local` endpoint.
   bool Listen(const Endpoint& local) const;
 

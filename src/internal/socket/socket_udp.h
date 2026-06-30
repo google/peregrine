@@ -31,6 +31,9 @@ class UdpSocket final : public SocketBase {
   // Destructor closes the socket.
   ~UdpSocket();
 
+  // Shuts down the socket for both send and recv.
+  void Shutdown();
+
   // Binds to the `local` endpoint.
   bool Bind(const Endpoint& local) const;
 

@@ -39,9 +39,16 @@ std::unique_ptr<UdpSocket> UdpSocket::Create(int family) {
 
 UdpSocket::~UdpSocket() {
   DCHECK(invariant());
+  if (connected_) Shutdown();
+  DCHECK(!connected_);
   LOG(INFO) << okMsg("closing");
-  connected_ = false;
   ::close(fd_.value());
+}
+
+void UdpSocket::Shutdown() {
+  LOG(INFO) << okMsg("shutdown");
+  ::shutdown(fd_.value(), SHUT_RDWR);
+  connected_ = false;
 }
 
 namespace {
