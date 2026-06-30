@@ -24,7 +24,11 @@ class SimpleTest : public testing::Test {
 
  protected:
   SimpleTest()
-      : l_(kBufSize, kNumConnsPerPeer), r_(kBufSize, kNumConnsPerPeer) {
+      : partial_(kBufSize / 2),
+        l_(kBufSize, kNumConnsPerPeer),
+        r_(kBufSize, kNumConnsPerPeer) {
+    DCHECK_GE(partial_, 1);
+    DCHECK_GE(l_.DataSize() - partial_, 1);
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
   }
 
@@ -40,6 +44,7 @@ class SimpleTest : public testing::Test {
   }
 
  protected:
+  const size_t partial_;
   util::App l_;  // local
   util::App r_;  // remote
 };
@@ -77,13 +82,21 @@ TEST_F(SimpleTest, Write) {
   // Local: post a write request.
   Transport& lt = l_.GetTransport();
   const std::string peer = r_.GetEndpoint();
-  const Request& req = {
+  const Request& req1 = {
       .op = Op::kWrite,
       .laddr = l_.DataPtr(),
       .raddr = r_.DataPtr(),
-      .len = l_.DataSize(),
+      .len = partial_,
   };
-  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(peer, {req}));
+  const Request& req2 = {
+      .op = Op::kWrite,
+      .laddr = l_.DataPtr() + partial_,
+      .raddr = r_.DataPtr() + partial_,
+      .len = l_.DataSize() - partial_,
+  };
+  ASSERT_TRUE(req1.IsValid());
+  ASSERT_TRUE(req2.IsValid());
+  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(peer, {req1, req2}));
 
   // Local: wait for the transport to finish processing the request.
   WaitForCompletion(lt, h);

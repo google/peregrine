@@ -1,7 +1,9 @@
+#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <thread>  // NOLINT
 #include <tuple>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -10,6 +12,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
 #include "src/internal/util/util.h"
@@ -37,6 +40,8 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
  protected:
   TransportImplTest()
       : size_(std::get<0>(GetParam())),
+        first_(std::max(1UL, size_ / 2)),
+        second_(size_ - first_),
         nconns_(std::get<1>(GetParam())),
         a_(size_, nconns_),
         b_(size_, nconns_) {
@@ -49,10 +54,13 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
         ToString(req.op), h.value(), ToString(s), ThreadId());
   }
 
-  void WaitForCompletion(Transport& t, const Handle h, const Request& req) {
+  void WaitForCompletion(Transport& t, const Handle h,
+                         absl::Span<const Request> reqs) {
     while (true) {
       ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
-      LOG(INFO) << Info(req, h, s);
+      for (const auto& req : reqs) {
+        LOG(INFO) << Info(req, h, s);
+      }
       if (IsCompleted(s)) break;
       absl::SleepFor(absl::Seconds(1));
     }
@@ -60,6 +68,8 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
 
  protected:
   const size_t size_;
+  const size_t first_;
+  const size_t second_;
   const int nconns_;
   util::App a_;
   util::App b_;
@@ -71,6 +81,7 @@ INSTANTIATE_TEST_SUITE_P(, TransportImplTest,
                          ToString);
 
 TEST_P(TransportImplTest, Read) {
+  // Pre-condition: no single byte at A is equal to B.
   a_.ClearData();
   b_.GenData();
   ASSERT_THAT(a_.Data(), Pointwise(Ne(), b_.Data()));
@@ -85,8 +96,9 @@ TEST_P(TransportImplTest, Read) {
         .raddr = b_.DataPtr(),
         .len = a_.DataSize(),
     };
-    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, {req}));
-    WaitForCompletion(t, h, req);
+    const std::vector<Request> reqs = {req};
+    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, reqs));
+    WaitForCompletion(t, h, reqs);
   });
 
   // Use another thread to emulate a remote process.
@@ -98,10 +110,16 @@ TEST_P(TransportImplTest, Read) {
   a.join();
   b.join();
 
+  // Post-condition: all the bytes at A are equal to B.
   EXPECT_THAT(a_.Data(), Pointwise(Eq(), b_.Data()));
 }
 
-TEST_P(TransportImplTest, Write) {
+TEST_P(TransportImplTest, OneWriteRequest) {
+  if (second_ != 0) {
+    GTEST_SKIP() << "Only for one write request";
+  }
+
+  // Pre-condition: no single byte at B is equal to A.
   a_.GenData();
   b_.ClearData();
   ASSERT_THAT(b_.Data(), Pointwise(Ne(), a_.Data()));
@@ -116,8 +134,9 @@ TEST_P(TransportImplTest, Write) {
         .raddr = b_.DataPtr(),
         .len = a_.DataSize(),
     };
-    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, {req}));
-    WaitForCompletion(t, h, req);
+    const std::vector<Request> reqs = {req};
+    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, reqs));
+    WaitForCompletion(t, h, reqs);
   });
 
   // Use another thread to emulate a remote process.
@@ -128,6 +147,52 @@ TEST_P(TransportImplTest, Write) {
   a.join();
   b.join();
 
+  // Post-condition: all the bytes at B are equal to A.
+  EXPECT_THAT(b_.Data(), Pointwise(Eq(), a_.Data()));
+}
+
+TEST_P(TransportImplTest, MultiWriteRequests) {
+  if (second_ == 0) {
+    GTEST_SKIP() << "Only for multiple write requests";
+  }
+
+  // Pre-condition: no single byte at B is equal to A.
+  a_.GenData();
+  b_.ClearData();
+  ASSERT_THAT(b_.Data(), Pointwise(Ne(), a_.Data()));
+
+  // Use one thread to emulate a local process.
+  std::thread a([this]() {
+    Transport& t = a_.GetTransport();
+    const std::string peer = b_.GetEndpoint();
+    DCHECK_GE(first_, 1);
+    DCHECK_GE(second_, 1);
+    const Request req1 = {
+        .op = Op::kWrite,
+        .laddr = a_.DataPtr(),
+        .raddr = b_.DataPtr(),
+        .len = first_,
+    };
+    const Request req2 = {
+        .op = Op::kWrite,
+        .laddr = a_.DataPtr() + first_,
+        .raddr = b_.DataPtr() + first_,
+        .len = second_,
+    };
+    const std::vector<Request> reqs = {req1, req2};
+    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, reqs));
+    WaitForCompletion(t, h, reqs);
+  });
+
+  // Use another thread to emulate a remote process.
+  std::thread b([]() {
+    // No code is needed.
+  });
+
+  a.join();
+  b.join();
+
+  // Post-condition: all the bytes at B are equal to A.
   EXPECT_THAT(b_.Data(), Pointwise(Eq(), a_.Data()));
 }
 

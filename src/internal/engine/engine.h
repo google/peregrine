@@ -13,6 +13,7 @@
 #include "absl/random/random.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
@@ -41,8 +42,9 @@ class Engine {
   // Destructor.
   ~Engine();
 
-  // Enqueues a valid transport request.
-  absl::StatusOr<Handle> Enqueue(const Endpoint& peer, const Request& request);
+  // Enqueues a number of valid transport request.
+  absl::StatusOr<Handle> Enqueue(const Endpoint& peer,
+                                 absl::Span<const Request> requests);
 
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);

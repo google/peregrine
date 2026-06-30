@@ -33,7 +33,7 @@ struct Request final {
 
   // Returns true iff the request is valid.
   constexpr bool IsValid() const {
-    return laddr != nullptr && raddr != nullptr && len > 0;
+    return laddr != nullptr && raddr != nullptr && 1 <= len;
   }
 
   // Returns a string representation of the transport request.

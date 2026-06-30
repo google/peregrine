@@ -15,6 +15,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
@@ -100,21 +101,20 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
 }
 
 absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
-                                       const Request& request) {
-  DCHECK(request.IsValid());
+                                       absl::Span<const Request> requests) {
+  DCHECK(peer.IsValid());
+  DCHECK(!requests.empty());
+  DCHECK(std::all_of(requests.begin(), requests.end(),
+                     [](const Request& r) { return r.IsValid(); }));
 
-  Handle handle;
-  ReqId reqid;
-  {
-    absl::MutexLock _(mu_);
-    handle = genHandle();
-    reqid = genReqId();
-  }
-  if (!getRequestTracker(request).Add(handle)) {
+  absl::MutexLock _(mu_);
+  const Handle handle = genHandle();
+  // TODO(yongx): all the request ops are the same for now.
+  if (!getRequestTracker(requests[0]).Add(handle)) {
     return AlreadyExistsError(handle);
   }
-  {
-    absl::MutexLock _(mu_);
+  for (const auto& request : requests) {
+    const ReqId reqid = genReqId();
     reqs_.emplace_back(peer, handle, reqid, request);
   }
   return handle;
