@@ -83,16 +83,20 @@ void Engine::accept(std::unique_ptr<TcpSocket> socket) {
   recv_workers_.push_back(std::move(rw));
 }
 
-void Engine::connect(const Endpoint& peer, int num_channels) {
-  for (int i = 0; i < 2 * num_channels; ++i) {
+bool Engine::connect(Workers& workers, const Endpoint& peer) {
+  if (workers.size() >= num_conns_per_peer_) {
+    return true;
+  }
+  for (int i = 0; i < 2 * num_conns_per_peer_; ++i) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
     if (socket == nullptr) continue;
     std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-    auto sw = std::make_unique<Worker>(self_, 1 + send_workers_.size(),
-                                       outgoing_, incoming_, std::move(ch));
-    send_workers_.push_back(std::move(sw));
-    if (send_workers_.size() >= num_channels) break;
+    auto sw = std::make_unique<Worker>(self_, 1 + workers.size(), outgoing_,
+                                       incoming_, std::move(ch));
+    workers.push_back(std::move(sw));
+    if (workers.size() >= num_conns_per_peer_) break;
   }
+  return !workers.empty();
 }
 
 absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
@@ -154,12 +158,10 @@ void Engine::mainLoop() {
 
 void Engine::process(const Entry& entry) {
   if (entry.request.op == Op::kWrite) {
-    connect(entry.peer, num_conns_per_peer_);
-    if (send_workers_.empty()) {
-      // TODO(yongx): handle error by failing the request.
-      return;
+    Workers& workers = send_workers_[entry.peer];
+    if (connect(workers, entry.peer)) {
+      processWrite(workers, entry.handle, entry.reqid, entry.request);
     }
-    processWrite(entry.handle, entry.reqid, entry.request);
   } else {
     processRead(entry.handle, entry.reqid, entry.request);
   }
@@ -171,10 +173,10 @@ uint32_t CalcChunkSize(const size_t len, const uint32_t num_chunks) {
 }
 }  // namespace
 
-void Engine::processWrite(const Handle handle, const ReqId reqid,
-                          const Request& request) {
+void Engine::processWrite(Workers& workers, const Handle handle,
+                          const ReqId reqid, const Request& request) {
   const size_t len = request.len;
-  const uint32_t nchunks = std::min(send_workers_.size(), len);
+  const uint32_t nchunks = std::min(workers.size(), len);
   const uint32_t size = CalcChunkSize(len, nchunks);
   DCHECK_GE(size, 1);
   uint64_t offset = 0;
@@ -189,7 +191,7 @@ void Engine::processWrite(const Handle handle, const ReqId reqid,
         .addr = addr_t(reinterpret_cast<uintptr_t>(chunk_dst_addr)),
         .size = i < nchunks - 1 ? size : static_cast<uint32_t>(len - offset),
     };
-    send_workers_[i]->EnqueueChunk(chunk_src_addr, chunk);
+    workers[i]->EnqueueChunk(chunk_src_addr, chunk);
   }
 }
 

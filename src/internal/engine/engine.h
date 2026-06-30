@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/random/random.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -55,11 +56,13 @@ class Engine {
   };
 
  private:
+  using Workers = std::vector<std::unique_ptr<Worker>>;
+
   // Accepts the incoming `socket`.
   void accept(std::unique_ptr<TcpSocket> socket);
 
-  // Connects to the `peer` with the given #channels.
-  void connect(const Endpoint& peer, int num_channels);
+  // Connects to the `peer` to create a number of workers.
+  bool connect(Workers& workers, const Endpoint& peer);
 
  private:
   // Generates a random handle.
@@ -90,8 +93,8 @@ class Engine {
   void process(const Entry& entry) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Processes a write request.
-  void processWrite(Handle handle, ReqId reqid, const Request& request)
-      ABSL_LOCKS_EXCLUDED(mu_);
+  void processWrite(Workers& workers, Handle handle, ReqId reqid,
+                    const Request& request) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Processes a read request.
   void processRead(Handle handle, ReqId reqid, const Request& request)
@@ -112,8 +115,8 @@ class Engine {
   std::unique_ptr<TcpAcceptor> acceptor_;
   std::jthread acceptor_thread_;
   std::jthread main_thread_;
-  std::vector<std::unique_ptr<Worker>> send_workers_;
-  std::vector<std::unique_ptr<Worker>> recv_workers_;
+  absl::flat_hash_map<Endpoint, Workers> send_workers_;
+  Workers recv_workers_;
 };
 
 }  // namespace peregrine::internal

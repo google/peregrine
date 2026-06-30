@@ -22,6 +22,7 @@ cc_library(
         "//src/internal/socket:socket_tcp",
         "//src/util",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
