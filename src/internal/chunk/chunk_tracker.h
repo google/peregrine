@@ -7,7 +7,6 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/lib/bitset.h"
@@ -78,13 +77,7 @@ class ChunkTracker final {
   }
 
   // Sets the `index`-th chunk to indicate it has been read.
-  void Set(chunk_t index) ABSL_LOCKS_EXCLUDED(mu_) {
-    absl::MutexLock lock(mu_);
-    DCHECK(isValidChunk(index));
-    DCHECK(!chunks_.Get(index.value()));
-    DCHECK(!busy_chunks_.contains(index));
-    chunks_.Set(index.value());
-  }
+  void Set(chunk_t index) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Gets the exclusive data write access to the `index`-th chunk.
   // Returns true if the permission is granted.

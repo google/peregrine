@@ -20,7 +20,7 @@ inline bool LooksLikeIPv6(std::string_view addr) {
 }  // namespace
 
 Endpoint Endpoint::Create(const std::string_view ipaddr_port) {
-  // "127.0.0.1:12345" or "[::1]:12345", or sth invalid
+  // "127.0.0.1:56789" or "[::1]:56789", or sth invalid
   const Endpoint invalid;
   DCHECK(!invalid.IsValid());
 

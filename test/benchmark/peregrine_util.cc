@@ -93,8 +93,8 @@ void RunSndr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size,
       "Buffer hash : 0x%x\n"
       "Listening at: %s\n"
       "Sending to  : %s at raddr %p\n",
-      nconns, buf.data(), ToString(buf.size()), util::CalcXxh64Hash(buf), self,
-      peer, raddr);
+      nconns, buf.data(), ToString(buf.size()), util::Xx3Hash(buf), self, peer,
+      raddr);
 
   uint64_t total_bytes = 0;
   absl::Duration total_dur = absl::ZeroDuration();

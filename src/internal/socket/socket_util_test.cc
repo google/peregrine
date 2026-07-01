@@ -56,18 +56,18 @@ TEST(SocketUtilTest, ToIPv4AddrPortString) {
   struct sockaddr_storage ss;
   struct sockaddr_in* sa_in = (struct sockaddr_in*)&ss;
   sa_in->sin_family = AF_INET;
-  sa_in->sin_port = htons(12345);
+  sa_in->sin_port = htons(23456);
   ASSERT_EQ(inet_pton(AF_INET, "127.0.0.1", &sa_in->sin_addr), 1);
-  EXPECT_EQ(ToIpAddrPortString(ss), "127.0.0.1:12345");
+  EXPECT_EQ(ToIpAddrPortString(ss), "127.0.0.1:23456");
 }
 
 TEST(SocketUtilTest, ToIPv6AddrPortString) {
   struct sockaddr_storage ss;
   struct sockaddr_in6* sa_in6 = (struct sockaddr_in6*)&ss;
   sa_in6->sin6_family = AF_INET6;
-  sa_in6->sin6_port = htons(23456);
+  sa_in6->sin6_port = htons(34567);
   ASSERT_EQ(inet_pton(AF_INET6, "::1", &sa_in6->sin6_addr), 1);
-  EXPECT_EQ(ToIpAddrPortString(ss), "[::1]:23456");
+  EXPECT_EQ(ToIpAddrPortString(ss), "[::1]:34567");
 }
 
 }  // namespace

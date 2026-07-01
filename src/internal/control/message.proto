@@ -17,7 +17,7 @@ message ControlResp {}
 // Below are inner messages.
 
 message PeerRequests {
-  bytes peer = 1;  // "127.0.0.1:12345" or "[::1]:12345"
+  bytes peer = 1;  // "127.0.0.1:56789" or "[::1]:56789"
   repeated Request reqs = 2;
 }
 

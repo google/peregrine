@@ -55,7 +55,7 @@ TEST_P(ControlTest, SendRecv) {
   // Send a message.
   proto::ControlReq msg;
   auto pr = msg.mutable_peer_requests();
-  pr->set_peer("127.0.0.1:12345");
+  pr->set_peer("127.0.0.1:56789");
   auto r = pr->add_reqs();
   r->set_op(proto::Request::READ);
   r->set_laddr(kLaddr);
@@ -75,7 +75,7 @@ TEST_P(ControlTest, SendRecv) {
 
   // Check the message.
   const proto::PeerRequests& pr2 = msg2.peer_requests();
-  EXPECT_EQ(pr2.peer(), "127.0.0.1:12345");
+  EXPECT_EQ(pr2.peer(), "127.0.0.1:56789");
   EXPECT_EQ(pr2.reqs_size(), 1);
   const proto::Request& r2 = pr2.reqs(0);
   EXPECT_EQ(r2.op(), proto::Request::READ);

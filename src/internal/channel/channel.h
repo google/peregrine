@@ -2,31 +2,15 @@
 #define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_H_
 
 #include <cstddef>
-#include <cstdint>
 #include <ostream>
 #include <string>
 
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
+#include "src/internal/channel/channel_types.h"
 
 namespace peregrine::internal {
-
-// An enum that specifies the type of a channel.
-enum class ChannelType : uint8_t {
-  kReliableStream,     // e.g., tcp
-  kUnreliableMessage,  // e.g., udp
-};
-
-// Returns true iff the channel type is reliable stream.
-constexpr bool IsReliableStream(ChannelType type) {
-  return type == ChannelType::kReliableStream;
-}
-
-// Returns true iff the channel type is unreliable message.
-constexpr bool IsUnreliableMessage(ChannelType type) {
-  return type == ChannelType::kUnreliableMessage;
-}
 
 // An interface that specifies a channel abstraction. It is used for
 // communications between two endpoints.

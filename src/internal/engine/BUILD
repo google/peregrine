@@ -43,6 +43,7 @@ cc_library(
         "//src/internal:assumptions",
         "//src/internal/base:types",
         "//src/internal/channel",
+        "//src/internal/channel:channel_types",
         "//src/internal/chunk",
         "//src/internal/chunk:chunk_flatbuf",
         "//src/internal/chunk:chunk_tracker",

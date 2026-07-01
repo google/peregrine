@@ -24,7 +24,7 @@ namespace peregrine::internal {
 class Worker {
  public:
   // Constructor.
-  Worker(const Endpoint& self, int id, RequestTracker& outgoing,
+  Worker(int id, const Endpoint& self, RequestTracker& outgoing,
          RequestTracker& incoming, std::unique_ptr<Channel> channel);
 
   // Disallows copy and assign.
@@ -63,8 +63,8 @@ class Worker {
   };
 
  private:
-  const Endpoint self_;
   const int id_;
+  const Endpoint self_;
 
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);

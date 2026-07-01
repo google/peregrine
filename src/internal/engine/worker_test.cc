@@ -50,8 +50,8 @@ class WorkerTest : public ::testing::Test {
         chs_(ConnectedChannelPair::CreateTcp(AF_INET6)),
         s_(Endpoint::Create("[::1]:10005")),
         r_(Endpoint::Create("[::1]:10000")),
-        sndr_(s_, 5, std::move(chs_.sndr)),
-        rcvr_(r_, 0, std::move(chs_.rcvr)) {
+        sndr_(5, s_, std::move(chs_.sndr)),
+        rcvr_(0, r_, std::move(chs_.rcvr)) {
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = Byte(0);
@@ -82,11 +82,11 @@ class WorkerTest : public ::testing::Test {
     RequestTracker outgoing;
     RequestTracker incoming;
     Worker worker;
-    explicit Host(const Endpoint& self, int id,
+    explicit Host(int id, const Endpoint& self,
                   std::unique_ptr<Channel> channel)
         : outgoing(),
           incoming(),
-          worker(self, id, outgoing, incoming, std::move(channel)) {}
+          worker(id, self, outgoing, incoming, std::move(channel)) {}
   };
 
  protected:

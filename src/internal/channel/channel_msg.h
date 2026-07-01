@@ -13,16 +13,17 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
+#include "src/internal/channel/channel_types.h"
 #include "src/internal/util/test_iov.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
 
-// An unreliable memory channel to help dev and test: lossy, message.
+// An unreliable memory channel to help testing: lossless/lossy, message.
 // It is thread-safe.
 class MemMsgChannel final : public Channel {
  public:
-  // Construtor.
+  // Constructor.
   explicit MemMsgChannel(int error_rate);
 
   // Returns the channel type.

@@ -20,8 +20,8 @@ namespace peregrine::internal {
 // It is thread-compatible and but not thread-safe.
 class Endpoint final {
  public:
-  // Parses and creates an endpoint from a string, eg. "127.0.0.1:12345" or
-  // "[::1]:12345". Returns an invalid endpoint if the string parsing fails.
+  // Parses and creates an endpoint from a string, eg. "127.0.0.1:56789" or
+  // "[::1]:56789". Returns an invalid endpoint if the string parsing fails.
   static Endpoint Create(std::string_view ipaddr_port);
 
   // Default constructor creates an invalid endpoint.

@@ -79,7 +79,7 @@ Engine::~Engine() {
 void Engine::accept(std::unique_ptr<TcpSocket> socket) {
   DCHECK_NE(socket, nullptr);
   std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-  auto rw = std::make_unique<Worker>(self_, -(1 + recv_workers_.size()),
+  auto rw = std::make_unique<Worker>(-(1 + recv_workers_.size()), self_,
                                      outgoing_, incoming_, std::move(ch));
   recv_workers_.push_back(std::move(rw));
 }
@@ -92,7 +92,7 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
     if (socket == nullptr) continue;
     std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-    auto sw = std::make_unique<Worker>(self_, 1 + workers.size(), outgoing_,
+    auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
                                        incoming_, std::move(ch));
     workers.push_back(std::move(sw));
     if (workers.size() >= num_conns_per_peer_) break;

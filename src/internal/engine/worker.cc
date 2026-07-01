@@ -20,10 +20,10 @@ void Worker::log(std::string_view msg) const {
   LOG(INFO) << "worker #" << id_ << " " << msg << " @ " << self_;
 }
 
-Worker::Worker(const Endpoint& self, int id, RequestTracker& outgoing,
+Worker::Worker(int id, const Endpoint& self, RequestTracker& outgoing,
                RequestTracker& incoming, std::unique_ptr<Channel> channel)
-    : self_(self),
-      id_(id),
+    : id_(id),
+      self_(self),
       stop_(false),
       chunks_(),
       xfer_(outgoing, incoming),

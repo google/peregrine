@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
@@ -44,7 +45,8 @@ class RequestTracker {
   // Finds a request tracker for the given `handle` and `reqid`.
   // If not found, creates a new one with the given `num_chunks`.
   // Returns the (always non-null) tracker pointer.
-  ChunkTracker* FindOrCreate(Handle handle, ReqId reqid, uint32_t num_chunks)
+  ChunkTracker* absl_nonnull FindOrCreate(Handle handle, ReqId reqid,
+                                          uint32_t num_chunks)
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:

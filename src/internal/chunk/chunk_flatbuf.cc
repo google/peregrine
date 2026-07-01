@@ -31,14 +31,14 @@ bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
     return false;
   }
 
-  // NOTE: Do not remove any existing case. Only prepend new cases.
+  // NOTE: Do not remove any existing case. Only prepend new ones.
   const uint8_t ver = h.ver();
   switch (ver) {
     case 1:
       deserializeV1(h, chunk);
       return true;
     default:
-      LOG(WARNING) << "Unsupported chunk header flatbuf version: " << ver;
+      LOG(ERROR) << "Unsupported chunk header flatbuf version: " << ver;
       return false;
   }
 }

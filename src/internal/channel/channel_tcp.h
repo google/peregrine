@@ -13,6 +13,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
+#include "src/internal/channel/channel_types.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {

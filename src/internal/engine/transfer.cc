@@ -17,6 +17,7 @@
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
+#include "src/internal/channel/channel_types.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_flatbuf.h"
 #include "src/internal/chunk/chunk_tracker.h"

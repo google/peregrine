@@ -1,6 +1,5 @@
 #include "src/internal/chunk/chunk_tracker.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <string>
 
@@ -18,7 +17,15 @@ ChunkTracker::ChunkTracker(const uint32_t total_num_chunks)
       chunks_(total_num_chunks_) {
   DCHECK(invariant());
   DCHECK_GE(total_num_chunks_, 1);
-  busy_chunks_.reserve(std::max(16u, total_num_chunks_ / 16));
+  busy_chunks_.reserve(64);  // TODO(yongx): tune this value.
+}
+
+void ChunkTracker::Set(const chunk_t index) {
+  absl::MutexLock lock(mu_);
+  DCHECK(isValidChunk(index));
+  DCHECK(!chunks_.Get(index.value()));
+  DCHECK(!busy_chunks_.contains(index));
+  chunks_.Set(index.value());
 }
 
 bool ChunkTracker::Acquire(const chunk_t index) {

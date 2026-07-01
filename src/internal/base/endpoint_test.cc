@@ -29,7 +29,7 @@ TEST(EndpointTest, Validity) {
   EXPECT_FALSE(Endpoint().IsValid());
   EXPECT_FALSE(Endpoint(kIPv4, 0).IsValid());
 
-  const Endpoint a(kIPv4, 12345);
+  const Endpoint a(kIPv4, 23456);
   EXPECT_TRUE(a.IsValid());
   LOG(INFO) << "endpoint = " << a;
 }

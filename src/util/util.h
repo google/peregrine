@@ -34,9 +34,9 @@ void RandomNonZero(absl::Span<Byte> data);
 // Generates random non-zero bytes.
 void RandomNonZero(absl::BitGenRef bitgen, absl::Span<Byte> data);
 
-// Calculates the `xxHash64` for the data.
-inline uint64_t CalcXxh64Hash(absl::Span<const Byte> data) {
-  return XXH64(data.data(), data.size(), /*seed=*/0);
+// Calculates the XXH3 hash for the data.
+inline uint64_t Xx3Hash(absl::Span<const Byte> data) {
+  return XXH3_64bits(data.data(), data.size());
 }
 
 // Finds an unused port in the range [10,000, 65,535], inclusively. Returns

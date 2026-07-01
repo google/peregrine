@@ -4,9 +4,15 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//src/internal:internal_impl"])
 
 cc_library(
+    name = "channel_types",
+    hdrs = ["channel_types.h"],
+)
+
+cc_library(
     name = "channel",
     hdrs = ["channel.h"],
     deps = [
+        ":channel_types",
         "//src/api:transport_types",
         "//src/internal/base:types",
         "@abseil-cpp//absl/types:span",
@@ -40,6 +46,7 @@ cc_library(
     hdrs = ["channel_tcp.h"],
     deps = [
         ":channel",
+        ":channel_types",
         "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/socket:socket_tcp",
@@ -55,6 +62,7 @@ cc_library(
     hdrs = ["channel_udp.h"],
     deps = [
         ":channel",
+        ":channel_types",
         "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/socket:socket_udp",
@@ -73,6 +81,7 @@ cc_library(
     hdrs = ["channel_msg.h"],
     deps = [
         ":channel",
+        ":channel_types",
         "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/util:test_iov",
@@ -93,6 +102,7 @@ cc_library(
     hdrs = ["channel_stream.h"],
     deps = [
         ":channel",
+        ":channel_types",
         "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/util:test_iov",

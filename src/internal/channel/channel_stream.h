@@ -12,11 +12,12 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
+#include "src/internal/channel/channel_types.h"
 #include "src/internal/util/test_iov.h"
 
 namespace peregrine::internal::testing {
 
-// A reliable memory channel to help dev and test: lossless, stream.
+// A reliable memory channel to help testing: lossless, stream.
 // It is thread-safe.
 class MemStreamChannel final : public Channel {
  public:

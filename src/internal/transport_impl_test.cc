@@ -40,8 +40,8 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
  protected:
   TransportImplTest()
       : size_(std::get<0>(GetParam())),
-        first_(std::max(1UL, size_ / 2)),
-        second_(size_ - first_),
+        size1_(std::max(1UL, size_ / 2)),
+        size2_(size_ - size1_),
         nconns_(std::get<1>(GetParam())),
         a_(size_, nconns_),
         b_(size_, nconns_) {
@@ -52,19 +52,19 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
     const auto pa = a_.DataPtr();
     const auto pb = b_.DataPtr();
     std::vector<Request> reqs;
-    if (second_ < 1) {
+    if (size2_ <= 0) {
       reqs.push_back({op, pa, pb, size_});
     } else {
-      reqs.push_back({op, pa, pb, first_});
-      reqs.push_back({op, pa + first_, pb + first_, second_});
+      reqs.push_back({op, pa, pb, size1_});
+      reqs.push_back({op, pa + size1_, pb + size1_, size2_});
     }
     return reqs;
   }
 
   static std::string Info(const Request& req, const Handle h, const Status s) {
-    return absl::StrFormat(
-        "TransportImplTest: %s handle = 0x%x, status = %s @ thread #%s",
-        ToString(req.op), h.value(), ToString(s), ThreadId());
+    return absl::StrFormat("%s handle = 0x%x, status = %s @ thread #%s",
+                           ToString(req.op), h.value(), ToString(s),
+                           ThreadId());
   }
 
   void WaitForCompletion(Transport& t, const Handle h,
@@ -81,8 +81,8 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
 
  protected:
   const size_t size_;
-  const size_t first_;
-  const size_t second_;
+  const size_t size1_;
+  const size_t size2_;
   const int nconns_;
   util::App a_;
   util::App b_;
@@ -115,9 +115,7 @@ TEST_P(TransportImplTest, Read) {
   });
 
   // Use another thread to emulate a remote process.
-  std::thread b([]() {
-    // TODO(yongx): nothing needed yet.
-  });
+  std::thread b([]() { /* no code is needed. */ });
 
   absl::SleepFor(absl::Seconds(1));
   a.join();
@@ -143,9 +141,7 @@ TEST_P(TransportImplTest, Write) {
   });
 
   // Use another thread to emulate a remote process.
-  std::thread b([]() {
-    // No code is needed.
-  });
+  std::thread b([]() { /* no code is needed. */ });
 
   a.join();
   b.join();

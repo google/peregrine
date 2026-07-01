@@ -19,7 +19,7 @@ namespace peregrine::internal {
 // This lightweight class implements the transport API. It delegates all the
 // heavy work to its `engine`. In other words, this class serves as a thin
 // adapter between the transport API and the engine, so the latter has more
-// flexibility to change.
+// freedom to change.
 // It is thread-safe.
 class TransportImpl final : public Transport {
  public:

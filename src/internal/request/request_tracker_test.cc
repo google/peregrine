@@ -14,46 +14,48 @@ namespace {
 
 class RequestTrackerTest : public ::testing::Test {
  protected:
-  RequestTrackerTest() : tracker_() {
-    CHECK(tracker_.IsEmpty());
-    CHECK_EQ(tracker_.Check(kHandle), Status::kNotFound);
+  RequestTrackerTest() : t_() {
+    CHECK(t_.IsEmpty());
+    CHECK_EQ(t_.Check(kHandle), Status::kNotFound);
   }
 
  protected:
-  RequestTracker tracker_;
+  RequestTracker t_;
 };
 
 TEST_F(RequestTrackerTest, Send) {
-  ASSERT_TRUE(tracker_.Add(kHandle));
-  ChunkTracker* send = tracker_.FindOrCreate(kHandle, kReqId, kNumChunks);
+  ASSERT_TRUE(t_.Add(kHandle));
+  ChunkTracker* send = t_.FindOrCreate(kHandle, kReqId, kNumChunks);
+  ASSERT_NE(send, nullptr);
 
   for (int i = 0; i < kNumChunks; ++i) {
-    EXPECT_EQ(tracker_.Check(kHandle), Status::kInProgress);
+    EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
     const chunk_t index(i);
     send->Set(index);
   }
-  EXPECT_EQ(tracker_.Check(kHandle), Status::kSuccess);
+  EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
 
-  tracker_.Remove(kHandle);
-  EXPECT_TRUE(tracker_.IsEmpty());
-  EXPECT_EQ(tracker_.Check(kHandle), Status::kNotFound);
+  t_.Remove(kHandle);
+  EXPECT_TRUE(t_.IsEmpty());
+  EXPECT_EQ(t_.Check(kHandle), Status::kNotFound);
 }
 
 TEST_F(RequestTrackerTest, Recv) {
-  ASSERT_TRUE(tracker_.Add(kHandle));
-  ChunkTracker* recv = tracker_.FindOrCreate(kHandle, kReqId, kNumChunks);
+  ASSERT_TRUE(t_.Add(kHandle));
+  ChunkTracker* recv = t_.FindOrCreate(kHandle, kReqId, kNumChunks);
+  ASSERT_NE(recv, nullptr);
 
   for (int i = 0; i < kNumChunks; ++i) {
-    EXPECT_EQ(tracker_.Check(kHandle), Status::kInProgress);
+    EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
     const chunk_t index(i);
     ASSERT_TRUE(recv->Acquire(index));
     recv->Release(index, /*success=*/true);
   }
-  EXPECT_EQ(tracker_.Check(kHandle), Status::kSuccess);
+  EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
 
-  tracker_.Remove(kHandle);
-  EXPECT_TRUE(tracker_.IsEmpty());
-  EXPECT_EQ(tracker_.Check(kHandle), Status::kNotFound);
+  t_.Remove(kHandle);
+  EXPECT_TRUE(t_.IsEmpty());
+  EXPECT_EQ(t_.Check(kHandle), Status::kNotFound);
 }
 
 }  // namespace

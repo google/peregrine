@@ -35,7 +35,7 @@ class SimpleTest : public testing::Test {
     while (true) {
       ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
       if (IsCompleted(s)) {
-        CHECK_EQ(s, Status::kSuccess);
+        ASSERT_EQ(s, Status::kSuccess);
         break;
       }
       absl::SleepFor(absl::Milliseconds(100));
@@ -54,7 +54,7 @@ TEST_F(SimpleTest, Read) {
   r_.GenData();
   ASSERT_THAT(l_.Data(), Pointwise(Ne(), r_.Data()));
 
-  // Local: post a read request.
+  // Post a read request (local <- remote).
   Transport& lt = l_.GetTransport();
   const std::string peer = r_.GetEndpoint();
   const Request req = {
@@ -65,7 +65,7 @@ TEST_F(SimpleTest, Read) {
   };
   ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(peer, {req}));
 
-  // Local: wait for the transport to finish processing the request.
+  // Wait for the transport to finish processing the request.
   WaitForCompletion(lt, h);
 
   // Post-condition: all the local bytes are equal to the remote.
@@ -78,7 +78,7 @@ TEST_F(SimpleTest, Write) {
   r_.ClearData();
   ASSERT_THAT(r_.Data(), Pointwise(Ne(), l_.Data()));
 
-  // Local: post multiple write requests.
+  // Post multiple write requests (local -> remote).
   Transport& lt = l_.GetTransport();
   const std::string peer = r_.GetEndpoint();
   const Request req1 = {
@@ -95,7 +95,7 @@ TEST_F(SimpleTest, Write) {
   };
   ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(peer, {req1, req2}));
 
-  // Local: wait for the transport to finish processing the requests.
+  // Wait for the transport to finish processing the requests.
   WaitForCompletion(lt, h);
 
   // Post-condition: all the remote bytes are equal to the local.
