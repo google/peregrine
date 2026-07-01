@@ -1,0 +1,15 @@
+// This file only contains RPC-related service definitions.
+
+edition = "2024";
+
+package peregrine.internal.rpc;
+
+import "src/internal/control/message.proto";
+
+service PeregrineService {
+  // A generic unary rpc function to process Peregrine control messages.
+  rpc ProcessUnary(peregrine.internal.proto.ControlReq)
+      returns (peregrine.internal.proto.ControlResp) {
+    option deadline = 10.0;
+  }
+}

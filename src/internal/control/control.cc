@@ -46,18 +46,18 @@ Control::~Control() {
   LOG(INFO) << kControl << "destroyed";
 }
 
-bool Control::EnqueueSend(const proto::Control& c) {
+bool Control::EnqueueSend(const proto::ControlReq& msg) {
   absl::MutexLock _(mu_);
-  send_queue_.push_back(c);
+  send_queue_.push_back(msg);
   return true;
 }
 
-bool Control::DequeueRecv(proto::Control& c) {
+bool Control::DequeueRecv(proto::ControlReq& msg) {
   absl::MutexLock _(mu_);
   if (recv_queue_.empty()) {
     return false;
   }
-  c = std::move(recv_queue_.front());
+  msg = std::move(recv_queue_.front());
   recv_queue_.pop_front();
   return true;
 }
@@ -65,7 +65,7 @@ bool Control::DequeueRecv(proto::Control& c) {
 bool Control::hasSendWork() const { return !send_queue_.empty() || stopping_; }
 
 void Control::sendLoop() {
-  proto::Control msg;
+  proto::ControlReq msg;
   while (true) {
     {  // step 1: get a message.
       absl::MutexLock _(mu_);
@@ -85,17 +85,15 @@ void Control::sendLoop() {
 }
 
 void Control::recvLoop() {
-  proto::Control msg;
+  proto::ControlReq msg;
   while (recv(msg)) {
-    DCHECK(msg.request().op() != proto::Request::INVALID);
-
     absl::MutexLock _(mu_);
     recv_queue_.push_back(msg);
   }
   LOG(INFO) << kControl << "recv loop exited";
 }
 
-bool Control::send(const proto::Control& msg) {
+bool Control::send(const proto::ControlReq& msg) {
   static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
   DCHECK(IsReliableStream(channel_->Type()));
 
@@ -117,13 +115,12 @@ bool Control::send(const proto::Control& msg) {
   return channel_->Write(iovecs);
 }
 
-bool Control::recv(proto::Control& msg) {
+bool Control::recv(proto::ControlReq& msg) {
   static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
   DCHECK(IsReliableStream(channel_->Type()));
 
   // Clear the message before receiving a new one.
   msg.Clear();
-  DCHECK(!msg.has_request());
 
   // Read the 4-byte network-byte-order length.
   uint32_t len_nbo;

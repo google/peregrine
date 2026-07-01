@@ -1,16 +1,25 @@
+// This file only contains RPC-related message definitions.
+
 edition = "2024";
 
 package peregrine.internal.proto;
 
 // static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
-message Control {
+message ControlReq {
   oneof msg {
-    Request request = 1;
+    PeerRequests peer_requests = 1;
     // Add other message types here.
   }
 }
 
+message ControlResp {}
+
 // Below are inner messages.
+
+message PeerRequests {
+  bytes peer = 1;  // "127.0.0.1:12345" or "[::1]:12345"
+  repeated Request reqs = 2;
+}
 
 message Request {
   enum Op {
@@ -18,7 +27,6 @@ message Request {
     READ = 1;   // Read from peer
     WRITE = 2;  // Write to peer
   }
-
   Op op = 1;         // operation type
   uint64 laddr = 2;  // address in this local process
   uint64 raddr = 3;  // address in the remote peer process

@@ -21,14 +21,14 @@ class ControlMsg final {
   static constexpr size_t kMaxLen = 512;
 
   // Serializes the control message to a string.
-  static std::string Serialize(const proto::Control& c) {
-    return c.SerializeAsString();
+  static std::string Serialize(const proto::ControlReq& msg) {
+    return msg.SerializeAsString();
   }
 
   // Parses the control message from a string.
   // Returns true iff parsing is successful.
-  static bool Deserialize(std::string_view s, proto::Control& c) {
-    return c.ParseFromString(s);
+  static bool Deserialize(std::string_view s, proto::ControlReq& msg) {
+    return msg.ParseFromString(s);
   }
 
  private:

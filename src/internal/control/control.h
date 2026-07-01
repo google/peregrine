@@ -30,11 +30,11 @@ class Control final {
 
   // Enqueues a control message for sending.
   // Returns true iff the message is enqueued successfully.
-  bool EnqueueSend(const proto::Control& c);
+  bool EnqueueSend(const proto::ControlReq& msg);
 
   // Dequeues a received control message.
   // Returns true iff a message is dequeued.
-  bool DequeueRecv(proto::Control& c);
+  bool DequeueRecv(proto::ControlReq& msg);
 
  private:
   // Returns true iff there are pending messages to send or the destructor is
@@ -50,17 +50,17 @@ class Control final {
  private:
   // Sends a control message to the `channel_`.
   // Returns true iff the message is sent successfully.
-  bool send(const proto::Control& msg);
+  bool send(const proto::ControlReq& msg);
 
   // Receives a control message from the `channel_`.
   // Returns true iff the message is received successfully.
-  bool recv(proto::Control& msg);
+  bool recv(proto::ControlReq& msg);
 
  private:
   mutable absl::Mutex mu_;
   bool stopping_ ABSL_GUARDED_BY(mu_);
-  std::deque<proto::Control> send_queue_ ABSL_GUARDED_BY(mu_);
-  std::deque<proto::Control> recv_queue_ ABSL_GUARDED_BY(mu_);
+  std::deque<proto::ControlReq> send_queue_ ABSL_GUARDED_BY(mu_);
+  std::deque<proto::ControlReq> recv_queue_ ABSL_GUARDED_BY(mu_);
 
   std::unique_ptr<Channel> channel_;
   std::jthread send_thread_;
