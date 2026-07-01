@@ -1,5 +1,7 @@
 # For benchmarks only.
 
+load("@protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
@@ -45,11 +47,38 @@ cc_test(
     ],
 )
 
+proto_library(
+    name = "control_proto",
+    srcs = ["control.proto"],
+)
+
+cc_proto_library(
+    name = "control_cc_proto",
+    deps = [":control_proto"],
+)
+
+cc_library(
+    name = "control_util",
+    srcs = ["control_util.cc"],
+    hdrs = ["control_util.h"],
+    deps = [
+        ":control_cc_proto",
+        "//third_party/protobuf",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
 cc_library(
     name = "peregrine_util",
     srcs = ["peregrine_util.cc"],
     hdrs = ["peregrine_util.h"],
     deps = [
+        ":control_cc_proto",
+        ":control_util",
+        ":flags",
         ":types",
         "//src/api:transport",
         "//src/api:transport_types",

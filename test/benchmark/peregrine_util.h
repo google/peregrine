@@ -12,7 +12,7 @@ void RunRcvr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size);
 
 // Runs peregrine as sender.
 void RunSndr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size,
-             std::string_view peer, void* raddr, uint32_t num_xfers);
+             std::string_view peer, uint32_t num_xfers);
 
 }  // namespace peregrine::benchmark
 

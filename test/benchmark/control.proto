@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package peregrine.benchmark.proto;
+
+message DataPort {
+  uint32 port = 1;
+}
+
+message TransferRequest {
+  // Currently empty. Serves as a trigger for the receiver to return its buffer
+  // address. Transfer parameters (like size) are statically controlled via
+  // command-line flags, but this message can be extended to carry them
+  // dynamically.
+}
+
+message TransferResponse {
+  uint64 buffer_address = 1;
+}
+
+message ControlMessage {
+  oneof payload {
+    DataPort data_port = 1;
+    TransferRequest transfer_request = 2;
+    TransferResponse transfer_response = 3;
+  }
+}
