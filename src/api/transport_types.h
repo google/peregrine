@@ -1,11 +1,13 @@
 #ifndef PEREGRINE_SRC_API_TRANSPORT_TYPES_H_
 #define PEREGRINE_SRC_API_TRANSPORT_TYPES_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
 #include <string>
 
+#include "absl/types/span.h"
 #include "third_party/gloop/util/intops/strong_int.h"
 
 namespace peregrine {
@@ -39,6 +41,13 @@ struct Request final {
   // Returns a string representation of the transport request.
   std::string ToString() const;
 };
+
+// Returns true iff the requests has at least one request and all are valid.
+inline bool IsValid(absl::Span<const Request> requests) {
+  return !requests.empty() &&
+         std::all_of(requests.begin(), requests.end(),
+                     [](const Request& r) { return r.IsValid(); });
+}
 
 // Transport operation status.
 enum class Status : int {

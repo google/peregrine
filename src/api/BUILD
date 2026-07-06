@@ -29,6 +29,7 @@ cc_library(
         "//third_party/gloop/util/intops",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 

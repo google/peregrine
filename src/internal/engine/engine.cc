@@ -103,9 +103,7 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
 absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
                                        absl::Span<const Request> requests) {
   DCHECK(peer.IsValid());
-  DCHECK(!requests.empty());
-  DCHECK(std::all_of(requests.begin(), requests.end(),
-                     [](const Request& r) { return r.IsValid(); }));
+  DCHECK(IsValid(requests));
 
   absl::MutexLock _(mu_);
   const Handle handle = genHandle();

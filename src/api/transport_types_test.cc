@@ -35,6 +35,8 @@ TEST(TransportStatus, Values) {
 }
 
 TEST(TransportRequest, Validity) {
+  EXPECT_FALSE(IsValid({}));
+
   const Request ri = {
       .op = Op::kRead,
       .laddr = nullptr,
@@ -42,6 +44,7 @@ TEST(TransportRequest, Validity) {
       .len = 0,
   };
   EXPECT_FALSE(ri.IsValid());
+  EXPECT_FALSE(IsValid({ri}));
   LOG(INFO) << ri;
 
   const Request rv = {
@@ -51,6 +54,7 @@ TEST(TransportRequest, Validity) {
       .len = 1,
   };
   EXPECT_TRUE(rv.IsValid());
+  EXPECT_TRUE(IsValid({rv}));
   LOG(INFO) << rv;
 }
 
