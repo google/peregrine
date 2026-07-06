@@ -35,57 +35,16 @@ cc_library(
 )
 
 cc_library(
-    name = "transfer",
-    srcs = ["transfer.cc"],
-    hdrs = ["transfer.h"],
-    deps = [
-        "//src/api:transport_types",
-        "//src/internal:assumptions",
-        "//src/internal/base:types",
-        "//src/internal/channel",
-        "//src/internal/channel:channel_types",
-        "//src/internal/chunk",
-        "//src/internal/chunk:chunk_flatbuf",
-        "//src/internal/chunk:chunk_tracker",
-        "//src/internal/request:request_tracker",
-        "//src/util:macro",
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-    ],
-)
-
-cc_test(
-    name = "transfer_test",
-    srcs = ["transfer_test.cc"],
-    deps = [
-        ":transfer",
-        "//src/api:transport_types",
-        "//src/internal:assumptions",
-        "//src/internal/base:types",
-        "//src/internal/channel",
-        "//src/internal/channel:channel_test_util",
-        "//src/internal/chunk",
-        "//src/internal/request:request_tracker",
-        "//src/util",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/random",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_library(
     name = "worker",
     srcs = ["worker.cc"],
     hdrs = ["worker.h"],
     deps = [
-        ":transfer",
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/channel",
         "//src/internal/chunk",
         "//src/internal/request:request_tracker",
+        "//src/internal/transfer",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",

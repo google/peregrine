@@ -13,6 +13,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
+#include "src/internal/transfer/transfer.h"
 
 namespace peregrine::internal {
 
@@ -26,7 +27,8 @@ Worker::Worker(int id, const Endpoint& self, RequestTracker& outgoing,
       self_(self),
       stop_(false),
       chunks_(),
-      xfer_(outgoing, incoming),
+      outgoing_(outgoing),
+      incoming_(incoming),
       channel_(std::move(channel)) {
   DCHECK_NE(channel_, nullptr);
   send_thread_ = std::jthread([this]() { SendLoop(); });
@@ -75,7 +77,7 @@ void Worker::SendLoop() {
     const ChunkMetadata& chunk = entry.chunk;
     DCHECK(chunk.IsValid());
     const auto payload = entry.GenPayload();
-    if (!xfer_.SendChunk(channel_.get(), chunk, payload)) {
+    if (!Transfer::SendChunk(channel_.get(), chunk, payload)) {
       // TODO(yongx): Handle errors.
       log("send chunk failed");
       break;
@@ -93,7 +95,7 @@ void Worker::RecvLoop() {
         return;
       }
     }
-    if (!xfer_.RecvChunk(channel_.get())) {
+    if (!Transfer::RecvChunk(channel_.get(), outgoing_, incoming_)) {
       // TODO(yongx): Handle errors.
       log("recv chunk failed");
       break;

@@ -1,4 +1,4 @@
-#include "src/internal/engine/transfer.h"
+#include "src/internal/transfer/transfer.h"
 
 #include <sys/socket.h>
 
@@ -21,6 +21,7 @@
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
+#include "src/internal/channel/channel_types.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/util/util.h"
@@ -95,12 +96,19 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     }
   }
 
+  bool IsSendDone() const {
+    return a_.outgoing.Check(kHandle) == Status::kSuccess;
+  }
+
+  bool IsRecvDone() const {
+    return b_.incoming.Check(kHandle) == Status::kSuccess;
+  }
+
  private:
   struct Host {
     RequestTracker outgoing;
     RequestTracker incoming;
-    Transfer xfer;
-    Host() : outgoing(), incoming(), xfer(outgoing, incoming) {}
+    Host() : outgoing(), incoming() {}
   };
 
  protected:
@@ -123,33 +131,30 @@ TEST_P(TransferTest, SendRecv) {
   const ChannelType type = std::get<0>(param);
   const ConnectedChannelPair chs = CreateChannelPair(type);
 
-  // Completion means A's send is done since B acks A's data chunks.
-  auto done = [this]() { return a_.xfer.IsSendDone(kHandle); };
-
   // A sends data chunks to B.
   std::thread a_send([&]() {
     Channel* const channel = chs.sndr.get();
-    while (!done()) {
+    while (!IsSendDone()) {
       for (uint32_t i = 0; i < kNumChunks; ++i) {
         const ChunkMetadata chunk = GenChunk(i);
         const ChunkPayloadView payload = GenPayload(i);
-        CHECK(a_.xfer.SendChunk(channel, chunk, payload));
+        CHECK(Transfer::SendChunk(channel, chunk, payload));
       }
     }
   });
   // A receives ack chunks from B.
   std::thread a_recv([&]() {
     Channel* const channel = chs.sndr.get();
-    while (!done()) {
-      a_.xfer.RecvChunk(channel);
+    while (!IsSendDone()) {
+      Transfer::RecvChunk(channel, a_.outgoing, a_.incoming);
     }
   });
 
   // B receives data chunks from A (and sends ack chunks to A).
   std::thread b_recv([&]() {
     Channel* const channel = chs.rcvr.get();
-    while (!done()) {
-      b_.xfer.RecvChunk(channel);
+    while (!IsSendDone()) {
+      Transfer::RecvChunk(channel, b_.outgoing, b_.incoming);
     }
   });
 
@@ -157,8 +162,8 @@ TEST_P(TransferTest, SendRecv) {
   a_recv.join();
   b_recv.join();
 
-  EXPECT_TRUE(a_.xfer.IsSendDone(kHandle));
-  EXPECT_TRUE(b_.xfer.IsRecvDone(kHandle));
+  EXPECT_TRUE(IsSendDone());
+  EXPECT_TRUE(IsRecvDone());
 
   // Postcondition: dst is the same as src.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));

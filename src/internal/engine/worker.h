@@ -12,7 +12,6 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
-#include "src/internal/engine/transfer.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/util/macro.h"
 
@@ -70,7 +69,9 @@ class Worker {
   bool stop_ ABSL_GUARDED_BY(mu_);
   std::deque<Entry> chunks_ ABSL_GUARDED_BY(mu_);
 
-  Transfer xfer_;
+  RequestTracker& outgoing_;
+  RequestTracker& incoming_;
+
   std::unique_ptr<Channel> channel_;
 
   std::jthread send_thread_;

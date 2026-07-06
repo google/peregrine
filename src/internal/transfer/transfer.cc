@@ -1,4 +1,4 @@
-#include "src/internal/engine/transfer.h"
+#include "src/internal/transfer/transfer.h"
 
 #include <sys/stat.h>
 
@@ -40,13 +40,14 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
   return channel->Write(iovecs);
 }
 
-bool Transfer::RecvChunk(Channel* const channel) {
+bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
+                         RequestTracker& incoming) {
   const ChannelType t = channel->Type();
   if ABSL_PREDICT_TRUE (IsReliableStream(t)) {
-    return recvChunkStream(channel);
+    return recvChunkStream(channel, outgoing, incoming);
   } else {
     DCHECK(IsUnreliableMessage(t));
-    return recvChunkMsg(channel);
+    return recvChunkMsg(channel, outgoing, incoming);
   }
 }
 
@@ -55,8 +56,10 @@ bool Transfer::deserialize(Byte* header, ChunkMetadata& chunk) {
   return ChunkHeader::Deserialize(s, chunk) && chunk.IsValid();
 }
 
-ChunkTracker* Transfer::getChunkTracker(const ChunkMetadata& chunk) const {
-  RequestTracker& t = chunk.IsAck() ? outgoing_ : incoming_;
+ChunkTracker* Transfer::getChunkTracker(const ChunkMetadata& chunk,
+                                        RequestTracker& outgoing,
+                                        RequestTracker& incoming) {
+  RequestTracker& t = chunk.IsAck() ? outgoing : incoming;
   return t.FindOrCreate(chunk.handle, chunk.reqid, chunk.nchunks);
 }
 
@@ -72,7 +75,8 @@ bool Transfer::sendAck(Channel* channel, ChunkMetadata& chunk) {
   return true;
 }
 
-bool Transfer::recvChunkStream(Channel* const channel) {
+bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
+                               RequestTracker& incoming) {
   DCHECK(IsReliableStream(channel->Type()));
 
   // Step 1: read chunk header.
@@ -92,7 +96,7 @@ bool Transfer::recvChunkStream(Channel* const channel) {
   }
 
   // Step 3: find chunk tracker.
-  ChunkTracker* const tracker = getChunkTracker(chunk);
+  ChunkTracker* const tracker = getChunkTracker(chunk, outgoing, incoming);
   DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker: " << chunk.reqid.value();
@@ -121,7 +125,8 @@ bool Transfer::recvChunkStream(Channel* const channel) {
   }
 }
 
-bool Transfer::recvChunkMsg(Channel* const channel) {
+bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
+                            RequestTracker& incoming) {
   DCHECK(IsUnreliableMessage(channel->Type()));
 
   // Step 1: read chunk header.
@@ -150,7 +155,7 @@ bool Transfer::recvChunkMsg(Channel* const channel) {
   }
 
   // Step 4: find chunk tracker.
-  ChunkTracker* const tracker = getChunkTracker(chunk);
+  ChunkTracker* const tracker = getChunkTracker(chunk, outgoing, incoming);
   DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker: " << chunk.reqid.value();
