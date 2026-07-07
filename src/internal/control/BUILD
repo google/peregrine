@@ -34,33 +34,28 @@ cc_grpc_library(
     deps = [":service_cc_proto"],
 )
 
-cc_test(
-    name = "message_test",
-    srcs = ["message_test.cc"],
-    deps = [
-        ":message_cc_proto",
-        "//src/api:transport_types",
-        "@googletest//:gtest_main",
-    ],
-)
-
 cc_library(
-    name = "parser",
-    srcs = ["parser.cc"],
-    hdrs = ["parser.h"],
+    name = "message",
+    srcs = ["message.cc"],
+    hdrs = ["message.h"],
     deps = [
         ":message_cc_proto",
         "//src/api:transport_types",
         "//src/internal:assumptions",
+        "//src/internal/base:endpoint",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
 cc_test(
-    name = "parser_test",
-    srcs = ["parser_test.cc"],
+    name = "message_test",
+    srcs = ["message_test.cc"],
     deps = [
-        ":parser",
-        "@abseil-cpp//absl/log",
+        ":message",
+        ":message_cc_proto",
+        "//src/api:transport_types",
+        "//src/internal/base:endpoint",
         "@googletest//:gtest_main",
     ],
 )
@@ -70,12 +65,13 @@ cc_library(
     srcs = ["control.cc"],
     hdrs = ["control.h"],
     deps = [
+        ":message",
         ":message_cc_proto",
-        ":parser",
         "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:types",
         "//src/internal/channel",
+        "//src/internal/channel:channel_types",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
@@ -89,6 +85,7 @@ cc_test(
     srcs = ["control_test.cc"],
     deps = [
         ":control",
+        ":message",
         "//src/internal/channel:channel_test_util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

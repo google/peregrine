@@ -38,6 +38,12 @@ struct Request final {
     return laddr != nullptr && raddr != nullptr && 1 <= len;
   }
 
+  // Returns true iff the requests are equal.
+  friend bool operator==(const Request& a, const Request& b) {
+    return a.op == b.op && a.laddr == b.laddr && a.raddr == b.raddr &&
+           a.len == b.len;
+  }
+
   // Returns a string representation of the transport request.
   std::string ToString() const;
 };

@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 
@@ -14,6 +15,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/internal/channel/channel_test_util.h"
+#include "src/internal/control/message.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -48,41 +50,37 @@ INSTANTIATE_TEST_SUITE_P(, ControlTest,
                          /*family=*/Values(AF_INET, AF_INET6), ToString);
 
 TEST_P(ControlTest, SendRecv) {
+  constexpr std::string_view kPeer = "127.0.0.1:56789";
   constexpr uint64_t kLaddr = 0x1000;
   constexpr uint64_t kRaddr = 0x2000;
   constexpr uint32_t kLen = 300;
 
   // Send a message.
-  proto::ControlReq msg;
-  auto pr = msg.mutable_peer_requests();
-  pr->set_peer("127.0.0.1:56789");
-  auto r = pr->add_reqs();
-  r->set_op(proto::Request::READ);
-  r->set_laddr(kLaddr);
-  r->set_raddr(kRaddr);
-  r->set_len(kLen);
-  ASSERT_TRUE(local_.EnqueueSend(msg));
+  proto::ReqMsg msg_s;
+  auto prs = msg_s.mutable_peer_requests();
+  prs->set_peer(kPeer);
+  auto rs = prs->add_requests();
+  rs->set_op(proto::Request::READ);
+  rs->set_laddr(kLaddr);
+  rs->set_raddr(kRaddr);
+  rs->set_len(kLen);
+  ASSERT_TRUE(local_.EnqueueSend(msg_s));
   LOG(INFO) << "msg sent";
 
   // Receive the message.
-  proto::ControlReq msg2;
-  ASSERT_FALSE(msg2.has_peer_requests());
-  while (!remote_.DequeueRecv(msg2)) {
+  proto::ReqMsg msg_r;
+  ASSERT_FALSE(msg_r.has_peer_requests());
+  while (!remote_.DequeueRecv(msg_r)) {
     absl::SleepFor(absl::Milliseconds(100));
   }
-  ASSERT_TRUE(msg2.has_peer_requests());
+  ASSERT_TRUE(msg_r.has_peer_requests());
   LOG(INFO) << "msg rcvd";
 
   // Check the message.
-  const proto::PeerRequests& pr2 = msg2.peer_requests();
-  EXPECT_EQ(pr2.peer(), "127.0.0.1:56789");
-  EXPECT_EQ(pr2.reqs_size(), 1);
-  const proto::Request& r2 = pr2.reqs(0);
-  EXPECT_EQ(r2.op(), proto::Request::READ);
-  EXPECT_EQ(r2.laddr(), kLaddr);
-  EXPECT_EQ(r2.raddr(), kRaddr);
-  EXPECT_EQ(r2.len(), kLen);
-  LOG(INFO) << "test done";
+  const proto::PeerRequests& prr = msg_r.peer_requests();
+  EXPECT_EQ(prr.peer(), kPeer);
+  EXPECT_EQ(prr.requests_size(), 1);
+  EXPECT_TRUE(Message::AreEqual(prr.requests(0), *rs));
 }
 
 }  // namespace

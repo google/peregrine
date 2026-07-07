@@ -18,8 +18,9 @@
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
+#include "src/internal/channel/channel_types.h"
+#include "src/internal/control/message.h"
 #include "src/internal/control/message.pb.h"
-#include "src/internal/control/parser.h"
 
 namespace peregrine::internal {
 
@@ -46,13 +47,13 @@ Control::~Control() {
   LOG(INFO) << kControl << "destroyed";
 }
 
-bool Control::EnqueueSend(const proto::ControlReq& msg) {
+bool Control::EnqueueSend(const proto::ReqMsg& msg) {
   absl::MutexLock _(mu_);
   send_queue_.push_back(msg);
   return true;
 }
 
-bool Control::DequeueRecv(proto::ControlReq& msg) {
+bool Control::DequeueRecv(proto::ReqMsg& msg) {
   absl::MutexLock _(mu_);
   if (recv_queue_.empty()) {
     return false;
@@ -65,7 +66,7 @@ bool Control::DequeueRecv(proto::ControlReq& msg) {
 bool Control::hasSendWork() const { return !send_queue_.empty() || stopping_; }
 
 void Control::sendLoop() {
-  proto::ControlReq msg;
+  proto::ReqMsg msg;
   while (true) {
     {  // step 1: get a message.
       absl::MutexLock _(mu_);
@@ -85,7 +86,7 @@ void Control::sendLoop() {
 }
 
 void Control::recvLoop() {
-  proto::ControlReq msg;
+  proto::ReqMsg msg;
   while (recv(msg)) {
     absl::MutexLock _(mu_);
     recv_queue_.push_back(msg);
@@ -93,14 +94,14 @@ void Control::recvLoop() {
   LOG(INFO) << kControl << "recv loop exited";
 }
 
-bool Control::send(const proto::ControlReq& msg) {
+bool Control::send(const proto::ReqMsg& msg) {
   static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
   DCHECK(IsReliableStream(channel_->Type()));
 
   // Serialize the control message: 4-byte length + payload.
-  const std::string s = ControlMsg::Serialize(msg);
+  const std::string s = Message::Serialize(msg);
   const size_t size = s.size();
-  if ABSL_PREDICT_FALSE (size > ControlMsg::kMaxLen) {
+  if ABSL_PREDICT_FALSE (size > Message::kMaxLen) {
     LOG(WARNING) << "control msg too large: " << size;
     return false;
   }
@@ -115,7 +116,7 @@ bool Control::send(const proto::ControlReq& msg) {
   return channel_->Write(iovecs);
 }
 
-bool Control::recv(proto::ControlReq& msg) {
+bool Control::recv(proto::ReqMsg& msg) {
   static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
   DCHECK(IsReliableStream(channel_->Type()));
 
@@ -132,9 +133,9 @@ bool Control::recv(proto::ControlReq& msg) {
   }
 
   // Read the control message payload.
-  Byte buf[ControlMsg::kMaxLen];
+  Byte buf[Message::kMaxLen];
   const uint32_t size = ntohl(len_nbo);
-  if ABSL_PREDICT_FALSE (size > ControlMsg::kMaxLen) {
+  if ABSL_PREDICT_FALSE (size > Message::kMaxLen) {
     LOG(WARNING) << "control msg too large: " << size;
     return false;
   }
@@ -146,7 +147,7 @@ bool Control::recv(proto::ControlReq& msg) {
 
   // Deserialize the control message.
   const std::string_view s(reinterpret_cast<const char*>(buf), len2);
-  return ControlMsg::Deserialize(s, msg);
+  return Message::Deserialize(s, msg);
 }
 
 }  // namespace peregrine::internal
