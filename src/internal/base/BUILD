@@ -64,3 +64,20 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "hostinfo",
+    srcs = ["hostinfo.cc"],
+    hdrs = ["hostinfo.h"],
+    deps = [":endpoint"],
+)
+
+cc_test(
+    name = "hostinfo_test",
+    srcs = ["hostinfo_test.cc"],
+    deps = [
+        ":endpoint",
+        ":hostinfo",
+        "@googletest//:gtest_main",
+    ],
+)

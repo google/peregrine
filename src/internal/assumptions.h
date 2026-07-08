@@ -70,6 +70,25 @@ inline constexpr bool kChunkMetadataSerializesToFixedSizeFlatBufString = true;
 // different chunks at the same time.
 inline constexpr bool kReceiverSideChunkWriteContentionIsVeryLow = true;
 
+// Assumptions about control/data plane.
+// ---------------------------------------------------------------------------
+//
+// When a transport instance starts, it needs to understand its host environment
+// first. For example, it enumerates all the network interface cards (NICs) on
+// the host. Then the transport starts one control-plane TCP listener bound to
+// an arbitrary NIC (e.g. on ip:port_c, which can be used to identify the
+// transport instance itself). It also starts multiple data-plane TCP listeners
+// one per NIC (e.g. on ip0::port_d0 and ip1::port_d1). The data-plane TCP
+// listeners are used to create TCP connections bounded to specific NICs to
+// carry data-plane traffic, not control-plane messages.
+//
+// Knowing the transport's control-plane listening address ip:port_c, other peer
+// transports can connect to it to query its host environment information (such
+// as data-plane TCP listener addresses) and exchange control messages.
+// Alternatively, each transport can report its host info to a central server
+// (such as `etcd`), which can then be queried by all the transports.
+inline constexpr bool kTcpListenersOfControlAndDataPlanesAreSeparate = true;
+
 // Assumptions about control messages.
 // ---------------------------------------------------------------------------
 //
@@ -77,10 +96,10 @@ inline constexpr bool kReceiverSideChunkWriteContentionIsVeryLow = true;
 // request, host device info, etc. All of them are wrapped in a single control
 // message using protobuf's `oneof` feature. This control message is serialized
 // in two fields: a 4-byte network-byte-order length field and a variable-size
-// string (serialization of the inner message, at most 512 bytes). In total,
-// a serialized control message is at most 516 bytes, well below the widely
-// assumed minimum network MTU of 576 bytes.
-inline constexpr bool kThereIsOnlyOneWrapperControlMessage = true;
+// string (serialization of the inner message, at most 1024 bytes). In total,
+// a serialized control message is at most 1028 bytes, well below the widely
+// used network MTU of 1500 bytes.
+inline constexpr bool kThereIsOnlyOneWrapperControlMessageAtMost1KiB = true;
 
 }  // namespace peregrine::assumptions
 

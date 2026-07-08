@@ -8,38 +8,41 @@
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/control/message.pb.h"
 
 namespace peregrine::internal {
 
-void Message::Convert(const Endpoint& e, absl::Span<const Request> requests,
+bool Message::Convert(const HostInfo& host, absl::Span<const Request> requests,
                       proto::ReqMsg& msg) {
-  DCHECK(e.IsValid());
+  DCHECK(host.IsValid());
   DCHECK(IsValid(requests));
 
   msg.Clear();
+
   proto::PeerRequests* pr = msg.mutable_peer_requests();
-  pr->set_peer(e.ToString());
+  auto* peer = pr->mutable_peer();
+  if (peer == nullptr) return false;
+  if (!convert(host, *peer)) return false;
 
   proto::Request proto;
   for (const auto& r : requests) {
     auto* proto = pr->add_requests();
-    DCHECK_NE(proto, nullptr);
-    convert(r, *proto);
+    if (proto == nullptr) return false;
+    if (!convert(r, *proto)) return false;
   }
+  return true;
 }
 
-std::pair<Endpoint, std::vector<Request>> Message::Convert(
+std::pair<HostInfo, std::vector<Request>> Message::Convert(
     const proto::ReqMsg& msg) {
   DCHECK(msg.has_peer_requests());
 
-  const auto invalid = std::make_pair(Endpoint(), std::vector<Request>(0));
+  const auto invalid = std::make_pair(HostInfo(), std::vector<Request>(0));
 
+  HostInfo host;
   const proto::PeerRequests& pr = msg.peer_requests();
-  const Endpoint e = Endpoint::Create(pr.peer());
-  if (!e.IsValid()) {
-    return invalid;
-  }
+  if (!convert(pr.peer(), host)) return invalid;
 
   std::vector<Request> requests;
   requests.reserve(pr.requests_size());
@@ -52,25 +55,61 @@ std::pair<Endpoint, std::vector<Request>> Message::Convert(
     return invalid;
   }
 
-  return {e, std::move(requests)};
+  return {host, std::move(requests)};
 }
 
-void Message::convert(const Request& r, proto::Request& proto) {
-  DCHECK(r.IsValid());
-  DCHECK(r.op == Op::kRead || r.op == Op::kWrite);
+bool Message::convert(const HostInfo& host, proto::HostInfo& proto) {
+  if (!host.IsValid()) return false;
 
+  proto.mutable_control_plane_listener()->set_ip_port(
+      host.control_plane_listener.ToString());
+
+  for (const auto& e : host.data_plane_listeners) {
+    auto* dp = proto.add_data_plane_listeners();
+    if (dp == nullptr) return false;
+    dp->set_ip_port(e.ToString());
+  }
+  return true;
+}
+
+bool Message::convert(const proto::HostInfo& proto, HostInfo& host) {
+  const auto ip_port = proto.control_plane_listener().ip_port();
+  const Endpoint c = Endpoint::Create(ip_port);
+  if (!c.IsValid()) {
+    return false;
+  }
+
+  std::vector<Endpoint> ds;
+  ds.reserve(proto.data_plane_listeners_size());
+  for (const auto& l : proto.data_plane_listeners()) {
+    const Endpoint e = Endpoint::Create(l.ip_port());
+    if (!e.IsValid()) return false;
+    ds.push_back(e);
+  }
+
+  host = {
+      .control_plane_listener = c,
+      .data_plane_listeners = std::move(ds),
+  };
+  DCHECK(host.IsValid());
+  return true;
+}
+
+bool Message::convert(const Request& r, proto::Request& proto) {
+  if (!r.IsValid()) return false;
+
+  DCHECK(r.op == Op::kRead || r.op == Op::kWrite);
   proto.set_op(r.op == Op::kRead ? proto::Request::READ
                                  : proto::Request::WRITE);
   proto.set_laddr(reinterpret_cast<uint64_t>(r.laddr));
   proto.set_raddr(reinterpret_cast<uint64_t>(r.raddr));
   proto.set_len(r.len);
+  return true;
 }
 
 bool Message::convert(const proto::Request& proto, Request& r) {
   const proto::Request::Op op = proto.op();
-  if (op == proto::Request::INVALID) {
-    return false;
-  }
+  if (op == proto::Request::INVALID) return false;
 
   DCHECK(op == proto::Request::READ || op == proto::Request::WRITE);
   r.op = op == proto::Request::READ ? Op::kRead : Op::kWrite;

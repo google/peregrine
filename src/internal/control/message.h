@@ -10,7 +10,7 @@
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
-#include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/control/message.pb.h"
 
 namespace peregrine::internal {
@@ -18,7 +18,8 @@ namespace peregrine::internal {
 // This utility class provides conversion between control messages and
 // their proto representations.
 class Message final {
-  static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
+  static_assert(assumptions::kTcpListenersOfControlAndDataPlanesAreSeparate);
+  static_assert(assumptions::kThereIsOnlyOneWrapperControlMessageAtMost1KiB);
 
  public:
   // The maximum length of a serialized control message.
@@ -36,11 +37,11 @@ class Message final {
   }
 
   // Converts peer requests to its proto.
-  static void Convert(const Endpoint& e, absl::Span<const Request> requests,
+  static bool Convert(const HostInfo& host, absl::Span<const Request> requests,
                       proto::ReqMsg& msg);
 
   // Converts a proto to its peer requests.
-  static std::pair<Endpoint, std::vector<Request>> Convert(
+  static std::pair<HostInfo, std::vector<Request>> Convert(
       const proto::ReqMsg& msg);
 
   // Returns true iff the proto requests are equal.
@@ -51,7 +52,13 @@ class Message final {
 
  private:
   // Converts a request to its proto.
-  static void convert(const Request& r, proto::Request& proto);
+  static bool convert(const HostInfo& host, proto::HostInfo& proto);
+
+  // Converts a proto to its request.
+  static bool convert(const proto::HostInfo& proto, HostInfo& host);
+
+  // Converts a request to its proto.
+  static bool convert(const Request& r, proto::Request& proto);
 
   // Converts a proto to its request.
   static bool convert(const proto::Request& proto, Request& r);

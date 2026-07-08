@@ -43,6 +43,7 @@ cc_library(
         "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/types:span",
     ],
@@ -56,6 +57,7 @@ cc_test(
         ":message_cc_proto",
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
         "@googletest//:gtest_main",
     ],
 )

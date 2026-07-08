@@ -4,7 +4,8 @@ edition = "2024";
 
 package peregrine.internal.proto;
 
-// static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
+// static_assert(assumptions::kTcpListenersOfControlAndDataPlanesAreSeparate);
+// static_assert(assumptions::kThereIsOnlyOneWrapperControlMessageAtMost1KiB);
 message ReqMsg {
   oneof msg {
     PeerRequests peer_requests = 1;
@@ -18,10 +19,22 @@ message RespMsg {}
 // ------------------------
 
 message PeerRequests {
-  bytes peer = 1;  // "127.0.0.1:56789" or "[::1]:56789"
+  HostInfo peer = 1;
   repeated Request requests = 2;
 }
 
+// See internal/base/hostinfo.h
+message HostInfo {
+  Endpoint control_plane_listener = 1;
+  repeated Endpoint data_plane_listeners = 2;
+}
+
+// See internal/base/endpoint.h
+message Endpoint {
+  bytes ip_port = 1;  // e.g. "127.0.0.1:56789" or "[::1]:56789"
+}
+
+// See api/transport_types.h
 message Request {
   enum Op {
     INVALID = 0;

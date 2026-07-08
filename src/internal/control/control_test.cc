@@ -50,7 +50,8 @@ INSTANTIATE_TEST_SUITE_P(, ControlTest,
                          /*family=*/Values(AF_INET, AF_INET6), ToString);
 
 TEST_P(ControlTest, SendRecv) {
-  constexpr std::string_view kPeer = "127.0.0.1:56789";
+  constexpr std::string_view kCntl = "127.0.0.1:56789";
+  constexpr std::string_view kData = "127.0.0.1:37184";
   constexpr uint64_t kLaddr = 0x1000;
   constexpr uint64_t kRaddr = 0x2000;
   constexpr uint32_t kLen = 300;
@@ -58,7 +59,9 @@ TEST_P(ControlTest, SendRecv) {
   // Send a message.
   proto::ReqMsg msg_s;
   auto prs = msg_s.mutable_peer_requests();
-  prs->set_peer(kPeer);
+  auto* sp = prs->mutable_peer();
+  sp->mutable_control_plane_listener()->set_ip_port(kCntl);
+  sp->add_data_plane_listeners()->set_ip_port(kData);
   auto rs = prs->add_requests();
   rs->set_op(proto::Request::READ);
   rs->set_laddr(kLaddr);
@@ -78,7 +81,10 @@ TEST_P(ControlTest, SendRecv) {
 
   // Check the message.
   const proto::PeerRequests& prr = msg_r.peer_requests();
-  EXPECT_EQ(prr.peer(), kPeer);
+  const proto::HostInfo& rp = prr.peer();
+  EXPECT_EQ(rp.control_plane_listener().ip_port(), kCntl);
+  EXPECT_EQ(rp.data_plane_listeners_size(), 1);
+  EXPECT_EQ(rp.data_plane_listeners(0).ip_port(), kData);
   EXPECT_EQ(prr.requests_size(), 1);
   EXPECT_TRUE(Message::AreEqual(prr.requests(0), *rs));
 }

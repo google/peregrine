@@ -95,7 +95,7 @@ void Control::recvLoop() {
 }
 
 bool Control::send(const proto::ReqMsg& msg) {
-  static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
+  static_assert(assumptions::kThereIsOnlyOneWrapperControlMessageAtMost1KiB);
   DCHECK(IsReliableStream(channel_->Type()));
 
   // Serialize the control message: 4-byte length + payload.
@@ -117,7 +117,7 @@ bool Control::send(const proto::ReqMsg& msg) {
 }
 
 bool Control::recv(proto::ReqMsg& msg) {
-  static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
+  static_assert(assumptions::kThereIsOnlyOneWrapperControlMessageAtMost1KiB);
   DCHECK(IsReliableStream(channel_->Type()));
 
   // Clear the message before receiving a new one.
