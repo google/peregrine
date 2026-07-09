@@ -20,7 +20,7 @@
 
 namespace peregrine::internal {
 
-fd_t CreateSocket(int family, int type, bool nonblocking) {
+fd_t CreateSocket(int family, int type, bool blocking) {
   DCHECK(family == AF_INET || family == AF_INET6);
   DCHECK(type == SOCK_STREAM || type == SOCK_DGRAM);
   const int ret = ::socket(family, type | SOCK_CLOEXEC, /*protocol=*/0);
@@ -31,7 +31,7 @@ fd_t CreateSocket(int family, int type, bool nonblocking) {
   }
   const fd_t fd(ret);
   DCHECK(IsBlockingMode(fd));
-  if (!nonblocking) {
+  if (blocking) {
     return fd;
   }
   if (!SetNonBlockingMode(fd)) {
@@ -52,12 +52,12 @@ bool IsNonBlockingMode(fd_t fd) {
   return flags >= 0 && (flags & O_NONBLOCK);
 }
 
-bool __set_blocking_mode(fd_t fd, bool nonblocking) {
+bool __set_blocking_mode(fd_t fd, bool blocking) {
   const int flags = ::fcntl(fd.value(), F_GETFL, /*cmd*/ 0);
   if ABSL_PREDICT_FALSE (flags < 0) {
     return false;
   }
-  const int cmd = nonblocking ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK);
+  const int cmd = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
   return ::fcntl(fd.value(), F_SETFL, cmd) >= 0;
 }
 

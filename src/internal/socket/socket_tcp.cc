@@ -26,8 +26,7 @@
 namespace peregrine::internal {
 
 std::unique_ptr<TcpSocket> TcpSocket::Create(int family) {
-  constexpr bool kNonblocking = false;
-  const fd_t fd = CreateSocket(family, SOCK_STREAM, kNonblocking);
+  const fd_t fd = CreateSocket(family, SOCK_STREAM, /*blocking=*/true);
   if ABSL_PREDICT_FALSE (fd.value() < 0) {
     return nullptr;
   } else {
@@ -111,6 +110,8 @@ bool TcpSocket::Listen(const Endpoint& local) const {
 }
 
 fd_t TcpSocket::Accept() const {
+  DCHECK(IsBlocking());
+
   const auto accept = family_ == AF_INET ? AcceptV4 : AcceptV6;
   const int ret = accept(fd_);
   if ABSL_PREDICT_FALSE (ret < 0) {
@@ -132,6 +133,8 @@ fd_t TcpSocket::Accept() const {
 }
 
 bool TcpSocket::Connect(const Endpoint& peer) {
+  DCHECK(IsBlocking());
+
   const auto connect = peer.IsIPv4() ? ConnectV4 : ConnectV6;
   if ABSL_PREDICT_FALSE (connect(fd_, peer) < 0) {
     const auto last_errno = errno;

@@ -27,8 +27,7 @@
 namespace peregrine::internal {
 
 std::unique_ptr<UdpSocket> UdpSocket::Create(int family) {
-  constexpr bool kNonblocking = false;
-  const fd_t fd = CreateSocket(family, SOCK_DGRAM, kNonblocking);
+  const fd_t fd = CreateSocket(family, SOCK_DGRAM, /*blocking=*/true);
   if ABSL_PREDICT_FALSE (fd.value() < 0) {
     return nullptr;
   } else {

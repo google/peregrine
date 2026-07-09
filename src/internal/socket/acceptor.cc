@@ -30,7 +30,6 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(const Endpoint& local) {
     return nullptr;
   }
 
-  DCHECK(socket->IsValid());
   DCHECK(socket->IsBlocking());
   if ABSL_PREDICT_FALSE (!socket->Listen(local)) {
     return nullptr;
@@ -55,9 +54,8 @@ void TcpAcceptor::Start(AcceptCallback accept) {
       continue;
     }
     std::unique_ptr<TcpSocket> socket = TcpSocket::Create(fd, family);
-    DCHECK(socket->IsValid());
-    DCHECK(socket->IsConnected());
     DCHECK(socket->IsBlocking());
+    DCHECK(socket->IsConnected());
     LOG(INFO) << kAcceptor << "made " << *socket;
     accept(std::move(socket));
   }

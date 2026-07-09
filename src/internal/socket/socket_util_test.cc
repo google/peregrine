@@ -20,8 +20,8 @@ TEST(SocketUtilTest, Basic) {
   for (int family : {AF_INET, AF_INET6}) {
     for (int type : {SOCK_STREAM, SOCK_DGRAM}) {
       const std::string proto = type == SOCK_STREAM ? "tcp" : "udp";
-      for (bool nonblocking : {true, false}) {
-        const fd_t fd = CreateSocket(family, type, nonblocking);
+      for (bool blocking : {true, false}) {
+        const fd_t fd = CreateSocket(family, type, blocking);
         ASSERT_GE(fd.value(), 0);
         LOG(INFO) << SuccessMsg(proto, "created", fd);
 

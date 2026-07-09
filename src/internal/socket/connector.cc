@@ -29,8 +29,8 @@ std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer) {
     return nullptr;
   }
 
-  LOG(INFO) << kConnector << "made " << *socket;
   DCHECK(socket->IsConnected());
+  LOG(INFO) << kConnector << "made " << *socket;
   return socket;
 }
 

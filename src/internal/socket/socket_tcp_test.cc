@@ -62,8 +62,8 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
 
     CHECK_GE(new_fd.value(), 0);
     auto new_socket = TcpSocket::Create(new_fd, AF_INET);
-    DCHECK(new_socket->IsConnected());
     DCHECK(new_socket->IsBlocking());
+    DCHECK(new_socket->IsConnected());
     CHECK_EQ(new_socket->Recv(recv_buf.data(), kMsgSize), kMsgSize);
   });
 
@@ -71,8 +71,8 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
   std::thread client([&]() {
     server_ready.WaitForNotification();
     CHECK(connector_->Connect(local_));
-    DCHECK(connector_->IsConnected());
     DCHECK(connector_->IsBlocking());
+    DCHECK(connector_->IsConnected());
     CHECK_EQ(connector_->Send(message.data(), kMsgSize), kMsgSize);
   });
 
@@ -101,8 +101,8 @@ TEST_F(TcpIPv6SocketTest, BigData) {
 
     CHECK_GE(new_fd.value(), 0);
     auto new_socket = TcpSocket::Create(new_fd, AF_INET6);
-    DCHECK(new_socket->IsConnected());
     DCHECK(new_socket->IsBlocking());
+    DCHECK(new_socket->IsConnected());
     CHECK_EQ(new_socket->Recv(recv_buf.data(), kDataSize), kDataSize);
   });
 
@@ -110,8 +110,8 @@ TEST_F(TcpIPv6SocketTest, BigData) {
   std::thread client([&]() {
     server_ready.WaitForNotification();
     CHECK(connector_->Connect(local_));
-    DCHECK(connector_->IsConnected());
     DCHECK(connector_->IsBlocking());
+    DCHECK(connector_->IsConnected());
     CHECK_EQ(connector_->Send(send_buf.data(), kDataSize), kDataSize);
   });
 

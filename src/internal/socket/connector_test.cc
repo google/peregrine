@@ -55,8 +55,8 @@ TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
   std::jthread tc([&]() {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_);
     CHECK_NE(socket, nullptr);
-    DCHECK(socket->IsConnected());
     DCHECK(socket->IsBlocking());
+    DCHECK(socket->IsConnected());
   });
 
   ShortSleep();
@@ -67,8 +67,8 @@ TEST_F(TcpConnectorTestIPv6, ConnectBeforeAccept) {
   std::jthread tc([&]() {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_);
     CHECK_NE(socket, nullptr);
-    DCHECK(socket->IsConnected());
     DCHECK(socket->IsBlocking());
+    DCHECK(socket->IsConnected());
   });
 
   ShortSleep();

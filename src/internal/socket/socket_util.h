@@ -16,7 +16,7 @@ namespace peregrine::internal {
 
 // Creates a new socket.
 // Returns its file descriptor if successful, or -1 otherwise.
-fd_t CreateSocket(int family, int type, bool nonblocking);
+fd_t CreateSocket(int family, int type, bool blocking);
 
 // Sets socket option. Returns true if successful, false otherwise.
 inline bool SetOption(fd_t fd, int opt, const void* val, socklen_t len) {
@@ -32,18 +32,18 @@ bool IsNonBlockingMode(fd_t fd);
 // Sets the socket to the specified blocking mode.
 // Returns true if successful, false otherwise.
 // For internal use only.
-bool __set_blocking_mode(fd_t fd, bool nonblocking);
+bool __set_blocking_mode(fd_t fd, bool blocking);
 
 // Sets the socket to blocking mode.
 // Returns true if successful, false otherwise.
 inline bool SetBlockingMode(fd_t fd) {
-  return __set_blocking_mode(fd, /*nonblocking=*/false);
+  return __set_blocking_mode(fd, /*blocking=*/true);
 }
 
 // Sets the socket to non-blocking mode.
 // Returns true if successful, false otherwise.
 inline bool SetNonBlockingMode(fd_t fd) {
-  return __set_blocking_mode(fd, /*nonblocking=*/true);
+  return __set_blocking_mode(fd, /*blocking=*/false);
 }
 
 // Returns true iff the tcp listen socket Accept() call was shut down.

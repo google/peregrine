@@ -58,9 +58,9 @@ TEST_F(UdpSocketIPv4Test, SendRecv) {
   std::thread receiver([&]() {
     CHECK(rskt_->Bind(rcvr_));
     CHECK(rskt_->Connect(sndr_));
+    DCHECK(rskt_->IsBlocking());
     DCHECK(rskt_->IsConnected());
     rcvr_ready.Notify();
-    DCHECK(rskt_->IsBlocking());
     const ssize_t n = rskt_->Recv(recv_buf.data(), kMsgSize);
     CHECK_GT(n, 0);
     CHECK_LE(n, kMsgSize);
@@ -71,8 +71,8 @@ TEST_F(UdpSocketIPv4Test, SendRecv) {
     rcvr_ready.WaitForNotification();
     CHECK(sskt_->Bind(sndr_));
     CHECK(sskt_->Connect(rcvr_));
-    DCHECK(sskt_->IsConnected());
     DCHECK(sskt_->IsBlocking());
+    DCHECK(sskt_->IsConnected());
     CHECK_EQ(sskt_->Send(message.data(), kMsgSize), kMsgSize);
   });
 
@@ -96,6 +96,7 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
   std::thread receiver([&]() {
     CHECK(rskt_->Bind(rcvr_));
     CHECK(rskt_->Connect(sndr_));
+    DCHECK(rskt_->IsBlocking());
     DCHECK(rskt_->IsConnected());
     constexpr int kRN = 2;
     const struct iovec recv_iov[kRN] = {
@@ -103,7 +104,6 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
         {.iov_base = (void*)(recv_buf.data() + 2), .iov_len = kMsgSize - 2},
     };
     rcvr_ready.Notify();
-    DCHECK(rskt_->IsBlocking());
     const ssize_t n = rskt_->RecvV(recv_iov, kRN, kMsgSize);
     CHECK_GT(n, 0);
     CHECK_LE(n, kMsgSize);
@@ -114,13 +114,13 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
     rcvr_ready.WaitForNotification();
     CHECK(sskt_->Bind(sndr_));
     CHECK(sskt_->Connect(rcvr_));
+    DCHECK(sskt_->IsBlocking());
     DCHECK(sskt_->IsConnected());
     constexpr int kSN = 2;
     const struct iovec send_iov[kSN] = {
         {.iov_base = (void*)message.data(), .iov_len = 1},
         {.iov_base = (void*)(message.data() + 1), .iov_len = kMsgSize - 1},
     };
-    DCHECK(sskt_->IsBlocking());
     CHECK_EQ(sskt_->SendV(send_iov, kSN, kMsgSize), kMsgSize);
   });
 
