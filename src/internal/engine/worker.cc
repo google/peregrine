@@ -9,7 +9,7 @@
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 #include "src/api/transport_types.h"
-#include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
@@ -21,7 +21,7 @@ void Worker::log(std::string_view msg) const {
   LOG(INFO) << "worker #" << id_ << " " << msg << " @ " << self_;
 }
 
-Worker::Worker(int id, const Endpoint& self, RequestTracker& outgoing,
+Worker::Worker(int id, const HostInfo& self, RequestTracker& outgoing,
                RequestTracker& incoming, std::unique_ptr<Channel> channel)
     : id_(id),
       self_(self),

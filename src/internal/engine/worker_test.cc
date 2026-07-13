@@ -18,12 +18,13 @@
 #include "absl/time/time.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
-#include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
+#include "src/internal/util/test_util.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -48,8 +49,8 @@ class WorkerTest : public ::testing::Test {
       : src_(kBufSize),
         dst_(kBufSize),
         chs_(ConnectedChannelPair::CreateTcp(AF_INET6)),
-        s_(Endpoint::Create("[::1]:10005")),
-        r_(Endpoint::Create("[::1]:10000")),
+        s_(TestOnly_LocalHostInfo(AF_INET6, /*tcp=*/true)),
+        r_(TestOnly_LocalHostInfo(AF_INET6, /*tcp=*/true)),
         sndr_(5, s_, std::move(chs_.sndr)),
         rcvr_(0, r_, std::move(chs_.rcvr)) {
     for (int i = 0; i < kBufSize; ++i) {
@@ -82,7 +83,7 @@ class WorkerTest : public ::testing::Test {
     RequestTracker outgoing;
     RequestTracker incoming;
     Worker worker;
-    explicit Host(int id, const Endpoint& self,
+    explicit Host(int id, const HostInfo& self,
                   std::unique_ptr<Channel> channel)
         : outgoing(),
           incoming(),
@@ -94,8 +95,8 @@ class WorkerTest : public ::testing::Test {
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
   ConnectedChannelPair chs_;
-  const Endpoint s_;
-  const Endpoint r_;
+  const HostInfo s_;
+  const HostInfo r_;
   Host sndr_;
   Host rcvr_;
 };

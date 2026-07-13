@@ -89,7 +89,7 @@ NB_MODULE(peregrine, m) {
           },
           nb::arg("handle"));
 
-  m.def("create_transport", &CreateTransport, nb::arg("endpoint"),
+  m.def("create_transport", &CreateTransport, nb::arg("endpoints"),
         nb::arg("num_conns_per_peer") = 8);
 
   // Bind `Status` enum and helper functions

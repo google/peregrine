@@ -1,15 +1,58 @@
 #include "src/internal/base/hostinfo.h"
 
 #include <algorithm>
+#include <string>
+#include <string_view>
 
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/check.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 #include "src/internal/base/endpoint.h"
 
 namespace peregrine::internal {
 
 bool HostInfo::IsValid() const {
-  return control_plane_listener.IsValid() && !data_plane_listeners.empty() &&
-         std::all_of(data_plane_listeners.begin(), data_plane_listeners.end(),
-                     [](const Endpoint& e) { return e.IsValid(); });
+  const bool control_plane_listener_valid = control_plane_listener.IsValid();
+
+  const bool data_plane_listeners_empty_or_valid =
+      std::all_of(data_plane_listeners.begin(), data_plane_listeners.end(),
+                  [](const Endpoint& e) { return e.IsValid(); });
+
+  absl::flat_hash_set<Endpoint> es = {control_plane_listener};
+  es.insert(data_plane_listeners.begin(), data_plane_listeners.end());
+  const bool unique_endpoints = es.size() == 1 + data_plane_listeners.size();
+
+  return control_plane_listener_valid && data_plane_listeners_empty_or_valid &&
+         unique_endpoints;
+}
+
+HostInfo HostInfo::Create(std::string_view ipaddr_port_pairs) {
+  const HostInfo invalid;
+  DCHECK(!invalid.IsValid());
+
+  HostInfo host;
+  int i = 0;
+  const auto parts = absl::StrSplit(ipaddr_port_pairs, absl::ByAnyChar(",; \t"),
+                                    absl::SkipEmpty());
+  for (const auto ipaddr_port : parts) {
+    const Endpoint e = Endpoint::Create(ipaddr_port);
+    if (!e.IsValid()) return invalid;
+    if (i++ == 0) {
+      host.control_plane_listener = e;
+    } else {
+      host.data_plane_listeners.push_back(e);
+    }
+  }
+  return host.IsValid() ? host : invalid;
+}
+
+std::string HostInfo::ToString() const {
+  std::string s = absl::StrCat("host: ", control_plane_listener.ToString());
+  for (const auto& e : data_plane_listeners) {
+    absl::StrAppend(&s, ", ", e.ToString());
+  }
+  return s;
 }
 
 }  // namespace peregrine::internal

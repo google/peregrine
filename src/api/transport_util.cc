@@ -9,25 +9,28 @@
 #include "absl/log/log.h"
 #include "src/api/transport.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/transport_impl.h"
 
 namespace peregrine {
 
 using internal::Endpoint;
+using internal::HostInfo;
 using internal::TcpAcceptor;
 using internal::TransportImpl;
 
-// Creates a new transport instance.
-std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
+std::unique_ptr<Transport> CreateTransport(std::string_view endpoints,
                                            int num_conns_per_peer) {
-  const Endpoint self = Endpoint::Create(endpoint);
+  const HostInfo self = HostInfo::Create(endpoints);
   if ABSL_PREDICT_FALSE (!self.IsValid()) {
-    LOG(WARNING) << "failed to parse: " << endpoint;
+    LOG(WARNING) << "failed to parse: " << endpoints;
     return nullptr;
   }
 
-  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(self);
+  // TODO(yongx): add data plane endpoints.
+  const Endpoint& endpoint = self.control_plane_listener;
+  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(endpoint);
   if ABSL_PREDICT_FALSE (acceptor == nullptr) {
     LOG(WARNING) << "failed to create acceptor: " << self;
     return nullptr;

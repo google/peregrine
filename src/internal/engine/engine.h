@@ -17,6 +17,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/request/request_tracker.h"
@@ -36,7 +37,7 @@ class Engine {
 
  public:
   // Constructor.
-  explicit Engine(std::unique_ptr<TcpAcceptor> acceptor, const Endpoint& self,
+  explicit Engine(std::unique_ptr<TcpAcceptor> acceptor, const HostInfo& self,
                   int num_conns_per_peer);
 
   // Destructor.
@@ -103,7 +104,7 @@ class Engine {
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
-  const Endpoint self_;
+  const HostInfo self_;
   const int num_conns_per_peer_;
 
   absl::Mutex mu_;

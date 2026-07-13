@@ -69,7 +69,12 @@ cc_library(
     name = "hostinfo",
     srcs = ["hostinfo.cc"],
     hdrs = ["hostinfo.h"],
-    deps = [":endpoint"],
+    deps = [
+        ":endpoint",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+    ],
 )
 
 cc_test(
@@ -78,6 +83,7 @@ cc_test(
     deps = [
         ":endpoint",
         ":hostinfo",
+        "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],
 )

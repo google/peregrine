@@ -9,7 +9,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "src/api/transport_types.h"
-#include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
@@ -23,7 +23,7 @@ namespace peregrine::internal {
 class Worker {
  public:
   // Constructor.
-  Worker(int id, const Endpoint& self, RequestTracker& outgoing,
+  Worker(int id, const HostInfo& self, RequestTracker& outgoing,
          RequestTracker& incoming, std::unique_ptr<Channel> channel);
 
   // Disallows copy and assign.
@@ -63,7 +63,7 @@ class Worker {
 
  private:
   const int id_;
-  const Endpoint self_;
+  const HostInfo self_;
 
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);

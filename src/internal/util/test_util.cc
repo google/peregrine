@@ -4,6 +4,7 @@
 
 #include "absl/log/check.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/base/ipaddr.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
@@ -50,6 +51,19 @@ Endpoint TestOnly_LocalEndpoint(int family, bool tcp) {
     return Endpoint(ipaddr, TestOnly_FindFreeTcpPort(family));
   } else {
     return Endpoint(ipaddr, TestOnly_FindFreeUdpPort(family));
+  }
+}
+
+HostInfo TestOnly_LocalHostInfo(int family, bool tcp) {
+  const IpAddr ipaddr = IpLocalhost(family);
+  if (tcp) {
+    const auto c = Endpoint(ipaddr, TestOnly_FindFreeTcpPort(family));
+    const auto d = Endpoint(ipaddr, TestOnly_FindFreeTcpPort(family));
+    return HostInfo{c, {d}};
+  } else {
+    const auto c = Endpoint(ipaddr, TestOnly_FindFreeUdpPort(family));
+    const auto d = Endpoint(ipaddr, TestOnly_FindFreeUdpPort(family));
+    return HostInfo{c, {d}};
   }
 }
 

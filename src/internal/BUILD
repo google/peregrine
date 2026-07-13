@@ -35,6 +35,7 @@ cc_library(
         "//src/api:transport",
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
         "//src/internal/engine",
         "//src/internal/socket:acceptor",
         "@abseil-cpp//absl/base:core_headers",

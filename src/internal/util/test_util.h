@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/base/ipaddr.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
@@ -45,6 +46,9 @@ inline IpAddr IpLocalhost(int family) {
 
 // Creates a localhost endpoint in the given address `family` and protocol.
 Endpoint TestOnly_LocalEndpoint(int family, bool tcp);
+
+// Creates localhost host info in the given address `family` and protocol.
+HostInfo TestOnly_LocalHostInfo(int family, bool tcp);
 
 // Finds an unused TCP port in the given address `family`.
 // Return a non-zero port if successful, otherwise crashes.

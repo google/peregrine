@@ -1,6 +1,7 @@
 #include "src/internal/base/hostinfo.h"
 
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "src/internal/base/endpoint.h"
 
 namespace peregrine::internal::testing {
@@ -17,6 +18,17 @@ TEST(HostInfoTest, IsValid) {
   const HostInfo host = {.control_plane_listener = c,
                          .data_plane_listeners = {d0, d1}};
   EXPECT_TRUE(host.IsValid());
+  LOG(INFO) << host;
+}
+
+TEST(HostInfoTest, Create) {
+  const HostInfo a = HostInfo::Create("127.0.0.1:12345");
+  EXPECT_TRUE(a.IsValid());
+  LOG(INFO) << a;
+
+  const HostInfo b = HostInfo::Create("127.0.0.1:12345, [::1]:54321");
+  EXPECT_TRUE(b.IsValid());
+  LOG(INFO) << b;
 }
 
 }  // namespace

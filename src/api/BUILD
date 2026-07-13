@@ -51,6 +51,7 @@ cc_library(
         ":transport",
         "//src/internal:transport_impl",
         "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
         "//src/internal/socket:acceptor",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
@@ -63,7 +64,7 @@ cc_test(
     deps = [
         ":transport_util",
         "//src/util",
-        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest_main",
     ],
 )

@@ -3,7 +3,9 @@
 #include <sys/socket.h>
 
 #include "gtest/gtest.h"
+#include "absl/log/log.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -39,6 +41,17 @@ TEST(TestUtilTest, LocalEndpoint) {
     for (const bool tcp : {true, false}) {
       const Endpoint e = TestOnly_LocalEndpoint(family, tcp);
       EXPECT_TRUE(e.IsValid());
+      LOG(INFO) << e;
+    }
+  }
+}
+
+TEST(TestUtilTest, LocalHostInfo) {
+  for (const int family : {AF_INET, AF_INET6}) {
+    for (const bool tcp : {true, false}) {
+      const HostInfo h = TestOnly_LocalHostInfo(family, tcp);
+      EXPECT_TRUE(h.IsValid());
+      LOG(INFO) << h;
     }
   }
 }

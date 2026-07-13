@@ -18,6 +18,7 @@
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_util.h"
@@ -42,7 +43,7 @@ absl::Status NotFoundError(const Handle h) {
 }
 }  // namespace
 
-Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, const Endpoint& self,
+Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, const HostInfo& self,
                int num_conns_per_peer)
     : self_(self),
       num_conns_per_peer_(num_conns_per_peer),

@@ -60,6 +60,7 @@ cc_library(
     hdrs = ["test_util.h"],
     deps = [
         "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
         "//src/internal/base:ipaddr",
         "//src/internal/base:types",
         "//src/internal/socket:socket_tcp",
@@ -75,6 +76,8 @@ cc_test(
     deps = [
         ":test_util",
         "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
+        "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],
 )
