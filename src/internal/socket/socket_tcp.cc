@@ -17,6 +17,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
@@ -168,6 +169,7 @@ ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {
       const auto last_errno = errno;
       if ABSL_PREDICT_TRUE (bytes < 0) {
         if (Interrupted(last_errno)) continue;
+        DCHECK(!WouldBlock(last_errno));
         LOG(WARNING) << errMsg("send", last_errno);
         return -1;
       } else {  // rarely happens
@@ -205,6 +207,7 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
     } else {
       const auto last_errno = errno;
       if (Interrupted(last_errno)) continue;
+      DCHECK(!WouldBlock(last_errno));
       LOG(WARNING) << errMsg("recv", last_errno);
       return -1;
     }
@@ -212,6 +215,71 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
   DCHECK_EQ(left, 0);
   DCHECK_EQ(rcvd, len);
   return rcvd;
+}
+
+/*static*/ absl::Status TcpSocket::Send(const fd_t fd, const Byte* const buf,
+                                        const size_t len) {
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  DCHECK(IsBlockingMode(fd));
+
+  const Byte* ptr = buf;
+  size_t sent = 0;
+  ssize_t left = len;
+  while (left > 0) {
+    const ssize_t bytes = ::send(fd.value(), ptr, left, /*flags=*/0);
+    if ABSL_PREDICT_TRUE (bytes > 0) {
+      DCHECK_LE(bytes, left);
+      ptr += bytes;
+      left -= bytes;
+      sent += bytes;
+      DCHECK_EQ(buf + len, ptr + left);
+    } else {
+      if ABSL_PREDICT_TRUE (bytes < 0) {
+        const auto last_errno = errno;
+        if (Interrupted(last_errno)) continue;
+        DCHECK(!WouldBlock(last_errno));
+        return absl::InternalError("send");
+      } else {  // rarely happens
+        DCHECK_EQ(bytes, 0);
+        return absl::InternalError("send zero");
+      }
+    }
+  }
+  DCHECK_EQ(left, 0);
+  DCHECK_EQ(sent, len);
+  return absl::OkStatus();
+}
+
+/*static*/ absl::Status TcpSocket::Recv(const fd_t fd, Byte* const buf,
+                                        const size_t len) {
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  DCHECK(IsBlockingMode(fd));
+
+  Byte* ptr = buf;
+  size_t rcvd = 0;
+  ssize_t left = len;
+  while (left > 0) {
+    const ssize_t bytes = ::recv(fd.value(), ptr, left, /*flags=*/0);
+    if ABSL_PREDICT_TRUE (bytes > 0) {
+      DCHECK_LE(bytes, left);
+      ptr += bytes;
+      left -= bytes;
+      rcvd += bytes;
+      DCHECK_EQ(buf + len, ptr + left);
+    } else if (bytes == 0) {  // peer closed connection
+      return absl::InternalError("recv EoF");
+    } else {
+      const auto last_errno = errno;
+      if (Interrupted(last_errno)) continue;
+      DCHECK(!WouldBlock(last_errno));
+      return absl::InternalError("recv");
+    }
+  }
+  DCHECK_EQ(left, 0);
+  DCHECK_EQ(rcvd, len);
+  return absl::OkStatus();
 }
 
 std::string TcpSocket::ToString() const {

@@ -11,6 +11,7 @@
 #include <string>
 #include <string_view>
 
+#include "absl/base/attributes.h"
 #include "absl/log/check.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
@@ -57,6 +58,16 @@ class TcpSocket final : public SocketBase {
   // Returns the number of bytes received if successful. Zero byte means the
   // peer side has closed the connection. Returns -1 on error.
   ssize_t Recv(Byte* buf, size_t len) const;
+
+  // Sends on the socket `fd` exactly `len` bytes of data from the `buf`.
+  // Returns OK if all the bytes are sent successfully, error otherwise.
+  ABSL_DEPRECATED("temporary function")
+  static absl::Status Send(fd_t fd, const Byte* buf, size_t len);
+
+  // Receives on the socket `fd` exactly `len` bytes of data into the `buf`.
+  // Returns OK if all the bytes are received successfully, error otherwise.
+  ABSL_DEPRECATED("temporary function")
+  static absl::Status Recv(fd_t fd, Byte* buf, size_t len);
 
   // Returns a self/peer address pair string of the socket.
   std::string ToString() const;

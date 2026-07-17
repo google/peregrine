@@ -65,6 +65,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
     CHECK_EQ(new_socket->Recv(recv_buf.data(), kMsgSize), kMsgSize);
+    CHECK_OK(TcpSocket::Recv(new_socket->fd(), recv_buf.data(), kMsgSize));
   });
 
   // Second, create a client thread.
@@ -74,6 +75,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
     CHECK_EQ(connector_->Send(message.data(), kMsgSize), kMsgSize);
+    CHECK_OK(TcpSocket::Send(connector_->fd(), message.data(), kMsgSize));
   });
 
   // Wait for both threads to finish.
@@ -104,6 +106,7 @@ TEST_F(TcpIPv6SocketTest, BigData) {
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
     CHECK_EQ(new_socket->Recv(recv_buf.data(), kDataSize), kDataSize);
+    CHECK_OK(TcpSocket::Recv(new_socket->fd(), recv_buf.data(), kDataSize));
   });
 
   // Second, create a client thread.
@@ -113,6 +116,7 @@ TEST_F(TcpIPv6SocketTest, BigData) {
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
     CHECK_EQ(connector_->Send(send_buf.data(), kDataSize), kDataSize);
+    CHECK_OK(TcpSocket::Send(connector_->fd(), send_buf.data(), kDataSize));
   });
 
   // Wait for both threads to finish.
