@@ -92,3 +92,34 @@ py_test(
         "@abseil-py//absl/testing:absltest",
     ],
 )
+
+cc_library(
+    name = "socket_util",
+    srcs = ["socket_util.cc"],
+    hdrs = ["socket_util.h"],
+    deps = [
+        ":transport_types",
+        "//src/internal/base:types",
+        "//src/internal/socket:socket_tcp",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "socket_util_test",
+    srcs = ["socket_util_test.cc"],
+    deps = [
+        ":socket_util",
+        ":transport_types",
+        "//src/internal/base:endpoint",
+        "//src/internal/base:types",
+        "//src/internal/socket:socket_tcp",
+        "//src/internal/util:test_util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+        "@googletest//:gtest_main",
+    ],
+)

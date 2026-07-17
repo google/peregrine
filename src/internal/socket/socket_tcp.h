@@ -61,12 +61,12 @@ class TcpSocket final : public SocketBase {
 
   // Sends on the socket `fd` exactly `len` bytes of data from the `buf`.
   // Returns OK if all the bytes are sent successfully, error otherwise.
-  ABSL_DEPRECATED("temporary function")
+  ABSL_DEPRECATED("temporarily for tpu raiden")
   static absl::Status Send(fd_t fd, const Byte* buf, size_t len);
 
   // Receives on the socket `fd` exactly `len` bytes of data into the `buf`.
   // Returns OK if all the bytes are received successfully, error otherwise.
-  ABSL_DEPRECATED("temporary function")
+  ABSL_DEPRECATED("temporarily for tpu raiden")
   static absl::Status Recv(fd_t fd, Byte* buf, size_t len);
 
   // Returns a self/peer address pair string of the socket.
