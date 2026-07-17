@@ -10,15 +10,18 @@
 #include <tuple>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/notification.h"
+#include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/util.h"
 
 namespace peregrine::testing {
 namespace {
@@ -29,24 +32,31 @@ using ::peregrine::internal::testing::IPv4Localhost;
 using ::peregrine::internal::testing::IPv6Localhost;
 using ::peregrine::internal::testing::TestOnly_CreateTcpSocket;
 using ::peregrine::internal::testing::TestOnly_FindFreeTcpPort;
+using ::peregrine::util::RandomNonZero;
 using ::testing::Combine;
+using ::testing::Eq;
+using ::testing::Ne;
+using ::testing::Pointwise;
 using ::testing::TestParamInfo;
 using ::testing::Values;
 
-using Param = std::tuple</*family=*/int, /*size=*/size_t>;
+using Param = std::tuple</*family=*/int, /*riov=*/bool, /*wiov=*/bool>;
 
 std::string ToString(const TestParamInfo<Param>& info) {
   const int family = std::get<0>(info.param);
-  const size_t size = std::get<1>(info.param);
+  const bool read_iovec = std::get<1>(info.param);
+  const bool write_iovec = std::get<2>(info.param);
   DCHECK(family == AF_INET || family == AF_INET6);
-  return absl::StrFormat("IPv%d_%zu_bytes", family == AF_INET ? 4 : 6, size);
+  return absl::StrFormat("IPv%d_Read%s_Write%s", family == AF_INET ? 4 : 6,
+                         read_iovec ? "V" : "", write_iovec ? "V" : "");
 }
 
 class SocketUtilTest : public ::testing::TestWithParam<Param> {
  protected:
   SocketUtilTest()
       : family_(std::get<0>(GetParam())),
-        size_(std::get<1>(GetParam())),
+        read_iovec_(std::get<1>(GetParam())),
+        write_iovec_(std::get<2>(GetParam())),
         local_(family_ == AF_INET ? IPv4Localhost() : IPv6Localhost(),
                TestOnly_FindFreeTcpPort(family_)),
         peer_(local_),
@@ -61,7 +71,8 @@ class SocketUtilTest : public ::testing::TestWithParam<Param> {
 
  protected:
   const int family_;
-  const size_t size_;
+  const bool read_iovec_;
+  const bool write_iovec_;
   const Endpoint local_;
   const Endpoint peer_;
   const std::unique_ptr<TcpSocket> listener_;
@@ -70,52 +81,17 @@ class SocketUtilTest : public ::testing::TestWithParam<Param> {
 
 INSTANTIATE_TEST_SUITE_P(, SocketUtilTest,
                          Combine(/*family=*/Values(AF_INET, AF_INET6),
-                                 /*size=*/Values(128, 64UL << 20)),
+                                 /*riov=*/Values(false, true),
+                                 /*wiov=*/Values(false, true)),
                          ToString);
 
 TEST_P(SocketUtilTest, ReadWrite) {
-  // Create a big chunk of data and a recv buffer.
-  std::vector<Byte> send_buf(size_, 0x01);
-  std::vector<Byte> recv_buf(size_, 0x02);
-  ASSERT_NE(recv_buf, send_buf);
-
-  // First, create a server thread.
-  absl::Notification server_ready;
-  std::thread server([&]() {
-    CHECK(listener_->Listen(local_));
-    server_ready.Notify();
-    DCHECK(listener_->IsBlocking());
-    const internal::fd_t new_fd = listener_->Accept();
-
-    CHECK_GE(new_fd.value(), 0);
-    auto new_socket = TcpSocket::Create(new_fd, family_);
-    DCHECK(new_socket->IsBlocking());
-    DCHECK(new_socket->IsConnected());
-    CHECK_OK(ReadExact(new_socket->fd().value(), recv_buf.data(), size_));
-  });
-
-  // Second, create a client thread.
-  std::thread client([&]() {
-    server_ready.WaitForNotification();
-    CHECK(connector_->Connect(peer_));
-    DCHECK(connector_->IsBlocking());
-    DCHECK(connector_->IsConnected());
-    CHECK_OK(WriteExact(connector_->fd().value(), send_buf.data(), size_));
-  });
-
-  // Wait for both threads to finish.
-  client.join();
-  server.join();
-
-  // Check that the server got the client's data.
-  EXPECT_EQ(recv_buf, send_buf);
-}
-
-TEST_P(SocketUtilTest, ReadVWriteV) {
-  // Create a big chunk of data and a recv buffer.
-  std::vector<Byte> send_buf(size_, 0x01);
-  std::vector<Byte> recv_buf(size_, 0x02);
-  ASSERT_NE(recv_buf, send_buf);
+  // Create a big chunk of send/recv buffers with random data.
+  constexpr size_t kSize = 64UL << 20;
+  std::vector<Byte> send_buf(kSize, 0x01);
+  std::vector<Byte> recv_buf(kSize, 0x00);
+  RandomNonZero(absl::MakeSpan(send_buf));
+  ASSERT_THAT(recv_buf, Pointwise(Ne(), send_buf));
 
   // First, create a server thread.
   absl::Notification server_ready;
@@ -130,11 +106,16 @@ TEST_P(SocketUtilTest, ReadVWriteV) {
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
 
-    std::vector<struct iovec> iovs;
-    const size_t partial = size_ / 3;
-    iovs.push_back({recv_buf.data(), partial});
-    iovs.push_back({recv_buf.data() + partial, size_ - partial});
-    CHECK_OK(ReadVExact(new_socket->fd().value(), iovs));
+    if (read_iovec_) {
+      std::vector<struct iovec> iovs;
+      const size_t partial = kSize / 3;
+      iovs.push_back({recv_buf.data(), partial});
+      iovs.push_back({recv_buf.data() + partial, partial});
+      iovs.push_back({recv_buf.data() + partial * 2, kSize - partial * 2});
+      CHECK_OK(ReadVExact(new_socket->fd().value(), iovs));
+    } else {
+      CHECK_OK(ReadExact(new_socket->fd().value(), recv_buf.data(), kSize));
+    }
   });
 
   // Second, create a client thread.
@@ -144,19 +125,23 @@ TEST_P(SocketUtilTest, ReadVWriteV) {
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
 
-    std::vector<struct iovec> iovs;
-    const size_t partial = size_ / 2;
-    iovs.push_back({send_buf.data(), partial});
-    iovs.push_back({send_buf.data() + partial, size_ - partial});
-    CHECK_OK(WriteVExact(connector_->fd().value(), iovs));
+    if (write_iovec_) {
+      std::vector<struct iovec> iovs;
+      const size_t partial = kSize / 2;
+      iovs.push_back({send_buf.data(), partial});
+      iovs.push_back({send_buf.data() + partial, kSize - partial});
+      CHECK_OK(WriteVExact(connector_->fd().value(), iovs));
+    } else {
+      CHECK_OK(WriteExact(connector_->fd().value(), send_buf.data(), kSize));
+    }
   });
 
   // Wait for both threads to finish.
   client.join();
   server.join();
 
-  // Check that the server got the client's data.
-  EXPECT_EQ(recv_buf, send_buf);
+  // Check that the recv buffer has the same data as the send.
+  ASSERT_THAT(recv_buf, Pointwise(Eq(), send_buf));
 }
 
 }  // namespace

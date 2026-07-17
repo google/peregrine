@@ -117,9 +117,11 @@ cc_test(
         "//src/internal/base:types",
         "//src/internal/socket:socket_tcp",
         "//src/internal/util:test_util",
+        "//src/util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )
