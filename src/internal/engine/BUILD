@@ -11,6 +11,7 @@ cc_library(
         ":worker",
         "//src/api:transport_types",
         "//src/internal:assumptions",
+        "//src/internal:coding_style",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
         "//src/internal/base:types",

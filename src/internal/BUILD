@@ -28,6 +28,12 @@ cc_library(
 )
 
 cc_library(
+    name = "coding_style",
+    hdrs = ["coding_style.h"],
+    visibility = ["//src/internal:__subpackages__"],
+)
+
+cc_library(
     name = "transport_impl",
     srcs = ["transport_impl.cc"],
     hdrs = ["transport_impl.h"],

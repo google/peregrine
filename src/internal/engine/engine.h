@@ -19,6 +19,7 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
+#include "src/internal/coding_style.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
@@ -34,6 +35,8 @@ namespace peregrine::internal {
 // It is thread-safe.
 class Engine {
   static_assert(assumptions::kTransportImplementationHasItsOwnThreads);
+  static_assert(coding_style::kClassPrivateFunctionNamesStartWithLowercase);
+  static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
 
  public:
   // Constructor.
