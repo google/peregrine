@@ -21,6 +21,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/socket_base.h"
 #include "src/internal/socket/socket_util.h"
 #include "src/internal/util/util.h"
 
@@ -54,32 +55,9 @@ void UdpSocket::Shutdown() {
   DCHECK(invariant());
 }
 
-namespace {
-int BindV4(fd_t fd, const Endpoint& local) {
-  const struct sockaddr_in sa = local.BuildIPv4Sockaddr();
-  return ::bind(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
-}
-
-int BindV6(fd_t fd, const Endpoint& local) {
-  const struct sockaddr_in6 sa = local.BuildIPv6Sockaddr();
-  return ::bind(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
-}
-
-int ConnectV4(fd_t fd, const Endpoint& peer) {
-  const struct sockaddr_in sa = peer.BuildIPv4Sockaddr();
-  return ::connect(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
-}
-
-int ConnectV6(fd_t fd, const Endpoint& peer) {
-  const struct sockaddr_in6 sa = peer.BuildIPv6Sockaddr();
-  return ::connect(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
-}
-}  // namespace
-
 bool UdpSocket::Bind(const Endpoint& local) const {
   DCHECK(invariant());
-  const auto bind = local.IsIPv4() ? BindV4 : BindV6;
-  if ABSL_PREDICT_FALSE (bind(fd_, local) < 0) {
+  if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
     const auto last_errno = errno;
     LOG(WARNING) << errMsg("bind", last_errno);
     return false;
@@ -91,8 +69,7 @@ bool UdpSocket::Bind(const Endpoint& local) const {
 
 bool UdpSocket::Connect(const Endpoint& peer) {
   DCHECK(invariant());
-  const auto connect = peer.IsIPv4() ? ConnectV4 : ConnectV6;
-  if ABSL_PREDICT_FALSE (connect(fd_, peer) < 0) {
+  if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
     const auto last_errno = errno;
     LOG(WARNING) << errMsg("connect", last_errno);
     return false;

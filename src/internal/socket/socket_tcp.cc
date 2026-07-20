@@ -23,6 +23,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/socket_base.h"
 #include "src/internal/socket/socket_util.h"
 
 namespace peregrine::internal {
@@ -59,40 +60,6 @@ void TcpSocket::Shutdown() {
   DCHECK(invariant());
 }
 
-namespace {
-int BindV4(fd_t fd, const Endpoint& local) {
-  const struct sockaddr_in sa = local.BuildIPv4Sockaddr();
-  return ::bind(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
-}
-
-int BindV6(fd_t fd, const Endpoint& local) {
-  const struct sockaddr_in6 sa = local.BuildIPv6Sockaddr();
-  return ::bind(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
-}
-
-int ConnectV4(fd_t fd, const Endpoint& peer) {
-  const struct sockaddr_in sa = peer.BuildIPv4Sockaddr();
-  return ::connect(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
-}
-
-int ConnectV6(fd_t fd, const Endpoint& peer) {
-  const struct sockaddr_in6 sa = peer.BuildIPv6Sockaddr();
-  return ::connect(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
-}
-
-int AcceptV4(fd_t fd) {
-  struct sockaddr_in sa;
-  socklen_t len = sizeof(sa);
-  return ::accept4(fd.value(), (struct sockaddr*)&sa, &len, SOCK_CLOEXEC);
-}
-
-int AcceptV6(fd_t fd) {
-  struct sockaddr_in6 sa;
-  socklen_t len = sizeof(sa);
-  return ::accept4(fd.value(), (struct sockaddr*)&sa, &len, SOCK_CLOEXEC);
-}
-}  // namespace
-
 bool TcpSocket::Listen(const Endpoint& local) const {
   DCHECK(invariant());
 
@@ -102,8 +69,7 @@ bool TcpSocket::Listen(const Endpoint& local) const {
     LOG(WARNING) << errMsg("set SO_REUSEADDR", last_errno);
     return false;
   }
-  const auto bind = local.IsIPv4() ? BindV4 : BindV6;
-  if ABSL_PREDICT_FALSE (bind(fd_, local) < 0) {
+  if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
     const auto last_errno = errno;
     LOG(WARNING) << errMsg("bind", last_errno);
     return false;
@@ -117,12 +83,26 @@ bool TcpSocket::Listen(const Endpoint& local) const {
   }
 }
 
+namespace {
+int AcceptConn(const int family, const fd_t fd) {
+  if (family == AF_INET) {
+    struct sockaddr_in sa;
+    socklen_t len = sizeof(sa);
+    return ::accept4(fd.value(), (struct sockaddr*)&sa, &len, SOCK_CLOEXEC);
+  } else {
+    DCHECK_EQ(family, AF_INET6);
+    struct sockaddr_in6 sa;
+    socklen_t len = sizeof(sa);
+    return ::accept4(fd.value(), (struct sockaddr*)&sa, &len, SOCK_CLOEXEC);
+  }
+}
+}  // namespace
+
 fd_t TcpSocket::Accept() const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
 
-  const auto accept = family_ == AF_INET ? AcceptV4 : AcceptV6;
-  const int ret = accept(fd_);
+  const int ret = AcceptConn(family_, fd_);
   if ABSL_PREDICT_FALSE (ret < 0) {
     // At this point, shutdown() is the only reason that can cause EINVAL.
     if (const auto last_errno = errno; last_errno == EINVAL) {
@@ -145,8 +125,7 @@ bool TcpSocket::Connect(const Endpoint& peer) {
   DCHECK(invariant());
   DCHECK(IsBlocking());
 
-  const auto connect = peer.IsIPv4() ? ConnectV4 : ConnectV6;
-  if ABSL_PREDICT_FALSE (connect(fd_, peer) < 0) {
+  if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
     const auto last_errno = errno;
     LOG(WARNING) << errMsg("connect", last_errno);
     return false;

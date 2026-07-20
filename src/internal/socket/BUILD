@@ -89,9 +89,11 @@ cc_test(
 
 cc_library(
     name = "socket_base",
+    srcs = ["socket_base.cc"],
     hdrs = ["socket_base.h"],
     deps = [
         ":socket_util",
+        "//src/internal/base:endpoint",
         "//src/internal/base:types",
         "//src/util:macro",
         "@abseil-cpp//absl/log:check",

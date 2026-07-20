@@ -5,6 +5,7 @@
 #include <sys/types.h>
 
 #include "absl/log/check.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_util.h"
 #include "src/util/macro.h"
@@ -72,6 +73,13 @@ class SocketBase {
     return fd_.value() >= 0 && (family_ == AF_INET || family_ == AF_INET6) &&
            IsValidSocket(fd_);
   }
+
+ protected:
+  // Binds to the `local` endpoint. Returns 0 on success, -1 on error.
+  static int Bind(fd_t fd, const Endpoint& local);
+
+  // Connects to the `peer` endpoint. Returns 0 on success, -1 on error.
+  static int Connect(fd_t fd, const Endpoint& peer);
 
  protected:
   fd_t fd_;
