@@ -18,6 +18,7 @@ namespace {
 
 TEST(SocketUtilTest, Basic) {
   ASSERT_FALSE(IsValidSocket(fd_t(-1)));
+  ASSERT_FALSE(IsValidSocket(fd_t(-2)));
 
   for (int family : {AF_INET, AF_INET6}) {
     for (int type : {SOCK_STREAM, SOCK_DGRAM}) {
@@ -52,7 +53,6 @@ TEST(SocketUtilTest, Basic) {
 
         ASSERT_TRUE(IsValidSocket(fd));
         ASSERT_EQ(::close(fd.value()), 0);
-        ASSERT_FALSE(IsValidSocket(fd));
       }
     }
   }

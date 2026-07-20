@@ -28,8 +28,8 @@ inline std::unique_ptr<Channel> CreateUdpChannel(
 
 using Channels = std::vector<std::unique_ptr<Channel>>;
 
-// Creates a number of channels connected to the peer.
-Channels Create(const Endpoint& peer, int num_channels);
+// Creates `n` channels connected to the `peer`.
+Channels Create(const Endpoint& peer, int n);
 
 }  // namespace peregrine::internal
 

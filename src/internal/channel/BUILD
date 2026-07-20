@@ -120,6 +120,7 @@ cc_test(
     deps = [
         ":channel",
         ":channel_test_util",
+        ":channel_types",
         "//src/api:transport_types",
         "//src/util",
         "@abseil-cpp//absl/log",
@@ -156,7 +157,6 @@ cc_test(
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
 )

@@ -14,6 +14,7 @@
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/channel/channel_test_util.h"
+#include "src/internal/channel/channel_types.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {

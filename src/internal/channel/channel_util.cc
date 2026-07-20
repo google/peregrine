@@ -11,10 +11,13 @@
 
 namespace peregrine::internal {
 
-Channels Create(const Endpoint& peer, int num_channels) {
+Channels Create(const Endpoint& peer, const int n) {
+  DCHECK(peer.IsValid());
+  DCHECK_GE(n, 1);
+
   Channels chs;
-  chs.reserve(num_channels);
-  for (int i = 0; i < 2 * num_channels; ++i) {
+  chs.reserve(n);
+  for (int i = 0; i < 2 * n; ++i) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
     if (socket == nullptr) continue;
     DCHECK(socket->IsBlocking());
@@ -23,7 +26,7 @@ Channels Create(const Endpoint& peer, int num_channels) {
     DCHECK_NE(ch, nullptr);
 
     chs.emplace_back(std::move(ch));
-    if (chs.size() >= num_channels) break;
+    if (chs.size() >= n) break;
   }
   return chs;
 }
