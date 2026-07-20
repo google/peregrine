@@ -19,6 +19,7 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
@@ -45,13 +46,17 @@ TcpSocket::~TcpSocket() {
   if (connected_) Shutdown();
   DCHECK(!connected_);
   LOG(INFO) << okMsg("closing");
+  DCHECK(invariant());
   ::close(fd_.value());
+  fd_ = fd_t(-1);
 }
 
 void TcpSocket::Shutdown() {
+  DCHECK(invariant());
   LOG(INFO) << okMsg("shutdown");
   ::shutdown(fd_.value(), SHUT_RDWR);
   connected_ = false;
+  DCHECK(invariant());
 }
 
 namespace {
@@ -89,6 +94,8 @@ int AcceptV6(fd_t fd) {
 }  // namespace
 
 bool TcpSocket::Listen(const Endpoint& local) const {
+  DCHECK(invariant());
+
   int on = 1;
   if ABSL_PREDICT_FALSE (!SetOption(fd_, SO_REUSEADDR, &on, sizeof(on))) {
     const auto last_errno = errno;
@@ -111,6 +118,7 @@ bool TcpSocket::Listen(const Endpoint& local) const {
 }
 
 fd_t TcpSocket::Accept() const {
+  DCHECK(invariant());
   DCHECK(IsBlocking());
 
   const auto accept = family_ == AF_INET ? AcceptV4 : AcceptV6;
@@ -134,6 +142,7 @@ fd_t TcpSocket::Accept() const {
 }
 
 bool TcpSocket::Connect(const Endpoint& peer) {
+  DCHECK(invariant());
   DCHECK(IsBlocking());
 
   const auto connect = peer.IsIPv4() ? ConnectV4 : ConnectV6;
@@ -149,6 +158,7 @@ bool TcpSocket::Connect(const Endpoint& peer) {
 }
 
 ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {
+  DCHECK(invariant());
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
   DCHECK(IsBlocking());
@@ -185,6 +195,7 @@ ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {
 }
 
 ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
+  DCHECK(invariant());
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
   DCHECK(IsBlocking());
@@ -217,10 +228,19 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
   return rcvd;
 }
 
+namespace {
+inline std::string ErrMsg(std::string_view what, fd_t fd, int last_errno) {
+  return absl::StrFormat("tcp socket %s failed: fd=%d %s errno=%d (%s)", what,
+                         fd.value(), AddrPortPair(fd), last_errno,
+                         std::strerror(last_errno));
+}
+}  // namespace
+
 /*static*/ absl::Status TcpSocket::Send(const fd_t fd, const Byte* const buf,
                                         const size_t len) {
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  DCHECK(IsValidSocket(fd));
   DCHECK(IsBlockingMode(fd));
 
   const Byte* ptr = buf;
@@ -239,7 +259,7 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
         const auto last_errno = errno;
         if (Interrupted(last_errno)) continue;
         DCHECK(!WouldBlock(last_errno));
-        return absl::InternalError("send");
+        return absl::InternalError(ErrMsg("send", fd, last_errno));
       } else {  // rarely happens
         DCHECK_EQ(bytes, 0);
         return absl::InternalError("send zero");
@@ -255,6 +275,7 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
                                         const size_t len) {
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  DCHECK(IsValidSocket(fd));
   DCHECK(IsBlockingMode(fd));
 
   Byte* ptr = buf;
@@ -274,7 +295,7 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
       const auto last_errno = errno;
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
-      return absl::InternalError("recv");
+      return absl::InternalError(ErrMsg("recv", fd, last_errno));
     }
   }
   DCHECK_EQ(left, 0);

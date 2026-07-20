@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_UTIL_H_
 #define PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_UTIL_H_
 
+#include <fcntl.h>
 #include <sys/socket.h>
 
 #include <cerrno>
@@ -22,6 +23,9 @@ fd_t CreateSocket(int family, int type, bool blocking);
 inline bool SetOption(fd_t fd, int opt, const void* val, socklen_t len) {
   return ::setsockopt(fd.value(), SOL_SOCKET, opt, val, len) >= 0;
 }
+
+// Returns true iff the socket `fd` is valid (not closed).
+inline bool IsValidSocket(fd_t fd) { return ::fcntl(fd.value(), F_GETFD) >= 0; }
 
 // Returns true iff the socket `fd` is in blocking mode.
 bool IsBlockingMode(fd_t fd);

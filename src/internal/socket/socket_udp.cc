@@ -41,13 +41,17 @@ UdpSocket::~UdpSocket() {
   if (connected_) Shutdown();
   DCHECK(!connected_);
   LOG(INFO) << okMsg("closing");
+  DCHECK(invariant());
   ::close(fd_.value());
+  fd_ = fd_t(-1);
 }
 
 void UdpSocket::Shutdown() {
+  DCHECK(invariant());
   LOG(INFO) << okMsg("shutdown");
   ::shutdown(fd_.value(), SHUT_RDWR);
   connected_ = false;
+  DCHECK(invariant());
 }
 
 namespace {
@@ -73,6 +77,7 @@ int ConnectV6(fd_t fd, const Endpoint& peer) {
 }  // namespace
 
 bool UdpSocket::Bind(const Endpoint& local) const {
+  DCHECK(invariant());
   const auto bind = local.IsIPv4() ? BindV4 : BindV6;
   if ABSL_PREDICT_FALSE (bind(fd_, local) < 0) {
     const auto last_errno = errno;
@@ -85,6 +90,7 @@ bool UdpSocket::Bind(const Endpoint& local) const {
 }
 
 bool UdpSocket::Connect(const Endpoint& peer) {
+  DCHECK(invariant());
   const auto connect = peer.IsIPv4() ? ConnectV4 : ConnectV6;
   if ABSL_PREDICT_FALSE (connect(fd_, peer) < 0) {
     const auto last_errno = errno;
@@ -98,6 +104,7 @@ bool UdpSocket::Connect(const Endpoint& peer) {
 }
 
 ssize_t UdpSocket::Send(const Byte* const buf, const size_t len) const {
+  DCHECK(invariant());
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
   DCHECK(IsBlocking());
@@ -110,11 +117,13 @@ ssize_t UdpSocket::Send(const Byte* const buf, const size_t len) const {
   }
   const auto last_errno = errno;
   if (Interrupted(last_errno)) return 0;
+  DCHECK(!WouldBlock(last_errno));
   LOG(WARNING) << errMsg("send", last_errno);
   return -1;
 }
 
 ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
+  DCHECK(invariant());
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
   DCHECK(IsBlocking());
@@ -127,6 +136,7 @@ ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
   } else if (bytes < 0) {
     const auto last_errno = errno;
     if (Interrupted(last_errno)) return 0;
+    DCHECK(!WouldBlock(last_errno));
     LOG(WARNING) << errMsg("recv", last_errno);
     return -1;
   } else {
@@ -138,6 +148,7 @@ ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
 
 ssize_t UdpSocket::SendV(const IoVec* const iov, const int n,
                          const size_t len) const {
+  DCHECK(invariant());
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
   DCHECK_EQ(TotalLength(iov, n), len);
@@ -151,12 +162,14 @@ ssize_t UdpSocket::SendV(const IoVec* const iov, const int n,
   }
   const auto last_errno = errno;
   if (Interrupted(last_errno)) return 0;
+  DCHECK(!WouldBlock(last_errno));
   LOG(WARNING) << errMsg("writev", last_errno);
   return -1;
 }
 
 ssize_t UdpSocket::RecvV(const IoVec* const iov, const int n,
                          const size_t len) const {
+  DCHECK(invariant());
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
   DCHECK_EQ(TotalLength(iov, n), len);
@@ -170,6 +183,7 @@ ssize_t UdpSocket::RecvV(const IoVec* const iov, const int n,
   } else if (bytes < 0) {
     const auto last_errno = errno;
     if (Interrupted(last_errno)) return 0;
+    DCHECK(!WouldBlock(last_errno));
     LOG(WARNING) << errMsg("readv", last_errno);
     return -1;
   } else {

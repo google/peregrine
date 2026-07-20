@@ -43,20 +43,18 @@ fd_t CreateSocket(int family, int type, bool blocking) {
 }
 
 bool IsBlockingMode(fd_t fd) {
-  const int flags = ::fcntl(fd.value(), F_GETFL, 0);
+  const int flags = ::fcntl(fd.value(), F_GETFL);
   return flags >= 0 && !(flags & O_NONBLOCK);
 }
 
 bool IsNonBlockingMode(fd_t fd) {
-  const int flags = ::fcntl(fd.value(), F_GETFL, 0);
+  const int flags = ::fcntl(fd.value(), F_GETFL);
   return flags >= 0 && (flags & O_NONBLOCK);
 }
 
 bool __set_blocking_mode(fd_t fd, bool blocking) {
-  const int flags = ::fcntl(fd.value(), F_GETFL, /*cmd*/ 0);
-  if ABSL_PREDICT_FALSE (flags < 0) {
-    return false;
-  }
+  const int flags = ::fcntl(fd.value(), F_GETFL);
+  if ABSL_PREDICT_FALSE (flags < 0) return false;
   const int cmd = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
   return ::fcntl(fd.value(), F_SETFL, cmd) >= 0;
 }

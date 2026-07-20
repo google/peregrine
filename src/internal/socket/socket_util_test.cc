@@ -17,12 +17,15 @@ namespace peregrine::internal::testing {
 namespace {
 
 TEST(SocketUtilTest, Basic) {
+  ASSERT_FALSE(IsValidSocket(fd_t(-1)));
+
   for (int family : {AF_INET, AF_INET6}) {
     for (int type : {SOCK_STREAM, SOCK_DGRAM}) {
       const std::string proto = type == SOCK_STREAM ? "tcp" : "udp";
       for (bool blocking : {true, false}) {
         const fd_t fd = CreateSocket(family, type, blocking);
         ASSERT_GE(fd.value(), 0);
+        ASSERT_TRUE(IsValidSocket(fd));
         LOG(INFO) << SuccessMsg(proto, "created", fd);
 
         int on = 1, off = 0;
@@ -46,7 +49,10 @@ TEST(SocketUtilTest, Basic) {
 
         LOG(INFO) << "ip:port pair = " << AddrPortPair(fd);
         LOG(INFO) << SuccessMsg(proto, "close", fd);
+
+        ASSERT_TRUE(IsValidSocket(fd));
         ASSERT_EQ(::close(fd.value()), 0);
+        ASSERT_FALSE(IsValidSocket(fd));
       }
     }
   }

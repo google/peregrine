@@ -24,16 +24,16 @@ class SocketBase {
   fd_t fd() const { return fd_; }
 
   // Returns true iff the socket is up and running.
-  bool IsValid() const { return fd_.value() >= 0; }
+  bool IsValid() const { return IsValidSocket(fd_); }
 
   // Returns true iff the socket is connected.
   bool IsConnected() const { return connected_; }
 
   // Returns true iff the socket is in blocking mode.
-  bool IsBlocking() const { return IsValid() && IsBlockingMode(fd_); }
+  bool IsBlocking() const { return IsBlockingMode(fd_); }
 
   // Returns true iff the socket is in non-blocking mode.
-  bool IsNonBlocking() const { return IsValid() && IsNonBlockingMode(fd_); }
+  bool IsNonBlocking() const { return IsNonBlockingMode(fd_); }
 
  protected:
   // Constructor.
@@ -65,11 +65,12 @@ class SocketBase {
   }
 
   // Destructor.
-  ~SocketBase() { fd_ = fd_t(-1); }
+  ~SocketBase() { DCHECK_LT(fd_.value(), 0); }
 
   // Returns true iff the invariant holds.
   bool invariant() const {
-    return fd_.value() >= 0 && (family_ == AF_INET || family_ == AF_INET6);
+    return fd_.value() >= 0 && (family_ == AF_INET || family_ == AF_INET6) &&
+           IsValidSocket(fd_);
   }
 
  protected:
