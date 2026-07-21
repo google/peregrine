@@ -1,5 +1,6 @@
 #include "test/benchmark/peregrine_util.h"
 
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -49,6 +50,13 @@ std::string GenEndpoint(bool ipv4, uint16_t port) {
   CHECK_GT(listen_port, 0);
   return absl::StrCat(ip, ":", listen_port);
 }
+
+absl::Duration GetCpuTime() {
+  struct rusage ru;
+  CHECK_EQ(getrusage(RUSAGE_SELF, &ru), 0);
+  return absl::DurationFromTimeval(ru.ru_utime) +
+         absl::DurationFromTimeval(ru.ru_stime);
+}
 }  // namespace
 
 void RunRcvr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size) {
@@ -85,6 +93,9 @@ void RunRcvr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size) {
       "Control negotiated. Press Ctrl+C to terminate.",
       buf.data(), ToString(buf.size()), self);
 
+  const absl::Time start_time = absl::Now();
+  const absl::Duration start_cpu = GetCpuTime();
+
   // Process transfer requests until sender disconnects.
   while (true) {
     proto::ControlMessage request;
@@ -102,7 +113,16 @@ void RunRcvr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size) {
     }
   }
 
-  std::cout << "\nReceiver completed resolving all transfers.\n";
+  const absl::Duration dur = absl::Now() - start_time;
+  const absl::Duration cpu_dur = GetCpuTime() - start_cpu;
+
+  std::cout << absl::StrFormat(
+      "\nReceiver completed resolving all transfers.\n"
+      "Total time    : %s\n"
+      "Total CPU time: %s\n"
+      "CPU usage     : %.2f cores\n",
+      absl::FormatDuration(dur), absl::FormatDuration(cpu_dur),
+      dur > absl::ZeroDuration() ? absl::FDivDuration(cpu_dur, dur) : 0.0);
 
   close(sender_fd);
   close(control_fd);
@@ -148,6 +168,7 @@ void RunSndr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size,
 
   uint64_t total_bytes = 0;
   absl::Duration total_dur = absl::ZeroDuration();
+  absl::Duration total_cpu_dur = absl::ZeroDuration();
   for (uint32_t i = 1; i <= num_xfers; ++i) {
     // Request remote destination address
     proto::ControlMessage request;
@@ -170,6 +191,7 @@ void RunSndr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size,
         .len = static_cast<size_t>(xfer_size),
     };
     const absl::Time start_time = absl::Now();
+    const absl::Duration start_cpu = GetCpuTime();
     const absl::StatusOr<Handle> handle_or =
         transport->Post(peer_endpoint, {req});
     if (!handle_or.ok()) {
@@ -192,24 +214,32 @@ void RunSndr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size,
 
     // Measure the transfer.
     const absl::Duration dur = absl::Now() - start_time;
+    const absl::Duration cpu_dur = GetCpuTime() - start_cpu;
     total_bytes += xfer_size;
     total_dur += dur;
+    total_cpu_dur += cpu_dur;
     std::cout << absl::StrFormat(
-        "Transfer %d/%d size: %s, latency: %s, thruput: %s\n", i, num_xfers,
-        ToString(xfer_size), absl::FormatDuration(dur),
-        ToString(CalcRate(xfer_size, dur)));
+        "Transfer %d/%d size: %s, latency: %s, thruput: %s, CPU time: %s\n", i,
+        num_xfers, ToString(xfer_size), absl::FormatDuration(dur),
+        ToString(CalcRate(xfer_size, dur)), absl::FormatDuration(cpu_dur));
   }
 
   // Show summary.
   std::cout << absl::StrFormat(
       "--- Summary ---\n"
-      "Total bytes: %s\n"
-      "Total time : %s\n"
-      "Avg latency: %s\n"
-      "Avg thruput: %s\n",
+      "Total bytes   : %s\n"
+      "Total time    : %s\n"
+      "Total CPU time: %s\n"
+      "Avg latency   : %s\n"
+      "Avg thruput   : %s\n"
+      "CPU usage     : %.2f cores\n",
       ToString(total_bytes), absl::FormatDuration(total_dur),
+      absl::FormatDuration(total_cpu_dur),
       absl::FormatDuration(total_dur / num_xfers),
-      ToString(CalcRate(total_bytes, total_dur)));
+      ToString(CalcRate(total_bytes, total_dur)),
+      total_dur > absl::ZeroDuration()
+          ? absl::FDivDuration(total_cpu_dur, total_dur)
+          : 0.0);
 
   close(client_fd);
 }
