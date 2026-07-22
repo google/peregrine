@@ -95,14 +95,16 @@ py_test(
 
 cc_library(
     name = "socket_util",
-    srcs = ["socket_util.cc"],
     hdrs = ["socket_util.h"],
     deps = [
         ":transport_types",
         "//src/internal/base:types",
         "//src/internal/socket:socket_tcp",
+        "//src/internal/socket:socket_util",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
     ],
 )
