@@ -1,0 +1,38 @@
+module(name = "peregrine")
+
+# ---- C++ language ----
+
+# https://github.com/bazelbuild/rules_cc
+bazel_dep(name = "rules_cc", version = "0.2.22")
+
+# https://github.com/bazel-contrib/rules_foreign_cc
+bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
+
+# ---- C++ libraries ----
+
+# https://github.com/abseil/abseil-cpp
+bazel_dep(name = "abseil-cpp", version = "20260526.0")
+
+# https://github.com/abseil/gloop
+bazel_dep(name = "gloop", version = "20260708.rc1")
+
+# ---- Python bindings ----
+
+# https://github.com/wjakob/nanobind
+bazel_dep(name = "nanobind", version = "2.13.0")
+
+# https://github.com/nicholasjng/nanobind-bazel
+bazel_dep(name = "nanobind_bazel", version = "2.12.0")
+
+# ---- Serialization ----
+
+# https://github.com/google/flatbuffers
+bazel_dep(name = "flatbuffers", version = "25.12.19")
+
+# https://github.com/protocolbuffers/protobuf
+bazel_dep(name = "protobuf", version = "35.1")
+
+# ---- Testing ----
+
+# https://github.com/google/googletest
+bazel_dep(name = "googletest", version = "1.17.0")
