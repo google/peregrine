@@ -63,10 +63,8 @@ cc_library(
     hdrs = ["control_util.h"],
     deps = [
         ":control_cc_proto",
-        "//third_party/protobuf",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
     ],
 )

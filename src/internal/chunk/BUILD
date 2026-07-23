@@ -12,7 +12,7 @@ cc_library(
         "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:types",
-        "//third_party/gloop/util/intops",
+        "//src/internal/lib:strong_int",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",

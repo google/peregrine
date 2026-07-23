@@ -7,7 +7,7 @@ cc_library(
     name = "types",
     hdrs = ["types.h"],
     deps = [
-        "//third_party/gloop/util/intops",
+        "//src/internal/lib:strong_int",
     ],
 )
 

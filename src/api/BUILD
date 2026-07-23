@@ -26,7 +26,7 @@ cc_library(
     srcs = ["transport_types.cc"],
     hdrs = ["transport_types.h"],
     deps = [
-        "//third_party/gloop/util/intops",
+        "//src/internal/lib:strong_int",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
