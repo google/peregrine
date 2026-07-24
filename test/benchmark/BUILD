@@ -29,7 +29,7 @@ cc_library(
     srcs = ["types.cc"],
     hdrs = ["types.h"],
     deps = [
-        "//third_party/gloop/util/intops",
+        "//src/api:strong_int",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/numeric:bits",
         "@abseil-cpp//absl/strings:str_format",

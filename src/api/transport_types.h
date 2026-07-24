@@ -8,7 +8,7 @@
 #include <string>
 
 #include "absl/types/span.h"
-#include "src/internal/lib/strong_int.h"
+#include "src/api/strong_int.h"
 
 namespace peregrine {
 

@@ -12,6 +12,23 @@ package(default_visibility = [
 ])
 
 cc_library(
+    name = "strong_int",
+    hdrs = ["strong_int.h"],
+    deps = ["@abseil-cpp//absl/hash"],
+)
+
+cc_test(
+    name = "strong_int_test",
+    srcs = ["strong_int_test.cc"],
+    deps = [
+        ":strong_int",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "transport",
     hdrs = ["transport.h"],
     deps = [
@@ -26,7 +43,7 @@ cc_library(
     srcs = ["transport_types.cc"],
     hdrs = ["transport_types.h"],
     deps = [
-        "//src/internal/lib:strong_int",
+        ":strong_int",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",

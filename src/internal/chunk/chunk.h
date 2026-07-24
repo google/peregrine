@@ -7,10 +7,10 @@
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "src/api/strong_int.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
-#include "src/internal/lib/strong_int.h"
 
 namespace peregrine::internal {
 

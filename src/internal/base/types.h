@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-#include "src/internal/lib/strong_int.h"
+#include "src/api/strong_int.h"
 
 namespace peregrine::internal {
 

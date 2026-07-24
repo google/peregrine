@@ -4,23 +4,6 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//src/internal:internal_impl"])
 
 cc_library(
-    name = "strong_int",
-    hdrs = ["strong_int.h"],
-    deps = ["@abseil-cpp//absl/hash"],
-)
-
-cc_test(
-    name = "strong_int_test",
-    srcs = ["strong_int_test.cc"],
-    deps = [
-        ":strong_int",
-        "@abseil-cpp//absl/container:flat_hash_set",
-        "@abseil-cpp//absl/log",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_library(
     name = "bitset",
     srcs = ["bitset.cc"],
     hdrs = ["bitset.h"],

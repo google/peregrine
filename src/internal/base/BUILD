@@ -7,7 +7,7 @@ cc_library(
     name = "types",
     hdrs = ["types.h"],
     deps = [
-        "//src/internal/lib:strong_int",
+        "//src/api:strong_int",
     ],
 )
 

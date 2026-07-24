@@ -6,7 +6,7 @@
 #include <string>
 
 #include "absl/time/time.h"
-#include "third_party/gloop/util/intops/strong_int.h"
+#include "src/api/strong_int.h"
 
 namespace peregrine::benchmark {
 

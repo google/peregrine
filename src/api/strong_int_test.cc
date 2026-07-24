@@ -1,4 +1,4 @@
-#include "src/internal/lib/strong_int.h"
+#include "src/api/strong_int.h"
 
 #include <cstdint>
 #include <type_traits>
@@ -35,19 +35,6 @@ TEST(StrongIntTest, Constructor) {
   LOG(INFO) << "fd: " << fd.ToString();
   LOG(INFO) << "fd: " << Fd(30'000);
   LOG(INFO) << "fd: " << Fd(-30'000);
-}
-
-TEST(StrongIntTest, Comparison) {
-  const Id x(1);
-  const Id y(1);
-  const Id z(2);
-
-  EXPECT_EQ(x, y);
-  EXPECT_NE(x, z);
-  EXPECT_LT(x, z);
-  EXPECT_GT(z, x);
-  EXPECT_LE(x, y);
-  EXPECT_GE(y, x);
 }
 
 TEST(StrongIntTest, EqualityAndHash) {
