@@ -5,13 +5,13 @@
 # BUILD file or the Blueprint.
 # Override the default values in third_party.peregrine.blueprint instead.
 buildable_unit: {
-  name: "third_party.peregrine"
+  name: "third_party.peregrine.tests"
   build_pattern: "//third_party/peregrine/..."
   test_pattern: "//third_party/peregrine/..."
   test_tag_filter: "-nofastbuild"
   build_tag_filter: "-nofastbuild"
-  enable_coverage: false
-  enable_presubmit: false
-  enable_continuous_build: false
+  enable_coverage: true
+  enable_presubmit: true
+  enable_continuous_build: true
   enable_release: false
 }
