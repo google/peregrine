@@ -12,8 +12,8 @@
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
-#include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_util.h"
+#include "src/internal/socket/tcp_socket_util.h"
 
 namespace peregrine {
 
@@ -23,7 +23,7 @@ namespace peregrine {
 inline absl::Status WriteExact(int fd, const void* buf, size_t len) {
   DCHECK(internal::IsValidSocket(internal::fd_t(fd)));
   const Byte* const buffer = static_cast<const Byte*>(buf);
-  return internal::TcpSocket::Send(internal::fd_t(fd), buffer, len);
+  return internal::TcpSocketUtil::Send(internal::fd_t(fd), buffer, len);
 }
 
 // Writes all the bytes from the `iovs` to the socket `fd`.
@@ -35,7 +35,7 @@ inline absl::Status WriteVExact(int fd, absl::Span<const struct iovec> iovs) {
     return absl::InvalidArgumentError(
         absl::StrCat("#iovs=", iovs.size(), " > IOV_MAX=", IOV_MAX));
   }
-  return internal::TcpSocket::SendV(internal::fd_t(fd), iovs);
+  return internal::TcpSocketUtil::SendV(internal::fd_t(fd), iovs);
 }
 
 // Reads exactly `len` bytes of data from the socket `fd` into the `buf`.
@@ -44,7 +44,7 @@ inline absl::Status WriteVExact(int fd, absl::Span<const struct iovec> iovs) {
 inline absl::Status ReadExact(int fd, void* buf, size_t len) {
   DCHECK(internal::IsValidSocket(internal::fd_t(fd)));
   Byte* const buffer = static_cast<Byte*>(buf);
-  return internal::TcpSocket::Recv(internal::fd_t(fd), buffer, len);
+  return internal::TcpSocketUtil::Recv(internal::fd_t(fd), buffer, len);
 }
 
 // Reads from the socket `fd` into the `iovs`.
@@ -56,7 +56,7 @@ inline absl::Status ReadVExact(int fd, absl::Span<const struct iovec> iovs) {
     return absl::InvalidArgumentError(
         absl::StrCat("#iovs=", iovs.size(), " > IOV_MAX=", IOV_MAX));
   }
-  return internal::TcpSocket::RecvV(internal::fd_t(fd), iovs);
+  return internal::TcpSocketUtil::RecvV(internal::fd_t(fd), iovs);
 }
 
 }  // namespace peregrine

@@ -1,4 +1,4 @@
-#include "src/internal/socket/socket_tcp.h"
+#include "src/internal/socket/tcp_socket_util.h"
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -16,6 +16,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
 #include "src/util/util.h"
 
@@ -27,11 +28,11 @@ using ::testing::Ne;
 using ::testing::Pointwise;
 
 template <int kFamily>
-class TcpSocketTest : public ::testing::Test {
+class TcpSocketUtilTest : public ::testing::Test {
   static_assert(kFamily == AF_INET || kFamily == AF_INET6);
 
  protected:
-  TcpSocketTest()
+  TcpSocketUtilTest()
       : local_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
                TestOnly_FindFreeTcpPort(kFamily)),
         listener_(TestOnly_CreateTcpSocket(kFamily)),
@@ -49,14 +50,15 @@ class TcpSocketTest : public ::testing::Test {
   const std::unique_ptr<TcpSocket> connector_;
 };
 
-using TcpIPv4SocketTest = TcpSocketTest<AF_INET>;
-using TcpIPv6SocketTest = TcpSocketTest<AF_INET6>;
+using TcpIPv4SocketUtilTest = TcpSocketUtilTest<AF_INET>;
+using TcpIPv6SocketUtilTest = TcpSocketUtilTest<AF_INET6>;
 
-TEST_F(TcpIPv4SocketTest, SmallMessage) {
+TEST_F(TcpIPv4SocketUtilTest, SmallMessage) {
   // Create a small send message and a recv buffer.
-  const std::vector<Byte> message = {'h', 'e', 'l', 'l', 'o'};
-  const size_t kMsgSize = message.size();
-  std::vector<Byte> recv_buf(kMsgSize, 0);
+  const size_t kMsgSize = 64UL << 10;
+  std::vector<Byte> message(kMsgSize);
+  std::vector<Byte> recv_buf(kMsgSize, 0x00);
+  util::RandomNonZero(absl::MakeSpan(message));
   ASSERT_THAT(recv_buf, Pointwise(Ne(), message));
 
   // First, create a server thread.
@@ -71,7 +73,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
     auto new_socket = TcpSocket::Create(new_fd, AF_INET);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
-    CHECK_EQ(new_socket->Recv(recv_buf.data(), kMsgSize), kMsgSize);
+    CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), recv_buf.data(), kMsgSize));
   });
 
   // Second, create a client thread.
@@ -80,7 +82,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
     CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
-    CHECK_EQ(connector_->Send(message.data(), kMsgSize), kMsgSize);
+    CHECK_OK(TcpSocketUtil::Send(connector_->fd(), message.data(), kMsgSize));
   });
 
   // Wait for both threads to finish.
@@ -91,7 +93,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
   EXPECT_THAT(recv_buf, Pointwise(Eq(), message));
 }
 
-TEST_F(TcpIPv6SocketTest, BigData) {
+TEST_F(TcpIPv6SocketUtilTest, BigData) {
   // Create a big chunk of data and a recv buffer.
   constexpr size_t kDataSize = 16UL << 20;
   std::vector<Byte> send_buf(kDataSize);
@@ -111,7 +113,12 @@ TEST_F(TcpIPv6SocketTest, BigData) {
     auto new_socket = TcpSocket::Create(new_fd, AF_INET6);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
-    CHECK_EQ(new_socket->Recv(recv_buf.data(), kDataSize), kDataSize);
+    const size_t kPartial = kDataSize / 2;
+    std::vector<IoVec> iovecs = {
+        {IoVec(recv_buf.data(), kPartial)},
+        {IoVec(recv_buf.data() + kPartial, kDataSize - kPartial)},
+    };
+    CHECK_OK(TcpSocketUtil::RecvV(new_socket->fd(), iovecs));
   });
 
   // Second, create a client thread.
@@ -120,7 +127,13 @@ TEST_F(TcpIPv6SocketTest, BigData) {
     CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
-    CHECK_EQ(connector_->Send(send_buf.data(), kDataSize), kDataSize);
+    const size_t kPartial = kDataSize / 3;
+    std::vector<IoVec> iovecs = {
+        {IoVec(send_buf.data(), kPartial)},
+        {IoVec(send_buf.data() + kPartial, kPartial)},
+        {IoVec(send_buf.data() + kPartial * 2, kDataSize - kPartial * 2)},
+    };
+    CHECK_OK(TcpSocketUtil::SendV(connector_->fd(), iovecs));
   });
 
   // Wait for both threads to finish.

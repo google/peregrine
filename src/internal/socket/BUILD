@@ -110,15 +110,11 @@ cc_library(
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/base:types",
-        "//src/internal/util",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
-        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -131,8 +127,10 @@ cc_test(
         "//src/internal/base:endpoint",
         "//src/internal/base:types",
         "//src/internal/util:test_util",
+        "//src/util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )
@@ -166,6 +164,42 @@ cc_test(
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "tcp_socket_util",
+    srcs = ["tcp_socket_util.cc"],
+    hdrs = ["tcp_socket_util.h"],
+    deps = [
+        ":socket_util",
+        "//src/api:transport_types",
+        "//src/internal/base:types",
+        "//src/internal/util",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "tcp_socket_util_test",
+    srcs = ["tcp_socket_util_test.cc"],
+    deps = [
+        ":socket_tcp",
+        ":tcp_socket_util",
+        "//src/api:transport_types",
+        "//src/internal/base:endpoint",
+        "//src/internal/base:types",
+        "//src/internal/util:test_util",
+        "//src/util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )
