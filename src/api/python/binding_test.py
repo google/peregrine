@@ -1,5 +1,7 @@
 import ctypes
+import datetime
 import socket
+import time
 
 from absl.testing import absltest
 
@@ -70,8 +72,19 @@ class BindTest(absltest.TestCase):
     handle = transport.post(remote, [req])
     self.assertIsInstance(handle, pg.Handle)
 
-    status = transport.poll(handle)
-    self.assertIsInstance(status, pg.Status)
+    timeout = datetime.timedelta(seconds=10)
+    end_time = time.monotonic() + timeout.total_seconds()
+    while time.monotonic() < end_time:
+      status = transport.poll(handle)
+      self.assertIsInstance(status, pg.Status)
+      if not pg.is_completed(status):
+        time.sleep(0.1)
+      elif status == pg.Status.SUCCESS:
+        return
+      else:
+        self.fail(f"transport failed: {status!r}")
+    else:
+      self.fail("transport timed out")
 
 if __name__ == "__main__":
   absltest.main()

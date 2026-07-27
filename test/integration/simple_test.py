@@ -31,8 +31,8 @@ class SimpleTest(absltest.TestCase):
     logging.info("remote endpoint listening on %s", self.remote)
 
   def wait_for_completion(self, handle: pg.Handle) -> None:
-    end_time = time.time() + _TIMEOUT.total_seconds()
-    while time.time() < end_time:
+    end_time = time.monotonic() + _TIMEOUT.total_seconds()
+    while time.monotonic() < end_time:
       status = self.local_transport.poll(handle)
       if not pg.is_completed(status):
         time.sleep(_INTERVAL.total_seconds())
