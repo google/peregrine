@@ -36,7 +36,7 @@ cc_library(
         "//src/internal/socket:socket_udp",
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 

@@ -7,8 +7,7 @@
 #include <utility>
 
 #include "absl/log/check.h"
-#include "absl/time/clock.h"
-#include "absl/time/time.h"
+#include "absl/synchronization/notification.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/channel/channel_util.h"
 #include "src/internal/socket/acceptor.h"
@@ -25,18 +24,24 @@ ConnectedChannelPair ConnectedChannelPair::CreateTcp(const int family) {
   CHECK_NE(acceptor, nullptr);
 
   std::unique_ptr<TcpSocket> sa = nullptr;
-  auto accept = [&sa](std::unique_ptr<TcpSocket> socket) {
+  absl::Notification acceptor_started;
+  absl::Notification socket_accepted;
+  auto accept = [&](std::unique_ptr<TcpSocket> socket) {
     sa = std::move(socket);
+    socket_accepted.Notify();
   };
-  std::jthread _([&]() {
+  std::jthread acceptor_thread([&]() {
     DCHECK(acceptor->Socket().IsBlocking());
+    acceptor_started.Notify();
     acceptor->Start(accept);
   });
 
+  acceptor_started.WaitForNotification();
   std::unique_ptr<TcpSocket> sb = TcpConnector::Create(/*peer=*/a);
 
-  absl::SleepFor(absl::Seconds(1));
+  socket_accepted.WaitForNotification();
   acceptor->Stop();
+  acceptor_thread.join();
 
   CHECK_NE(sa, nullptr);
   CHECK_NE(sb, nullptr);
