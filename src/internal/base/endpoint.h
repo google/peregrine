@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_BASE_ENDPOINT_H_
 #define PEREGRINE_SRC_INTERNAL_BASE_ENDPOINT_H_
 
+#include <cstddef>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -85,13 +86,13 @@ class Endpoint final {
   }
 
   // Returns a hash signature of the endpoint.
-  HashValue Hash() const {
+  size_t Hash() const {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     return Hash(*this);
   }
 
   // Returns a hash signature of the endpoint.
-  static HashValue Hash(const Endpoint& e) {
+  static size_t Hash(const Endpoint& e) {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     return absl::Hash<Endpoint>{}(e);
   }

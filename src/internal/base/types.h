@@ -12,9 +12,6 @@ namespace peregrine::internal {
 // tcp/udp port
 using port_t = uint16_t;
 
-// hash value
-using HashValue = uint64_t;
-
 // io vector
 using IoVec = ::iovec;
 

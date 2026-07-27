@@ -16,7 +16,6 @@ cc_library(
     srcs = ["ipaddr.cc"],
     hdrs = ["ipaddr.h"],
     deps = [
-        ":types",
         "//src/internal:assumptions",
         "//src/util:macro",
         "@abseil-cpp//absl/hash",

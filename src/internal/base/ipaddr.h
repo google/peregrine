@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 
+#include <cstddef>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -15,7 +16,6 @@
 #include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "src/internal/assumptions.h"
-#include "src/internal/base/types.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -81,13 +81,13 @@ class IpAddr final {
   friend bool operator==(const IpAddr& a, const IpAddr& b);
 
   // Returns a hash signature of the ip address.
-  HashValue Hash() const {
+  size_t Hash() const {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     return Hash(*this);
   }
 
   // Returns a hash signature of the ip address.
-  static HashValue Hash(const IpAddr& ip) {
+  static size_t Hash(const IpAddr& ip) {
     static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     return absl::Hash<IpAddr>{}(ip);
   }
