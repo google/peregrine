@@ -1,38 +1,31 @@
+# Keep the dependencies update to date with their latest stable version.
+# Search Bazel Central Registry (BCR): https://registry-preview.bazel.build/
+
 module(name = "peregrine")
 
-# ---- C++ language ----
+# Keep modules in each section sorted alphabetically.
 
-# https://github.com/bazelbuild/rules_cc
+# Bazel
+bazel_dep(name = "bazel_features", version = "1.51.0")
+bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.22")
+bazel_dep(name = "rules_proto", version = "7.1.0")
+bazel_dep(name = "rules_python", version = "2.2.0")
+bazel_dep(name = "rules_shell", version = "0.8.0")
 
-# https://github.com/bazel-contrib/rules_foreign_cc
-bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
-
-# ---- C++ libraries ----
-
-# https://github.com/abseil/abseil-cpp
+# C++ Libraries
 bazel_dep(name = "abseil-cpp", version = "20260526.0")
+bazel_dep(name = "xxhash", version = "0.8.3.bcr.1")
 
-# https://github.com/abseil/gloop
-bazel_dep(name = "gloop", version = "20260708.rc1")
-
-# ---- Python bindings ----
-
-# https://github.com/wjakob/nanobind
+# Python Bindings
 bazel_dep(name = "nanobind", version = "2.13.0")
-
-# https://github.com/nicholasjng/nanobind-bazel
 bazel_dep(name = "nanobind_bazel", version = "2.12.0")
 
-# ---- Serialization ----
-
-# https://github.com/google/flatbuffers
+# Serialization
 bazel_dep(name = "flatbuffers", version = "25.12.19")
-
-# https://github.com/protocolbuffers/protobuf
 bazel_dep(name = "protobuf", version = "35.1")
 
-# ---- Testing ----
-
-# https://github.com/google/googletest
+# Testing/Benchmarking
+bazel_dep(name = "fuzztest", version = "20260629.0")
 bazel_dep(name = "googletest", version = "1.17.0")
+bazel_dep(name = "google_benchmark", version = "1.9.5")
