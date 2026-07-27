@@ -21,7 +21,7 @@ DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
 
 // `ChunkMetadata` defines the metadata of a chunk.
 #pragma pack(push, 1)
-struct ChunkMetadata final {
+struct alignas(8) ChunkMetadata final {
   // LINT.IfChange
   Handle handle;     // handle id (fixed)
   ReqId reqid;       // request id (fixed)
@@ -54,7 +54,7 @@ struct ChunkMetadata final {
   }
 };
 #pragma pack(pop)
-static_assert(sizeof(ChunkMetadata) == 28);
+static_assert(sizeof(ChunkMetadata) == 32);
 
 inline std::ostream& operator<<(std::ostream& os, const ChunkMetadata& c) {
   return os << c.ToString();
