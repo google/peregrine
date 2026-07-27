@@ -119,10 +119,10 @@ class Engine {
   RequestTracker incoming_;
 
   std::unique_ptr<TcpAcceptor> acceptor_;
-  std::jthread acceptor_thread_;
-  std::jthread main_thread_;
   absl::flat_hash_map<Endpoint, Workers> send_workers_;
   Workers recv_workers_;
+  std::jthread acceptor_thread_;
+  std::jthread main_thread_;
 };
 
 }  // namespace peregrine::internal
