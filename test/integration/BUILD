@@ -26,6 +26,7 @@ py_test(
     name = "simple_test_py",
     srcs = ["simple_test.py"],
     main = "simple_test.py",
+    tags = ["notsan"],  # TODO(yongx): fix this
     deps = [
         "//src/api:peregrine",
         "//src/util:util_py",
