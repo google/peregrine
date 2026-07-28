@@ -35,11 +35,11 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
 
   // Data size and # of reads/writes.
   constexpr size_t kDataSize = 1UL << 20;
-  constexpr int kIn = 2;
-  constexpr int kOut = kIn * 2;
-  static_assert(kIn != kOut);
-  static_assert(kDataSize % kIn == 0);
-  static_assert(kDataSize % kOut == 0);
+  constexpr int kSrc = 2;
+  constexpr int kSink = kSrc * 2;
+  static_assert(kSrc != kSink);
+  static_assert(kDataSize % kSrc == 0);
+  static_assert(kDataSize % kSink == 0);
 
   // Read and write on the channel pair.
   for (auto [sndr, rcvr] : {tcp_chs, mem_chs}) {
@@ -47,33 +47,34 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
     ASSERT_TRUE(IsReliableStream(rcvr->Type()));
 
     // Prepare input data and output.
-    std::vector<Byte> in(kDataSize, 0);
-    std::vector<Byte> out(in.size(), 0);
-    util::RandomNonZero(absl::MakeSpan(in));
-    ASSERT_THAT(out, Pointwise(Ne(), in));
+    std::vector<Byte> src(kDataSize, 0);
+    std::vector<Byte> sink(src.size(), 0);
+    util::RandomNonZero(absl::MakeSpan(src));
+    ASSERT_THAT(sink, Pointwise(Ne(), src));
 
     // Send to one channel a number of times.
-    for (int i = 0; i < kIn; ++i) {
-      constexpr size_t kPart = kDataSize / kIn;
-      EXPECT_TRUE(sndr->Write({{in.data() + i * kPart, kPart}}));
+    for (int i = 0; i < kSrc; ++i) {
+      constexpr size_t kPart = kDataSize / kSrc;
+      EXPECT_TRUE(sndr->Write({{src.data() + i * kPart, kPart}}));
     }
 
     // Receive from the other channel for a different number of times.
-    for (int i = 0; i < kOut; ++i) {
-      constexpr size_t kPart = kDataSize / kOut;
-      EXPECT_EQ(rcvr->Read(out.data() + i * kPart, kPart), kPart);
+    for (int i = 0; i < kSink; ++i) {
+      constexpr size_t kPart = kDataSize / kSink;
+      EXPECT_EQ(rcvr->Read(sink.data() + i * kPart, kPart), kPart);
     }
 
     // Check that the data read is the same as written.
-    EXPECT_THAT(out, Pointwise(Eq(), in));
+    EXPECT_THAT(sink, Pointwise(Eq(), src));
 
     // Shutdown the channels.
     sndr->Shutdown();
     rcvr->Shutdown();
 
     // Verify post-shutdown behavior.
-    EXPECT_FALSE(sndr->Write({{in.data(), /*len=*/1}}));
-    EXPECT_EQ(rcvr->Read(out.data(), /*len=*/1), 0);
+    constexpr size_t kLen = 1;
+    EXPECT_FALSE(sndr->Write({{src.data(), kLen}}));
+    EXPECT_EQ(rcvr->Read(sink.data(), kLen), 0);
 
     LOG(INFO) << *sndr;
     LOG(INFO) << *rcvr;
@@ -96,19 +97,19 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
 
     // Prepare input data and output.
     constexpr size_t kMsgSize = 128;
-    std::vector<Byte> in(kMsgSize, 0);
-    std::vector<Byte> out(in.size(), 0);
-    util::RandomNonZero(absl::MakeSpan(in));
-    ASSERT_THAT(out, Pointwise(Ne(), in));
+    std::vector<Byte> src(kMsgSize, 0);
+    std::vector<Byte> sink(src.size(), 0);
+    util::RandomNonZero(absl::MakeSpan(src));
+    ASSERT_THAT(sink, Pointwise(Ne(), src));
 
     // Write to one channel the message.
-    EXPECT_TRUE(sndr->Write({{in.data(), kMsgSize}}));
+    EXPECT_TRUE(sndr->Write({{src.data(), kMsgSize}}));
 
     // Read from the other channel twice.
-    EXPECT_EQ(rcvr->Read(out.data(), kMsgSize), kMsgSize);
+    EXPECT_EQ(rcvr->Read(sink.data(), kMsgSize), kMsgSize);
 
     // Check that the data read is the same as written.
-    EXPECT_THAT(out, Pointwise(Eq(), in));
+    EXPECT_THAT(sink, Pointwise(Eq(), src));
 
     // Shutdown the channels.
     sndr->Shutdown();
