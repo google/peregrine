@@ -30,14 +30,8 @@ cc_library(
         ":channel_stream",
         ":channel_util",
         ":pipe",
-        "//src/internal/base:endpoint",
-        "//src/internal/socket:acceptor",
-        "//src/internal/socket:connector",
-        "//src/internal/socket:socket_tcp",
-        "//src/internal/socket:socket_udp",
-        "//src/internal/util:test_util",
+        "//src/internal/socket:socket_test_util",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/synchronization",
     ],
 )
 

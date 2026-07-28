@@ -19,8 +19,8 @@ namespace peregrine::internal::testing {
 // It is thread-safe.
 class MemStreamChannel final : public Channel {
  public:
-  // Constructor for paired bidirectional endpoints.
-  explicit MemStreamChannel(BidiPipe bidi)
+  // Constructor for paired bidirectional pipes.
+  explicit MemStreamChannel(const BidiPipe& bidi)
       : in_pipe_(bidi.InputPipe()), out_pipe_(bidi.OutputPipe()) {
     DCHECK_NE(in_pipe_, nullptr);
     DCHECK_NE(out_pipe_, nullptr);

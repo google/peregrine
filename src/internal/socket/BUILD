@@ -169,6 +169,23 @@ cc_test(
 )
 
 cc_library(
+    name = "socket_test_util",
+    testonly = True,
+    srcs = ["socket_test_util.cc"],
+    hdrs = ["socket_test_util.h"],
+    deps = [
+        ":acceptor",
+        ":connector",
+        ":socket_tcp",
+        ":socket_udp",
+        "//src/internal/base:endpoint",
+        "//src/internal/util:test_util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_library(
     name = "tcp_socket_util",
     srcs = ["tcp_socket_util.cc"],
     hdrs = ["tcp_socket_util.h"],
