@@ -4,15 +4,14 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
-#include "src/internal/channel/channel_pipe.h"
 #include "src/internal/channel/channel_types.h"
+#include "src/internal/channel/pipe.h"
 
 namespace peregrine::internal::testing {
 
@@ -22,9 +21,9 @@ class MemStreamChannel final : public Channel {
  public:
   // Constructor for paired bidirectional endpoints.
   explicit MemStreamChannel(BidiPipe bidi)
-      : out_pipe_(std::move(bidi.out_pipe)), in_pipe_(std::move(bidi.in_pipe)) {
-    DCHECK_NE(out_pipe_, nullptr);
+      : in_pipe_(bidi.InputPipe()), out_pipe_(bidi.OutputPipe()) {
     DCHECK_NE(in_pipe_, nullptr);
+    DCHECK_NE(out_pipe_, nullptr);
   }
 
   // Returns the channel type.
@@ -48,8 +47,8 @@ class MemStreamChannel final : public Channel {
   std::string ToString() const override { return "MemStreamChannel"; }
 
  private:
-  std::shared_ptr<MemPipe> out_pipe_;
   std::shared_ptr<MemPipe> in_pipe_;
+  std::shared_ptr<MemPipe> out_pipe_;
 };
 
 }  // namespace peregrine::internal::testing
