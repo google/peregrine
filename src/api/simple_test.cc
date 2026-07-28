@@ -11,14 +11,14 @@
 #include "src/api/transport_types.h"
 #include "src/util/app.h"
 
-namespace peregrine::integration_test {
+namespace peregrine::testing {
 namespace {
 
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
-class SimpleTest : public testing::Test {
+class SimpleTest : public ::testing::Test {
   static constexpr size_t kBufSize = (64UL << 20) - 1;
   static constexpr int kNumConnsPerPeer = 8;
 
@@ -103,4 +103,4 @@ TEST_F(SimpleTest, Write) {
 }
 
 }  // namespace
-}  // namespace peregrine::integration_test
+}  // namespace peregrine::testing

@@ -86,6 +86,19 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "simple_test",
+    srcs = ["simple_test.cc"],
+    deps = [
+        ":transport",
+        ":transport_types",
+        "//src/util:app",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
 nanobind_extension(
     name = "peregrine",
     srcs = ["python/binding.cc"],
@@ -106,6 +119,19 @@ py_test(
     deps = [
         ":peregrine",
         "//src/util:util_py",
+        "@abseil-py//absl/testing:absltest",
+    ],
+)
+
+py_test(
+    name = "python/simple_test_py",
+    srcs = ["python/simple_test.py"],
+    main = "python/simple_test.py",
+    tags = ["notsan"],  # TODO(yongx): fix this
+    deps = [
+        ":peregrine",
+        "//src/util:util_py",
+        "@abseil-py//absl/logging",
         "@abseil-py//absl/testing:absltest",
     ],
 )
