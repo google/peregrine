@@ -1,4 +1,4 @@
-# Keep the dependencies update to date with their latest stable version.
+# Keep the dependencies up to date with their latest stable versions.
 # Search Bazel Central Registry (BCR): https://registry-preview.bazel.build/
 
 module(name = "peregrine")
