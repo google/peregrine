@@ -5,14 +5,8 @@
 
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_msg.h"
-#include "src/internal/channel/channel_stream.h"
 
 namespace peregrine::internal::testing {
-
-// Creates a memory stream channel.
-inline std::unique_ptr<Channel> TestOnly_CreateMemStreamChannel() {
-  return std::make_unique<MemStreamChannel>();
-}
 
 // Creates a memory message channel.
 inline std::unique_ptr<Channel> TestOnly_CreateMemMsgChannel(int error_rate) {
@@ -29,6 +23,9 @@ struct ConnectedChannelPair final {
 
   // Creates a udp channel pair in the given address family.
   static ConnectedChannelPair CreateUdp(int family);
+
+  // Creates a memory stream channel pair.
+  static ConnectedChannelPair CreateMemStream();
 };
 
 }  // namespace peregrine::internal::testing

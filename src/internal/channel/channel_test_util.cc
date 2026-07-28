@@ -9,6 +9,8 @@
 #include "absl/log/check.h"
 #include "absl/synchronization/notification.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/channel/channel_pipe.h"
+#include "src/internal/channel/channel_stream.h"
 #include "src/internal/channel/channel_util.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
@@ -62,6 +64,13 @@ ConnectedChannelPair ConnectedChannelPair::CreateUdp(const int family) {
   CHECK(sb->Connect(a));
 
   return {CreateUdpChannel(std::move(sa)), CreateUdpChannel(std::move(sb))};
+}
+
+ConnectedChannelPair ConnectedChannelPair::CreateMemStream() {
+  auto [pipe_a, pipe_b] = BidiPipe::Create();
+  auto a = std::make_unique<MemStreamChannel>(pipe_a);
+  auto b = std::make_unique<MemStreamChannel>(pipe_b);
+  return {std::move(a), std::move(b)};
 }
 
 }  // namespace peregrine::internal::testing

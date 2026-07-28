@@ -27,11 +27,11 @@ using ::testing::Pointwise;
 TEST(ReliableStreamChannelTest, ReadWrite) {
   // Create channel pairs.
   ConnectedChannelPair tcp = ConnectedChannelPair::CreateTcp(AF_INET);
-  std::unique_ptr<Channel> mem = TestOnly_CreateMemStreamChannel();
+  ConnectedChannelPair mem = ConnectedChannelPair::CreateMemStream();
 
   // Get the channel pointers.
   std::pair<Channel*, Channel*> tcp_chs = {tcp.sndr.get(), tcp.rcvr.get()};
-  std::pair<Channel*, Channel*> mem_chs = {mem.get(), mem.get()};
+  std::pair<Channel*, Channel*> mem_chs = {mem.sndr.get(), mem.rcvr.get()};
 
   // Data size and # of reads/writes.
   constexpr size_t kDataSize = 1UL << 20;
@@ -70,6 +70,10 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
     // Shutdown the channels.
     sndr->Shutdown();
     rcvr->Shutdown();
+
+    // Verify post-shutdown behavior.
+    EXPECT_FALSE(sndr->Write({{in.data(), /*len=*/1}}));
+    EXPECT_EQ(rcvr->Read(out.data(), /*len=*/1), 0);
 
     LOG(INFO) << *sndr;
     LOG(INFO) << *rcvr;

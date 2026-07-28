@@ -27,6 +27,7 @@ cc_library(
     deps = [
         ":channel",
         ":channel_msg",
+        ":channel_pipe",
         ":channel_stream",
         ":channel_util",
         "//src/internal/base:endpoint",
@@ -75,6 +76,17 @@ cc_library(
 )
 
 cc_library(
+    name = "channel_pipe",
+    testonly = True,
+    hdrs = ["channel_pipe.h"],
+    deps = [
+        "//src/internal/util:test_iov",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_library(
     name = "channel_msg",
     testonly = True,
     srcs = ["channel_msg.cc"],
@@ -102,13 +114,12 @@ cc_library(
     hdrs = ["channel_stream.h"],
     deps = [
         ":channel",
+        ":channel_pipe",
         ":channel_types",
         "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/util:test_iov",
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
     ],
