@@ -160,6 +160,8 @@ void Engine::process(const Entry& entry) {
     Workers& workers = send_workers_[entry.peer];
     if (connect(workers, entry.peer)) {
       processWrite(workers, entry.handle, entry.reqid, entry.request);
+    } else {
+      // TODO(yongx): handle failure.
     }
   } else {
     processRead(entry.handle, entry.reqid, entry.request);

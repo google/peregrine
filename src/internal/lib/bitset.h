@@ -41,13 +41,22 @@ class Bitset final {
   uint32_t Count() const;
 
   // Returns the bit at the index `i`.
-  bool Get(uint32_t i) const { return units_[u(i)].bits.test(b(i)); }
+  bool Get(uint32_t i) const {
+    DCHECK_LT(i, size_);
+    return units_[u(i)].bits.test(b(i));
+  }
 
   // Sets the bit at the index `i` to 1.
-  void Set(uint32_t i) { units_[u(i)].bits.set(b(i)); }
+  void Set(uint32_t i) {
+    DCHECK_LT(i, size_);
+    units_[u(i)].bits.set(b(i));
+  }
 
   // Resets the bit at the index `i` to 0.
-  void Reset(uint32_t i) { units_[u(i)].bits.reset(b(i)); }
+  void Reset(uint32_t i) {
+    DCHECK_LT(i, size_);
+    units_[u(i)].bits.reset(b(i));
+  }
 
   // Returns true if all bits are 0.
   bool IsEmpty() const;
