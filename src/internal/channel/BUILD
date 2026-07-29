@@ -89,11 +89,11 @@ cc_library(
     deps = [
         ":channel",
         ":channel_types",
+        ":pipe",
         "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/util:test_iov",
         "//src/util",
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/strings:str_format",

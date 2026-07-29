@@ -4,14 +4,8 @@
 #include <memory>
 
 #include "src/internal/channel/channel.h"
-#include "src/internal/channel/channel_msg.h"
 
 namespace peregrine::internal::testing {
-
-// Creates a memory message channel.
-inline std::unique_ptr<Channel> TestOnly_CreateMemMsgChannel(int error_rate) {
-  return std::make_unique<MemMsgChannel>(error_rate);
-}
 
 // A pair of connected channels.
 struct ConnectedChannelPair final {
@@ -26,6 +20,9 @@ struct ConnectedChannelPair final {
 
   // Creates a memory stream channel pair.
   static ConnectedChannelPair CreateMemStream();
+
+  // Creates a memory message channel pair.
+  static ConnectedChannelPair CreateMemMsg(int error_rate);
 };
 
 }  // namespace peregrine::internal::testing

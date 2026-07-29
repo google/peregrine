@@ -6,16 +6,24 @@
 #include <utility>
 
 #include "absl/log/check.h"
+#include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
+#include "src/internal/channel/pipe.h"
 #include "src/internal/util/test_iov.h"
+#include "src/util/util.h"
 
 namespace peregrine::internal::testing {
 
-MemMsgChannel::MemMsgChannel(const int error_rate)
-    : error_rate_(std::min(std::max(0, error_rate), 100)) {}
+MemMsgChannel::MemMsgChannel(const BidiPipe& bidi, const int error_rate)
+    : error_rate_(std::min(std::max(0, error_rate), 100)),
+      in_pipe_(bidi.InputPipe()),
+      out_pipe_(bidi.OutputPipe()) {
+  DCHECK_NE(in_pipe_, nullptr);
+  DCHECK_NE(out_pipe_, nullptr);
+}
 
 bool MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
   DCHECK(!iovecs.empty());
@@ -23,25 +31,24 @@ bool MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
   // To keep the message boundary, merge multiple iovecs into a single one.
   OwnedIoVec owned_iov = TestOnly_Linearize(iovecs);
 
-  absl::MutexLock lock(mu_);
-  queue_.push(std::move(owned_iov));
+  absl::MutexLock lock(out_pipe_->mu);
+  if (out_pipe_->shutdown) return false;
+  out_pipe_->queue.push_back(std::move(owned_iov));
   return true;
 }
 
 ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
-  OwnedIoVec owned_iov;
-  {
-    absl::MutexLock lock(mu_);
-    if (queue_.empty()) {
-      // CHECK(false) << "should block";
-      return 0;
-    }
-    owned_iov = std::move(queue_.front());
-    queue_.pop();
+  absl::MutexLock lock(in_pipe_->mu);
+  if (in_pipe_->queue.empty()) {
+    if (in_pipe_->shutdown) return 0;
+    return -1;
+  }
 
-    if (error()) {
-      return -1;
-    }
+  OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
+  in_pipe_->queue.pop_front();
+
+  if (error()) {
+    return -1;
   }
 
   const size_t size = owned_iov.size;
@@ -54,6 +61,21 @@ ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
     std::memcpy(buf, owned_iov.data.get(), size);
     return size;
   }
+}
+
+void MemMsgChannel::Shutdown() {
+  in_pipe_->Shutdown();
+  out_pipe_->Shutdown();
+}
+
+bool MemMsgChannel::error() const {
+  // Avoid random number generation if not needed.
+  if (error_rate_ <= 0) return false;
+  if (error_rate_ >= 100) return true;
+
+  thread_local absl::BitGen  // NOLINT(runtime/random_engine_usage)
+      bitgen;
+  return util::Random<int>(bitgen, 1, 100) <= error_rate_;
 }
 
 }  // namespace peregrine::internal::testing

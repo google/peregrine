@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "absl/log/check.h"
+#include "src/internal/channel/channel_msg.h"
 #include "src/internal/channel/channel_stream.h"
 #include "src/internal/channel/channel_util.h"
 #include "src/internal/channel/pipe.h"
@@ -31,6 +32,13 @@ ConnectedChannelPair ConnectedChannelPair::CreateMemStream() {
   auto [pipe_a, pipe_b] = BidiPipe::Create();
   auto a = std::make_unique<MemStreamChannel>(pipe_a);
   auto b = std::make_unique<MemStreamChannel>(pipe_b);
+  return {std::move(a), std::move(b)};
+}
+
+ConnectedChannelPair ConnectedChannelPair::CreateMemMsg(const int error_rate) {
+  auto [pipe_a, pipe_b] = BidiPipe::Create();
+  auto a = std::make_unique<MemMsgChannel>(pipe_a, error_rate);
+  auto b = std::make_unique<MemMsgChannel>(pipe_b, error_rate);
   return {std::move(a), std::move(b)};
 }
 

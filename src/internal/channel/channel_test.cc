@@ -84,11 +84,11 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
 TEST(UnreliableMessageChannelTest, ReadWrite) {
   // Create channel pairs.
   ConnectedChannelPair udp = ConnectedChannelPair::CreateUdp(AF_INET6);
-  std::unique_ptr<Channel> mem = TestOnly_CreateMemMsgChannel(/*error=*/0);
+  ConnectedChannelPair mem = ConnectedChannelPair::CreateMemMsg(/*error_rt=*/0);
 
   // Get the channel pointers.
   std::pair<Channel*, Channel*> udp_chs = {udp.sndr.get(), udp.rcvr.get()};
-  std::pair<Channel*, Channel*> mem_chs = {mem.get(), mem.get()};
+  std::pair<Channel*, Channel*> mem_chs = {mem.sndr.get(), mem.rcvr.get()};
 
   // Read and write on the channel pair.
   for (auto [sndr, rcvr] : {udp_chs, mem_chs}) {
@@ -105,7 +105,7 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
     // Write to one channel the message.
     EXPECT_TRUE(sndr->Write({{src.data(), kMsgSize}}));
 
-    // Read from the other channel twice.
+    // Read from the other channel.
     EXPECT_EQ(rcvr->Read(sink.data(), kMsgSize), kMsgSize);
 
     // Check that the data read is the same as written.
@@ -115,9 +115,40 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
     sndr->Shutdown();
     rcvr->Shutdown();
 
+    // Verify post-shutdown behavior.
+    constexpr size_t kLen = 1;
+    EXPECT_FALSE(sndr->Write({{src.data(), kLen}}));
+    EXPECT_EQ(rcvr->Read(sink.data(), kLen), 0);
+
     LOG(INFO) << *sndr;
     LOG(INFO) << *rcvr;
   }
+}
+
+TEST(UnreliableMessageChannelTest, ErrorRate) {
+  constexpr int kErrorRate = 30;  // 30%
+  ConnectedChannelPair mem = ConnectedChannelPair::CreateMemMsg(kErrorRate);
+  Channel* sndr = mem.sndr.get();
+  Channel* rcvr = mem.rcvr.get();
+
+  constexpr int kNumMessages = 1000;
+  constexpr size_t kMsgSize = 128;
+  std::vector<Byte> src(kMsgSize, 1);
+  std::vector<Byte> sink(kMsgSize, 0);
+
+  int errors = 0;
+  for (int i = 0; i < kNumMessages; ++i) {
+    ASSERT_TRUE(sndr->Write({{src.data(), kMsgSize}}));
+    if (rcvr->Read(sink.data(), kMsgSize) < 0) {
+      errors++;
+    }
+  }
+
+  const double actual = static_cast<double>(errors) / kNumMessages * 100.0;
+  LOG(INFO) << "Actual error rate: " << actual << "%";
+
+  // Verify actual error rate is within reasonable range (e.g., +/- 10%)
+  EXPECT_NEAR(actual, kErrorRate, 10.0);
 }
 
 }  // namespace
