@@ -12,6 +12,7 @@
 #include <string_view>
 
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
@@ -48,7 +49,7 @@ class TcpSocket final : public SocketBase {
   // Connects to the `peer` endpoint.
   bool Connect(const Endpoint& peer);
 
-  // Sends `len` bytes of data from the `buf`.
+  // Sends exactly `len` bytes of data from the `buf`.
   // Returns the number of bytes sent if successful. Zero byte means no data
   // has been sent due to non-error reasons. Returns -1 on error.
   ssize_t Send(const Byte* buf, size_t len) const;
@@ -57,6 +58,16 @@ class TcpSocket final : public SocketBase {
   // Returns the number of bytes received if successful. Zero byte means the
   // peer side has closed the connection. Returns -1 on error.
   ssize_t Recv(Byte* buf, size_t len) const;
+
+  // Sends exactly `length(iovecs)` bytes of data from the buffers.
+  // Returns the number of bytes sent if successful. Zero byte means no data
+  // has been sent due to non-error reasons. Returns -1 on error.
+  ssize_t SendV(absl::Span<const IoVec> iovecs) const;
+
+  // Receives exactly `length(iovecs)` bytes of data into the buffers.
+  // Returns the number of bytes received if successful. Zero byte means the
+  // peer side has closed the connection. Returns -1 on error.
+  ssize_t RecvV(absl::Span<const IoVec> iovecs) const;
 
   // Returns a self/peer address pair string of the socket.
   std::string ToString() const;

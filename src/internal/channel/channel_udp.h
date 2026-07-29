@@ -10,12 +10,14 @@
 #include <utility>
 
 #include "absl/log/check.h"
+#include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_types.h"
 #include "src/internal/socket/socket_udp.h"
+#include "src/internal/util/util.h"
 
 namespace peregrine::internal {
 
@@ -36,7 +38,9 @@ class UdpChannel final : public Channel {
 
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns true if all the data are written successfully, or false otherwise.
-  bool Write(absl::Span<const IoVec> iovecs) override;
+  bool Write(absl::Span<const IoVec> iovecs) override {
+    return socket_->SendV(iovecs) == TotalLength(iovecs);
+  }
 
   // Reads a message of at most `len` bytes into the `buf` from the the channel.
   // Returns the number of bytes actually read if successful. Returns 0 if the
@@ -49,7 +53,9 @@ class UdpChannel final : public Channel {
   void Shutdown() override { socket_->Shutdown(); }
 
   // Returns a string representation for the channel.
-  std::string ToString() const override;
+  std::string ToString() const override {
+    return absl::StrCat("UdpChannel: ", socket_->ToString());
+  }
 
  private:
   std::unique_ptr<UdpSocket> socket_;

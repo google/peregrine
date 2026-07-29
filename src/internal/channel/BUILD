@@ -37,7 +37,6 @@ cc_library(
 
 cc_library(
     name = "channel_tcp",
-    srcs = ["channel_tcp.cc"],
     hdrs = ["channel_tcp.h"],
     deps = [
         ":channel",
@@ -45,6 +44,7 @@ cc_library(
         "//src/api:transport_types",
         "//src/internal/base:types",
         "//src/internal/socket:socket_tcp",
+        "//src/internal/util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
@@ -53,7 +53,6 @@ cc_library(
 
 cc_library(
     name = "channel_udp",
-    srcs = ["channel_udp.cc"],
     hdrs = ["channel_udp.h"],
     deps = [
         ":channel",
@@ -62,7 +61,6 @@ cc_library(
         "//src/internal/base:types",
         "//src/internal/socket:socket_udp",
         "//src/internal/util",
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",

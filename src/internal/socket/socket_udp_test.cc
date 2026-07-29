@@ -104,7 +104,7 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
         {.iov_base = (void*)(recv_buf.data() + 2), .iov_len = kMsgSize - 2},
     };
     rcvr_ready.Notify();
-    const ssize_t n = rskt_->RecvV(recv_iov, kRN, kMsgSize);
+    const ssize_t n = rskt_->RecvV(recv_iov);
     CHECK_GT(n, 0);
     CHECK_LE(n, kMsgSize);
   });
@@ -121,7 +121,7 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
         {.iov_base = (void*)message.data(), .iov_len = 1},
         {.iov_base = (void*)(message.data() + 1), .iov_len = kMsgSize - 1},
     };
-    CHECK_EQ(sskt_->SendV(send_iov, kSN, kMsgSize), kMsgSize);
+    CHECK_EQ(sskt_->SendV(send_iov), kMsgSize);
   });
 
   // Wait for both threads to finish.

@@ -12,6 +12,7 @@
 #include <string_view>
 
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
@@ -40,7 +41,7 @@ class UdpSocket final : public SocketBase {
   // Connects to the `peer` endpoint.
   bool Connect(const Endpoint& peer);
 
-  // Sends `len` bytes of data from the `buf`.
+  // Sends exactly `len` bytes of data from the `buf`.
   // Returns the number of bytes sent if successful. Zero byte means no data
   // has been sent due to non-error reasons. Returns -1 on error.
   ssize_t Send(const Byte* buf, size_t len) const;
@@ -50,15 +51,15 @@ class UdpSocket final : public SocketBase {
   // received packet has no payload. Returns -1 on error.
   ssize_t Recv(Byte* buf, size_t len) const;
 
-  // Sends `len` bytes of data from `n` `iov` buffers.
+  // Sends exactly `length(iovecs)` bytes of data from the buffers.
   // Returns the number of bytes sent if successful. Zero byte means no data
   // has been sent due to non-error reasons. Returns -1 on error.
-  ssize_t SendV(const IoVec* iov, int n, size_t len) const;
+  ssize_t SendV(absl::Span<const IoVec> iovecs) const;
 
-  // Receives at most `len` bytes of data into `n` `iov` buffers.
+  // Receives at most `length(iovecs)` bytes of data into the buffers.
   // Returns the number of bytes received if successful. Zero byte means the
   // received packet has no payload. Returns -1 on error.
-  ssize_t RecvV(const IoVec* iov, int n, size_t len) const;
+  ssize_t RecvV(absl::Span<const IoVec> iovecs) const;
 
   // Returns a self/peer address pair string of the socket.
   std::string ToString() const;

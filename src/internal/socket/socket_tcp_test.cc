@@ -111,7 +111,14 @@ TEST_F(TcpIPv6SocketTest, BigData) {
     auto new_socket = TcpSocket::Create(new_fd, AF_INET6);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
-    CHECK_EQ(new_socket->Recv(recv_buf.data(), kDataSize), kDataSize);
+    constexpr int kRN = 2;
+    constexpr size_t kPartial = kDataSize / kRN;
+    const struct iovec recv_iov[kRN] = {
+        {.iov_base = (void*)recv_buf.data(), .iov_len = kPartial},
+        {.iov_base = (void*)(recv_buf.data() + kPartial),
+         .iov_len = kDataSize - kPartial},
+    };
+    CHECK_EQ(new_socket->RecvV(recv_iov), kDataSize);
   });
 
   // Second, create a client thread.
@@ -120,7 +127,15 @@ TEST_F(TcpIPv6SocketTest, BigData) {
     CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
-    CHECK_EQ(connector_->Send(send_buf.data(), kDataSize), kDataSize);
+    constexpr int kSN = 3;
+    constexpr size_t kPartial = kDataSize / kSN;
+    const struct iovec send_iov[kSN] = {
+        {.iov_base = (void*)send_buf.data(), .iov_len = kPartial},
+        {.iov_base = (void*)(send_buf.data() + kPartial), .iov_len = kPartial},
+        {.iov_base = (void*)(send_buf.data() + 2 * kPartial),
+         .iov_len = kDataSize - 2 * kPartial},
+    };
+    CHECK_EQ(connector_->SendV(send_iov), kDataSize);
   });
 
   // Wait for both threads to finish.

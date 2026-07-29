@@ -121,8 +121,8 @@ absl::Status TcpSocketUtil::SendV(const fd_t fd,
     const ssize_t bytes = ::writev(fd.value(), &vecs[i], n - i);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
+      if ABSL_PREDICT_TRUE (sent >= len) break;
       size_t b = static_cast<size_t>(bytes);
-      if ABSL_PREDICT_TRUE (b >= len) break;
       while (i < n && vecs[i].iov_len <= b) {  // advance iov index
         b -= vecs[i].iov_len;
         ++i;
@@ -166,8 +166,8 @@ absl::Status TcpSocketUtil::RecvV(const fd_t fd,
     const ssize_t bytes = ::readv(fd.value(), &vecs[i], n - i);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       rcvd += bytes;
+      if ABSL_PREDICT_TRUE (rcvd >= len) break;
       size_t b = static_cast<size_t>(bytes);
-      if ABSL_PREDICT_TRUE (b >= len) break;
       while (i < n && vecs[i].iov_len <= b) {  // advance iov index
         b -= vecs[i].iov_len;
         ++i;

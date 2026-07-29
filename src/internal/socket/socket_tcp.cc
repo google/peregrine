@@ -12,17 +12,20 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_base.h"
 #include "src/internal/socket/socket_util.h"
+#include "src/internal/util/util.h"
 
 namespace peregrine::internal {
 
@@ -136,9 +139,9 @@ bool TcpSocket::Connect(const Endpoint& peer) {
 
 ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {
   DCHECK(invariant());
+  DCHECK(IsBlocking());
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
-  DCHECK(IsBlocking());
 
   const Byte* ptr = buf;
   size_t sent = 0;
@@ -171,11 +174,57 @@ ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {
   return sent;
 }
 
-ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
+ssize_t TcpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
   DCHECK(invariant());
+  DCHECK(IsBlocking());
+  DCHECK_LE(iovecs.size(), IOV_MAX);
+
+  const size_t len = TotalLength(iovecs);
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+
+  std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
+  const int n = vecs.size();
+  size_t sent = 0;
+  int i = 0;
+  while (i < n) {
+    const ssize_t bytes = ::writev(fd_.value(), &vecs[i], n - i);
+    if ABSL_PREDICT_TRUE (bytes > 0) {
+      sent += bytes;
+      if ABSL_PREDICT_TRUE (sent >= len) break;
+      size_t b = static_cast<size_t>(bytes);
+      while (i < n && vecs[i].iov_len <= b) {  // advance iov index
+        b -= vecs[i].iov_len;
+        ++i;
+      }
+      if (i >= n) break;
+      if (b > 0) {  // adjust iov ptr/len
+        vecs[i].iov_base = static_cast<Byte*>(vecs[i].iov_base) + b;
+        vecs[i].iov_len -= b;
+      }
+    } else {
+      const auto last_errno = errno;
+      if ABSL_PREDICT_TRUE (bytes < 0) {
+        if (Interrupted(last_errno)) continue;
+        DCHECK(!WouldBlock(last_errno));
+        LOG(WARNING) << errMsg("send", last_errno);
+        return -1;
+      } else {  // rarely happens
+        DCHECK_EQ(bytes, 0);
+        LOG(WARNING) << errMsg("send zero", last_errno);
+        return 0;
+      }
+    }
+  }
+  DCHECK_EQ(sent, len);
+  return sent;
+}
+
+ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
+  DCHECK(invariant());
   DCHECK(IsBlocking());
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   Byte* ptr = buf;
   size_t rcvd = 0;
@@ -205,6 +254,48 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
   return rcvd;
 }
 
+ssize_t TcpSocket::RecvV(const absl::Span<const IoVec> iovecs) const {
+  DCHECK(invariant());
+  DCHECK(IsBlocking());
+  DCHECK_LE(iovecs.size(), IOV_MAX);
+
+  const size_t len = TotalLength(iovecs);
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+
+  std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
+  const int n = vecs.size();
+  size_t rcvd = 0;
+  int i = 0;
+  while (i < n) {
+    const ssize_t bytes = ::readv(fd_.value(), &vecs[i], n - i);
+    if ABSL_PREDICT_TRUE (bytes > 0) {
+      rcvd += bytes;
+      if ABSL_PREDICT_TRUE (rcvd >= len) break;
+      size_t b = static_cast<size_t>(bytes);
+      while (i < n && vecs[i].iov_len <= b) {  // advance iov index
+        b -= vecs[i].iov_len;
+        ++i;
+      }
+      if (i >= n) break;
+      if (b > 0) {  // adjust iov ptr/len
+        vecs[i].iov_base = static_cast<Byte*>(vecs[i].iov_base) + b;
+        vecs[i].iov_len -= b;
+      }
+    } else if (bytes == 0) {  // peer closed connection
+      LOG(INFO) << ioMsg("recv eof", 0);
+      return 0;
+    } else {
+      const auto last_errno = errno;
+      if (Interrupted(last_errno)) continue;
+      DCHECK(!WouldBlock(last_errno));
+      LOG(WARNING) << errMsg("recv", last_errno);
+      return -1;
+    }
+  }
+  DCHECK_EQ(rcvd, len);
+  return rcvd;
+}
 
 std::string TcpSocket::ToString() const {
   return absl::StrCat("tcp socket: ", AddrPortPair(fd_));
