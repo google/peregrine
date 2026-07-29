@@ -9,7 +9,6 @@ cc_library(
     hdrs = ["rdma_device_context.h"],
     deps = [
         "//:libibverbs",
-        "//src/internal:coding_style",
         "//src/util:macro",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -25,6 +24,35 @@ cc_test(
         ":rdma_device_context",
         "//:libibverbs",
         "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "rdma_context",
+    srcs = ["rdma_context.cc"],
+    hdrs = ["rdma_context.h"],
+    deps = [
+        ":rdma_device_context",
+        "//:libibverbs",
+        "//src/util:macro",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "rdma_context_test",
+    srcs = ["rdma_context_test.cc"],
+    deps = [
+        ":rdma_context",
+        ":rdma_device_context",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
         "@googletest//:gtest_main",
     ],
 )

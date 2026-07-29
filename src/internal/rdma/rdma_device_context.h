@@ -7,7 +7,6 @@
 #include <string>
 #include <string_view>
 
-#include "src/internal/coding_style.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -17,9 +16,6 @@ namespace peregrine::internal {
 // Queue (CQ) for the physical adapter.
 // It is thread-compatible but not thread-safe.
 class RdmaDeviceContext final {
-  static_assert(coding_style::kClassPrivateFunctionNamesStartWithLowercase);
-  static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
-
  public:
   // Creates an RdmaDeviceContext by opening the given verbs device.
   // Returns nullptr on failure.
