@@ -172,6 +172,7 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
 
   // Step 5: process ack chunk.
   if (chunk.IsAck()) {
+    // `Set` is idempotent so it is OK to have duplicate acks.
     tracker->Set(chunk.index);
     return true;
   }

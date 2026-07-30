@@ -21,7 +21,6 @@
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
-#include "src/internal/channel/channel_types.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/util/util.h"
@@ -29,9 +28,6 @@
 namespace peregrine::internal::testing {
 namespace {
 
-using ChannelType::kReliableStream;
-using ChannelType::kUnreliableMessage;
-using ::testing::Combine;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
@@ -47,13 +43,10 @@ constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
 static_assert(kBufSize % kNumChunks != 0);
 
-using Param = std::tuple<ChannelType>;
+using Param = std::tuple<TestChannelType, int>;
 
-std::string ToString(const TestParamInfo<Param>& info) {
-  const ChannelType t = std::get<0>(info.param);
-  DCHECK(t == kReliableStream || t == kUnreliableMessage);
-  return t == kReliableStream ? "ReliableStreamChannel"
-                              : "UnreliableMessageChannel";
+std::string ParamToString(const TestParamInfo<Param>& info) {
+  return TestChannelToString(std::get<0>(info.param), std::get<1>(info.param));
 }
 
 class TransferTest : public ::testing::TestWithParam<Param> {
@@ -87,21 +80,63 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     return ChunkPayloadView(src_.data() + i * kChunkSize, GetChunkSize(i));
   }
 
-  static ConnectedChannelPair CreateChannelPair(ChannelType type) {
-    if (type == kReliableStream) {
-      return ConnectedChannelPair::CreateTcp(AF_INET);
-    } else {
-      DCHECK_EQ(type, kUnreliableMessage);
-      return ConnectedChannelPair::CreateUdp(AF_INET);
-    }
-  }
-
   bool IsSendDone() const {
     return a_.outgoing.Check(kHandle) == Status::kSuccess;
   }
 
   bool IsRecvDone() const {
     return b_.incoming.Check(kHandle) == Status::kSuccess;
+  }
+
+  void RunSendRecv(const ConnectedChannelPair& chs) {
+    // Precondition: dst is different from src.
+    ASSERT_THAT(dst_, Pointwise(Ne(), src_));
+
+    // A sends data chunks to B.
+    std::thread a_send([&]() {
+      Channel* const channel = chs.sndr.get();
+      while (!IsSendDone()) {
+        for (uint32_t i = 0; i < kNumChunks; ++i) {
+          if (IsSendDone()) break;
+          const ChunkMetadata chunk = GenChunk(i);
+          const ChunkPayloadView payload = GenPayload(i);
+          CHECK(Transfer::SendChunk(channel, chunk, payload));
+        }
+      }
+    });
+    // A receives ack chunks from B.
+    std::thread a_recv([&]() {
+      Channel* const channel = chs.sndr.get();
+      while (!IsSendDone()) {
+        if (!Transfer::RecvChunk(channel, a_.outgoing, a_.incoming)) {
+          // Yield to prevent CPU starvation on non-blocking channels.
+          std::this_thread::yield();
+        }
+      }
+    });
+
+    // B receives data chunks from A (and sends ack chunks to A).
+    std::thread b_recv([&]() {
+      Channel* const channel = chs.rcvr.get();
+      while (!IsSendDone()) {
+        if (!Transfer::RecvChunk(channel, b_.outgoing, b_.incoming)) {
+          // Yield to prevent CPU starvation on non-blocking channels.
+          std::this_thread::yield();
+        }
+      }
+    });
+
+    a_send.join();
+    a_recv.join();
+    chs.sndr->Shutdown();
+    chs.rcvr->Shutdown();
+    b_recv.join();
+
+    EXPECT_TRUE(IsSendDone());
+    EXPECT_TRUE(IsRecvDone());
+
+    // Postcondition: dst is the same as src.
+    EXPECT_THAT(dst_, Pointwise(Eq(), src_));
   }
 
  private:
@@ -119,54 +154,24 @@ class TransferTest : public ::testing::TestWithParam<Param> {
   Host b_;
 };
 
-INSTANTIATE_TEST_SUITE_P(, TransferTest,
-                         Combine(Values(kReliableStream, kUnreliableMessage)),
-                         ToString);
+INSTANTIATE_TEST_SUITE_P(
+    , TransferTest,
+    Values(
+        Param{TestChannelType::kTcp, 0},
+        Param{TestChannelType::kUdp, 0},
+        Param{TestChannelType::kMemStream, 0},
+        Param{TestChannelType::kMemMsg, 0},
+        Param{TestChannelType::kMemMsg, 10},
+        Param{TestChannelType::kMemMsg, 30},
+        Param{TestChannelType::kMemMsg, 50}),
+    ParamToString);
 
 TEST_P(TransferTest, SendRecv) {
-  // Precondition: dst is different from src.
-  ASSERT_THAT(dst_, Pointwise(Ne(), src_));
-
   const auto param = GetParam();
-  const ChannelType type = std::get<0>(param);
-  const ConnectedChannelPair chs = CreateChannelPair(type);
-
-  // A sends data chunks to B.
-  std::thread a_send([&]() {
-    Channel* const channel = chs.sndr.get();
-    while (!IsSendDone()) {
-      for (uint32_t i = 0; i < kNumChunks; ++i) {
-        const ChunkMetadata chunk = GenChunk(i);
-        const ChunkPayloadView payload = GenPayload(i);
-        CHECK(Transfer::SendChunk(channel, chunk, payload));
-      }
-    }
-  });
-  // A receives ack chunks from B.
-  std::thread a_recv([&]() {
-    Channel* const channel = chs.sndr.get();
-    while (!IsSendDone()) {
-      Transfer::RecvChunk(channel, a_.outgoing, a_.incoming);
-    }
-  });
-
-  // B receives data chunks from A (and sends ack chunks to A).
-  std::thread b_recv([&]() {
-    Channel* const channel = chs.rcvr.get();
-    while (!IsSendDone()) {
-      Transfer::RecvChunk(channel, b_.outgoing, b_.incoming);
-    }
-  });
-
-  a_send.join();
-  a_recv.join();
-  b_recv.join();
-
-  EXPECT_TRUE(IsSendDone());
-  EXPECT_TRUE(IsRecvDone());
-
-  // Postcondition: dst is the same as src.
-  EXPECT_THAT(dst_, Pointwise(Eq(), src_));
+  const TestChannelType type = std::get<0>(param);
+  const int error_rate = std::get<1>(param);
+  const ConnectedChannelPair chs = CreateTestChannelPair(type, error_rate);
+  RunSendRecv(chs);
 }
 
 }  // namespace

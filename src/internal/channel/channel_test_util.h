@@ -2,10 +2,18 @@
 #define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_TEST_UTIL_H_
 
 #include <memory>
+#include <string>
 
 #include "src/internal/channel/channel.h"
 
 namespace peregrine::internal::testing {
+
+enum class TestChannelType {
+  kTcp,
+  kUdp,
+  kMemStream,
+  kMemMsg,
+};
 
 // A pair of connected channels.
 struct ConnectedChannelPair final {
@@ -24,6 +32,13 @@ struct ConnectedChannelPair final {
   // Creates a memory message channel pair.
   static ConnectedChannelPair CreateMemMsg(int error_rate);
 };
+
+// Returns a string representation for the test channel type.
+std::string TestChannelToString(TestChannelType type, int error_rate);
+
+// Creates a test channel pair with the given type and error rate.
+ConnectedChannelPair CreateTestChannelPair(TestChannelType type,
+                                           int error_rate);
 
 }  // namespace peregrine::internal::testing
 
