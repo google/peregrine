@@ -19,14 +19,15 @@
 namespace peregrine::internal::testing {
 namespace {
 
-using ChunkStatus = ChunkTracker::ChunkStatus;
+using ChunkTracker::ChunkStatus::kDone;
+using ChunkTracker::ChunkStatus::kEmpty;
 
 TEST(ChunkTrackerTest, OneWriter) {
   ChunkTracker tracker(/*total_num_chunks=*/2);
 
   // Acquire the chunk #0 and write an ERROR.
   const chunk_t i0(0);
-  EXPECT_EQ(tracker.Acquire(i0), ChunkStatus::kEmpty);
+  EXPECT_EQ(tracker.Acquire(i0), kEmpty);
   EXPECT_TRUE(tracker.IsBusy(i0));
   tracker.Release(i0, /*success=*/false);
   EXPECT_FALSE(tracker.IsBusy(i0));
@@ -34,7 +35,7 @@ TEST(ChunkTrackerTest, OneWriter) {
   EXPECT_TRUE(tracker.IsEmpty());
 
   // Acquire the chunk #0 again and write a DONE.
-  EXPECT_EQ(tracker.Acquire(i0), ChunkStatus::kEmpty);
+  EXPECT_EQ(tracker.Acquire(i0), kEmpty);
   EXPECT_TRUE(tracker.IsBusy(i0));
   tracker.Release(i0, /*success=*/true);
   EXPECT_FALSE(tracker.IsBusy(i0));
@@ -43,7 +44,7 @@ TEST(ChunkTrackerTest, OneWriter) {
 
   // Acquire the chunk #1 and write a DONE.
   const chunk_t i1(1);
-  EXPECT_EQ(tracker.Acquire(i1), ChunkStatus::kEmpty);
+  EXPECT_EQ(tracker.Acquire(i1), kEmpty);
   EXPECT_TRUE(tracker.IsBusy(i1));
   tracker.Release(i1, /*success=*/true);
   EXPECT_FALSE(tracker.IsBusy(i1));
@@ -51,8 +52,8 @@ TEST(ChunkTrackerTest, OneWriter) {
   EXPECT_FALSE(tracker.IsEmpty());
 
   // Acquire won't succeed because all the chunks are DONE.
-  EXPECT_EQ(tracker.Acquire(i0), ChunkStatus::kDone);
-  EXPECT_EQ(tracker.Acquire(i1), ChunkStatus::kDone);
+  EXPECT_EQ(tracker.Acquire(i0), kDone);
+  EXPECT_EQ(tracker.Acquire(i1), kDone);
 }
 
 class ChunkTrackerStressTest : public ::testing::Test {
@@ -94,7 +95,7 @@ TEST_F(ChunkTrackerStressTest, MultipleWriters) {
       absl::BitGen bitgen;
       while (!tracker_->IsDone()) {
         const chunk_t i = RandomChunkIndex(bitgen);
-        if (tracker_->Acquire(i) == ChunkStatus::kEmpty) {
+        if (tracker_->Acquire(i) == kEmpty) {
           SimulateWork(bitgen, i);
           tracker_->Release(i, IsSuccess(bitgen));
         } else {

@@ -1,6 +1,8 @@
 #ifndef PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_TEST_UTIL_H_
 #define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_TEST_UTIL_H_
 
+#include <sys/socket.h>
+
 #include <memory>
 #include <string>
 
@@ -14,6 +16,9 @@ enum class TestChannelType {
   kMemStream,
   kMemMsg,
 };
+
+// Returns a string representation for the test channel type.
+std::string ToString(TestChannelType t);
 
 // A pair of connected channels.
 struct ConnectedChannelPair final {
@@ -33,12 +38,10 @@ struct ConnectedChannelPair final {
   static ConnectedChannelPair CreateMemMsg(int error_rate);
 };
 
-// Returns a string representation for the test channel type.
-std::string TestChannelToString(TestChannelType type, int error_rate);
-
 // Creates a test channel pair with the given type and error rate.
 ConnectedChannelPair CreateTestChannelPair(TestChannelType type,
-                                           int error_rate);
+                                           int family = AF_INET,
+                                           int error_rate = 0);
 
 }  // namespace peregrine::internal::testing
 

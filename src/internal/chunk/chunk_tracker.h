@@ -35,7 +35,7 @@ namespace peregrine::internal {
 // Acquire() to get exclusive write access, which transitions the chunk's
 // state from EMPTY to BUSY. If Acquire() does not return kEmpty, the writer
 // must not write to the chunk. Note that Acquire() returns kBusy or kDone
-// when the chunk is already BUSY or DONE, respectively.
+// when the chunk is currently BUSY or already DONE, respectively.
 //
 // Once the writer finishes writing, it must call Release(). If the write
 // succeeded, the chunk's state transitions to DONE (which is final). If
@@ -45,13 +45,10 @@ namespace peregrine::internal {
 // This class is thread-safe.
 class ChunkTracker final {
  public:
-  // kEmpty if the chunk is empty.
-  // kBusy if the chunk is being busy written.
-  // kDone if the chunk has been written successfully.
-  enum class ChunkStatus : int8_t {
-    kEmpty,
-    kBusy,
-    kDone,
+  enum class ChunkStatus : uint8_t {
+    kEmpty = 0,  // it has never been written before.
+    kBusy,       // it is being written currently.
+    kDone,       // it has been written successfully.
   };
 
   // Constructs a tracker with `total_num_chunks` chunk states.
@@ -86,6 +83,7 @@ class ChunkTracker final {
   }
 
   // Sets the `index`-th chunk to indicate it has been read.
+  // This function is idempotent.
   void Set(chunk_t index) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Gets the exclusive data write access to the `index`-th chunk.

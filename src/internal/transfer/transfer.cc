@@ -85,7 +85,7 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   Byte buf[ChunkHeader::kSize];
   const ssize_t len = channel->Read(buf, sizeof(buf));
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, sizeof(buf))) {
-    // TODO(yongx): handle the error.
+    // TODO(yongx): drop this channel.
     LOG(WARNING) << "failed to read chunk header: " << len;
     return false;
   }
@@ -93,6 +93,7 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   // Step 2: deserialize chunk header.
   ChunkMetadata chunk;
   if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
+    // TODO(yongx): drop this channel.
     LOG(WARNING) << "invalid chunk header: " << chunk;
     return false;
   }
@@ -102,7 +103,10 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   DCHECK_NE(tracker, nullptr);
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     LOG(WARNING) << "failed to find chunk tracker: " << chunk.reqid.value();
-    return drainStream(channel, chunk.size);
+    if (!drainStream(channel, chunk.size)) {
+      // TODO(yongx): drop this channel.
+    }
+    return false;
   }
 
   // Step 4: process ack chunk.
@@ -114,22 +118,24 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   // Step 5: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
+  const size_t size = chunk.size;
   const ChunkStatus s = tracker->Acquire(index);
-  if ABSL_PREDICT_TRUE(s == ChunkStatus::kEmpty) {
+  if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
     // Write permission granted, read payload and track data arrival.
-    const size_t size = chunk.size;
     const bool success = (channel->Read(chunk.DstAddr(), size) == size);
     tracker->Release(index, success);
     return success && sendAck(channel, chunk);
-  } else if (s == ChunkStatus::kDone) {
-    // `sendAck` must be called.
-    const bool drained = drainStream(channel, chunk.size);
-    const bool sent = sendAck(channel, chunk);
-    return drained && sent;
   } else {
-    DCHECK_EQ(s, ChunkStatus::kBusy);
-    LOG(WARNING) << "busy chunk #" << index.value();
-    return drainStream(channel, chunk.size);
+    DCHECK(s == ChunkStatus::kDone || s == ChunkStatus::kBusy);
+    const bool done = s == ChunkStatus::kDone;
+    LOG(WARNING) << (done ? "done" : "busy") << " chunk #" << index.value();
+    const bool drained = drainStream(channel, size);
+    const bool success = !done || sendAck(channel, chunk);
+    if (!drained) {
+      // TODO(yongx): drop this channel.
+      return false;
+    }
+    return success;
   }
 }
 
@@ -172,7 +178,6 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
 
   // Step 5: process ack chunk.
   if (chunk.IsAck()) {
-    // `Set` is idempotent so it is OK to have duplicate acks.
     tracker->Set(chunk.index);
     return true;
   }
@@ -180,18 +185,17 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
   // Step 6: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
-  const ChunkStatus s = tracker->Acquire(index);
-  if ABSL_PREDICT_TRUE(s == ChunkStatus::kEmpty) {
-    // Write permission granted, read payload and track data arrival.
-    std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
-    tracker->Release(index, true);
-    return sendAck(channel, chunk);
-  } else if (s == ChunkStatus::kDone) {
-    return sendAck(channel, chunk);
-  } else {
-    DCHECK_EQ(s, ChunkStatus::kBusy);
-    LOG(WARNING) << "busy chunk #" << index.value();
-    return true;
+  switch (tracker->Acquire(index)) {
+    case ChunkStatus::kEmpty:
+      std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
+      tracker->Release(index, true);
+      return sendAck(channel, chunk);
+    case ChunkStatus::kDone:
+      LOG(WARNING) << "done chunk #" << index.value();
+      return sendAck(channel, chunk);
+    case ChunkStatus::kBusy:
+      LOG(WARNING) << "busy chunk #" << index.value();
+      return true;
   }
 }
 
@@ -201,13 +205,10 @@ bool Transfer::drainStream(Channel* const channel, const uint32_t chunk_size) {
   size_t left = chunk_size;
   while (left > 0) {
     const size_t len = std::min(left, kTmpBufSize);
-    if ABSL_PREDICT_FALSE (channel->Read(buf, len) != len) {
-      // TODO(yongx): handle the error.
-      return false;
-    }
+    if (channel->Read(buf, len) != len) return false;
     left -= len;
   }
-  return true;
+  return left == 0;
 }
 
 }  // namespace peregrine::internal

@@ -16,6 +16,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
+#include "absl/strings/str_format.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
@@ -43,10 +44,20 @@ constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
 static_assert(kBufSize % kNumChunks != 0);
 
-using Param = std::tuple<TestChannelType, int>;
+using Param = std::tuple<TestChannelType, /*family=*/int, /*error_rate=*/int>;
 
-std::string ParamToString(const TestParamInfo<Param>& info) {
-  return TestChannelToString(std::get<0>(info.param), std::get<1>(info.param));
+std::string FamilyToString(const int family) {
+  if (family == AF_INET) return "IPv4";
+  if (family == AF_INET6) return "IPv6";
+  return "";
+}
+
+std::string ToString(const TestParamInfo<Param>& info) {
+  const TestChannelType type = std::get<0>(info.param);
+  const int family = std::get<1>(info.param);
+  const int error_rate = std::get<2>(info.param);
+  return absl::StrFormat("%s_%s_ErrorRate_%d", ToString(type),
+                         FamilyToString(family), error_rate);
 }
 
 class TransferTest : public ::testing::TestWithParam<Param> {
@@ -88,57 +99,6 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     return b_.incoming.Check(kHandle) == Status::kSuccess;
   }
 
-  void RunSendRecv(const ConnectedChannelPair& chs) {
-    // Precondition: dst is different from src.
-    ASSERT_THAT(dst_, Pointwise(Ne(), src_));
-
-    // A sends data chunks to B.
-    std::thread a_send([&]() {
-      Channel* const channel = chs.sndr.get();
-      while (!IsSendDone()) {
-        for (uint32_t i = 0; i < kNumChunks; ++i) {
-          if (IsSendDone()) break;
-          const ChunkMetadata chunk = GenChunk(i);
-          const ChunkPayloadView payload = GenPayload(i);
-          CHECK(Transfer::SendChunk(channel, chunk, payload));
-        }
-      }
-    });
-    // A receives ack chunks from B.
-    std::thread a_recv([&]() {
-      Channel* const channel = chs.sndr.get();
-      while (!IsSendDone()) {
-        if (!Transfer::RecvChunk(channel, a_.outgoing, a_.incoming)) {
-          // Yield to prevent CPU starvation on non-blocking channels.
-          std::this_thread::yield();
-        }
-      }
-    });
-
-    // B receives data chunks from A (and sends ack chunks to A).
-    std::thread b_recv([&]() {
-      Channel* const channel = chs.rcvr.get();
-      while (!IsSendDone()) {
-        if (!Transfer::RecvChunk(channel, b_.outgoing, b_.incoming)) {
-          // Yield to prevent CPU starvation on non-blocking channels.
-          std::this_thread::yield();
-        }
-      }
-    });
-
-    a_send.join();
-    a_recv.join();
-    chs.sndr->Shutdown();
-    chs.rcvr->Shutdown();
-    b_recv.join();
-
-    EXPECT_TRUE(IsSendDone());
-    EXPECT_TRUE(IsRecvDone());
-
-    // Postcondition: dst is the same as src.
-    EXPECT_THAT(dst_, Pointwise(Eq(), src_));
-  }
-
  private:
   struct Host {
     RequestTracker outgoing;
@@ -156,22 +116,69 @@ class TransferTest : public ::testing::TestWithParam<Param> {
 
 INSTANTIATE_TEST_SUITE_P(
     , TransferTest,
-    Values(
-        Param{TestChannelType::kTcp, 0},
-        Param{TestChannelType::kUdp, 0},
-        Param{TestChannelType::kMemStream, 0},
-        Param{TestChannelType::kMemMsg, 0},
-        Param{TestChannelType::kMemMsg, 10},
-        Param{TestChannelType::kMemMsg, 30},
-        Param{TestChannelType::kMemMsg, 50}),
-    ParamToString);
+    Values(Param{TestChannelType::kTcp, AF_INET, /*error_rate=*/0},
+           Param{TestChannelType::kTcp, AF_INET6, /*error_rate=*/0},
+           Param{TestChannelType::kUdp, AF_INET, /*error_rate=*/0},
+           Param{TestChannelType::kUdp, AF_INET6, /*error_rate=*/0},
+           Param{TestChannelType::kMemStream, /*family=*/0, /*error_rate=*/0},
+           Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/0},
+           Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/10},
+           Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/50}),
+    ToString);
 
 TEST_P(TransferTest, SendRecv) {
   const auto param = GetParam();
   const TestChannelType type = std::get<0>(param);
-  const int error_rate = std::get<1>(param);
-  const ConnectedChannelPair chs = CreateTestChannelPair(type, error_rate);
-  RunSendRecv(chs);
+  const int family = std::get<1>(param);
+  const int error_rate = std::get<2>(param);
+  const auto chs = CreateTestChannelPair(type, family, error_rate);
+
+  // Precondition: dst is different from src.
+  ASSERT_THAT(dst_, Pointwise(Ne(), src_));
+
+  // A sends data chunks to B.
+  std::thread a_send([&]() {
+    Channel* const channel = chs.sndr.get();
+    while (!IsSendDone()) {
+      for (uint32_t i = 0; i < kNumChunks; ++i) {
+        if (IsSendDone()) break;
+        const ChunkMetadata chunk = GenChunk(i);
+        const ChunkPayloadView payload = GenPayload(i);
+        CHECK(Transfer::SendChunk(channel, chunk, payload));
+      }
+    }
+  });
+  // A receives ack chunks from B.
+  std::thread a_recv([&]() {
+    Channel* const channel = chs.sndr.get();
+    while (!IsSendDone()) {
+      if (!Transfer::RecvChunk(channel, a_.outgoing, a_.incoming)) {
+        std::this_thread::yield();
+      }
+    }
+  });
+
+  // B receives data chunks from A (and sends ack chunks to A).
+  std::thread b_recv([&]() {
+    Channel* const channel = chs.rcvr.get();
+    while (!IsSendDone()) {
+      if (!Transfer::RecvChunk(channel, b_.outgoing, b_.incoming)) {
+        std::this_thread::yield();
+      }
+    }
+  });
+
+  a_send.join();
+  a_recv.join();
+  chs.sndr->Shutdown();
+  chs.rcvr->Shutdown();
+  b_recv.join();
+
+  EXPECT_TRUE(IsSendDone());
+  EXPECT_TRUE(IsRecvDone());
+
+  // Postcondition: dst is the same as src.
+  EXPECT_THAT(dst_, Pointwise(Eq(), src_));
 }
 
 }  // namespace

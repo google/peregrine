@@ -32,7 +32,6 @@ cc_library(
         ":pipe",
         "//src/internal/socket:socket_test_util",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/strings",
     ],
 )
 

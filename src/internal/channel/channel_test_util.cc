@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "absl/log/check.h"
-#include "absl/strings/str_cat.h"
 #include "src/internal/channel/channel_msg.h"
 #include "src/internal/channel/channel_stream.h"
 #include "src/internal/channel/channel_util.h"
@@ -16,36 +15,17 @@
 
 namespace peregrine::internal::testing {
 
-std::string TestChannelToString(const TestChannelType type,
-                                const int error_rate) {
-  switch (type) {
+std::string ToString(const TestChannelType t) {
+  switch (t) {
     case TestChannelType::kTcp:
-      return "Tcp";
+      return "TcpChannel";
     case TestChannelType::kUdp:
-      return "Udp";
+      return "UdpChannel";
     case TestChannelType::kMemStream:
-      return "MemStream";
+      return "MemStreamChannel";
     case TestChannelType::kMemMsg:
-      return absl::StrCat("MemMsg_ER", error_rate);
+      return "MemMessageChannel";
   }
-  return "unknown";
-}
-
-ConnectedChannelPair CreateTestChannelPair(const TestChannelType type,
-                                           const int error_rate) {
-  switch (type) {
-    case TestChannelType::kTcp:
-      DCHECK_EQ(error_rate, 0);
-      return ConnectedChannelPair::CreateTcp(AF_INET);
-    case TestChannelType::kUdp:
-      DCHECK_EQ(error_rate, 0);
-      return ConnectedChannelPair::CreateUdp(AF_INET);
-    case TestChannelType::kMemStream:
-      return ConnectedChannelPair::CreateMemStream();
-    case TestChannelType::kMemMsg:
-      return ConnectedChannelPair::CreateMemMsg(error_rate);
-  }
-  DCHECK(false);
 }
 
 ConnectedChannelPair ConnectedChannelPair::CreateTcp(const int family) {
@@ -74,6 +54,21 @@ ConnectedChannelPair ConnectedChannelPair::CreateMemMsg(const int error_rate) {
   auto a = std::make_unique<MemMsgChannel>(pipe_a, error_rate);
   auto b = std::make_unique<MemMsgChannel>(pipe_b, error_rate);
   return {std::move(a), std::move(b)};
+}
+
+ConnectedChannelPair CreateTestChannelPair(const TestChannelType type,
+                                           const int family,
+                                           const int error_rate) {
+  switch (type) {
+    case TestChannelType::kTcp:
+      return ConnectedChannelPair::CreateTcp(family);
+    case TestChannelType::kUdp:
+      return ConnectedChannelPair::CreateUdp(family);
+    case TestChannelType::kMemStream:
+      return ConnectedChannelPair::CreateMemStream();
+    case TestChannelType::kMemMsg:
+      return ConnectedChannelPair::CreateMemMsg(error_rate);
+  }
 }
 
 }  // namespace peregrine::internal::testing
