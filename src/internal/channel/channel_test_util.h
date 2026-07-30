@@ -24,19 +24,19 @@ std::string ToString(TestChannelType t);
 struct ConnectedChannelPair final {
   std::unique_ptr<Channel> sndr;
   std::unique_ptr<Channel> rcvr;
+};
 
   // Creates a tcp channel pair in the given address family.
-  static ConnectedChannelPair CreateTcp(int family);
+ConnectedChannelPair CreateTcpChannelPair(int family);
 
-  // Creates a udp channel pair in the given address family.
-  static ConnectedChannelPair CreateUdp(int family);
+// Creates a udp channel pair in the given address family.
+ConnectedChannelPair CreateUdpChannelPair(int family);
 
-  // Creates a memory stream channel pair.
-  static ConnectedChannelPair CreateMemStream(int error_rate);
+// Creates a memory stream channel pair.
+ConnectedChannelPair CreateMemStreamChannelPair(int error_rate);
 
-  // Creates a memory message channel pair.
-  static ConnectedChannelPair CreateMemMsg(int error_rate);
-};
+// Creates a memory message channel pair.
+ConnectedChannelPair CreateMemMsgChannelPair(int error_rate);
 
 // Creates a test channel pair with the given type and error rate.
 ConnectedChannelPair CreateTestChannelPair(TestChannelType type,

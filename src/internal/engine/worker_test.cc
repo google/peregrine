@@ -48,7 +48,7 @@ class WorkerTest : public ::testing::Test {
   WorkerTest()
       : src_(kBufSize),
         dst_(kBufSize),
-        chs_(ConnectedChannelPair::CreateTcp(AF_INET6)),
+        chs_(CreateTcpChannelPair(AF_INET6)),
         s_(TestOnly_LocalHostInfo(AF_INET6, /*tcp=*/true)),
         r_(TestOnly_LocalHostInfo(AF_INET6, /*tcp=*/true)),
         sndr_(5, s_, std::move(chs_.sndr)),

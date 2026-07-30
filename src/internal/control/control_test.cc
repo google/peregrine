@@ -35,7 +35,7 @@ class ControlTest : public ::testing::TestWithParam<Param> {
  protected:
   ControlTest()
       : family_(std::get<0>(GetParam())),
-        tmp_(ConnectedChannelPair::CreateTcp(family_)),
+        tmp_(CreateTcpChannelPair(family_)),
         local_(std::move(tmp_.sndr)),
         remote_(std::move(tmp_.rcvr)) {}
 

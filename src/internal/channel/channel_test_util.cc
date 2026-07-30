@@ -28,29 +28,28 @@ std::string ToString(const TestChannelType t) {
   }
 }
 
-ConnectedChannelPair ConnectedChannelPair::CreateTcp(const int family) {
+ConnectedChannelPair CreateTcpChannelPair(const int family) {
   auto [sa, sb] = CreateTcpSocketPair(family);
   DCHECK_NE(sa, nullptr);
   DCHECK_NE(sb, nullptr);
   return {CreateTcpChannel(std::move(sa)), CreateTcpChannel(std::move(sb))};
 }
 
-ConnectedChannelPair ConnectedChannelPair::CreateUdp(const int family) {
+ConnectedChannelPair CreateUdpChannelPair(const int family) {
   auto [sa, sb] = CreateUdpSocketPair(family);
   DCHECK_NE(sa, nullptr);
   DCHECK_NE(sb, nullptr);
   return {CreateUdpChannel(std::move(sa)), CreateUdpChannel(std::move(sb))};
 }
 
-ConnectedChannelPair ConnectedChannelPair::CreateMemStream(
-    const int error_rate) {
+ConnectedChannelPair CreateMemStreamChannelPair(const int error_rate) {
   auto [pipe_a, pipe_b] = BidiPipe::Create();
   auto a = std::make_unique<MemStreamChannel>(pipe_a, error_rate);
   auto b = std::make_unique<MemStreamChannel>(pipe_b, error_rate);
   return {std::move(a), std::move(b)};
 }
 
-ConnectedChannelPair ConnectedChannelPair::CreateMemMsg(const int error_rate) {
+ConnectedChannelPair CreateMemMsgChannelPair(const int error_rate) {
   auto [pipe_a, pipe_b] = BidiPipe::Create();
   auto a = std::make_unique<MemMsgChannel>(pipe_a, error_rate);
   auto b = std::make_unique<MemMsgChannel>(pipe_b, error_rate);
@@ -62,13 +61,13 @@ ConnectedChannelPair CreateTestChannelPair(const TestChannelType type,
                                            const int error_rate) {
   switch (type) {
     case TestChannelType::kTcp:
-      return ConnectedChannelPair::CreateTcp(family);
+      return CreateTcpChannelPair(family);
     case TestChannelType::kUdp:
-      return ConnectedChannelPair::CreateUdp(family);
+      return CreateUdpChannelPair(family);
     case TestChannelType::kMemStream:
-      return ConnectedChannelPair::CreateMemStream(error_rate);
+      return CreateMemStreamChannelPair(error_rate);
     case TestChannelType::kMemMsg:
-      return ConnectedChannelPair::CreateMemMsg(error_rate);
+      return CreateMemMsgChannelPair(error_rate);
   }
 }
 

@@ -26,10 +26,8 @@ using ::testing::Pointwise;
 
 TEST(ReliableStreamChannelTest, ReadWrite) {
   // Create channel pairs.
-  ConnectedChannelPair tcp = ConnectedChannelPair::CreateTcp(AF_INET);
-  ConnectedChannelPair mem =
-      ConnectedChannelPair::CreateMemStream(/*error_rate=*/0);
-
+  ConnectedChannelPair tcp = CreateTcpChannelPair(AF_INET);
+  ConnectedChannelPair mem = CreateMemStreamChannelPair(/*error_rate=*/0);
   // Get the channel pointers.
   std::pair<Channel*, Channel*> tcp_chs = {tcp.sndr.get(), tcp.rcvr.get()};
   std::pair<Channel*, Channel*> mem_chs = {mem.sndr.get(), mem.rcvr.get()};
@@ -84,9 +82,8 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
 
 TEST(UnreliableMessageChannelTest, ReadWrite) {
   // Create channel pairs.
-  ConnectedChannelPair udp = ConnectedChannelPair::CreateUdp(AF_INET6);
-  ConnectedChannelPair mem = ConnectedChannelPair::CreateMemMsg(/*error=*/0);
-
+  ConnectedChannelPair udp = CreateUdpChannelPair(AF_INET6);
+  ConnectedChannelPair mem = CreateMemMsgChannelPair(/*error=*/0);
   // Get the channel pointers.
   std::pair<Channel*, Channel*> udp_chs = {udp.sndr.get(), udp.rcvr.get()};
   std::pair<Channel*, Channel*> mem_chs = {mem.sndr.get(), mem.rcvr.get()};
@@ -128,7 +125,7 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
 
 TEST(UnreliableMessageChannelTest, ErrorRate) {
   constexpr int kErrorRate = 30;  // percentage
-  ConnectedChannelPair mem = ConnectedChannelPair::CreateMemMsg(kErrorRate);
+  ConnectedChannelPair mem = CreateMemMsgChannelPair(kErrorRate);
   Channel* sndr = mem.sndr.get();
   Channel* rcvr = mem.rcvr.get();
 
