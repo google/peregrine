@@ -96,3 +96,50 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "rpc_client",
+    srcs = ["rpc_client.cc"],
+    hdrs = ["rpc_client.h"],
+    deps = [
+        ":message_cc_proto",
+        ":service_cc_grpc_proto",
+        "//src/util:macro",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
+    name = "rpc_server",
+    srcs = ["rpc_server.cc"],
+    hdrs = ["rpc_server.h"],
+    deps = [
+        ":message_cc_proto",
+        ":service_cc_grpc_proto",
+        "//src/util:macro",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "rpc_test",
+    srcs = ["rpc_test.cc"],
+    deps = [
+        ":message_cc_proto",
+        ":rpc_client",
+        ":rpc_server",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@googletest//:gtest_main",
+        "@grpc//:grpc++",
+    ],
+)
