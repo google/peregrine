@@ -85,6 +85,7 @@ cc_library(
 cc_test(
     name = "control_test",
     srcs = ["control_test.cc"],
+    shard_count = 2,
     deps = [
         ":control",
         ":message",

@@ -57,6 +57,7 @@ cc_library(
 cc_test(
     name = "transport_impl_test",
     srcs = ["transport_impl_test.cc"],
+    shard_count = 10,
     deps = [
         "//src/api:transport",
         "//src/api:transport_types",

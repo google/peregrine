@@ -26,6 +26,7 @@ cc_library(
 cc_test(
     name = "transfer_test",
     srcs = ["transfer_test.cc"],
+    shard_count = 10,
     deps = [
         ":transfer",
         "//src/api:transport_types",
