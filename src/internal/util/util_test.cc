@@ -21,9 +21,8 @@ TEST(UtilTest, IsValid) {
   ASSERT_NE(nonnull, nullptr);
 
   EXPECT_TRUE(IsValid({.iov_base = nonnull, .iov_len = 1}));
-  EXPECT_TRUE(IsValid({.iov_base = nonnull, .iov_len = 0}));
-
-  EXPECT_TRUE(IsValid({.iov_base = nullptr, .iov_len = 0}));
+  EXPECT_FALSE(IsValid({.iov_base = nonnull, .iov_len = 0}));
+  EXPECT_FALSE(IsValid({.iov_base = nullptr, .iov_len = 0}));
   EXPECT_FALSE(IsValid({.iov_base = nullptr, .iov_len = 1}));
 }
 

@@ -41,7 +41,7 @@ class StrongInt final {
   // Returns the underlying value.
   constexpr T value() const { return value_; }
 
-  // Comparisons.
+  // Equality operators.
   friend constexpr bool operator==(StrongInt a, StrongInt b) {
     return a.value_ == b.value_;
   }

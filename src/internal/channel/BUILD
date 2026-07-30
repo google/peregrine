@@ -37,6 +37,7 @@ cc_library(
 
 cc_library(
     name = "channel_tcp",
+    srcs = ["channel_tcp.cc"],
     hdrs = ["channel_tcp.h"],
     deps = [
         ":channel",
@@ -53,6 +54,7 @@ cc_library(
 
 cc_library(
     name = "channel_udp",
+    srcs = ["channel_udp.cc"],
     hdrs = ["channel_udp.h"],
     deps = [
         ":channel",
@@ -90,10 +92,12 @@ cc_library(
         ":pipe",
         "//src/api:transport_types",
         "//src/internal/base:types",
+        "//src/internal/util",
         "//src/internal/util:test_iov",
         "//src/util",
+        "//util/random:shared_bit_gen",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
@@ -111,6 +115,7 @@ cc_library(
         ":pipe",
         "//src/api:transport_types",
         "//src/internal/base:types",
+        "//src/internal/util",
         "//src/internal/util:test_iov",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",

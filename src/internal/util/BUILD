@@ -8,6 +8,7 @@ cc_library(
     srcs = ["util.cc"],
     hdrs = ["util.h"],
     deps = [
+        "//src/api:transport_types",
         "//src/internal/base:types",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/types:span",

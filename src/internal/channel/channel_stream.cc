@@ -10,11 +10,13 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/util/test_iov.h"
+#include "src/internal/util/util.h"
 
 namespace peregrine::internal::testing {
 
 bool MemStreamChannel::Write(const absl::Span<const IoVec> iovecs) {
-  DCHECK(!iovecs.empty());
+  DCHECK(IsValid(iovecs));
+  DCHECK_GE(TotalLength(iovecs), 1);
 
   absl::MutexLock lock(out_pipe_->mu);
   if (out_pipe_->shutdown) return false;
@@ -27,6 +29,9 @@ bool MemStreamChannel::Write(const absl::Span<const IoVec> iovecs) {
 }
 
 ssize_t MemStreamChannel::Read(Byte* const buf, const size_t len) {
+  DCHECK_NE(buf, nullptr);
+  DCHECK_GE(len, 1);
+
   absl::MutexLock lock(in_pipe_->mu);
   if (in_pipe_->queue.empty()) {
     if (in_pipe_->shutdown) return 0;

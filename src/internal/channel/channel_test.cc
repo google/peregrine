@@ -84,7 +84,7 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
 TEST(UnreliableMessageChannelTest, ReadWrite) {
   // Create channel pairs.
   ConnectedChannelPair udp = ConnectedChannelPair::CreateUdp(AF_INET6);
-  ConnectedChannelPair mem = ConnectedChannelPair::CreateMemMsg(/*error_rt=*/0);
+  ConnectedChannelPair mem = ConnectedChannelPair::CreateMemMsg(/*error=*/0);
 
   // Get the channel pointers.
   std::pair<Channel*, Channel*> udp_chs = {udp.sndr.get(), udp.rcvr.get()};
@@ -126,7 +126,7 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
 }
 
 TEST(UnreliableMessageChannelTest, ErrorRate) {
-  constexpr int kErrorRate = 30;  // 30%
+  constexpr int kErrorRate = 30;  // percentage
   ConnectedChannelPair mem = ConnectedChannelPair::CreateMemMsg(kErrorRate);
   Channel* sndr = mem.sndr.get();
   Channel* rcvr = mem.rcvr.get();
@@ -139,15 +139,11 @@ TEST(UnreliableMessageChannelTest, ErrorRate) {
   int errors = 0;
   for (int i = 0; i < kNumMessages; ++i) {
     ASSERT_TRUE(sndr->Write({{src.data(), kMsgSize}}));
-    if (rcvr->Read(sink.data(), kMsgSize) < 0) {
-      errors++;
-    }
+    if (rcvr->Read(sink.data(), kMsgSize) != kMsgSize) ++errors;
   }
 
-  const double actual = static_cast<double>(errors) / kNumMessages * 100.0;
+  const double actual = 100.0 * errors / kNumMessages;
   LOG(INFO) << "Actual error rate: " << actual << "%";
-
-  // Verify actual error rate is within reasonable range (e.g., +/- 10%)
   EXPECT_NEAR(actual, kErrorRate, 10.0);
 }
 

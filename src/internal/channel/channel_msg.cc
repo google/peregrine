@@ -5,15 +5,17 @@
 #include <cstring>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/log/check.h"
-#include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/pipe.h"
 #include "src/internal/util/test_iov.h"
+#include "src/internal/util/util.h"
 #include "src/util/util.h"
+#include "util/random/shared_bit_gen.h"
 
 namespace peregrine::internal::testing {
 
@@ -26,7 +28,8 @@ MemMsgChannel::MemMsgChannel(const BidiPipe& bidi, const int error_rate)
 }
 
 bool MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
-  DCHECK(!iovecs.empty());
+  DCHECK(IsValid(iovecs));
+  DCHECK_GE(TotalLength(iovecs), 1);
 
   // To keep the message boundary, merge multiple iovecs into a single one.
   OwnedIoVec owned_iov = TestOnly_Linearize(iovecs);
@@ -38,6 +41,9 @@ bool MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
 }
 
 ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
+  DCHECK_NE(buf, nullptr);
+  DCHECK_GE(len, 1);
+
   absl::MutexLock lock(in_pipe_->mu);
   if (in_pipe_->queue.empty()) {
     if (in_pipe_->shutdown) return 0;
@@ -69,12 +75,8 @@ void MemMsgChannel::Shutdown() {
 }
 
 bool MemMsgChannel::error() const {
-  // Avoid random number generation if not needed.
-  if (error_rate_ <= 0) return false;
-  if (error_rate_ >= 100) return true;
-
-  thread_local absl::BitGen  // NOLINT(runtime/random_engine_usage)
-      bitgen;
+  if ABSL_PREDICT_TRUE (error_rate_ <= 0) return false;
+  util_random::SharedBitGen bitgen;
   return util::Random<int>(bitgen, 1, 100) <= error_rate_;
 }
 
