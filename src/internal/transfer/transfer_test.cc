@@ -121,6 +121,8 @@ INSTANTIATE_TEST_SUITE_P(
            Param{TestChannelType::kUdp, AF_INET, /*error_rate=*/0},
            Param{TestChannelType::kUdp, AF_INET6, /*error_rate=*/0},
            Param{TestChannelType::kMemStream, /*family=*/0, /*error_rate=*/0},
+           Param{TestChannelType::kMemStream, /*family=*/0, /*error_rate=*/10},
+           Param{TestChannelType::kMemStream, /*family=*/0, /*error_rate=*/50},
            Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/0},
            Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/10},
            Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/50}),

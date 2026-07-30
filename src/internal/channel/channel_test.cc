@@ -27,7 +27,8 @@ using ::testing::Pointwise;
 TEST(ReliableStreamChannelTest, ReadWrite) {
   // Create channel pairs.
   ConnectedChannelPair tcp = ConnectedChannelPair::CreateTcp(AF_INET);
-  ConnectedChannelPair mem = ConnectedChannelPair::CreateMemStream();
+  ConnectedChannelPair mem =
+      ConnectedChannelPair::CreateMemStream(/*error_rate=*/0);
 
   // Get the channel pointers.
   std::pair<Channel*, Channel*> tcp_chs = {tcp.sndr.get(), tcp.rcvr.get()};

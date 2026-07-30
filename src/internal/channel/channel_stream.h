@@ -5,7 +5,6 @@
 #include <memory>
 #include <string>
 
-#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
@@ -20,11 +19,7 @@ namespace peregrine::internal::testing {
 class MemStreamChannel final : public Channel {
  public:
   // Constructor for paired bidirectional pipes.
-  explicit MemStreamChannel(const BidiPipe& bidi)
-      : in_pipe_(bidi.InputPipe()), out_pipe_(bidi.OutputPipe()) {
-    DCHECK_NE(in_pipe_, nullptr);
-    DCHECK_NE(out_pipe_, nullptr);
-  }
+  explicit MemStreamChannel(const BidiPipe& bidi, int error_rate);
 
   // Returns the channel type.
   constexpr ChannelType Type() const override {
@@ -44,9 +39,14 @@ class MemStreamChannel final : public Channel {
   void Shutdown() override;
 
   // Returns a string representation for the channel.
-  std::string ToString() const override { return "MemStreamChannel"; }
+  std::string ToString() const override;
 
  private:
+  // Returns true iff the channel read/write should emulate an error.
+  bool error() const;
+
+ private:
+  const int error_rate_;
   std::shared_ptr<MemPipe> in_pipe_;
   std::shared_ptr<MemPipe> out_pipe_;
 };

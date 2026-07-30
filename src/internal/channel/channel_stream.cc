@@ -1,18 +1,33 @@
 #include "src/internal/channel/channel_stream.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <string>
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/log/check.h"
+#include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
+#include "src/internal/channel/pipe.h"
 #include "src/internal/util/test_iov.h"
 #include "src/internal/util/util.h"
+#include "src/util/util.h"
+#include "util/random/shared_bit_gen.h"
 
 namespace peregrine::internal::testing {
+
+MemStreamChannel::MemStreamChannel(const BidiPipe& bidi, const int error_rate)
+    : error_rate_(std::clamp(error_rate, 0, 100)),
+      in_pipe_(bidi.InputPipe()),
+      out_pipe_(bidi.OutputPipe()) {
+  DCHECK_NE(in_pipe_, nullptr);
+  DCHECK_NE(out_pipe_, nullptr);
+}
 
 bool MemStreamChannel::Write(const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
@@ -39,6 +54,10 @@ ssize_t MemStreamChannel::Read(Byte* const buf, const size_t len) {
     return -1;
   }
 
+  if (error()) {
+    return -1;
+  }
+
   OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
   in_pipe_->queue.pop_front();
 
@@ -62,6 +81,16 @@ ssize_t MemStreamChannel::Read(Byte* const buf, const size_t len) {
 void MemStreamChannel::Shutdown() {
   in_pipe_->Shutdown();
   out_pipe_->Shutdown();
+}
+
+std::string MemStreamChannel::ToString() const {
+  return absl::StrFormat("MemStreamChannel: error_rate=%d%%", error_rate_);
+}
+
+bool MemStreamChannel::error() const {
+  if ABSL_PREDICT_TRUE (error_rate_ <= 0) return false;
+  util_random::SharedBitGen bitgen;
+  return util::Random<int>(bitgen, 1, 100) <= error_rate_;
 }
 
 }  // namespace peregrine::internal::testing

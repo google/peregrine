@@ -20,7 +20,7 @@
 namespace peregrine::internal::testing {
 
 MemMsgChannel::MemMsgChannel(const BidiPipe& bidi, const int error_rate)
-    : error_rate_(std::min(std::max(0, error_rate), 100)),
+    : error_rate_(std::clamp(error_rate, 0, 100)),
       in_pipe_(bidi.InputPipe()),
       out_pipe_(bidi.OutputPipe()) {
   DCHECK_NE(in_pipe_, nullptr);

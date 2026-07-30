@@ -32,7 +32,7 @@ struct ConnectedChannelPair final {
   static ConnectedChannelPair CreateUdp(int family);
 
   // Creates a memory stream channel pair.
-  static ConnectedChannelPair CreateMemStream();
+  static ConnectedChannelPair CreateMemStream(int error_rate);
 
   // Creates a memory message channel pair.
   static ConnectedChannelPair CreateMemMsg(int error_rate);
