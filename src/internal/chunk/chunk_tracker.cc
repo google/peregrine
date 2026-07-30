@@ -28,19 +28,19 @@ void ChunkTracker::Set(const chunk_t index) {
   chunks_.Set(index.value());
 }
 
-bool ChunkTracker::Acquire(const chunk_t index) {
+ChunkTracker::ChunkStatus ChunkTracker::Acquire(const chunk_t index) {
   DCHECK(isValidChunk(index));
 
   absl::MutexLock lock(mu_);
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (chunks_.Get(index.value())) {
-    return false;
+    return ChunkStatus::kDone;
   }
   if ABSL_PREDICT_FALSE (!busy_chunks_.insert(index).second) {
     ++num_chunks_dup_;
-    return false;
+    return ChunkStatus::kBusy;
   }
-  return true;
+  return ChunkStatus::kEmpty;
 }
 
 void ChunkTracker::Release(const chunk_t index, bool success) {

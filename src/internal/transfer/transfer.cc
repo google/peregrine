@@ -25,6 +25,8 @@
 
 namespace peregrine::internal {
 
+using ChunkStatus = ChunkTracker::ChunkStatus;
+
 bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
                          const ChunkPayloadView payload) {
   DCHECK(IsMatch(chunk, payload));
@@ -112,15 +114,21 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   // Step 5: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
-  if ABSL_PREDICT_TRUE (tracker->Acquire(index)) {
+  const ChunkStatus s = tracker->Acquire(index);
+  if ABSL_PREDICT_TRUE(s == ChunkStatus::kEmpty) {
     // Write permission granted, read payload and track data arrival.
     const size_t size = chunk.size;
     const bool success = (channel->Read(chunk.DstAddr(), size) == size);
     tracker->Release(index, success);
     return success && sendAck(channel, chunk);
+  } else if (s == ChunkStatus::kDone) {
+    // `sendAck` must be called.
+    const bool drained = drainStream(channel, chunk.size);
+    const bool sent = sendAck(channel, chunk);
+    return drained && sent;
   } else {
-    // The same chunk is being, or has been, written.
-    LOG(WARNING) << "busy/done chunk #" << index.value();
+    DCHECK_EQ(s, ChunkStatus::kBusy);
+    LOG(WARNING) << "busy chunk #" << index.value();
     return drainStream(channel, chunk.size);
   }
 }
@@ -171,14 +179,17 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
   // Step 6: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   const chunk_t index = chunk.index;
-  if ABSL_PREDICT_TRUE (tracker->Acquire(index)) {
+  const ChunkStatus s = tracker->Acquire(index);
+  if ABSL_PREDICT_TRUE(s == ChunkStatus::kEmpty) {
     // Write permission granted, read payload and track data arrival.
     std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
     tracker->Release(index, true);
     return sendAck(channel, chunk);
+  } else if (s == ChunkStatus::kDone) {
+    return sendAck(channel, chunk);
   } else {
-    // The same chunk is being, or has been, written.
-    LOG(WARNING) << "busy/done chunk #" << index.value();
+    DCHECK_EQ(s, ChunkStatus::kBusy);
+    LOG(WARNING) << "busy chunk #" << index.value();
     return true;
   }
 }

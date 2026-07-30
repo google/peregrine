@@ -48,7 +48,7 @@ TEST_F(RequestTrackerTest, Recv) {
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
     const chunk_t index(i);
-    ASSERT_TRUE(recv->Acquire(index));
+    ASSERT_EQ(recv->Acquire(index), ChunkTracker::ChunkStatus::kEmpty);
     recv->Release(index, /*success=*/true);
   }
   EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
