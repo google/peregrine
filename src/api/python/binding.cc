@@ -16,19 +16,19 @@
 #include "src/api/transport_types.h"
 #include "src/api/transport_util.h"
 
-namespace peregrine {
 namespace {
-
 // Translates Abseil errors into Python exceptions.
 void ThrowIfFailed(const absl::Status& status) {
   if (!status.ok()) {
     throw std::runtime_error(status.ToString());
   }
 }
+}  // namespace
 
 NB_MODULE(peregrine, m) {
   namespace nb = nanobind;
   using namespace nb::literals;  // NOLINT
+  using namespace peregrine;     // NOLINT
 
   // Bind `Handle`
   nb::class_<Handle>(m, "Handle")
@@ -102,5 +102,7 @@ NB_MODULE(peregrine, m) {
   m.def("is_completed", &IsCompleted);
 }
 
-}  // namespace
-}  // namespace peregrine
+#if defined(__has_feature) && __has_feature(dataflow_sanitizer)
+asm(".globl PyInit_peregrine\n"
+    "PyInit_peregrine = PyInit_peregrine.dfsan");
+#endif
