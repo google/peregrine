@@ -54,7 +54,7 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
     // Send to one channel a number of times.
     for (int i = 0; i < kSrc; ++i) {
       constexpr size_t kPart = kDataSize / kSrc;
-      EXPECT_TRUE(sndr->Write({{src.data() + i * kPart, kPart}}));
+      EXPECT_EQ(sndr->Write({{src.data() + i * kPart, kPart}}), kPart);
     }
 
     // Receive from the other channel for a different number of times.
@@ -72,7 +72,7 @@ TEST(ReliableStreamChannelTest, ReadWrite) {
 
     // Verify post-shutdown behavior.
     constexpr size_t kLen = 1;
-    EXPECT_FALSE(sndr->Write({{src.data(), kLen}}));
+    EXPECT_EQ(sndr->Write({{src.data(), kLen}}), -1);
     EXPECT_EQ(rcvr->Read(sink.data(), kLen), 0);
 
     LOG(INFO) << *sndr;
@@ -101,7 +101,7 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
     ASSERT_THAT(sink, Pointwise(Ne(), src));
 
     // Write to one channel the message.
-    EXPECT_TRUE(sndr->Write({{src.data(), kMsgSize}}));
+    EXPECT_EQ(sndr->Write({{src.data(), kMsgSize}}), kMsgSize);
 
     // Read from the other channel.
     EXPECT_EQ(rcvr->Read(sink.data(), kMsgSize), kMsgSize);
@@ -115,7 +115,7 @@ TEST(UnreliableMessageChannelTest, ReadWrite) {
 
     // Verify post-shutdown behavior.
     constexpr size_t kLen = 1;
-    EXPECT_FALSE(sndr->Write({{src.data(), kLen}}));
+    EXPECT_EQ(sndr->Write({{src.data(), kLen}}), -1);
     EXPECT_EQ(rcvr->Read(sink.data(), kLen), 0);
 
     LOG(INFO) << *sndr;
@@ -136,7 +136,7 @@ TEST(UnreliableMessageChannelTest, ErrorRate) {
 
   int errors = 0;
   for (int i = 0; i < kNumMessages; ++i) {
-    ASSERT_TRUE(sndr->Write({{src.data(), kMsgSize}}));
+    ASSERT_EQ(sndr->Write({{src.data(), kMsgSize}}), kMsgSize);
     if (rcvr->Read(sink.data(), kMsgSize) != kMsgSize) ++errors;
   }
 

@@ -27,17 +27,19 @@ MemMsgChannel::MemMsgChannel(const BidiPipe& bidi, const int error_rate)
   DCHECK_NE(out_pipe_, nullptr);
 }
 
-bool MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
+ssize_t MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
-  DCHECK_GE(TotalLength(iovecs), 1);
+
+  const size_t len = TotalLength(iovecs);
+  DCHECK_GE(len, 1);
 
   // To keep the message boundary, merge multiple iovecs into a single one.
   OwnedIoVec owned_iov = TestOnly_Linearize(iovecs);
 
   absl::MutexLock lock(out_pipe_->mu);
-  if (out_pipe_->shutdown) return false;
+  if (out_pipe_->shutdown) return -1;
   out_pipe_->queue.push_back(std::move(owned_iov));
-  return true;
+  return len;
 }
 
 ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {

@@ -34,8 +34,9 @@ class UdpChannel final : public Channel {
   }
 
   // Writes data from the `iovecs` buffers to the channel.
-  // Returns true if all the data are written successfully, or false otherwise.
-  bool Write(absl::Span<const IoVec> iovecs) override;
+  // Returns the number of bytes actually written if successful. Zero byte means
+  // no data has been written due to non-error reasons. Returns -1 on error.
+  ssize_t Write(absl::Span<const IoVec> iovecs) override;
 
   // Reads a message of at most `len` bytes into the `buf` from the the channel.
   // Returns the number of bytes actually read if successful. Returns 0 if the

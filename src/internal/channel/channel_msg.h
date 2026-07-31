@@ -28,13 +28,14 @@ class MemMsgChannel final : public Channel {
   }
 
   // Writes a number of buffers described by the `iovecs` to the channel.
-  // Returns true if all the data are written successfully, or false otherwise.
-  bool Write(absl::Span<const IoVec> iovecs) override;
+  // Returns the number of bytes actually written if successful. Zero byte means
+  // no data has been written due to non-error reasons. Returns -1 on error.
+  ssize_t Write(absl::Span<const IoVec> iovecs) override;
 
   // Reads a message of at most `len` bytes into the `buf` from the the channel.
   // Returns the number of bytes actually read if successful. Returns 0 if the
   // received packet has no payload. Returns -1 on error.
-  virtual ssize_t Read(Byte* buf, size_t len) override;
+  ssize_t Read(Byte* buf, size_t len) override;
 
   // Shuts down the channel so no more read/write calls.
   void Shutdown() override;

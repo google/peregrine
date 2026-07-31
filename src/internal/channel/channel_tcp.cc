@@ -1,6 +1,5 @@
 #include "src/internal/channel/channel_tcp.h"
 
-#include <cstddef>
 #include <string>
 
 #include "absl/log/check.h"
@@ -11,18 +10,17 @@
 
 namespace peregrine::internal {
 
-bool TcpChannel::Write(const absl::Span<const IoVec> iovecs) {
+ssize_t TcpChannel::Write(const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
 
-  const size_t len = TotalLength(iovecs);
-  DCHECK_GE(len, 1);
+  DCHECK_GE(TotalLength(iovecs), 1);
   DCHECK_GE(iovecs.size(), 1);
   if (iovecs.size() == 1) {
     const auto [buf, len] = BufLen(iovecs[0]);
-    return socket_->Send(buf, len) == len;
+    return socket_->Send(buf, len);
   } else {
     DCHECK_GE(iovecs.size(), 2);
-    return socket_->SendV(iovecs) == len;
+    return socket_->SendV(iovecs);
   }
 }
 
