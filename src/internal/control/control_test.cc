@@ -3,19 +3,29 @@
 #include <sys/socket.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "grpcpp/security/credentials.h"
+#include "grpcpp/security/server_credentials.h"
+#include "src/api/transport_types.h"
+#include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/control/message.h"
+#include "src/internal/control/message.pb.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -87,6 +97,40 @@ TEST_P(ControlTest, SendRecv) {
   EXPECT_EQ(rp.data_plane_listeners(0).ip_port(), kData);
   EXPECT_EQ(prr.requests_size(), 1);
   EXPECT_TRUE(Message::AreEqual(prr.requests(0), *rs));
+}
+
+TEST(GrpcControlTest, SendPeerRequestsLoopback) {
+  bool callback_invoked = false;
+  auto handler = [&](const proto::ReqMsg& req, proto::RespMsg* resp) {
+    callback_invoked = true;
+    EXPECT_TRUE(req.has_peer_requests());
+    return absl::OkStatus();
+  };
+
+  auto ctrl_or = Control::CreateGrpcControl(
+      "127.0.0.1:0", std::move(handler), grpc::InsecureServerCredentials(),
+      grpc::InsecureChannelCredentials());  // NOLINT
+  ASSERT_TRUE(ctrl_or.ok()) << ctrl_or.status();
+  std::unique_ptr<Control> ctrl = std::move(*ctrl_or);
+  ASSERT_NE(ctrl->port(), 0);
+
+  const Endpoint c = Endpoint::Create("127.0.0.1:56789");
+  const HostInfo host = {.control_plane_listener = c};
+  const Request req_item = {
+      .op = Op::kRead,
+      .laddr = reinterpret_cast<Byte*>(0x1000),
+      .raddr = reinterpret_cast<Byte*>(0x2000),
+      .len = 300,
+  };
+  const std::vector<Request> requests = {req_item};
+
+  const std::string target_addr = absl::StrFormat("127.0.0.1:%d", ctrl->port());
+  proto::ReqMsg req;
+  ASSERT_TRUE(Message::Convert(host, requests, req));
+  const absl::StatusOr<proto::RespMsg> resp_or =
+      ctrl->SendRequest(target_addr, req);
+  EXPECT_TRUE(resp_or.ok()) << resp_or.status();
+  EXPECT_TRUE(callback_invoked);
 }
 
 }  // namespace

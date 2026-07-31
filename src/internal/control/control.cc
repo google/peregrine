@@ -13,12 +13,18 @@
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "grpcpp/security/credentials.h"
+#include "grpcpp/security/server_credentials.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_types.h"
+#include "src/internal/control/grpc_client.h"
+#include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.h"
 #include "src/internal/control/message.pb.h"
 
@@ -32,19 +38,81 @@ Control::Control(std::unique_ptr<Channel> channel)
     : stopping_(false),
       channel_(std::move(channel)),
       send_thread_([this]() { sendLoop(); }),
-      recv_thread_([this]() { recvLoop(); }) {
+      recv_thread_([this]() { recvLoop(); }),
+      grpc_server_(nullptr),
+      client_creds_(nullptr) {
   DCHECK(IsReliableStream(channel_->Type()));
-  LOG(INFO) << kControl << "created";
+  LOG(INFO) << kControl << "created in legacy TCP mode";
+}
+
+Control::Control(std::unique_ptr<GrpcServer> server,
+                 std::shared_ptr<grpc::ChannelCredentials> client_creds)
+    : stopping_(false),
+      channel_(nullptr),
+      grpc_server_(std::move(server)),
+      client_creds_(std::move(client_creds)) {
+  LOG(INFO) << kControl << "created in gRPC mode";
 }
 
 Control::~Control() {
   {
     absl::MutexLock _(mu_);
-    channel_->Shutdown();
+    if (channel_ != nullptr) {
+      channel_->Shutdown();
+    }
+    if (grpc_server_ != nullptr) {
+      grpc_server_->Shutdown();
+    }
     stopping_ = true;
   }
   // all threads are joined in their destructors.
   LOG(INFO) << kControl << "destroyed";
+}
+
+absl::StatusOr<std::unique_ptr<Control>> Control::CreateGrpcControl(
+    std::string_view listen_addr, RequestHandler&& handler,
+    std::shared_ptr<grpc::ServerCredentials> server_creds,
+    std::shared_ptr<grpc::ChannelCredentials> client_creds) {
+  if (server_creds == nullptr || client_creds == nullptr) {
+    return absl::InvalidArgumentError(
+        "Control::CreateGrpcControl requires explicit server and client "
+        "credentials");
+  }
+  auto server_or = GrpcServer::Create(listen_addr, std::move(handler),
+                                      std::move(server_creds));
+  if (!server_or.ok()) {
+    return server_or.status();
+  }
+  return std::unique_ptr<Control>(
+      new Control(std::move(*server_or), std::move(client_creds)));
+}
+
+absl::StatusOr<proto::RespMsg> Control::SendRequest(std::string_view peer_addr,
+                                                    const proto::ReqMsg& req) {
+  if (client_creds_ == nullptr) {
+    return absl::FailedPreconditionError(
+        "Control::SendRequest invoked without configured gRPC credentials");
+  }
+  GrpcClient* client = nullptr;
+  {
+    absl::MutexLock _(mu_);
+    client = getOrCreateClient(peer_addr);
+  }
+  return client->SendUnary(req);
+}
+
+GrpcClient* Control::getOrCreateClient(std::string_view peer_addr) {
+  auto it = peer_clients_.find(peer_addr);
+  if (it == peer_clients_.end()) {
+    auto [inserted_it, _] = peer_clients_.emplace(
+        peer_addr, std::make_unique<GrpcClient>(peer_addr, client_creds_));
+    return inserted_it->second.get();
+  }
+  return it->second.get();
+}
+
+int Control::port() const {
+  return grpc_server_ != nullptr ? grpc_server_->port() : 0;
 }
 
 bool Control::EnqueueSend(const proto::ReqMsg& msg) {
