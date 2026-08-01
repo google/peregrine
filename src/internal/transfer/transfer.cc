@@ -39,7 +39,7 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
   };
 
   // Step 2: send them out.
-  return channel->Write(iovecs);
+  return channel->Write(iovecs) == header.size() + payload.size();
 }
 
 bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
@@ -70,7 +70,7 @@ bool Transfer::sendAck(Channel* channel, ChunkMetadata& chunk) {
   DCHECK(chunk.IsAck());
   const std::string header = ChunkHeader::Serialize(chunk);
   const IoVec iov((void*)header.data(), header.size());
-  if ABSL_PREDICT_FALSE (!channel->Write({iov})) {
+  if ABSL_PREDICT_FALSE (channel->Write({iov}) != header.size()) {
     LOG(WARNING) << "failed to send ack: " << chunk;
     return false;
   }
@@ -94,7 +94,7 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   ChunkMetadata chunk;
   if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
     // TODO(yongx): drop this channel.
-    LOG(WARNING) << "invalid chunk header: " << chunk;
+    LOG(WARNING) << "invalid chunk header";
     return false;
   }
 
@@ -155,7 +155,7 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
   // Step 2: deserialize chunk header.
   ChunkMetadata chunk;
   if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
-    LOG(WARNING) << "invalid chunk header: " << chunk;
+    LOG(WARNING) << "invalid chunk header";
     return false;
   }
 

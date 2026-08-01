@@ -181,7 +181,7 @@ bool Control::send(const proto::ReqMsg& msg) {
       IoVec((void*)&len_nbo, sizeof(len_nbo)),
       IoVec((void*)s.data(), size),
   };
-  return channel_->Write(iovecs);
+  return channel_->Write(iovecs) == sizeof(len_nbo) + size;
 }
 
 bool Control::recv(proto::ReqMsg& msg) {
