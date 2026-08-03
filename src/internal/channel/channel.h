@@ -21,10 +21,15 @@ class Channel {
   // Returns the channel type.
   virtual ChannelType Type() const = 0;
 
+  // Writes `len` bytes of data from `buf` to the channel.
+  // Returns the number of bytes actually written if successful. Zero byte means
+  // no data has been written due to non-error reasons. Returns -1 on error.
+  virtual ssize_t Write(const Byte* buf, size_t len) = 0;
+
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
   // no data has been written due to non-error reasons. Returns -1 on error.
-  virtual ssize_t Write(absl::Span<const IoVec> iovecs) = 0;
+  virtual ssize_t WriteV(absl::Span<const IoVec> iovecs) = 0;
 
   // Reads data into the `buf` from the the channel.
   // For stream channel, it reads exactly `len` bytes of data.
@@ -34,6 +39,15 @@ class Channel {
   // For message channel, returns 0 if the received packet has no payload.
   // Returns -1 on error.
   virtual ssize_t Read(Byte* buf, size_t len) = 0;
+
+  // Reads data into the `iovecs` buffers from the the channel.
+  // For stream channel, it reads exactly `length(iovecs)` bytes of data.
+  // For message channel, it reads a message of at most `length(iovecs)` bytes.
+  // Returns the number of bytes actually read if successful.
+  // For stream channel, returns 0 if the peer side has closed the connection.
+  // For message channel, returns 0 if the received packet has no payload.
+  // Returns -1 on error.
+  virtual ssize_t ReadV(absl::Span<IoVec> iovecs) = 0;
 
   // Shuts down the channel so no more read/write calls.
   virtual void Shutdown() = 0;

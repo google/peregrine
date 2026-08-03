@@ -29,7 +29,7 @@ MemStreamChannel::MemStreamChannel(const BidiPipe& bidi, const int error_rate)
   DCHECK_NE(out_pipe_, nullptr);
 }
 
-ssize_t MemStreamChannel::Write(const absl::Span<const IoVec> iovecs) {
+ssize_t MemStreamChannel::WriteV(const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
 
   const size_t len = TotalLength(iovecs);
@@ -39,6 +39,7 @@ ssize_t MemStreamChannel::Write(const absl::Span<const IoVec> iovecs) {
   if (out_pipe_->shutdown) return -1;
   for (const auto& v : iovecs) {
     // Do not merge multiple iovecs into a single one.
+    DCHECK(IsValid(v));
     OwnedIoVec owned_iov = TestOnly_Linearize({v});
     out_pipe_->queue.push_back(std::move(owned_iov));
   }
@@ -52,32 +53,62 @@ ssize_t MemStreamChannel::Read(Byte* const buf, const size_t len) {
   absl::MutexLock lock(in_pipe_->mu);
   if (in_pipe_->queue.empty()) {
     if (in_pipe_->shutdown) return 0;
-    // CHECK(false) << "should block";
+    // TODO(yongx): block.
     return -1;
   }
 
-  if (error()) {
-    return -1;
-  }
+  size_t rcvd = 0;
+  size_t left = len;
+  Byte* ptr = buf;
+  while (left > 0) {
+    if (in_pipe_->queue.empty()) {
+      return rcvd ?: -1;
+    }
 
-  OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
-  in_pipe_->queue.pop_front();
+    if (error()) {
+      return rcvd ?: -1;
+    }
 
-  const Byte* const ptr = owned_iov.data.get();
-  const size_t size = owned_iov.size;
-  if (size <= 0) {
-    return 0;
-  } else if (size <= len) {
-    std::memcpy(buf, ptr, size);
-    return size;
-  } else {
-    std::memcpy(buf, ptr, len);
-    const void* const p = ptr + len;
-    const IoVec v(const_cast<void*>(p), size - len);
-    OwnedIoVec iov = TestOnly_Linearize({v});
-    in_pipe_->queue.push_front(std::move(iov));
-    return len;
+    OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
+    in_pipe_->queue.pop_front();
+
+    const Byte* const iov_ptr = owned_iov.data.get();
+    const size_t size = owned_iov.size;
+    if (size == 0) {
+      break;
+    } else if (size <= left) {
+      std::memcpy(ptr, iov_ptr, size);
+      ptr += size;
+      left -= size;
+      rcvd += size;
+    } else {
+      std::memcpy(ptr, iov_ptr, left);
+      const void* const p = iov_ptr + left;
+      const IoVec v(const_cast<void*>(p), size - left);
+      OwnedIoVec iov = TestOnly_Linearize({v});
+      in_pipe_->queue.push_front(std::move(iov));
+      rcvd += left;
+      left = 0;
+      break;
+    }
   }
+  return rcvd;
+}
+
+ssize_t MemStreamChannel::ReadV(absl::Span<IoVec> iovecs) {
+  DCHECK(IsValid(iovecs));
+  DCHECK_GE(TotalLength(iovecs), 1);
+
+  ssize_t total = 0;
+  for (const auto& iov : iovecs) {
+    Byte* buf = reinterpret_cast<Byte*>(iov.iov_base);
+    const size_t len = iov.iov_len;
+    const ssize_t n = Read(buf, len);
+    if (n <= 0) return total > 0 ? total : n;
+    total += n;
+    if (static_cast<size_t>(n) < len) return total;
+  }
+  return total;
 }
 
 void MemStreamChannel::Shutdown() {

@@ -4,17 +4,19 @@
 
 #include <cstddef>
 #include <memory>
-#include <utility>
+#include <string>
+#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
+#include "src/internal/base/types.h"
 #include "src/internal/channel/channel_test_util.h"
-#include "src/internal/channel/channel_types.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -23,104 +25,96 @@ namespace {
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
+using ::testing::Values;
 
-TEST(ReliableStreamChannelTest, ReadWrite) {
-  // Create channel pairs.
-  ConnectedChannelPair tcp = CreateTcpChannelPair(AF_INET);
-  ConnectedChannelPair mem = CreateMemStreamChannelPair(/*error_rate=*/0);
-  // Get the channel pointers.
-  std::pair<Channel*, Channel*> tcp_chs = {tcp.sndr.get(), tcp.rcvr.get()};
-  std::pair<Channel*, Channel*> mem_chs = {mem.sndr.get(), mem.rcvr.get()};
+using Param = std::tuple<TestChannelType, /*family=*/int, /*size=*/size_t>;
 
-  // Data size and # of reads/writes.
-  constexpr size_t kDataSize = 1UL << 20;
-  constexpr int kSrc = 2;
-  constexpr int kSink = kSrc * 2;
-  static_assert(kSrc != kSink);
-  static_assert(kDataSize % kSrc == 0);
-  static_assert(kDataSize % kSink == 0);
-
-  // Read and write on the channel pair.
-  for (auto [sndr, rcvr] : {tcp_chs, mem_chs}) {
-    ASSERT_TRUE(IsReliableStream(sndr->Type()));
-    ASSERT_TRUE(IsReliableStream(rcvr->Type()));
-
-    // Prepare input data and output.
-    std::vector<Byte> src(kDataSize, 0);
-    std::vector<Byte> sink(src.size(), 0);
-    util::RandomNonZero(absl::MakeSpan(src));
-    ASSERT_THAT(sink, Pointwise(Ne(), src));
-
-    // Send to one channel a number of times.
-    for (int i = 0; i < kSrc; ++i) {
-      constexpr size_t kPart = kDataSize / kSrc;
-      EXPECT_EQ(sndr->Write({{src.data() + i * kPart, kPart}}), kPart);
-    }
-
-    // Receive from the other channel for a different number of times.
-    for (int i = 0; i < kSink; ++i) {
-      constexpr size_t kPart = kDataSize / kSink;
-      EXPECT_EQ(rcvr->Read(sink.data() + i * kPart, kPart), kPart);
-    }
-
-    // Check that the data read is the same as written.
-    EXPECT_THAT(sink, Pointwise(Eq(), src));
-
-    // Shutdown the channels.
-    sndr->Shutdown();
-    rcvr->Shutdown();
-
-    // Verify post-shutdown behavior.
-    constexpr size_t kLen = 1;
-    EXPECT_EQ(sndr->Write({{src.data(), kLen}}), -1);
-    EXPECT_EQ(rcvr->Read(sink.data(), kLen), 0);
-
-    LOG(INFO) << *sndr;
-    LOG(INFO) << *rcvr;
-  }
+std::string FamilyToString(const int family) {
+  if (family == AF_INET) return "IPv4";
+  if (family == AF_INET6) return "IPv6";
+  return "";
 }
 
-TEST(UnreliableMessageChannelTest, ReadWrite) {
-  // Create channel pairs.
-  ConnectedChannelPair udp = CreateUdpChannelPair(AF_INET6);
-  ConnectedChannelPair mem = CreateMemMsgChannelPair(/*error=*/0);
-  // Get the channel pointers.
-  std::pair<Channel*, Channel*> udp_chs = {udp.sndr.get(), udp.rcvr.get()};
-  std::pair<Channel*, Channel*> mem_chs = {mem.sndr.get(), mem.rcvr.get()};
+std::string ToString(const ::testing::TestParamInfo<Param>& info) {
+  const TestChannelType type = std::get<0>(info.param);
+  const int family = std::get<1>(info.param);
+  const size_t size = std::get<2>(info.param);
+  return absl::StrFormat("%s_%s_Size_%zu", ToString(type),
+                         FamilyToString(family), size);
+}
 
-  // Read and write on the channel pair.
-  for (auto [sndr, rcvr] : {udp_chs, mem_chs}) {
-    ASSERT_TRUE(IsUnreliableMessage(sndr->Type()));
-    ASSERT_TRUE(IsUnreliableMessage(rcvr->Type()));
+class ChannelTest : public ::testing::TestWithParam<Param> {
+ protected:
+  ChannelTest()
+      : size_(std::get<2>(GetParam())),
+        part_(size_ / 4),
+        src_(size_),
+        dst_(size_, 0) {
+    util::RandomNonZero(absl::MakeSpan(src_));
+    DCHECK_NE(src_.data(), dst_.data());
 
-    // Prepare input data and output.
-    constexpr size_t kMsgSize = 128;
-    std::vector<Byte> src(kMsgSize, 0);
-    std::vector<Byte> sink(src.size(), 0);
-    util::RandomNonZero(absl::MakeSpan(src));
-    ASSERT_THAT(sink, Pointwise(Ne(), src));
-
-    // Write to one channel the message.
-    EXPECT_EQ(sndr->Write({{src.data(), kMsgSize}}), kMsgSize);
-
-    // Read from the other channel.
-    EXPECT_EQ(rcvr->Read(sink.data(), kMsgSize), kMsgSize);
-
-    // Check that the data read is the same as written.
-    EXPECT_THAT(sink, Pointwise(Eq(), src));
-
-    // Shutdown the channels.
-    sndr->Shutdown();
-    rcvr->Shutdown();
-
-    // Verify post-shutdown behavior.
-    constexpr size_t kLen = 1;
-    EXPECT_EQ(sndr->Write({{src.data(), kLen}}), -1);
-    EXPECT_EQ(rcvr->Read(sink.data(), kLen), 0);
-
-    LOG(INFO) << *sndr;
-    LOG(INFO) << *rcvr;
+    CHECK_EQ(size_, 4 * part_);
+    src_iov_ = {src_.data() + 0 * part_, part_};
+    src_iovs_ = {{src_.data() + 1 * part_, part_},
+                 {src_.data() + 2 * part_, part_},
+                 {src_.data() + 3 * part_, part_}};
+    dst_iov_ = {dst_.data() + 0 * part_, part_};
+    dst_iovs_ = {{dst_.data() + 1 * part_, part_},
+                 {dst_.data() + 2 * part_, 2 * part_}};
   }
+
+ protected:
+  const size_t size_;
+  const size_t part_;
+  std::vector<Byte> src_;
+  std::vector<Byte> dst_;
+  IoVec src_iov_;
+  IoVec dst_iov_;
+  std::vector<IoVec> src_iovs_;
+  std::vector<IoVec> dst_iovs_;
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    , ChannelTest,
+    Values(Param{TestChannelType::kTcp, AF_INET, /*size=*/1UL << 20},
+           Param{TestChannelType::kTcp, AF_INET6, /*size=*/1UL << 20},
+           Param{TestChannelType::kMemStream, 0, /*size=*/1UL << 20},
+           Param{TestChannelType::kUdp, AF_INET, /*size=*/1UL << 10},
+           Param{TestChannelType::kUdp, AF_INET6, /*size=*/1UL << 10},
+           Param{TestChannelType::kMemMsg, 0, /*size=*/1UL << 10}),
+    ToString);
+
+TEST_P(ChannelTest, ReadWrite) {
+  const auto param = GetParam();
+  const TestChannelType type = std::get<0>(param);
+  const int family = std::get<1>(param);
+  const auto chs = CreateTestChannelPair(type, family, /*error_rate=*/0);
+  Channel* sndr = chs.sndr.get();
+  Channel* rcvr = chs.rcvr.get();
+
+  // Precondition: dst is different from src_.
+  ASSERT_THAT(dst_, Pointwise(Ne(), src_));
+
+  // Send to one channel a number of times.
+  EXPECT_EQ(sndr->Write((Byte*)src_iov_.iov_base, src_iov_.iov_len), part_);
+  EXPECT_EQ(sndr->WriteV(src_iovs_), size_ - part_);
+
+  // Receive from the other channel in a different way.
+  EXPECT_EQ(rcvr->Read((Byte*)dst_iov_.iov_base, dst_iov_.iov_len), part_);
+  EXPECT_EQ(rcvr->ReadV(absl::MakeSpan(dst_iovs_)), size_ - part_);
+
+  // Shutdown the channels and verify post-shutdown behavior.
+  sndr->Shutdown();
+  rcvr->Shutdown();
+  constexpr size_t kLen = 1;
+  EXPECT_EQ(sndr->Write(src_.data(), kLen), -1);
+  EXPECT_EQ(rcvr->Read(dst_.data(), kLen), 0);
+
+  // Check that the data read is the same as written.
+  EXPECT_THAT(dst_, Pointwise(Eq(), src_));
+
+  LOG(INFO) << *sndr;
+  LOG(INFO) << *rcvr;
 }
 
 TEST(UnreliableMessageChannelTest, ErrorRate) {
@@ -136,11 +130,16 @@ TEST(UnreliableMessageChannelTest, ErrorRate) {
 
   int errors = 0;
   for (int i = 0; i < kNumMessages; ++i) {
-    ASSERT_EQ(sndr->Write({{src.data(), kMsgSize}}), kMsgSize);
+    ASSERT_EQ(sndr->Write(src.data(), kMsgSize), kMsgSize);
     if (rcvr->Read(sink.data(), kMsgSize) != kMsgSize) ++errors;
   }
+  for (int i = 0; i < kNumMessages; ++i) {
+    ASSERT_EQ(sndr->WriteV({{src.data(), kMsgSize}}), kMsgSize);
+    IoVec iovs[] = {{sink.data(), kMsgSize}};
+    if (rcvr->ReadV(iovs) != kMsgSize) ++errors;
+  }
 
-  const double actual = 100.0 * errors / kNumMessages;
+  const double actual = 100.0 * errors / (2 * kNumMessages);
   LOG(INFO) << "Actual error rate: " << actual << "%";
   EXPECT_NEAR(actual, kErrorRate, 10.0);
 }

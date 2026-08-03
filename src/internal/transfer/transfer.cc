@@ -39,7 +39,7 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
   };
 
   // Step 2: send them out.
-  return channel->Write(iovecs) == header.size() + payload.size();
+  return channel->WriteV(iovecs) == header.size() + payload.size();
 }
 
 bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
@@ -69,8 +69,8 @@ bool Transfer::sendAck(Channel* channel, ChunkMetadata& chunk) {
   chunk.size = 0;
   DCHECK(chunk.IsAck());
   const std::string header = ChunkHeader::Serialize(chunk);
-  const IoVec iov((void*)header.data(), header.size());
-  if ABSL_PREDICT_FALSE (channel->Write({iov}) != header.size()) {
+  const Byte* const buf = reinterpret_cast<const Byte*>(header.data());
+  if ABSL_PREDICT_FALSE (channel->Write(buf, header.size()) != header.size()) {
     LOG(WARNING) << "failed to send ack: " << chunk;
     return false;
   }
