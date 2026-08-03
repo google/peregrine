@@ -20,8 +20,8 @@ TEST(ChunkSerializationTest, Serde) {
   const std::string s = ChunkHeader::Serialize(chunk);
   ASSERT_EQ(s.size(), ChunkHeader::kSize);
 
-  ASSERT_EQ(s[0], 0x70);  // 'p' in ascii
-  ASSERT_EQ(s[1], 0x67);  // 'g' in ascii
+  ASSERT_EQ(s[0], 'P');
+  ASSERT_EQ(s[1], 'G');
 
   ChunkMetadata m1;
   ASSERT_NE(chunk, m1);

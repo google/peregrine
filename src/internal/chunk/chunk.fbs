@@ -5,7 +5,7 @@ namespace peregrine.internal.flatbuf;
 
 // Do not change.
 enum Constant:uint16 {
-  MAGIC = 0x6770,  // 'pg' in big-endian order
+  MAGIC = 0x4750,  // 'PG' in little-endian order
 }
 
 struct ChunkHeader {
