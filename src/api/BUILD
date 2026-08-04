@@ -144,6 +144,7 @@ cc_library(
         "//src/internal/base:types",
         "//src/internal/socket:socket_util",
         "//src/internal/socket:tcp_socket_util",
+        "//src/internal/util",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
