@@ -40,17 +40,19 @@ class MemMsgChannel final : public Channel {
   // no data has been written due to non-error reasons. Returns -1 on error.
   ssize_t WriteV(absl::Span<const IoVec> iovecs) override;
 
-  // Reads a message of at most `len` bytes into the `buf` from the the channel.
+  // Reads one message of up to `len` bytes from the channel into the `buf`.
   // Returns the number of bytes actually read if successful. Returns 0 if the
   // received packet has no payload. Returns -1 on error.
   ssize_t Read(Byte* buf, size_t len) override;
 
-  // Reads at most `length(iovecs)` bytes into the buffers from the the channel.
-  // Returns the number of bytes actually read if successful. Returns 0 if the
-  // received packet has no payload. Returns -1 on error.
+  // Reads one message of up to `length(iovecs)` bytes from the channel into
+  // the buffers. Returns the number of bytes actually read if successful.
+  // Returns 0 if the received packet has no payload. Returns -1 on error.
   ssize_t ReadV(absl::Span<IoVec> iovecs) override;
 
-  // Shuts down the channel so no more read/write calls.
+  // Shuts down the channel. After the channel is shutdown, write calls will
+  // return -1, so no more data can be injected into the channel. Read calls
+  // will continue to read the remaining data in the channel, if any.
   void Shutdown() override;
 
   // Returns a string representation for the channel.

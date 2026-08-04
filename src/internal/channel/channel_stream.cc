@@ -64,15 +64,15 @@ ssize_t MemStreamChannel::Read(Byte* const buf, const size_t len) {
   Byte* ptr = buf;
   while (left > 0) {
     if (in_pipe_->queue.empty()) return rcvd ?: -1;
-    if (error()) return rcvd ?: -1;
 
     OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
     in_pipe_->queue.pop_front();
+    if (error()) return rcvd ?: -1;
 
     const Byte* const iov_ptr = owned_iov.data.get();
     const size_t size = owned_iov.size;
     if (size == 0) {
-      break;
+      continue;
     } else if (size <= left) {
       std::memcpy(ptr, iov_ptr, size);
       ptr += size;
@@ -101,9 +101,9 @@ ssize_t MemStreamChannel::ReadV(absl::Span<IoVec> iovecs) {
     Byte* buf = reinterpret_cast<Byte*>(iov.iov_base);
     const size_t len = iov.iov_len;
     const ssize_t n = Read(buf, len);
-    if (n <= 0) return total > 0 ? total : n;
+    if (n <= 0) return total ?: n;
     total += n;
-    if (static_cast<size_t>(n) < len) return total;
+    if (static_cast<size_t>(n) < len) break;
   }
   return total;
 }

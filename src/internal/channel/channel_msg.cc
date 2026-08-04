@@ -57,7 +57,6 @@ ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
 
   OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
   in_pipe_->queue.pop_front();
-
   if (error()) return -1;
 
   const size_t size = owned_iov.size;
@@ -66,7 +65,7 @@ ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
   } else if (size > len) {
     return -1;
   } else {
-    DCHECK(0 < size && size <= len);
+    DCHECK(1 <= size && size <= len);
     std::memcpy(buf, owned_iov.data.get(), size);
     return size;
   }
@@ -85,7 +84,6 @@ ssize_t MemMsgChannel::ReadV(absl::Span<IoVec> iovecs) {
 
   OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
   in_pipe_->queue.pop_front();
-
   if (error()) return -1;
 
   size_t size = owned_iov.size;
