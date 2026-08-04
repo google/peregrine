@@ -13,6 +13,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/notification.h"
 #include "absl/types/span.h"
@@ -142,6 +144,43 @@ TEST_P(SocketUtilTest, ReadWrite) {
 
   // Check that the recv buffer has the same data as the send.
   ASSERT_THAT(recv_buf, Pointwise(Eq(), send_buf));
+}
+
+class SocketUtilIovTest : public ::testing::Test {
+ protected:
+  SocketUtilIovTest() : socket_(TestOnly_CreateTcpSocket(AF_INET)) {
+    DCHECK(socket_->IsValid());
+  }
+
+ protected:
+  const std::unique_ptr<TcpSocket> socket_;
+};
+
+TEST_F(SocketUtilIovTest, ZeroIovs) {
+  const int fd = socket_->fd().value();
+  std::vector<struct iovec> empty_iovs;
+
+  const absl::Status read_status = ReadVExact(fd, empty_iovs);
+  EXPECT_EQ(read_status.code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(read_status.message(), "#iovs=0");
+
+  const absl::Status write_status = WriteVExact(fd, empty_iovs);
+  EXPECT_EQ(write_status.code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(write_status.message(), "#iovs=0");
+}
+
+TEST_F(SocketUtilIovTest, ExceedMaxIovs) {
+  const int fd = socket_->fd().value();
+  char buf = 'x';
+  std::vector<struct iovec> large_iovs(IOV_MAX + 1, {&buf, 1});
+
+  const absl::Status read_status = ReadVExact(fd, large_iovs);
+  EXPECT_EQ(read_status.code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(read_status.message(), absl::StrCat("#iovs=", large_iovs.size()));
+
+  const absl::Status write_status = WriteVExact(fd, large_iovs);
+  EXPECT_EQ(write_status.code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(write_status.message(), absl::StrCat("#iovs=", large_iovs.size()));
 }
 
 }  // namespace
