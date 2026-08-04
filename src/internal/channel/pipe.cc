@@ -15,6 +15,8 @@ MemPipe::~MemPipe() {
   queue.clear();
 }
 
+bool MemPipe::HasData() const { return !queue.empty() || shutdown; }
+
 void MemPipe::Shutdown() {
   absl::MutexLock lock(mu);
   shutdown = true;

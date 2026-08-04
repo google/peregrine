@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
@@ -58,6 +59,9 @@ class MemMsgChannel final : public Channel {
   }
 
  private:
+  // Returns true iff the `in_pipe_` has data.
+  bool hasIncomingData() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(in_pipe_->mu);
+
   // Returns true iff the channel read/write should emulate an error.
   bool error() const;
 

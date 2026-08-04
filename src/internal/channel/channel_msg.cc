@@ -42,23 +42,23 @@ ssize_t MemMsgChannel::WriteV(const absl::Span<const IoVec> iovecs) {
   return len;
 }
 
+bool MemMsgChannel::hasIncomingData() const { return in_pipe_->HasData(); }
+
 ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
   DCHECK_NE(buf, nullptr);
   DCHECK_GE(len, 1);
 
   absl::MutexLock lock(in_pipe_->mu);
+  in_pipe_->mu.Await(absl::Condition(this, &MemMsgChannel::hasIncomingData));
   if (in_pipe_->queue.empty()) {
-    if (in_pipe_->shutdown) return 0;
-    // TODO(yongx): block.
-    return -1;
+    DCHECK(in_pipe_->shutdown);
+    return 0;
   }
 
   OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
   in_pipe_->queue.pop_front();
 
-  if (error()) {
-    return -1;
-  }
+  if (error()) return -1;
 
   const size_t size = owned_iov.size;
   if (size == 0) {
@@ -77,18 +77,16 @@ ssize_t MemMsgChannel::ReadV(absl::Span<IoVec> iovecs) {
   DCHECK_GE(TotalLength(iovecs), 1);
 
   absl::MutexLock lock(in_pipe_->mu);
+  in_pipe_->mu.Await(absl::Condition(this, &MemMsgChannel::hasIncomingData));
   if (in_pipe_->queue.empty()) {
-    if (in_pipe_->shutdown) return 0;
-    // TODO(yongx): block.
-    return -1;
+    DCHECK(in_pipe_->shutdown);
+    return 0;
   }
 
   OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
   in_pipe_->queue.pop_front();
 
-  if (error()) {
-    return -1;
-  }
+  if (error()) return -1;
 
   size_t size = owned_iov.size;
   if (size == 0) return 0;

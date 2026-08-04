@@ -24,6 +24,9 @@ struct MemPipe final {
   // Destructor.
   ~MemPipe();
 
+  // Returns true iff the pipe has data or is shutdown.
+  bool HasData() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu);
+
   // Shuts down the pipe so no more send/recv calls will be taken.
   void Shutdown();
 };

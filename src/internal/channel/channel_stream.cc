@@ -46,28 +46,25 @@ ssize_t MemStreamChannel::WriteV(const absl::Span<const IoVec> iovecs) {
   return len;
 }
 
+bool MemStreamChannel::hasIncomingData() const { return in_pipe_->HasData(); }
+
 ssize_t MemStreamChannel::Read(Byte* const buf, const size_t len) {
   DCHECK_NE(buf, nullptr);
   DCHECK_GE(len, 1);
 
   absl::MutexLock lock(in_pipe_->mu);
+  in_pipe_->mu.Await(absl::Condition(this, &MemStreamChannel::hasIncomingData));
   if (in_pipe_->queue.empty()) {
-    if (in_pipe_->shutdown) return 0;
-    // TODO(yongx): block.
-    return -1;
+    DCHECK(in_pipe_->shutdown);
+    return 0;
   }
 
   size_t rcvd = 0;
   size_t left = len;
   Byte* ptr = buf;
   while (left > 0) {
-    if (in_pipe_->queue.empty()) {
-      return rcvd ?: -1;
-    }
-
-    if (error()) {
-      return rcvd ?: -1;
-    }
+    if (in_pipe_->queue.empty()) return rcvd ?: -1;
+    if (error()) return rcvd ?: -1;
 
     OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
     in_pipe_->queue.pop_front();
