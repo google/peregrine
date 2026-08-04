@@ -48,7 +48,7 @@ bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
   if ABSL_PREDICT_TRUE (IsReliableStream(t)) {
     return recvChunkStream(channel, outgoing, incoming);
   } else {
-    DCHECK(IsUnreliableMessage(t));
+    DCHECK(IsMessageChannel(t));
     return recvChunkMsg(channel, outgoing, incoming);
   }
 }
@@ -141,7 +141,7 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
 
 bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
                             RequestTracker& incoming) {
-  DCHECK(IsUnreliableMessage(channel->Type()));
+  DCHECK(IsMessageChannel(channel->Type()));
 
   // Step 1: read chunk header.
   Byte buf[kTmpBufSize];

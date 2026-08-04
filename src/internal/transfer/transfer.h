@@ -45,7 +45,7 @@ class Transfer final {
   static bool recvChunkStream(Channel* channel, RequestTracker& outgoing,
                               RequestTracker& incoming);
 
-  // Receives chunk metadata and payload from the unreliable message channel.
+  // Receives chunk metadata and payload from the message channel.
   static bool recvChunkMsg(Channel* channel, RequestTracker& outgoing,
                            RequestTracker& incoming);
 

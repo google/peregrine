@@ -27,6 +27,11 @@ constexpr bool IsUnreliableMessage(ChannelType t) {
   return t == ChannelType::kUnreliableMessage;
 }
 
+// Returns true iff the channel type is reliable or unreliable message.
+constexpr bool IsMessageChannel(ChannelType t) {
+  return IsReliableMessage(t) || IsUnreliableMessage(t);
+}
+
 }  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_TYPES_H_
