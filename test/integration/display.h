@@ -29,6 +29,9 @@ class Display final {
   void Run() const { Print(absl::Now()); }
   absl::Duration Cycle() const { return absl::Seconds(1); }
 
+  // Resets ncurses to restore the terminal screen.
+  void Clear() { ncurses_.reset(); }
+
  private:
   std::string genProgress(absl::Time time) const;
   std::string genStats() const;

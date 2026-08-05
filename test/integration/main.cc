@@ -50,6 +50,7 @@ int main(int argc, char* argv[]) {
   peregrine.Run();
   // -------------------
   display_runner.reset();
+  display.Clear();
   display.PrintSummary();
   display.PrintFooter();
 
