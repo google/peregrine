@@ -45,12 +45,14 @@ int main(int argc, char* argv[]) {
   // Setup Display.
   Display display(peregrine);
   display.PrintHeader();
+  display.InitNCurses();
   auto display_runner = std::make_unique<Runner<Display>>(&display);
 
   // -------------------
   peregrine.Run();
   // -------------------
   display_runner.reset();
+  display.ShutdownNCurses();
   display.PrintSummary();
   display.PrintFooter();
 

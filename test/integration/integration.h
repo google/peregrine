@@ -5,40 +5,48 @@
 #include <cstdint>
 #include <memory>
 
-#include "src/util/app.h"
+#include "test/integration/controlpath-host.h"
+#include "test/integration/datapath-host.h"
 #include "test/integration/settings.h"
 
 namespace peregrine::integration {
 
-class PeregrineIntegration {
+// Peregrine integration test harness.
+class PeregrineIntegration final {
  public:
+  struct Stats {
+    int64_t transfers_completed = 0;
+    int64_t bytes_transferred = 0;
+    double throughput_mbps = 0.0;
+  };
+
   PeregrineIntegration();
-  ~PeregrineIntegration();
+  ~PeregrineIntegration() = default;
 
   void Run();
-  void Stop();
+  void Stop() { stop_.store(true); }
 
-  int64_t n_transfers() const { return n_transfers_.load(); }
-  int64_t n_bytes() const { return n_bytes_.load(); }
-
+  Stats GetStats() const;
   const Settings& settings() const { return settings_; }
+
+  ControlpathHost* controlpath_sndr() const { return controlpath_sndr_.get(); }
+  ControlpathHost* controlpath_rcvr() const { return controlpath_rcvr_.get(); }
+  DatapathHost* datapath_sndr() const { return datapath_sndr_.get(); }
+  DatapathHost* datapath_rcvr() const { return datapath_rcvr_.get(); }
 
  private:
   void Wait();
   void SendRequest();
-  bool Continue();
-
-
-  std::unique_ptr<util::App> sender_;
-  std::unique_ptr<util::App> receiver_;
-
-  std::atomic<int64_t> n_transfers_{0};
-  std::atomic<int64_t> n_bytes_{0};
-  std::atomic<bool> stop_{false};
+  bool Continue() const;
 
   Settings settings_;
-};
+  std::atomic<bool> stop_{false};
 
+  std::unique_ptr<ControlpathHost> controlpath_sndr_;
+  std::unique_ptr<ControlpathHost> controlpath_rcvr_;
+  std::unique_ptr<DatapathHost> datapath_sndr_;
+  std::unique_ptr<DatapathHost> datapath_rcvr_;
+};
 
 }  // namespace peregrine::integration
 

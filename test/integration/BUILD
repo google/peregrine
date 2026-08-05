@@ -20,18 +20,71 @@ cc_library(
 )
 
 cc_library(
+    name = "settings",
+    hdrs = ["settings.h"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "controlpath-host",
+    srcs = ["controlpath-host.cc"],
+    hdrs = ["controlpath-host.h"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "datapath-host",
+    srcs = ["datapath-host.cc"],
+    hdrs = ["datapath-host.h"],
+    deps = [
+        "//src/api:transport",
+        "//src/api:transport_types",
+        "//src/api:transport_util",
+        "//src/util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "ncurses",
+    srcs = ["ncurses.cc"],
+    hdrs = ["ncurses.h"],
+    deps = [
+        ":settings",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@ncurses",
+    ],
+)
+
+cc_library(
     name = "integration",
     srcs = ["integration.cc"],
     hdrs = [
         "integration.h",
-        "settings.h",
     ],
     deps = [
+        ":controlpath-host",
+        ":datapath-host",
         ":flags",
-        "//src/api:transport",
+        ":settings",
         "//src/api:transport_types",
-        "//src/util:app",
+        "//src/util",
         "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
     ],
 )
@@ -41,8 +94,16 @@ cc_library(
     srcs = ["display.cc"],
     hdrs = ["display.h"],
     deps = [
+        ":flags",
         ":integration",
+        ":ncurses",
+        ":settings",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
     ],
 )
