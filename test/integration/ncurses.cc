@@ -16,24 +16,21 @@ namespace peregrine::integration {
 
 absl::StatusOr<std::unique_ptr<NCurses>> NCurses::Create() {
   auto ncurses = std::unique_ptr<NCurses>(new NCurses());
-  absl::Status status = ncurses->Init();
-  if (!status.ok()) {
-    return status;
-  }
+  if (absl::Status s = ncurses->init(); !s.ok()) return s;
   return ncurses;
 }
 
-NCurses::~NCurses() { Reset(); }
+NCurses::~NCurses() { reset(); }
 
-absl::Status NCurses::Init() {
+absl::Status NCurses::init() {
   stdscr_ = initscr();
   if (stdscr_ == nullptr) {
     return absl::InternalError("Failed to initialize ncurses standard screen.");
   }
-  if (!IsScreenBigEnough()) {
+  if (!isScreenBigEnough()) {
     const int lines = getmaxy(stdscr_);
     const int cols = getmaxx(stdscr_);
-    Reset();
+    reset();
     return absl::FailedPreconditionError(absl::StrFormat(
         "Screen size (%d, %d) is too small, need at least (%d, %d).", lines,
         cols, kScreenMinNumLines, kScreenMinNumCols));
@@ -42,16 +39,16 @@ absl::Status NCurses::Init() {
   noecho();
   curs_set(0);
 
-  if (!InitWindows()) {
-    Reset();
+  if (!initWindows()) {
+    reset();
     return absl::InternalError("Failed to initialize ncurses windows.");
   }
   return absl::OkStatus();
 }
 
-void NCurses::Reset() {
+void NCurses::reset() {
   if (stdscr_ != nullptr) {
-    ResetWindows();
+    resetWindows();
     curs_set(1);
     echo();
     nocbreak();
@@ -60,7 +57,7 @@ void NCurses::Reset() {
   }
 }
 
-bool NCurses::InitWindows() {
+bool NCurses::initWindows() {
   const int all_lines = getmaxy(stdscr_);
   const int all_cols = getmaxx(stdscr_);
   DCHECK_GE(all_lines, kScreenMinNumLines);
@@ -79,16 +76,16 @@ bool NCurses::InitWindows() {
 
   int x = 0, y = 0;
   {
-    title_ = Create(tlines, tcols, y, x, /*bold=*/true);
+    title_ = create(tlines, tcols, y, x, /*bold=*/true);
     if (title_ == nullptr) return false;
     windows_[{NCursesWindow::kTitle, 0}] = title_;
     const std::string title_text = "Peregrine Integration Test";
-    Print(title_, 0,
+    print(title_, 0,
           std::max(0, (tcols - static_cast<int>(title_text.size())) / 2),
           title_text);
     y += tlines + clines;
 
-    hsplit_ = Create(hlines, hcols, y, x);
+    hsplit_ = create(hlines, hcols, y, x);
     if (hsplit_ == nullptr) return false;
     windows_[{NCursesWindow::kHorizontalSplit, 0}] = hsplit_;
     for (int j = 0; j < getmaxx(hsplit_); ++j) {
@@ -96,29 +93,29 @@ bool NCurses::InitWindows() {
     }
 
     y = all_lines - qlines;
-    stats_ = Create(qlines, scols, y, x, /*bold=*/true);
+    stats_ = create(qlines, scols, y, x, /*bold=*/true);
     if (stats_ == nullptr) return false;
     windows_[{NCursesWindow::kStats, 0}] = stats_;
     mvwprintw(stats_, qlines - 1, 0, "Stats: ");
     x += scols;
 
-    progress_ = Create(qlines, pcols, y, x, /*bold=*/true);
+    progress_ = create(qlines, pcols, y, x, /*bold=*/true);
     if (progress_ == nullptr) return false;
     windows_[{NCursesWindow::kProgress, 0}] = progress_;
     mvwprintw(progress_, qlines - 1, 0, "Progress: ");
   }
 
-  // Top half: Control windows.
+  // Top half: controlpath windows.
   x = spcols;
   y = tlines;
   {
-    scp_ = Create(clines, scols_side, y, x);
+    scp_ = create(clines, scols_side, y, x);
     if (scp_ == nullptr) return false;
     windows_[{NCursesWindow::kSenderControlpath, 0}] = scp_;
-    Print(scp_, 0, 0, "sender controlpath");
+    print(scp_, 0, 0, "sender controlpath");
     x += scols_side + spcols;
 
-    cvsplit_ = Create(clines, vcols, y, x);
+    cvsplit_ = create(clines, vcols, y, x);
     if (cvsplit_ == nullptr) return false;
     windows_[{NCursesWindow::kVerticalControlSplit, 0}] = cvsplit_;
     for (int k = 0; k < getmaxy(cvsplit_); ++k) {
@@ -126,23 +123,23 @@ bool NCurses::InitWindows() {
     }
     x += vcols + spcols;
 
-    rcp_ = Create(clines, rcols_side, y, x);
+    rcp_ = create(clines, rcols_side, y, x);
     if (rcp_ == nullptr) return false;
     windows_[{NCursesWindow::kReceiverControlpath, 0}] = rcp_;
-    Print(rcp_, 0, 0, "receiver controlpath");
+    print(rcp_, 0, 0, "receiver controlpath");
   }
 
-  // Bottom half: Data windows.
+  // Bottom half: datapath windows.
   x = spcols;
   y = tlines + clines + hlines;
   {
-    sdp_ = Create(dlines, scols_side, y, x);
+    sdp_ = create(dlines, scols_side, y, x);
     if (sdp_ == nullptr) return false;
     windows_[{NCursesWindow::kSenderDatapath, 0}] = sdp_;
-    Print(sdp_, 0, 0, "sender datapath");
+    print(sdp_, 0, 0, "sender datapath");
     x += scols_side + spcols;
 
-    dvsplit_ = Create(dlines, vcols, y, x);
+    dvsplit_ = create(dlines, vcols, y, x);
     if (dvsplit_ == nullptr) return false;
     windows_[{NCursesWindow::kVerticalDataSplit, 0}] = dvsplit_;
     for (int k = 0; k < getmaxy(dvsplit_); ++k) {
@@ -150,23 +147,23 @@ bool NCurses::InitWindows() {
     }
     x += vcols + spcols;
 
-    rdp_ = Create(dlines, rcols_side, y, x);
+    rdp_ = create(dlines, rcols_side, y, x);
     if (rdp_ == nullptr) return false;
     windows_[{NCursesWindow::kReceiverDatapath, 0}] = rdp_;
-    Print(rdp_, 0, 0, "receiver datapath");
+    print(rdp_, 0, 0, "receiver datapath");
   }
 
   return true;
 }
 
-void NCurses::RunWindows(std::function<int(WINDOW*)> func) {
+void NCurses::runWindows(std::function<int(WINDOW*)> func) {
   for (const auto& [unused, win] : windows_) {
     DCHECK_NE(win, nullptr);
     func(win);
   }
 }
 
-WINDOW* NCurses::Create(int nlines, int ncols, int y, int x, bool bold) {
+WINDOW* NCurses::create(int nlines, int ncols, int y, int x, bool bold) {
   WINDOW* win = newwin(nlines, ncols, y, x);
   if (win != nullptr && bold) {
     wstandout(win);
@@ -178,13 +175,13 @@ void NCurses::Print(NCursesWindow win, int id, std::string s) {
   switch (win) {
     case NCursesWindow::kStats:
     case NCursesWindow::kProgress:
-      Print(windows_[{win, 0}], 1, 0, s);
+      print(windows_[{win, 0}], 1, 0, s);
       break;
     case NCursesWindow::kSenderControlpath:
     case NCursesWindow::kReceiverControlpath:
     case NCursesWindow::kSenderDatapath:
     case NCursesWindow::kReceiverDatapath:
-      Print(windows_[{win, id}], 0, 0, s);
+      print(windows_[{win, id}], 0, 0, s);
       break;
     case NCursesWindow::kTitle:
     case NCursesWindow::kHorizontalSplit:

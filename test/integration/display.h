@@ -14,36 +14,32 @@
 namespace peregrine::integration {
 
 // Controls the display of the integration test.
-class Display {
+class Display final {
  public:
-  // `integration` must outlive this object.
   explicit Display(const PeregrineIntegration& integration,
                    std::ostream& output = std::cout);
+  ~Display();
 
   void PrintHeader() const;
   void Print(absl::Time time) const;
   void PrintSummary() const;
   void PrintFooter() const;
 
-  void InitNCurses();
-  void ShutdownNCurses();
-
-
   // Required functions to make this class a `Runnable`.
   void Run() const { Print(absl::Now()); }
-  absl::Duration cycle() const { return absl::Seconds(1); }
+  absl::Duration Cycle() const { return absl::Seconds(1); }
 
  private:
-  std::string GenerateProgressString(absl::Time time) const;
-  std::string GenerateStatsString() const;
+  std::string genProgress(absl::Time time) const;
+  std::string genStats() const;
 
-  void NcursePrint(absl::Time now) const;
-  void NormalPrint(absl::Time now) const;
+  void ncursePrint(absl::Time now) const;
+  void normalPrint(absl::Time now) const;
 
+ private:
   const PeregrineIntegration& integration_;
-  std::ostream& output_;
-
   std::unique_ptr<NCurses> ncurses_;
+  std::ostream& output_;
 };
 
 }  // namespace peregrine::integration

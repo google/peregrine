@@ -17,11 +17,10 @@ class PeregrineIntegration final {
   struct Stats {
     int64_t transfers_completed = 0;
     int64_t bytes_transferred = 0;
-    double throughput_mbps = 0.0;
+    double throughput_gbps = 0.0;
   };
 
   PeregrineIntegration();
-  ~PeregrineIntegration() = default;
 
   void Run();
   void Stop() { stop_.store(true); }
@@ -35,10 +34,10 @@ class PeregrineIntegration final {
   DatapathHost* datapath_rcvr() const { return datapath_rcvr_.get(); }
 
  private:
-  void Wait();
-  void SendRequest();
-  bool Continue() const;
+  bool shouldContinue() const;
+  void sendRequest();
 
+ private:
   Settings settings_;
   std::atomic<bool> stop_{false};
 

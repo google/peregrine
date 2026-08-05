@@ -28,7 +28,7 @@ enum class NCursesWindow : uint16_t {
   kOther,
 };
 
-class NCurses {
+class NCurses final {
  public:
   // Creates a unique_ptr of NCurses.
   static absl::StatusOr<std::unique_ptr<NCurses>> Create();
@@ -41,7 +41,7 @@ class NCurses {
   void Print(NCursesWindow win, int id, std::string s);
 
   // Refreshes all the windows.
-  void Refresh() { RunWindows(wrefresh); }
+  void Refresh() { runWindows(wrefresh); }
 
  private:
   static constexpr int kScreenMinNumLines = 24;
@@ -51,31 +51,31 @@ class NCurses {
   NCurses() = default;
 
   // Initializes ncurses.
-  absl::Status Init();
+  absl::Status init();
 
   // Resets ncurses.
-  void Reset();
+  void reset();
 
   // Returns true iff the terminal screen size is big enough.
-  bool IsScreenBigEnough() const {
+  bool isScreenBigEnough() const {
     return getmaxy(stdscr_) >= kScreenMinNumLines &&
            getmaxx(stdscr_) >= kScreenMinNumCols;
   }
 
   // Initializes all the windows.
-  bool InitWindows();
+  bool initWindows();
 
   // Resets all the windows.
-  void ResetWindows() { RunWindows(delwin); }
+  void resetWindows() { runWindows(delwin); }
 
   // Runs a function for all the windows.
-  void RunWindows(std::function<int(WINDOW*)> func);
+  void runWindows(std::function<int(WINDOW*)> func);
 
   // Creates a window.
-  WINDOW* Create(int nlines, int ncols, int y, int x, bool bold = false);
+  WINDOW* create(int nlines, int ncols, int y, int x, bool bold = false);
 
   // Prints a string in a window.
-  void Print(WINDOW* win, int y, int x, std::string s) {
+  void print(WINDOW* win, int y, int x, std::string s) {
     if (win != nullptr) {
       mvwprintw(win, y, x, "%s", s.c_str());
       wclrtoeol(win);

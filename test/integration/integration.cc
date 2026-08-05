@@ -9,6 +9,7 @@
 #include <string>
 
 #include "absl/flags/flag.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
@@ -37,21 +38,20 @@ PeregrineIntegration::PeregrineIntegration() {
   settings_.test_duration =
       std::max(absl::Seconds(1), absl::GetFlag(FLAGS_test_duration));
 
-  const std::string sndr_ctrl_ep = CreateEndpoint(AF_INET);
-  const std::string sndr_data_ep = CreateEndpoint(AF_INET);
-  const std::string rcvr_ctrl_ep = CreateEndpoint(AF_INET);
-  const std::string rcvr_data_ep = CreateEndpoint(AF_INET);
+  const std::string sndr_ctrl = CreateEndpoint(AF_INET);
+  const std::string sndr_data = CreateEndpoint(AF_INET);
+  const std::string rcvr_ctrl = CreateEndpoint(AF_INET);
+  const std::string rcvr_data = CreateEndpoint(AF_INET);
 
   controlpath_sndr_ = std::make_unique<ControlpathHost>(
-      "Sender Control Path", sndr_ctrl_ep, rcvr_ctrl_ep, "gRPC", "CONNECTED");
+      "Sender Control Path", sndr_ctrl, rcvr_ctrl, "gRPC", "CONNECTED");
   controlpath_rcvr_ = std::make_unique<ControlpathHost>(
-      "Receiver Control Path", rcvr_ctrl_ep, "", "gRPC", "LISTENING");
+      "Receiver Control Path", rcvr_ctrl, "", "gRPC", "LISTENING");
 
   datapath_sndr_ = std::make_unique<DatapathHost>(
-      "Sender Data Path", sndr_ctrl_ep, sndr_data_ep, rcvr_ctrl_ep,
-      rcvr_data_ep, kBufSize);
+      "Sender Data Path", sndr_ctrl, sndr_data, rcvr_ctrl, rcvr_data, kBufSize);
   datapath_rcvr_ = std::make_unique<DatapathHost>(
-      "Receiver Data Path", rcvr_ctrl_ep, rcvr_data_ep, "", "", kBufSize);
+      "Receiver Data Path", rcvr_ctrl, rcvr_data, "", "", kBufSize);
 }
 
 PeregrineIntegration::Stats PeregrineIntegration::GetStats() const {
@@ -60,50 +60,43 @@ PeregrineIntegration::Stats PeregrineIntegration::GetStats() const {
   stats.bytes_transferred = datapath_sndr_->n_bytes();
 
   const absl::Duration elapsed = absl::Now() - settings_.test_begin;
-  const double sec = absl::ToDoubleSeconds(elapsed);
-  if (sec > 0.0) {
-    stats.throughput_mbps =
-        (static_cast<double>(stats.bytes_transferred) / (1024.0 * 1024.0)) /
-        sec;
+  const double nsec = absl::ToDoubleNanoseconds(elapsed);
+  if (nsec > 0.0) {
+    stats.throughput_gbps = stats.bytes_transferred * 8.0 / nsec;
   }
   return stats;
+}
+
+bool PeregrineIntegration::shouldContinue() const {
+  return !stop_.load() &&
+         absl::Now() < settings_.test_begin + settings_.test_duration;
 }
 
 void PeregrineIntegration::Run() {
   datapath_sndr_->GenData();
   datapath_rcvr_->ClearData();
-
-  Wait();
-}
-
-void PeregrineIntegration::Wait() {
-  while (Continue()) {
-    SendRequest();
+  while (shouldContinue()) {
+    sendRequest();
   }
 }
 
-bool PeregrineIntegration::Continue() const {
-  return !stop_.load() &&
-         absl::Now() < settings_.test_begin + settings_.test_duration;
-}
-
-void PeregrineIntegration::SendRequest() {
-  Request req = {
+void PeregrineIntegration::sendRequest() {
+  const Request req = {
       .op = Op::kWrite,
       .laddr = datapath_sndr_->DataPtr(),
       .raddr = datapath_rcvr_->DataPtr(),
       .len = datapath_sndr_->DataSize(),
   };
-
-  auto handle_or = datapath_sndr_->Post(controlpath_rcvr_->endpoint(), {req});
+  const absl::StatusOr<Handle> handle_or =
+      datapath_sndr_->Post(controlpath_rcvr_->endpoint(), {req});
   if (!handle_or.ok()) {
     absl::SleepFor(absl::Microseconds(50));
     return;
   }
 
-  Handle h = handle_or.value();
-  while (Continue()) {
-    auto status_or = datapath_sndr_->Poll(h);
+  const Handle h = handle_or.value();
+  while (shouldContinue()) {
+    const auto status_or = datapath_sndr_->Poll(h);
     if (!status_or.ok()) break;
 
     const Status s = status_or.value();

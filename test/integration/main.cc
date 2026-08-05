@@ -1,6 +1,6 @@
-// ----------------------------------------------------------------------
+// ---------------------------------------------------------
 // $ blaze run //third_party/peregrine/test/integration:main
-// ----------------------------------------------------------------------
+// ---------------------------------------------------------
 
 #include <csignal>
 #include <memory>
@@ -35,24 +35,21 @@ int main(int argc, char* argv[]) {
   absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();
 
-  // Create a Peregrine integration test instance.
+  // Create a test instance.
   PeregrineIntegration peregrine;
   g_peregrine_ptr = &peregrine;
 
   // Register SIGINT handler.
   RegisterSigIntHandler();
 
-  // Setup Display.
+  // Run the integration test.
   Display display(peregrine);
   display.PrintHeader();
-  display.InitNCurses();
   auto display_runner = std::make_unique<Runner<Display>>(&display);
-
   // -------------------
   peregrine.Run();
   // -------------------
   display_runner.reset();
-  display.ShutdownNCurses();
   display.PrintSummary();
   display.PrintFooter();
 

@@ -18,14 +18,12 @@ class Runner final {
         while (!st.stop_requested()) {
           runnable_->Run();
           // Note: `absl::SleepFor` does not monitor the `std::stop_token`.
-          // `~Runner()` could block for up to `runnable_->cycle()` on join.
-          absl::SleepFor(runnable_->cycle());
+          // `~Runner()` could block for up to `runnable_->Cycle()` on join.
+          absl::SleepFor(runnable_->Cycle());
         }
       });
     }
   }
-
-  ~Runner() = default;
 
  private:
   Runnable* runnable_;

@@ -29,7 +29,6 @@
 namespace peregrine::integration {
 
 namespace {
-
 template <typename T>
 concept HasDebugString = requires(const T& t) {
   { t.DebugString() } -> std::same_as<std::string>;
@@ -44,29 +43,24 @@ std::string DebugStringIfEnabled(absl::string_view name,
   return component->DebugString(std::forward<Args>(args)...);
 }
 
-uint64_t GetMemUsageKB() {
+int GetMemUsageMiB() {
   struct rusage usage;
   const int ret = getrusage(RUSAGE_SELF, &usage);
-  DCHECK_EQ(ret, 0);
-  return ret == 0 ? usage.ru_maxrss : 0;
+  return ret == 0 ? usage.ru_maxrss >> 10 : -1;
 }
-
 }  // namespace
 
 Display::Display(const PeregrineIntegration& integration, std::ostream& output)
-    : integration_(integration), output_(output) {}
-
-void Display::InitNCurses() {
+    : integration_(integration), output_(output) {
   if (absl::GetFlag(FLAGS_enable_ncurses)) {
-    absl::StatusOr<std::unique_ptr<NCurses>> ncurses = NCurses::Create();
-    if (ncurses.ok()) {
-      ncurses_ = std::move(*ncurses);
+    if (absl::StatusOr<std::unique_ptr<NCurses>> ncurses = NCurses::Create();
+        ncurses.ok()) {
+      ncurses_ = std::move(ncurses).value();
     }
   }
 }
 
-void Display::ShutdownNCurses() { ncurses_.reset(); }
-
+Display::~Display() { ncurses_.reset(); }
 
 void Display::PrintHeader() const {
   output_ << "=====================================\n";
@@ -74,11 +68,17 @@ void Display::PrintHeader() const {
   output_ << "=====================================\n";
 }
 
+void Display::PrintFooter() const {
+  output_ << "=====================================\n";
+  output_ << "Peregrine integration test completed.\n";
+  output_ << "=====================================\n";
+}
+
 void Display::Print(absl::Time time) const {
   if (ncurses_ != nullptr) {
-    NcursePrint(time);
+    ncursePrint(time);
   } else {
-    NormalPrint(time);
+    normalPrint(time);
   }
 }
 
@@ -96,7 +96,7 @@ void Display::PrintSummary() const {
       "Test started at %s and ran for %s.",
       absl::FormatTime(integration_.settings().test_begin),
       absl::FormatDuration(absl::Now() - integration_.settings().test_begin)));
-  results.push_back(GenerateStatsString());
+  results.push_back(genStats());
 
   output_ << "=====================================\n";
   output_ << "Peregrine integration test summary:\n";
@@ -106,32 +106,26 @@ void Display::PrintSummary() const {
       "\n");
 }
 
-void Display::PrintFooter() const {
-  output_ << "=====================================\n";
-  output_ << "Peregrine integration test completed.\n";
-  output_ << "=====================================\n";
-}
-
-std::string Display::GenerateProgressString(absl::Time time) const {
+std::string Display::genProgress(absl::Time time) const {
   const absl::Duration elapsed = time - integration_.settings().test_begin;
   CHECK_GE(integration_.settings().test_duration, absl::Seconds(1));
   const auto p = std::min<uint64_t>(
       100U, 100U * elapsed / integration_.settings().test_duration);
   return absl::StrFormat(
-      "Testing in progress %s (%d%%) for %s run (%d KB max mem used).\n",
-      absl::FormatDuration(elapsed), p,
+      "Testing in progress %s (%d%%) for %s run using %d MiB memory\n",
+      absl::FormatDuration(absl::Trunc(elapsed, absl::Milliseconds(1))), p,
       absl::FormatDuration(integration_.settings().test_duration),
-      GetMemUsageKB());
+      GetMemUsageMiB());
 }
 
-std::string Display::GenerateStatsString() const {
+std::string Display::genStats() const {
   const auto stats = integration_.GetStats();
-  return absl::StrFormat("Transfers: %d, Bytes: %d (%.2f MB/s)\n",
-                         stats.transfers_completed, stats.bytes_transferred,
-                         stats.throughput_mbps);
+  return absl::StrFormat("Transfers: %d, Bytes: %d MiB (%.2f Gbps)\n",
+                         stats.transfers_completed,
+                         stats.bytes_transferred >> 20, stats.throughput_gbps);
 }
 
-void Display::NcursePrint(absl::Time now) const {
+void Display::ncursePrint(absl::Time now) const {
   CHECK_NE(ncurses_, nullptr);
   ncurses_->Print(NCursesWindow::kSenderControlpath, 0,
                   DebugStringIfEnabled(Settings::kSenderControlpathName,
@@ -145,14 +139,14 @@ void Display::NcursePrint(absl::Time now) const {
   ncurses_->Print(NCursesWindow::kReceiverDatapath, 0,
                   DebugStringIfEnabled(Settings::kReceiverDatapathName,
                                        integration_.datapath_rcvr()));
-  ncurses_->Print(NCursesWindow::kStats, 0, GenerateStatsString());
-  ncurses_->Print(NCursesWindow::kProgress, 0, GenerateProgressString(now));
+  ncurses_->Print(NCursesWindow::kStats, 0, genStats());
+  ncurses_->Print(NCursesWindow::kProgress, 0, genProgress(now));
   ncurses_->Refresh();
 }
 
-void Display::NormalPrint(absl::Time now) const {
+void Display::normalPrint(absl::Time now) const {
   std::vector<std::string> results;
-  results.push_back(GenerateProgressString(now));
+  results.push_back(genProgress(now));
   results.push_back(DebugStringIfEnabled(Settings::kSenderControlpathName,
                                          integration_.controlpath_sndr()));
   results.push_back(DebugStringIfEnabled(Settings::kReceiverControlpathName,

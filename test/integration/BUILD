@@ -60,7 +60,6 @@ cc_library(
     srcs = ["ncurses.cc"],
     hdrs = ["ncurses.h"],
     deps = [
-        ":settings",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
@@ -84,6 +83,7 @@ cc_library(
         "//src/api:transport_types",
         "//src/util",
         "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
     ],
