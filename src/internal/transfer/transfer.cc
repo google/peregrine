@@ -29,6 +29,7 @@ using ChunkStatus = ChunkTracker::ChunkStatus;
 
 bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
                          const ChunkPayloadView payload) {
+  static_assert(assumptions::kChunkMetadataAndPayloadAreEncryptedOnWire);
   DCHECK(IsMatch(chunk, payload));
 
   // Step 1: build chunk header and payload.
@@ -44,6 +45,7 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
 
 bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
                          RequestTracker& incoming) {
+  static_assert(assumptions::kChunkMetadataAndPayloadAreEncryptedOnWire);
   const ChannelType t = channel->Type();
   if ABSL_PREDICT_TRUE (IsReliableStream(t)) {
     return recvChunkStream(channel, outgoing, incoming);

@@ -33,11 +33,21 @@ inline constexpr bool kAbslHashIsStableOnlyInOneProcessInvocation = true;
 // the last one, which may be smaller.
 //
 // Over the wire, each chunk has two parts: (1) the header, which contains
-// chunk metadata (buffer id, #chunks, chunk index/address/size, etc.), and
+// the chunk metadata such as #chunks, chunk index/address/size, etc., and
 // (2) the payload, which contains the actual chunk data. On the receive side,
 // it has to read the chunk header first to get the chunk metadata. It then
 // reads the payload and place it in its destination memory.
 inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
+
+// When sent over network, both the chunk metadata and payload are encrypted by
+// layer-3 protocols (e.g., PSP (https://github.com/google/psp). The encryption
+// is transparent to the transport layer.
+//
+// Therefore, it is ok to store the destination memory address of chunk data
+// in the chunk header. (We can further improve security by using a buffer id
+// instead of the actual address, and let the receiver look up the destination
+// address from the buffer id.)
+inline constexpr bool kChunkMetadataAndPayloadAreEncryptedOnWire = true;
 
 // Assumptions about network MTU.
 // ---------------------------------------------------------------------------
