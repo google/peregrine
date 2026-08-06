@@ -23,7 +23,7 @@ class DatapathHost final {
  public:
   DatapathHost(absl::string_view name, absl::string_view control_ep,
                absl::string_view data_ep, absl::string_view peer_control_ep,
-               absl::string_view peer_data_ep, size_t buf_size);
+               absl::string_view peer_data_ep, size_t buf_size, int num_conns);
   ~DatapathHost() = default;
 
   std::string DebugString() const;
@@ -44,6 +44,7 @@ class DatapathHost final {
     return transport_->Poll(handle);
   }
 
+  absl::Span<const Byte> Data() const { return absl::MakeConstSpan(data_); }
   Byte* DataPtr() { return data_.data(); }
   size_t DataSize() const { return data_.size(); }
   void ClearData() { std::fill(data_.begin(), data_.end(), 0); }

@@ -17,8 +17,8 @@ struct Settings {
       "receiver datapath";
 
   absl::Time test_begin;
-  absl::Duration test_duration;
 };
+
 
 }  // namespace peregrine::integration
 

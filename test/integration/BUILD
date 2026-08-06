@@ -15,6 +15,7 @@ cc_library(
     hdrs = ["flags.h"],
     deps = [
         "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
     ],
 )
@@ -83,6 +84,7 @@ cc_library(
         "//src/api:transport_types",
         "//src/util",
         "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",

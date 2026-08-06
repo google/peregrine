@@ -12,7 +12,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -52,7 +51,7 @@ int GetMemUsageMiB() {
 
 Display::Display(const PeregrineIntegration& integration, std::ostream& output)
     : integration_(integration), output_(output) {
-  if (absl::GetFlag(FLAGS_enable_ncurses)) {
+  if (integration_.flags().enable_ncurses) {
     if (absl::StatusOr<std::unique_ptr<NCurses>> ncurses = NCurses::Create();
         ncurses.ok()) {
       ncurses_ = std::move(ncurses).value();
@@ -108,13 +107,13 @@ void Display::PrintSummary() const {
 
 std::string Display::genProgress(absl::Time time) const {
   const absl::Duration elapsed = time - integration_.settings().test_begin;
-  CHECK_GE(integration_.settings().test_duration, absl::Seconds(1));
+  CHECK_GE(integration_.flags().test_duration, absl::Seconds(1));
   const auto p = std::min<uint64_t>(
-      100U, 100U * elapsed / integration_.settings().test_duration);
+      100U, 100U * elapsed / integration_.flags().test_duration);
   return absl::StrFormat(
       "Testing in progress %s (%d%%) for %s run using %d MiB memory\n",
       absl::FormatDuration(absl::Trunc(elapsed, absl::Milliseconds(1))), p,
-      absl::FormatDuration(integration_.settings().test_duration),
+      absl::FormatDuration(integration_.flags().test_duration),
       GetMemUsageMiB());
 }
 

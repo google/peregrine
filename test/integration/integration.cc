@@ -3,12 +3,12 @@
 #include <sys/socket.h>
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 
 #include "absl/flags/flag.h"
+#include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -32,11 +32,8 @@ std::string CreateEndpoint(int family) {
 }  // namespace
 
 PeregrineIntegration::PeregrineIntegration() {
-  constexpr size_t kBufSize = 1024 * 1024;  // 1 MB
-
+  flags_ = ReadFlags();
   settings_.test_begin = absl::Now();
-  settings_.test_duration =
-      std::max(absl::Seconds(1), absl::GetFlag(FLAGS_test_duration));
 
   const std::string sndr_ctrl = CreateEndpoint(AF_INET);
   const std::string sndr_data = CreateEndpoint(AF_INET);
@@ -49,9 +46,11 @@ PeregrineIntegration::PeregrineIntegration() {
       "Receiver Control Path", rcvr_ctrl, "", "gRPC", "LISTENING");
 
   datapath_sndr_ = std::make_unique<DatapathHost>(
-      "Sender Data Path", sndr_ctrl, sndr_data, rcvr_ctrl, rcvr_data, kBufSize);
+      "Sender Data Path", sndr_ctrl, sndr_data, rcvr_ctrl, rcvr_data,
+      flags_.buffer_size, flags_.conns_per_peer);
   datapath_rcvr_ = std::make_unique<DatapathHost>(
-      "Receiver Data Path", rcvr_ctrl, rcvr_data, "", "", kBufSize);
+      "Receiver Data Path", rcvr_ctrl, rcvr_data, "", "", flags_.buffer_size,
+      flags_.conns_per_peer);
 }
 
 PeregrineIntegration::Stats PeregrineIntegration::GetStats() const {
@@ -69,7 +68,7 @@ PeregrineIntegration::Stats PeregrineIntegration::GetStats() const {
 
 bool PeregrineIntegration::shouldContinue() const {
   return !stop_.load() &&
-         absl::Now() < settings_.test_begin + settings_.test_duration;
+         absl::Now() < settings_.test_begin + flags_.test_duration;
 }
 
 void PeregrineIntegration::Run() {
@@ -87,6 +86,15 @@ void PeregrineIntegration::sendRequest() {
       .raddr = datapath_rcvr_->DataPtr(),
       .len = datapath_sndr_->DataSize(),
   };
+
+  if (flags_.verify_data) {
+    if (req.op == Op::kWrite) {
+      datapath_rcvr_->ClearData();
+    } else {
+      datapath_sndr_->ClearData();
+    }
+  }
+
   const absl::StatusOr<Handle> handle_or =
       datapath_sndr_->Post(controlpath_rcvr_->endpoint(), {req});
   if (!handle_or.ok()) {
@@ -104,9 +112,14 @@ void PeregrineIntegration::sendRequest() {
       if (s == Status::kSuccess) {
         datapath_sndr_->IncrementTransfers(datapath_sndr_->DataSize());
         datapath_rcvr_->IncrementTransfers(datapath_sndr_->DataSize());
+        if (flags_.verify_data) {
+          CHECK(datapath_sndr_->Data() == datapath_rcvr_->Data())
+              << "Data integrity verification failed!";
+        }
       }
       break;
     }
+
     absl::SleepFor(absl::Microseconds(50));
   }
 }

@@ -18,7 +18,8 @@ namespace peregrine::integration {
 DatapathHost::DatapathHost(absl::string_view name, absl::string_view control_ep,
                            absl::string_view data_ep,
                            absl::string_view peer_control_ep,
-                           absl::string_view peer_data_ep, size_t buf_size)
+                           absl::string_view peer_data_ep, size_t buf_size,
+                           int num_conns)
     : name_(name),
       control_endpoint_(control_ep),
       data_endpoint_(data_ep),
@@ -27,7 +28,7 @@ DatapathHost::DatapathHost(absl::string_view name, absl::string_view control_ep,
       status_("ACTIVE"),
       data_(buf_size),
       transport_(CreateTransport(absl::StrCat(control_ep, ",", data_ep),
-                                 /*num_conns_per_peer=*/1)) {
+                                 num_conns)) {
   DCHECK_GT(buf_size, 0);
   CHECK_NE(transport_, nullptr);
 }

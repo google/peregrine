@@ -83,17 +83,31 @@ class NCurses final {
   }
 
  private:
-  WINDOW* stdscr_ = nullptr;
-  WINDOW* title_ = nullptr;
-  WINDOW* hsplit_ = nullptr;
-  WINDOW* cvsplit_ = nullptr;
-  WINDOW* dvsplit_ = nullptr;
-  WINDOW* stats_ = nullptr;
-  WINDOW* progress_ = nullptr;
-  WINDOW* scp_ = nullptr;
-  WINDOW* rcp_ = nullptr;
-  WINDOW* sdp_ = nullptr;
-  WINDOW* rdp_ = nullptr;
+  // Visual layout of the NCurses UI:
+  // +------------------------------------------------------------+
+  // |                          Title                             |
+  // +------------------------------------------------------------+
+  // |  [scp_]                      |                     [rcp_]  |
+  // |  Sender Control Path     [cvsplit_]  Receiver Control Path |
+  // |                              |                             |
+  // +--------------------------[hsplit_]-------------------------+
+  // |  [sdp_]                      |                     [rdp_]  |
+  // |  Sender Data Path        [dvsplit_]   Receiver Data Path   |
+  // |                              |                             |
+  // +------------------------------------------------------------+
+  // |  [stats_]                    |                [progress_]  |
+  // +------------------------------------------------------------+
+  WINDOW* stdscr_ = nullptr;    // Standard screen (main window)
+  WINDOW* title_ = nullptr;     // Title bar window
+  WINDOW* hsplit_ = nullptr;    // Horizontal splitter (control vs data)
+  WINDOW* cvsplit_ = nullptr;   // Vertical splitter for controlpath
+  WINDOW* dvsplit_ = nullptr;   // Vertical splitter for datapath
+  WINDOW* stats_ = nullptr;     // Statistics window
+  WINDOW* progress_ = nullptr;  // Progress window
+  WINDOW* scp_ = nullptr;       // Sender Control Path window
+  WINDOW* rcp_ = nullptr;       // Receiver Control Path window
+  WINDOW* sdp_ = nullptr;       // Sender Data Path window
+  WINDOW* rdp_ = nullptr;       // Receiver Data Path window
 
   absl::flat_hash_map<std::pair<NCursesWindow, int>, WINDOW*> windows_;
 };

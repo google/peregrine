@@ -7,6 +7,7 @@
 
 #include "test/integration/controlpath-host.h"
 #include "test/integration/datapath-host.h"
+#include "test/integration/flags.h"
 #include "test/integration/settings.h"
 
 namespace peregrine::integration {
@@ -27,6 +28,7 @@ class PeregrineIntegration final {
 
   Stats GetStats() const;
   const Settings& settings() const { return settings_; }
+  const Flags& flags() const { return flags_; }
 
   ControlpathHost* controlpath_sndr() const { return controlpath_sndr_.get(); }
   ControlpathHost* controlpath_rcvr() const { return controlpath_rcvr_.get(); }
@@ -39,6 +41,7 @@ class PeregrineIntegration final {
 
  private:
   Settings settings_;
+  Flags flags_;
   std::atomic<bool> stop_{false};
 
   std::unique_ptr<ControlpathHost> controlpath_sndr_;
