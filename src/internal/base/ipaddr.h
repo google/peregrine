@@ -77,6 +77,9 @@ class IpAddr final {
   // Returns the ipv6 address.
   const ipv6_t& IPv6Addr() const { return std::get<ipv6_t>(ipaddr_); }
 
+  // Returns true iff the ip address is zero (i.e., "0.0.0.0" or "::").
+  bool IsZero() const;
+
   // Equality operator.
   friend bool operator==(const IpAddr& a, const IpAddr& b);
 

@@ -61,6 +61,18 @@ void TcpSocket::Shutdown() {
   DCHECK(invariant());
 }
 
+bool TcpSocket::Bind(const Endpoint& local) const {
+  DCHECK(invariant());
+  if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
+    const auto last_errno = errno;
+    LOG(WARNING) << errMsg("bind", last_errno);
+    return false;
+  } else {
+    LOG(INFO) << okMsg("bound");
+    return true;
+  }
+}
+
 bool TcpSocket::Listen(const Endpoint& local) const {
   DCHECK(invariant());
 

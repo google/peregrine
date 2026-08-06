@@ -124,6 +124,8 @@ TEST_F(TcpIPv6SocketTest, BigData) {
   // Second, create a client thread.
   std::thread client([&]() {
     server_ready.WaitForNotification();
+    const Endpoint local_ip(local_.GetIpAddr(), 0);
+    CHECK(connector_->Bind(local_ip));
     CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());

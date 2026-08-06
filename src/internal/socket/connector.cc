@@ -15,12 +15,18 @@ namespace {
 constexpr std::string_view kConnector = "tcp connector ";
 }  // namespace
 
-std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer) {
+std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
+                                                const Endpoint& local) {
+  DCHECK(!peer.HasZeroIpAddr());
   DCHECK(peer.IsValid());
 
   const int family = peer.GetIpAddr().AddressFamily();
   std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family);
   if ABSL_PREDICT_FALSE (socket == nullptr) {
+    return nullptr;
+  }
+
+  if (!local.HasZeroIpAddr() && !socket->Bind(local)) {
     return nullptr;
   }
 

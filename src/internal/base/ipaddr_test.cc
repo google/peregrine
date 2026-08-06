@@ -42,17 +42,25 @@ TEST(IPv6AddrTest, ParseIPv6Addr) {
 TEST(IPv4AddrTest, ToString) {
   const ipv4_t a{.s_addr = htonl(INADDR_ANY)};
   EXPECT_EQ(ToIPv4String(a), "0.0.0.0");
+  const IpAddr aa(a);
+  EXPECT_TRUE(aa.IsZero());
 
   const ipv4_t b{.s_addr = htonl(INADDR_LOOPBACK)};
   EXPECT_EQ(ToIPv4String(b), "127.0.0.1");
+  const IpAddr bb(b);
+  EXPECT_FALSE(bb.IsZero());
 }
 
 TEST(IPv6AddrTest, ToString) {
   const ipv6_t a = IN6ADDR_ANY_INIT;
   EXPECT_EQ(ToIPv6String(a), "::");
+  const IpAddr aa(a);
+  EXPECT_TRUE(aa.IsZero());
 
   const ipv6_t b = IN6ADDR_LOOPBACK_INIT;
   EXPECT_EQ(ToIPv6String(b), "::1");
+  const IpAddr bb(b);
+  EXPECT_FALSE(bb.IsZero());
 }
 
 TEST(IpAddrTest, IPv4) {

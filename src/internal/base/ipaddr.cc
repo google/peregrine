@@ -28,6 +28,15 @@ std::string NtopErrorMsg(int last_errno) {
 }
 }  // namespace
 
+bool IpAddr::IsZero() const {
+  if (IsIPv4()) {
+    return IPv4Addr().s_addr == 0;
+  } else {
+    DCHECK(IsIPv6());
+    return IN6_IS_ADDR_UNSPECIFIED(&IPv6Addr());
+  }
+}
+
 std::optional<ipv4_t> ParseIPv4Addr(std::string_view ip) {
   ipv4_t addr;
   switch (inet_pton(AF_INET, std::string(ip).c_str(), &addr)) {

@@ -23,6 +23,7 @@ class TcpConnectorTest : public ::testing::Test {
  protected:
   TcpConnectorTest()
       : local_(TestOnly_LocalEndpoint(kFamily, /*tcp=*/true)),
+        local_ip_(local_.GetIpAddr(), /*port=*/0),
         peer_(local_),
         acceptor_(TcpAcceptor::Create(local_)) {
     CHECK_EQ(local_, peer_);
@@ -38,6 +39,7 @@ class TcpConnectorTest : public ::testing::Test {
 
  protected:
   const Endpoint local_;
+  const Endpoint local_ip_;
   const Endpoint peer_;
   std::unique_ptr<TcpAcceptor> acceptor_;
 };
@@ -63,9 +65,9 @@ TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
   acceptor_->Stop();
 }
 
-TEST_F(TcpConnectorTestIPv6, ConnectBeforeAccept) {
+TEST_F(TcpConnectorTestIPv6, BindConnectBeforeAccept) {
   std::jthread tc([&]() {
-    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_);
+    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_, local_ip_);
     CHECK_NE(socket, nullptr);
     DCHECK(socket->IsBlocking());
     DCHECK(socket->IsConnected());

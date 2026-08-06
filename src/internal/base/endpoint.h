@@ -26,7 +26,10 @@ class Endpoint final {
   static Endpoint Create(std::string_view ipaddr_port);
 
   // Default constructor creates an invalid endpoint.
-  Endpoint() : ipaddr_(), port_(0) { DCHECK(!IsValid()); }
+  Endpoint() : ipaddr_(), port_(0) {
+    DCHECK(HasZeroIpAddr());
+    DCHECK(!IsValid());
+  }
 
   // Constructor for ipv4.
   Endpoint(ipv4_t ip4, port_t port) : ipaddr_(ip4), port_(port) {}
@@ -43,6 +46,9 @@ class Endpoint final {
 
   // Destructor.
   ~Endpoint() = default;
+
+  // Returns true iff the endpoint ip address is zero ("0.0.0.0" or "::").
+  bool HasZeroIpAddr() const { return ipaddr_.IsZero(); }
 
   // Returns true iff the endpoint is valid.
   bool IsValid() const {

@@ -38,6 +38,9 @@ class TcpSocket final : public SocketBase {
   // Shuts down the socket for both send and recv.
   void Shutdown();
 
+  // Binds to the `local` endpoint.
+  bool Bind(const Endpoint& local) const;
+
   // Listens on the `local` endpoint.
   bool Listen(const Endpoint& local) const;
 
