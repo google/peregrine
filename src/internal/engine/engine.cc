@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <string_view>
 #include <thread>  // NOLINT
@@ -170,16 +171,26 @@ void Engine::process(const Entry& entry) {
 
 namespace {
 uint32_t CalcChunkSize(const size_t len, const uint32_t num_chunks) {
-  return static_cast<uint32_t>((len + num_chunks - 1) / num_chunks);
+  DCHECK_GT(num_chunks, 0);
+  const size_t size = (len - 1) / num_chunks + 1;
+  if (size > std::numeric_limits<uint32_t>::max()) {
+    return std::numeric_limits<uint32_t>::max();
+  }
+  return static_cast<uint32_t>(size);
 }
 }  // namespace
 
 void Engine::processWrite(Workers& workers, const Handle handle,
                           const ReqId reqid, const Request& request) {
   const size_t len = request.len;
-  const uint32_t nchunks = std::min(workers.size(), len);
+  if (workers.empty() || len == 0) {
+    return;
+  }
+  uint32_t nchunks = std::min(workers.size(), len);
   const uint32_t size = CalcChunkSize(len, nchunks);
   DCHECK_GE(size, 1);
+  // Re-adjust nchunks to the actual number of chunks that will be produced:
+  nchunks = static_cast<uint32_t>((len - 1) / size + 1);
   uint64_t offset = 0;
   for (int i = 0; i < nchunks && offset < len; ++i, offset += size) {
     const Byte* const chunk_src_addr = request.laddr + offset;
@@ -192,7 +203,7 @@ void Engine::processWrite(Workers& workers, const Handle handle,
         .addr = addr_t(reinterpret_cast<uintptr_t>(chunk_dst_addr)),
         .size = i < nchunks - 1 ? size : static_cast<uint32_t>(len - offset),
     };
-    workers[i]->EnqueueChunk(chunk_src_addr, chunk);
+    workers[i % workers.size()]->EnqueueChunk(chunk_src_addr, chunk);
   }
 }
 
