@@ -113,12 +113,14 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
 
   // Step 4: process ack chunk.
   if (chunk.IsAck()) {
+    static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
     tracker->Set(chunk.index);
     return true;
   }
 
   // Step 5: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
+  static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
   const size_t size = chunk.size;
   const ChunkStatus s = tracker->Acquire(index);
@@ -180,12 +182,14 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
 
   // Step 5: process ack chunk.
   if (chunk.IsAck()) {
+    static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
     tracker->Set(chunk.index);
     return true;
   }
 
   // Step 6: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
+  static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
   switch (tracker->Acquire(index)) {
     case ChunkStatus::kEmpty:

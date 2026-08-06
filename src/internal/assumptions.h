@@ -40,7 +40,7 @@ inline constexpr bool kAbslHashIsStableOnlyInOneProcessInvocation = true;
 inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
 
 // When sent over network, both the chunk metadata and payload are encrypted by
-// layer-3 protocols (e.g., PSP (https://github.com/google/psp). The encryption
+// layer-3 protocols (e.g., PSP https://github.com/google/psp). The encryption
 // is transparent to the transport layer.
 //
 // Therefore, it is ok to store the destination memory address of chunk data
@@ -79,6 +79,18 @@ inline constexpr bool kChunkMetadataSerializesToFixedSizeFlatBufString = true;
 // is extremely low. On the other hand, multiple writer threads can write
 // different chunks at the same time.
 inline constexpr bool kReceiverSideChunkWriteContentionIsVeryLow = true;
+
+// The non zero-copy TCP send call returns immediately after the data is copied
+// to the local kernel buffer, not after the data has been received by the
+// remote peer. Therefore we use the ack chunk from the receiver to signal the
+// chunk write completion. In comparison, zero-copy TCP send returns after the
+// data has been received by the remote peer, subject to that the send buffer
+// must be pinned in memory until the TCP acks all the sent packets.
+//
+// This assumption shows read and write are handled differently. For read, the
+// receiver knows immediately when the data is received locally. For write, the
+// sender needs to know after the data is received by the peer remotely.
+inline constexpr bool kUseAckChunkToSignalChunkWriteCompletion = true;
 
 // Assumptions about control/data plane.
 // ---------------------------------------------------------------------------
