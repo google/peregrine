@@ -11,6 +11,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/channel/channel.h"
+#include "src/internal/channel/channel_types.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/transfer/transfer.h"
@@ -78,8 +79,14 @@ void Worker::SendLoop() {
     DCHECK(chunk.IsValid());
     const auto payload = entry.GenPayload();
     if (!Transfer::SendChunk(channel_.get(), chunk, payload)) {
+      if (IsMessageChannel(channel_->Type())) {
+        absl::MutexLock _(mu_);
+        if (!stop_) continue;
+        LOG(INFO) << "send loop stopped";
+        return;
+      }
       // TODO(yongx): Handle errors.
-      log("send chunk failed");
+      LOG(WARNING) << "send chunk failed";
       break;
     }
   }
@@ -96,8 +103,14 @@ void Worker::RecvLoop() {
       }
     }
     if (!Transfer::RecvChunk(channel_.get(), outgoing_, incoming_)) {
+      if (IsMessageChannel(channel_->Type())) {
+        absl::MutexLock _(mu_);
+        if (!stop_) continue;
+        LOG(INFO) << "recv loop stopped";
+        return;
+      }
       // TODO(yongx): Handle errors.
-      log("recv chunk failed");
+      LOG(WARNING) << "recv chunk failed";
       break;
     }
   }

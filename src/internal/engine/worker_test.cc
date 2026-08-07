@@ -5,7 +5,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <thread>  // NOLINT
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -13,6 +15,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/random/random.h"
+#include "absl/strings/str_format.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -33,6 +36,8 @@ namespace {
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
+using ::testing::TestParamInfo;
+using ::testing::Values;
 
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
@@ -43,14 +48,33 @@ constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
 static_assert(kBufSize % kNumChunks != 0);
 
-class WorkerTest : public ::testing::Test {
+using Param = std::tuple<TestChannelType, /*family=*/int, /*error_rate=*/int>;
+
+std::string FamilyToString(const int family) {
+  if (family == AF_INET) return "IPv4";
+  if (family == AF_INET6) return "IPv6";
+  return "None";
+}
+
+std::string ToString(const TestParamInfo<Param>& info) {
+  const TestChannelType type = std::get<0>(info.param);
+  const int family = std::get<1>(info.param);
+  const int error_rate = std::get<2>(info.param);
+  return absl::StrFormat("%s_%s_ErrorRate_%d", ToString(type),
+                         FamilyToString(family), error_rate);
+}
+
+class WorkerTest : public ::testing::TestWithParam<Param> {
  protected:
   WorkerTest()
-      : src_(kBufSize),
+      : type_(std::get<0>(GetParam())),
+        family_(std::get<1>(GetParam())),
+        error_rate_(std::get<2>(GetParam())),
+        src_(kBufSize),
         dst_(kBufSize),
-        chs_(CreateTcpChannelPair(AF_INET6)),
-        s_(TestOnly_LocalHostInfo(AF_INET6, /*tcp=*/true)),
-        r_(TestOnly_LocalHostInfo(AF_INET6, /*tcp=*/true)),
+        chs_(CreateTestChannelPair(type_, family_, error_rate_)),
+        s_(TestOnly_LocalHostInfo(family_ ?: AF_INET, /*tcp=*/true)),
+        r_(TestOnly_LocalHostInfo(family_ ?: AF_INET, /*tcp=*/true)),
         sndr_(5, s_, std::move(chs_.sndr)),
         rcvr_(0, r_, std::move(chs_.rcvr)) {
     for (int i = 0; i < kBufSize; ++i) {
@@ -91,6 +115,9 @@ class WorkerTest : public ::testing::Test {
   };
 
  protected:
+  const TestChannelType type_;
+  const int family_;
+  const int error_rate_;
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
@@ -101,7 +128,19 @@ class WorkerTest : public ::testing::Test {
   Host rcvr_;
 };
 
-TEST_F(WorkerTest, SendRecv) {
+INSTANTIATE_TEST_SUITE_P(
+    , WorkerTest,
+    Values(Param{TestChannelType::kTcp, AF_INET, /*error_rate=*/0},
+           Param{TestChannelType::kTcp, AF_INET6, /*error_rate=*/0},
+           Param{TestChannelType::kUdp, AF_INET, /*error_rate=*/0},
+           Param{TestChannelType::kUdp, AF_INET6, /*error_rate=*/0},
+           Param{TestChannelType::kMemStream, /*family=*/0, /*error_rate=*/0},
+           Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/0},
+           Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/10},
+           Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/30}),
+    ToString);
+
+TEST_P(WorkerTest, SendRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
@@ -109,6 +148,7 @@ TEST_F(WorkerTest, SendRecv) {
   std::jthread s([&]() {
     while (sndr_.outgoing.Check(kHandle) != Status::kSuccess) {
       for (int i = 0; i < kNumChunks; ++i) {
+        if (sndr_.outgoing.Check(kHandle) == Status::kSuccess) break;
         const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
         const Byte* const chunk_src_addr = src_.data() + offset;
         sndr_.worker.EnqueueChunk(chunk_src_addr, GenChunk(i));
