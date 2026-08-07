@@ -17,8 +17,7 @@ constexpr std::string_view kConnector = "tcp connector ";
 
 std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
                                                 const Endpoint& local) {
-  DCHECK(!peer.HasZeroIpAddr());
-  DCHECK(peer.IsValid());
+  DCHECK(peer.HasNonzeroIpPort());
 
   const int family = peer.GetIpAddr().AddressFamily();
   std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family);

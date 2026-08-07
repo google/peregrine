@@ -8,12 +8,12 @@ namespace peregrine::internal::testing {
 namespace {
 
 TEST(HostInfoTest, IsValid) {
-  const Endpoint c = Endpoint::Create("0.0.0.0:10000");
+  const Endpoint c = Endpoint::Create("10.0.0.1:10000");
   const Endpoint d0 = Endpoint::Create("10.0.0.1:35247");
   const Endpoint d1 = Endpoint::Create("10.0.0.2:51691");
-  ASSERT_TRUE(c.IsValid());
-  ASSERT_TRUE(d0.IsValid());
-  ASSERT_TRUE(d1.IsValid());
+  ASSERT_TRUE(c.HasNonzeroIpPort());
+  ASSERT_TRUE(d0.HasNonzeroIpPort());
+  ASSERT_TRUE(d1.HasNonzeroIpPort());
 
   const HostInfo host = {.control_plane_listener = c,
                          .data_plane_listeners = {d0, d1}};

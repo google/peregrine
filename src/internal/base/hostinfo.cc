@@ -13,11 +13,12 @@
 namespace peregrine::internal {
 
 bool HostInfo::IsValid() const {
-  const bool control_plane_listener_valid = control_plane_listener.IsValid();
+  const bool control_plane_listener_valid =
+      control_plane_listener.HasNonzeroIpPort();
 
   const bool data_plane_listeners_empty_or_valid =
       std::all_of(data_plane_listeners.begin(), data_plane_listeners.end(),
-                  [](const Endpoint& e) { return e.IsValid(); });
+                  [](const Endpoint& e) { return e.HasNonzeroIpPort(); });
 
   absl::flat_hash_set<Endpoint> es = {control_plane_listener};
   es.insert(data_plane_listeners.begin(), data_plane_listeners.end());
@@ -37,7 +38,7 @@ HostInfo HostInfo::Create(std::string_view ipaddr_port_pairs) {
                                     absl::SkipEmpty());
   for (const auto ipaddr_port : parts) {
     const Endpoint e = Endpoint::Create(ipaddr_port);
-    if (!e.IsValid()) return invalid;
+    if (!e.HasNonzeroIpPort()) return invalid;
     if (i++ == 0) {
       host.control_plane_listener = e;
     } else {

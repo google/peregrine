@@ -25,7 +25,7 @@ TEST(MessageTest, RequestOp) {
 }
 
 TEST(MessageTest, Serialization) {
-  const Endpoint c = Endpoint::Create("0.0.0.0:10000");
+  const Endpoint c = Endpoint::Create("10.0.0.1:10000");
   const Endpoint d0 = Endpoint::Create("10.0.0.1:35247");
   const Endpoint d1 = Endpoint::Create("10.0.0.2:51691");
   const HostInfo host = {.control_plane_listener = c,

@@ -22,8 +22,6 @@ constexpr std::string_view kAcceptor = "tcp acceptor ";
 }  // namespace
 
 std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(const Endpoint& local) {
-  DCHECK(local.IsValid());
-
   const int family = local.GetIpAddr().AddressFamily();
   std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family);
   if ABSL_PREDICT_FALSE (socket == nullptr) {

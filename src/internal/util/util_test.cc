@@ -17,11 +17,11 @@ TEST(UtilTest, IsPowerOfTwo) {
 }
 
 TEST(UtilTest, IsValid) {
-  void* nonnull = reinterpret_cast<void*>(0xffff);
-  ASSERT_NE(nonnull, nullptr);
+  void* non_null = reinterpret_cast<void*>(0xffff);
+  ASSERT_NE(non_null, nullptr);
 
-  EXPECT_TRUE(IsValid({.iov_base = nonnull, .iov_len = 1}));
-  EXPECT_FALSE(IsValid({.iov_base = nonnull, .iov_len = 0}));
+  EXPECT_TRUE(IsValid({.iov_base = non_null, .iov_len = 1}));
+  EXPECT_FALSE(IsValid({.iov_base = non_null, .iov_len = 0}));
   EXPECT_FALSE(IsValid({.iov_base = nullptr, .iov_len = 0}));
   EXPECT_FALSE(IsValid({.iov_base = nullptr, .iov_len = 1}));
 }

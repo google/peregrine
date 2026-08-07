@@ -56,7 +56,7 @@ class App final {
   // Sets all the data to zero.
   void ClearData() { std::fill(data_.begin(), data_.end(), 0); }
 
-  // Sets all the data to non-zero random values.
+  // Sets all the data to nonzero random values.
   void GenData() { RandomNonZero(absl::MakeSpan(data_)); }
 
  private:

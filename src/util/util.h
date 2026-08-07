@@ -28,10 +28,10 @@ inline bool Toss(absl::BitGenRef bitgen) {
   return Random<uint8_t>(bitgen, 0, 1) == 0;
 }
 
-// Generates random non-zero bytes.
+// Generates random nonzero bytes.
 void RandomNonZero(absl::Span<Byte> data);
 
-// Generates random non-zero bytes.
+// Generates random nonzero bytes.
 void RandomNonZero(absl::BitGenRef bitgen, absl::Span<Byte> data);
 
 // Calculates the XXH3 hash for the data.

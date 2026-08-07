@@ -17,7 +17,7 @@ namespace peregrine::internal {
 absl::StatusOr<Handle> TransportImpl::Post(std::string_view peer,
                                            absl::Span<const Request> requests) {
   const Endpoint endpoint = Endpoint::Create(peer);
-  if ABSL_PREDICT_FALSE (!endpoint.IsValid()) {
+  if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError(
         absl::StrCat("Invalid peer endpoint ", peer));
   }

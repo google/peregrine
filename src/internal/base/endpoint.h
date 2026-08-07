@@ -28,7 +28,7 @@ class Endpoint final {
   // Default constructor creates an invalid endpoint.
   Endpoint() : ipaddr_(), port_(0) {
     DCHECK(HasZeroIpAddr());
-    DCHECK(!IsValid());
+    DCHECK(HasZeroPort());
   }
 
   // Constructor for ipv4.
@@ -50,11 +50,11 @@ class Endpoint final {
   // Returns true iff the endpoint ip address is zero ("0.0.0.0" or "::").
   bool HasZeroIpAddr() const { return ipaddr_.IsZero(); }
 
-  // Returns true iff the endpoint is valid.
-  bool IsValid() const {
-    DCHECK(0 <= port_ && port_ <= 65535);
-    return 1 <= port_;  // [1, 65535]
-  }
+  // Returns true iff the endpoint port is zero.
+  bool HasZeroPort() const { return port_ == 0; }
+
+  // Returns true iff the endpoint ip address and port are both nonzero.
+  bool HasNonzeroIpPort() const { return port_ != 0 && !ipaddr_.IsZero(); }
 
   // Returns the ip address of the endpoint.
   const IpAddr& GetIpAddr() const { return ipaddr_; };

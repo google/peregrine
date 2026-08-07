@@ -12,7 +12,7 @@
 namespace peregrine::internal {
 
 Channels Create(const Endpoint& peer, const int n) {
-  DCHECK(peer.IsValid());
+  DCHECK(peer.HasNonzeroIpPort());
   DCHECK_GE(n, 1);
 
   Channels chs;

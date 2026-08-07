@@ -20,17 +20,20 @@ TEST(EndpointTest, Create) {
   EXPECT_EQ(Endpoint::Create("127.0.0.1:12345"), Endpoint(kIPv4, 12345));
   EXPECT_EQ(Endpoint::Create("[::1]:54321"), Endpoint(kIPv6, 54321));
 
-  EXPECT_FALSE(Endpoint::Create("?").IsValid());
-  EXPECT_FALSE(Endpoint::Create("::1").IsValid());
-  EXPECT_FALSE(Endpoint::Create("127.0.0.1:").IsValid());
+  EXPECT_FALSE(Endpoint::Create("?").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("::1").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("127.0.0.1:").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("10.0.0.1:0").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("10.0.0.1:-1").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("10.0.0.1:65536").HasNonzeroIpPort());
 }
 
 TEST(EndpointTest, Validity) {
-  EXPECT_FALSE(Endpoint().IsValid());
-  EXPECT_FALSE(Endpoint(kIPv4, 0).IsValid());
+  EXPECT_FALSE(Endpoint().HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint(kIPv4, 0).HasNonzeroIpPort());
 
   const Endpoint a(kIPv4, 23456);
-  EXPECT_TRUE(a.IsValid());
+  EXPECT_TRUE(a.HasNonzeroIpPort());
   LOG(INFO) << "endpoint = " << a;
 }
 

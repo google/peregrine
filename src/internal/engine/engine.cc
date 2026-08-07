@@ -104,7 +104,7 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
 
 absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
                                        absl::Span<const Request> requests) {
-  DCHECK(peer.IsValid());
+  DCHECK(peer.HasNonzeroIpPort());
   DCHECK(IsValid(requests));
 
   absl::MutexLock _(mu_);

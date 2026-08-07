@@ -13,7 +13,7 @@ namespace peregrine::internal {
 // It is thread-safe since it has no state.
 class TcpConnector {
  public:
-  // Connects to the `peer` endpoint. If `local` has non-zero ip address,
+  // Connects to the `peer` endpoint. If `local` has nonzero ip address,
   // binds to it before connecting. Returns a connected tcp socket if
   // successful. Otherwise, returns a null pointer.
   static std::unique_ptr<TcpSocket> Create(const Endpoint& peer,

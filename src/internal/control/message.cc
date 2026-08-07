@@ -75,7 +75,7 @@ bool Message::convert(const HostInfo& host, proto::HostInfo& proto) {
 bool Message::convert(const proto::HostInfo& proto, HostInfo& host) {
   const auto ip_port = proto.control_plane_listener().ip_port();
   const Endpoint c = Endpoint::Create(ip_port);
-  if (!c.IsValid()) {
+  if (!c.HasNonzeroIpPort()) {
     return false;
   }
 
@@ -83,7 +83,7 @@ bool Message::convert(const proto::HostInfo& proto, HostInfo& host) {
   ds.reserve(proto.data_plane_listeners_size());
   for (const auto& l : proto.data_plane_listeners()) {
     const Endpoint e = Endpoint::Create(l.ip_port());
-    if (!e.IsValid()) return false;
+    if (!e.HasNonzeroIpPort()) return false;
     ds.push_back(e);
   }
 
