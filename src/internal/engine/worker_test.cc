@@ -7,7 +7,6 @@
 #include <memory>
 #include <string>
 #include <thread>  // NOLINT
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -15,7 +14,6 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/random/random.h"
-#include "absl/strings/str_format.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -27,6 +25,7 @@
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
+#include "src/internal/util/test_param.h"
 #include "src/internal/util/test_util.h"
 #include "src/util/util.h"
 
@@ -48,28 +47,18 @@ constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
 static_assert(kBufSize % kNumChunks != 0);
 
-using Param = std::tuple<TestChannelType, /*family=*/int, /*error_rate=*/int>;
-
-std::string FamilyToString(const int family) {
-  if (family == AF_INET) return "IPv4";
-  if (family == AF_INET6) return "IPv6";
-  return "None";
-}
+using Param = TestChannelErrorParam;
 
 std::string ToString(const TestParamInfo<Param>& info) {
-  const TestChannelType type = std::get<0>(info.param);
-  const int family = std::get<1>(info.param);
-  const int error_rate = std::get<2>(info.param);
-  return absl::StrFormat("%s_%s_ErrorRate_%d", ToString(type),
-                         FamilyToString(family), error_rate);
+  return testing::ToString(info.param);
 }
 
 class WorkerTest : public ::testing::TestWithParam<Param> {
  protected:
   WorkerTest()
-      : type_(std::get<0>(GetParam())),
-        family_(std::get<1>(GetParam())),
-        error_rate_(std::get<2>(GetParam())),
+      : type_(GetParam().type),
+        family_(GetParam().family),
+        error_rate_(GetParam().error_rate),
         src_(kBufSize),
         dst_(kBufSize),
         chs_(CreateTestChannelPair(type_, family_, error_rate_)),

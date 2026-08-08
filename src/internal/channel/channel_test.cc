@@ -5,18 +5,17 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel_test_util.h"
+#include "src/internal/util/test_param.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -27,26 +26,16 @@ using ::testing::Ne;
 using ::testing::Pointwise;
 using ::testing::Values;
 
-using Param = std::tuple<TestChannelType, /*family=*/int, /*size=*/size_t>;
-
-std::string FamilyToString(const int family) {
-  if (family == AF_INET) return "IPv4";
-  if (family == AF_INET6) return "IPv6";
-  return "";
-}
+using Param = TestChannelSizeParam;
 
 std::string ToString(const ::testing::TestParamInfo<Param>& info) {
-  const TestChannelType type = std::get<0>(info.param);
-  const int family = std::get<1>(info.param);
-  const size_t size = std::get<2>(info.param);
-  return absl::StrFormat("%s_%s_Size_%zu", ToString(type),
-                         FamilyToString(family), size);
+  return testing::ToString(info.param);
 }
 
 class ChannelTest : public ::testing::TestWithParam<Param> {
  protected:
   ChannelTest()
-      : size_(std::get<2>(GetParam())),
+      : size_(GetParam().size),
         part_(size_ / 4),
         src_(size_),
         dst_(size_, 0) {
@@ -85,10 +74,8 @@ INSTANTIATE_TEST_SUITE_P(
     ToString);
 
 TEST_P(ChannelTest, ReadWrite) {
-  const auto param = GetParam();
-  const TestChannelType type = std::get<0>(param);
-  const int family = std::get<1>(param);
-  const auto chs = CreateTestChannelPair(type, family, /*error_rate=*/0);
+  const auto p = GetParam();
+  const auto chs = CreateTestChannelPair(p.type, p.family, /*error_rate=*/0);
   Channel* sndr = chs.sndr.get();
   Channel* rcvr = chs.rcvr.get();
 

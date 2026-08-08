@@ -55,6 +55,16 @@ cc_test(
 )
 
 cc_library(
+    name = "test_param",
+    testonly = True,
+    srcs = ["test_param.cc"],
+    hdrs = ["test_param.h"],
+    deps = [
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
     name = "test_util",
     testonly = True,
     srcs = ["test_util.cc"],

@@ -3,7 +3,6 @@
 #include <sys/socket.h>
 
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "absl/log/check.h"
@@ -12,21 +11,9 @@
 #include "src/internal/channel/channel_util.h"
 #include "src/internal/channel/pipe.h"
 #include "src/internal/socket/socket_test_util.h"
+#include "src/internal/util/test_param.h"
 
 namespace peregrine::internal::testing {
-
-std::string ToString(const TestChannelType t) {
-  switch (t) {
-    case TestChannelType::kTcp:
-      return "TcpChannel";
-    case TestChannelType::kUdp:
-      return "UdpChannel";
-    case TestChannelType::kMemStream:
-      return "MemStreamChannel";
-    case TestChannelType::kMemMsg:
-      return "MemMessageChannel";
-  }
-}
 
 ConnectedChannelPair CreateTcpChannelPair(const int family) {
   auto [sa, sb] = CreateTcpSocketPair(family);

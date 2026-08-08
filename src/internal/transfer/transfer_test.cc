@@ -8,7 +8,6 @@
 #include <memory>
 #include <string>
 #include <thread>  // NOLINT
-#include <tuple>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -16,7 +15,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
-#include "absl/strings/str_format.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
@@ -24,6 +22,7 @@
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
+#include "src/internal/util/test_param.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -44,20 +43,10 @@ constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
 static_assert(kBufSize % kNumChunks != 0);
 
-using Param = std::tuple<TestChannelType, /*family=*/int, /*error_rate=*/int>;
-
-std::string FamilyToString(const int family) {
-  if (family == AF_INET) return "IPv4";
-  if (family == AF_INET6) return "IPv6";
-  return "";
-}
+using Param = TestChannelErrorParam;
 
 std::string ToString(const TestParamInfo<Param>& info) {
-  const TestChannelType type = std::get<0>(info.param);
-  const int family = std::get<1>(info.param);
-  const int error_rate = std::get<2>(info.param);
-  return absl::StrFormat("%s_%s_ErrorRate_%d", ToString(type),
-                         FamilyToString(family), error_rate);
+  return testing::ToString(info.param);
 }
 
 class TransferTest : public ::testing::TestWithParam<Param> {
@@ -129,11 +118,8 @@ INSTANTIATE_TEST_SUITE_P(
     ToString);
 
 TEST_P(TransferTest, SendRecv) {
-  const auto param = GetParam();
-  const TestChannelType type = std::get<0>(param);
-  const int family = std::get<1>(param);
-  const int error_rate = std::get<2>(param);
-  const auto chs = CreateTestChannelPair(type, family, error_rate);
+  const auto p = GetParam();
+  const auto chs = CreateTestChannelPair(p.type, p.family, p.error_rate);
 
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));

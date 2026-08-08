@@ -69,6 +69,7 @@ cc_test(
         "//src/internal/channel:channel_test_util",
         "//src/internal/chunk",
         "//src/internal/request:request_tracker",
+        "//src/internal/util:test_param",
         "//src/internal/util:test_util",
         "//src/util",
         "@abseil-cpp//absl/log:check",

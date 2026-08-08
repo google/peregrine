@@ -31,6 +31,7 @@ cc_library(
         ":channel_util",
         ":pipe",
         "//src/internal/socket:socket_test_util",
+        "//src/internal/util:test_param",
         "@abseil-cpp//absl/log:check",
     ],
 )
@@ -138,6 +139,7 @@ cc_test(
         ":channel_test_util",
         "//src/api:transport_types",
         "//src/internal/base:types",
+        "//src/internal/util:test_param",
         "//src/util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

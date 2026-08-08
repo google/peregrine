@@ -4,21 +4,11 @@
 #include <sys/socket.h>
 
 #include <memory>
-#include <string>
 
 #include "src/internal/channel/channel.h"
+#include "src/internal/util/test_param.h"
 
 namespace peregrine::internal::testing {
-
-enum class TestChannelType {
-  kTcp,
-  kUdp,
-  kMemStream,
-  kMemMsg,
-};
-
-// Returns a string representation for the test channel type.
-std::string ToString(TestChannelType t);
 
 // A pair of connected channels.
 struct ConnectedChannelPair final {
