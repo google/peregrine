@@ -26,6 +26,7 @@ class TcpChannel final : public Channel {
   explicit TcpChannel(std::unique_ptr<TcpSocket> socket)
       : socket_(std::move(socket)) {
     DCHECK_NE(socket_, nullptr);
+    DCHECK(socket_->IsValid());
   }
 
   // Returns the channel type.

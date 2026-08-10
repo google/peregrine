@@ -5,10 +5,13 @@
 #include "absl/log/check.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/socket_util.h"
 
 namespace peregrine::internal {
 
 int SocketBase::Bind(const fd_t fd, const Endpoint& local) {
+  DCHECK(IsValidSocket(fd));
+
   if (local.IsIPv4()) {
     const struct sockaddr_in sa = local.BuildIPv4Sockaddr();
     return ::bind(fd.value(), (struct sockaddr*)&sa, sizeof(sa));
@@ -20,6 +23,9 @@ int SocketBase::Bind(const fd_t fd, const Endpoint& local) {
 }
 
 int SocketBase::Connect(const fd_t fd, const Endpoint& peer) {
+  DCHECK(IsValidSocket(fd));
+  DCHECK(peer.HasNonzeroIpPort());
+
   if (peer.IsIPv4()) {
     const struct sockaddr_in sa = peer.BuildIPv4Sockaddr();
     return ::connect(fd.value(), (struct sockaddr*)&sa, sizeof(sa));

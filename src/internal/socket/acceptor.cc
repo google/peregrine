@@ -38,6 +38,7 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(const Endpoint& local) {
 }
 
 void TcpAcceptor::Start(AcceptCallback accept) {
+  DCHECK(invariant());
   DCHECK_NE(accept, nullptr);
   LOG(INFO) << kAcceptor << "starting, " << *listener_;
 
@@ -60,8 +61,8 @@ void TcpAcceptor::Start(AcceptCallback accept) {
 }
 
 void TcpAcceptor::Stop() {
-  stop_.store(true, std::memory_order_relaxed);
   DCHECK(invariant());
+  stop_.store(true, std::memory_order_relaxed);
   listener_->Shutdown();  // unblocks Accept()
   LOG(INFO) << kAcceptor << "stopped, " << *listener_;
 }

@@ -26,6 +26,7 @@ class UdpChannel final : public Channel {
   explicit UdpChannel(std::unique_ptr<UdpSocket> socket)
       : socket_(std::move(socket)) {
     DCHECK_NE(socket_, nullptr);
+    DCHECK(socket_->IsValid());
   }
 
   // Returns the channel type.

@@ -169,42 +169,35 @@ void Engine::process(const Entry& entry) {
   }
 }
 
-namespace {
-uint32_t CalcChunkSize(const size_t len, const uint32_t num_chunks) {
-  DCHECK_GT(num_chunks, 0);
-  const size_t size = (len - 1) / num_chunks + 1;
-  if (size > std::numeric_limits<uint32_t>::max()) {
-    return std::numeric_limits<uint32_t>::max();
-  }
-  return static_cast<uint32_t>(size);
-}
-}  // namespace
-
 void Engine::processWrite(Workers& workers, const Handle handle,
                           const ReqId reqid, const Request& request) {
+  DCHECK(!workers.empty());
+  DCHECK(request.IsValid());
   const size_t len = request.len;
-  if (workers.empty() || len == 0) {
-    return;
-  }
-  uint32_t nchunks = std::min(workers.size(), len);
-  const uint32_t size = CalcChunkSize(len, nchunks);
-  DCHECK_GE(size, 1);
-  // Re-adjust nchunks to the actual number of chunks that will be produced:
-  nchunks = static_cast<uint32_t>((len - 1) / size + 1);
+  const uint32_t nchunks = std::min(workers.size(), len);
+  DCHECK_GE(nchunks, 1);
+  const size_t q = len / nchunks;
+  const size_t r = len % nchunks;
   uint64_t offset = 0;
-  for (int i = 0; i < nchunks && offset < len; ++i, offset += size) {
+  for (uint32_t i = 0; i < nchunks; ++i) {
     const Byte* const chunk_src_addr = request.laddr + offset;
     const Byte* const chunk_dst_addr = request.raddr + offset;
+    // TODO(yongx): add a queue for chunks if `n` is too big (>= 8 MiB).
+    const size_t n = i < r ? (q + 1) : q;
+    CHECK_LE(n, std::numeric_limits<uint32_t>::max());  // Crash OK for now
+    const uint32_t size = static_cast<uint32_t>(n);
+    offset += size;
     const ChunkMetadata chunk = {
         .handle = handle,
         .reqid = reqid,
         .nchunks = nchunks,
         .index = chunk_t(i),
         .addr = addr_t(reinterpret_cast<uintptr_t>(chunk_dst_addr)),
-        .size = i < nchunks - 1 ? size : static_cast<uint32_t>(len - offset),
+        .size = size,
     };
-    workers[i % workers.size()]->EnqueueChunk(chunk_src_addr, chunk);
+    workers[i]->EnqueueChunk(chunk_src_addr, chunk);
   }
+  DCHECK_EQ(offset, len);
 }
 
 void Engine::processRead(const Handle handle, const ReqId reqid,
