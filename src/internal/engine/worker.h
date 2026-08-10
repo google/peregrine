@@ -34,7 +34,7 @@ class Worker {
   ~Worker();
 
   // Enqueues a chunk to be sent later.
-  void EnqueueChunk(const Byte* chunk_src_addr, const ChunkMetadata& chunk)
+  void EnqueueChunk(const Byte* chunk_src_addr, const ChunkHeader& chunk)
       ABSL_LOCKS_EXCLUDED(mu_);
 
   // Runs a loop to send chunks until the destructor is called.
@@ -53,7 +53,7 @@ class Worker {
  private:
   struct Entry {
     const Byte* chunk_src_addr;
-    ChunkMetadata chunk;
+    ChunkHeader chunk;
 
     // Returns the chunk payload for sending.
     ChunkPayloadView GenPayload() const {

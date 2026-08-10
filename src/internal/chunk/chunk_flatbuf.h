@@ -13,34 +13,33 @@
 
 namespace peregrine::internal {
 
-// This utility class implements (de)serialization for `ChunkMetadata`.
+// This utility class implements (de)serialization for `ChunkHeader`.
 // It is thread-safe since it has no data members.
-class ChunkHeader final {
-  static_assert(assumptions::kChunkMetadataSerializesToFixedSizeFlatBufString);
+class ChunkUtil final {
+  static_assert(assumptions::kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf);
 
  public:
   // Note: change of this value will cause breaks!
   static constexpr size_t kSize = 64;
   static_assert(sizeof(flatbuf::ChunkHeader) == kSize);
 
-  // Serializes the chunk metadata to a fixed-size flatbuffer string.
-  static std::string Serialize(const ChunkMetadata& m) {
-    const std::string s = serializeV1(m);
+  // Serializes the chunk header to a fixed-size flatbuffer string.
+  static std::string Serialize(const ChunkHeader& chunk) {
+    const std::string s = serializeV1(chunk);
     DCHECK_EQ(s.size(), kSize);
     return s;
   }
 
-  // Parses the chunk metadata from its fixed-size flatbuffer serialization.
+  // Parses the chunk header from its fixed-size flatbuffer serialization.
   // Returns true iff the parsing is successful.
-  static bool Deserialize(std::string_view s, ChunkMetadata& chunk);
+  static bool Deserialize(std::string_view s, ChunkHeader& chunk);
 
  private:
-  // Serializes the chunk metadata to a fixed-size flatbuffer string.
-  static std::string serializeV1(const ChunkMetadata& m);
+  // Serializes the chunk header to a fixed-size flatbuffer string.
+  static std::string serializeV1(const ChunkHeader& chunk);
 
-  // Parses the chunk metadata from a flatbuffer struct.
-  static void deserializeV1(const flatbuf::ChunkHeader& h,
-                            ChunkMetadata& chunk);
+  // Parses the chunk header from a flatbuffer struct.
+  static void deserializeV1(const flatbuf::ChunkHeader& h, ChunkHeader& chunk);
 
  private:
   // Serializes the flatbuffer struct to a fixed-size string.

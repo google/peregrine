@@ -78,17 +78,17 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
     return i != kNumChunks - 1 ? kChunkSize : kLastChunkSize;
   }
 
-  ChunkMetadata GenChunk(uint32_t i) {
+  ChunkHeader GenChunkHeader(uint32_t i) {
     static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
     const uint64_t dst_buffer_addr(reinterpret_cast<uint64_t>(dst_.data()));
     const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
     const addr_t dst_chunk_addr(dst_buffer_addr + offset);
-    return ChunkMetadata{.handle = kHandle,
-                         .reqid = kReqId,
-                         .nchunks = kNumChunks,
-                         .index = chunk_t(i),
-                         .addr = dst_chunk_addr,
-                         .size = GetChunkSize(i)};
+    return ChunkHeader{.handle = kHandle,
+                       .reqid = kReqId,
+                       .nchunks = kNumChunks,
+                       .index = chunk_t(i),
+                       .addr = dst_chunk_addr,
+                       .size = GetChunkSize(i)};
   }
 
  private:
@@ -140,7 +140,7 @@ TEST_P(WorkerTest, SendRecv) {
         if (sndr_.outgoing.Check(kHandle) == Status::kSuccess) break;
         const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
         const Byte* const chunk_src_addr = src_.data() + offset;
-        sndr_.worker.EnqueueChunk(chunk_src_addr, GenChunk(i));
+        sndr_.worker.EnqueueChunk(chunk_src_addr, GenChunkHeader(i));
       }
       absl::SleepFor(absl::Milliseconds(100));
     }

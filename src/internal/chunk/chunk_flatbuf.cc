@@ -17,9 +17,9 @@
 
 namespace peregrine::internal {
 
-static_assert(assumptions::kChunkMetadataSerializesToFixedSizeFlatBufString);
+static_assert(assumptions::kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf);
 
-bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
+bool ChunkUtil::Deserialize(std::string_view s, ChunkHeader& chunk) {
   flatbuf::ChunkHeader h;
   DCHECK_EQ(sizeof(h), kSize);
   if (s.size() != sizeof(h)) {
@@ -32,7 +32,7 @@ bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
   }
 
   // NOTE: Do not remove any existing case. Only prepend new ones.
-  const uint8_t ver = h.ver();
+  const uint16_t ver = h.ver();
   switch (ver) {
     case 1:
       deserializeV1(h, chunk);
@@ -43,16 +43,17 @@ bool ChunkHeader::Deserialize(std::string_view s, ChunkMetadata& chunk) {
   }
 }
 
-std::string ChunkHeader::serializeV1(const ChunkMetadata& m) {
+std::string ChunkUtil::serializeV1(const ChunkHeader& chunk) {
   constexpr uint16_t kVer = 1;
-  const flatbuf::ChunkHeader h(kMagic, kVer, m.handle.value(), m.reqid.value(),
-                               m.nchunks, m.index.value(), m.size,
-                               m.addr.value(), /*paddings=*/0, 0, 0, 0);
+  const flatbuf::ChunkHeader h(kMagic, kVer, chunk.handle.value(),
+                               chunk.reqid.value(), chunk.nchunks,
+                               chunk.index.value(), chunk.size,
+                               chunk.addr.value(), /*paddings=*/0, 0, 0, 0);
   return serialize(h);
 }
 
-void ChunkHeader::deserializeV1(const flatbuf::ChunkHeader& h,
-                                ChunkMetadata& chunk) {
+void ChunkUtil::deserializeV1(const flatbuf::ChunkHeader& h,
+                              ChunkHeader& chunk) {
   DCHECK_EQ(h.ver(), 1);
   chunk.handle = Handle(h.handle());
   chunk.reqid = ReqId(h.reqid());
@@ -62,12 +63,12 @@ void ChunkHeader::deserializeV1(const flatbuf::ChunkHeader& h,
   chunk.size = h.size();
 }
 
-std::string ChunkHeader::serialize(const flatbuf::ChunkHeader& h) {
+std::string ChunkUtil::serialize(const flatbuf::ChunkHeader& h) {
   flatbuffers::FlatBufferBuilder builder(sizeof(h) * 2);
   builder.Align(8);
   builder.PushBytes(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
 
-  const uint8_t* buf = builder.GetCurrentBufferPointer();
+  const uint8_t* const buf = builder.GetCurrentBufferPointer();
   const size_t size = builder.GetSize();
   DCHECK_EQ(size, kSize);
   return std::string(reinterpret_cast<const char*>(buf), size);

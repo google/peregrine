@@ -64,9 +64,9 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     return i != kNumChunks - 1 ? kChunkSize : kLastChunkSize;
   }
 
-  ChunkMetadata GenChunk(uint32_t i) {
+  ChunkHeader GenChunkHeader(uint32_t i) {
     DCHECK_LT(i, kNumChunks);
-    return ChunkMetadata{
+    return ChunkHeader{
         .handle = kHandle,
         .reqid = kReqId,
         .nchunks = kNumChunks,
@@ -130,7 +130,7 @@ TEST_P(TransferTest, SendRecv) {
     while (!IsSendDone()) {
       for (uint32_t i = 0; i < kNumChunks; ++i) {
         if (IsSendDone()) break;
-        const ChunkMetadata chunk = GenChunk(i);
+        const ChunkHeader chunk = GenChunkHeader(i);
         const ChunkPayloadView payload = GenPayload(i);
         CHECK(Transfer::SendChunk(channel, chunk, payload));
       }

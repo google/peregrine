@@ -20,32 +20,32 @@ class Transfer final {
   static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 
  public:
-  // Sends chunk metadata and payload to the channel.
-  static bool SendChunk(Channel* channel, const ChunkMetadata& chunk,
+  // Sends chunk header and payload to the channel.
+  static bool SendChunk(Channel* channel, const ChunkHeader& chunk,
                         ChunkPayloadView payload);
 
-  // Receives chunk metadata and payload from the channel.
+  // Receives chunk header and payload from the channel.
   static bool RecvChunk(Channel* channel, RequestTracker& outgoing,
                         RequestTracker& incoming);
 
  private:
-  // Deserializes chunk metadata and returns true iff the chunk is valid.
-  static bool deserialize(Byte* header, ChunkMetadata& chunk);
+  // Deserializes chunk header and returns true iff the chunk is valid.
+  static bool deserialize(Byte* header, ChunkHeader& chunk);
 
   // Returns the outgoing or incoming chunk tracker for the given chunk.
-  static ChunkTracker* getChunkTracker(const ChunkMetadata& chunk,
+  static ChunkTracker* getChunkTracker(const ChunkHeader& chunk,
                                        RequestTracker& outgoing,
                                        RequestTracker& incoming);
 
   // Sends an ack chunk with no payload to the channel.
-  static bool sendAck(Channel* channel, ChunkMetadata& chunk);
+  static bool sendAck(Channel* channel, ChunkHeader& chunk);
 
  private:
-  // Receives chunk metadata and payload from the reliable stream channel.
+  // Receives chunk header and payload from the reliable stream channel.
   static bool recvChunkStream(Channel* channel, RequestTracker& outgoing,
                               RequestTracker& incoming);
 
-  // Receives chunk metadata and payload from the message channel.
+  // Receives chunk header and payload from the message channel.
   static bool recvChunkMsg(Channel* channel, RequestTracker& outgoing,
                            RequestTracker& incoming);
 
@@ -55,7 +55,7 @@ class Transfer final {
  private:
   static_assert(assumptions::kNetworkMtuIsAtMostTenKiloBytes);
   static constexpr size_t kTmpBufSize = 10U << 10;
-  static_assert(ChunkHeader::kSize < kTmpBufSize);
+  static_assert(ChunkUtil::kSize < kTmpBufSize);
 };
 
 }  // namespace peregrine::internal

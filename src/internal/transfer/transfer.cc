@@ -27,13 +27,13 @@ namespace peregrine::internal {
 
 using ChunkStatus = ChunkTracker::ChunkStatus;
 
-bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
+bool Transfer::SendChunk(Channel* const channel, const ChunkHeader& chunk,
                          const ChunkPayloadView payload) {
-  static_assert(assumptions::kChunkMetadataAndPayloadAreEncryptedOnWire);
+  static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
   DCHECK(IsMatch(chunk, payload));
 
   // Step 1: build chunk header and payload.
-  const std::string header = ChunkHeader::Serialize(chunk);
+  const std::string header = ChunkUtil::Serialize(chunk);
   const std::array<const IoVec, 2> iovecs = {
       IoVec((void*)header.data(), header.size()),
       IoVec((void*)payload.data(), payload.size()),
@@ -45,7 +45,7 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkMetadata& chunk,
 
 bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
                          RequestTracker& incoming) {
-  static_assert(assumptions::kChunkMetadataAndPayloadAreEncryptedOnWire);
+  static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
   const ChannelType t = channel->Type();
   if ABSL_PREDICT_TRUE (IsReliableStream(t)) {
     return recvChunkStream(channel, outgoing, incoming);
@@ -55,22 +55,22 @@ bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
   }
 }
 
-bool Transfer::deserialize(Byte* header, ChunkMetadata& chunk) {
-  std::string_view s(reinterpret_cast<const char*>(header), ChunkHeader::kSize);
-  return ChunkHeader::Deserialize(s, chunk) && chunk.IsValid();
+bool Transfer::deserialize(Byte* header, ChunkHeader& chunk) {
+  std::string_view s(reinterpret_cast<const char*>(header), ChunkUtil::kSize);
+  return ChunkUtil::Deserialize(s, chunk) && chunk.IsValid();
 }
 
-ChunkTracker* Transfer::getChunkTracker(const ChunkMetadata& chunk,
+ChunkTracker* Transfer::getChunkTracker(const ChunkHeader& chunk,
                                         RequestTracker& outgoing,
                                         RequestTracker& incoming) {
   RequestTracker& t = chunk.IsAck() ? outgoing : incoming;
   return t.FindOrCreate(chunk.handle, chunk.reqid, chunk.nchunks);
 }
 
-bool Transfer::sendAck(Channel* channel, ChunkMetadata& chunk) {
+bool Transfer::sendAck(Channel* channel, ChunkHeader& chunk) {
   chunk.size = 0;
   DCHECK(chunk.IsAck());
-  const std::string header = ChunkHeader::Serialize(chunk);
+  const std::string header = ChunkUtil::Serialize(chunk);
   const Byte* const buf = reinterpret_cast<const Byte*>(header.data());
   if ABSL_PREDICT_FALSE (channel->Write(buf, header.size()) != header.size()) {
     LOG(WARNING) << "failed to send ack: " << chunk;
@@ -84,7 +84,7 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   DCHECK(IsReliableStream(channel->Type()));
 
   // Step 1: read chunk header.
-  Byte buf[ChunkHeader::kSize];
+  Byte buf[ChunkUtil::kSize];
   const ssize_t len = channel->Read(buf, sizeof(buf));
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, sizeof(buf))) {
     // TODO(yongx): drop this channel.
@@ -93,7 +93,7 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   }
 
   // Step 2: deserialize chunk header.
-  ChunkMetadata chunk;
+  ChunkHeader chunk;
   if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
     // TODO(yongx): drop this channel.
     LOG(WARNING) << "invalid chunk header";
@@ -149,25 +149,25 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
 
   // Step 1: read chunk header.
   Byte buf[kTmpBufSize];
-  static_assert(ChunkHeader::kSize < kTmpBufSize);
+  static_assert(ChunkUtil::kSize < kTmpBufSize);
   const ssize_t len = channel->Read(buf, kTmpBufSize);
-  if ABSL_PREDICT_FALSE (std::cmp_less(len, ChunkHeader::kSize)) {
+  if ABSL_PREDICT_FALSE (std::cmp_less(len, ChunkUtil::kSize)) {
     LOG(WARNING) << "failed to read chunk header: " << len;
     return false;
   }
 
   // Step 2: deserialize chunk header.
-  ChunkMetadata chunk;
+  ChunkHeader chunk;
   if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
     LOG(WARNING) << "invalid chunk header";
     return false;
   }
 
   // Step 3: check chunk payload size.
-  const ChunkPayloadView payload(buf + ChunkHeader::kSize,
-                                 len - ChunkHeader::kSize);
+  const ChunkPayloadView payload(buf + ChunkUtil::kSize,
+                                 len - ChunkUtil::kSize);
   if ABSL_PREDICT_FALSE (!IsMatch(chunk, payload)) {
-    LOG(WARNING) << "mismatched chunk metadata: " << chunk
+    LOG(WARNING) << "mismatched chunk header: " << chunk
                  << " vs payload size: " << payload.size();
     return false;
   }

@@ -6,9 +6,9 @@
 
 namespace peregrine::internal {
 
-std::string ChunkMetadata::ToString() const {
+std::string ChunkHeader::ToString() const {
   return absl::StrFormat(
-      "ChunkMetadata: handle=0x%x, reqid=0x%x, #chunks=%d, "
+      "ChunkHeader: handle=0x%x, reqid=0x%x, #chunks=%d, "
       "chunk_index=%d, chunk_addr=0x%llx, chunk_size=%d",
       handle.value(), reqid.value(), nchunks, index.value(), addr.value(),
       size);

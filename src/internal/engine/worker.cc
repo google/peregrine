@@ -48,7 +48,7 @@ Worker::~Worker() {
 }
 
 void Worker::EnqueueChunk(const Byte* const chunk_src_addr,
-                          const ChunkMetadata& chunk) {
+                          const ChunkHeader& chunk) {
   DCHECK_NE(chunk_src_addr, nullptr);
   DCHECK(chunk.IsValid());
   DCHECK(!chunk.IsAck());
@@ -75,7 +75,7 @@ void Worker::SendLoop() {
       chunks_.pop_front();
     }
 
-    const ChunkMetadata& chunk = entry.chunk;
+    const ChunkHeader& chunk = entry.chunk;
     DCHECK(chunk.IsValid());
     const auto payload = entry.GenPayload();
     if (!Transfer::SendChunk(channel_.get(), chunk, payload)) {

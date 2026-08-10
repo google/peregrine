@@ -14,47 +14,47 @@ namespace peregrine::internal::testing {
 namespace {
 
 TEST(ChunkSerializationTest, Serde) {
-  ChunkMetadata chunk = GenChunkMetadata();
+  const ChunkHeader chunk = GenChunkHeader();
   ASSERT_TRUE(chunk.IsValid());
 
-  const std::string s = ChunkHeader::Serialize(chunk);
-  ASSERT_EQ(s.size(), ChunkHeader::kSize);
+  const std::string s = ChunkUtil::Serialize(chunk);
+  ASSERT_EQ(s.size(), ChunkUtil::kSize);
 
   ASSERT_EQ(s[0], 'P');
   ASSERT_EQ(s[1], 'G');
 
-  ChunkMetadata m1;
-  ASSERT_NE(chunk, m1);
-  ASSERT_TRUE(ChunkHeader::Deserialize(s, m1));
-  EXPECT_EQ(chunk, m1);
+  ChunkHeader output;
+  ASSERT_NE(chunk, output);
+  ASSERT_TRUE(ChunkUtil::Deserialize(s, output));
+  EXPECT_EQ(chunk, output);
 }
 
 TEST(ChunkSerializationTest, FixedSize) {
   absl::flat_hash_set<std::string> ss;
-  constexpr int kRounds = 1000'000;
+  constexpr int kRounds = 1'000'000;
   absl::BitGen bitgen;
 
   int round = 0;
   for (int i = 0; i < kRounds; ++i, round = i) {
-    ChunkMetadata chunk;
-    GenChunkMetadata(bitgen, chunk);
+    ChunkHeader chunk;
+    GenChunkHeader(bitgen, chunk);
     ASSERT_TRUE(chunk.IsValid());
 
-    const std::string s = ChunkHeader::Serialize(chunk);
-    ASSERT_EQ(s.size(), ChunkHeader::kSize);
+    const std::string s = ChunkUtil::Serialize(chunk);
+    ASSERT_EQ(s.size(), ChunkUtil::kSize);
 
-    ChunkMetadata m;
-    ASSERT_NE(chunk, m);
-    ASSERT_TRUE(ChunkHeader::Deserialize(s, m));
-    ASSERT_THAT(chunk, ::testing::Eq(m));
+    ChunkHeader output;
+    ASSERT_NE(chunk, output);
+    ASSERT_TRUE(ChunkUtil::Deserialize(s, output));
+    ASSERT_THAT(chunk, ::testing::Eq(output));
 
     ss.insert(s);
   }
   ASSERT_EQ(round, kRounds);
   ASSERT_GT(ss.size(), kRounds / 2);
 
-  LOG(INFO) << "chunk metadata serialization rounds: " << round;
-  LOG(INFO) << "chunk metadata serialization unique: " << ss.size();
+  LOG(INFO) << "chunk header serialization rounds: " << round;
+  LOG(INFO) << "chunk header serialization unique: " << ss.size();
 }
 
 }  // namespace

@@ -19,18 +19,16 @@ static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 DEFINE_STRONG_INT_TYPE(addr_t, uintptr_t);
 DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
 
-// `ChunkMetadata` defines the metadata of a chunk.
+// `ChunkHeader` defines chunk metadata.
 #pragma pack(push, 1)
-struct alignas(8) ChunkMetadata final {
-  static_assert(assumptions::kChunkMetadataAndPayloadAreEncryptedOnWire);
-  // LINT.IfChange
+struct alignas(8) ChunkHeader final {
+  static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
   Handle handle;     // handle id (fixed)
   ReqId reqid;       // request id (fixed)
   uint32_t nchunks;  // total #chunks (fixed)
   chunk_t index;     // chunk index (variable)
   addr_t addr;       // chunk address (variable)
   uint32_t size;     // chunk size (variable)
-  // LINT.ThenChange(src/internal/chunk/chunk.fbs)
 
   // Returns true iff the chunk is valid.
   bool IsValid() const {
@@ -48,26 +46,26 @@ struct alignas(8) ChunkMetadata final {
   std::string ToString() const;
 
   // Equality operator.
-  friend bool operator==(const ChunkMetadata& a, const ChunkMetadata& b) {
+  friend bool operator==(const ChunkHeader& a, const ChunkHeader& b) {
     return a.handle == b.handle && a.reqid == b.reqid &&
            a.nchunks == b.nchunks && a.index == b.index && a.addr == b.addr &&
            a.size == b.size;
   }
 };
 #pragma pack(pop)
-static_assert(sizeof(ChunkMetadata) == 32);
+static_assert(sizeof(ChunkHeader) == 32);
 
-inline std::ostream& operator<<(std::ostream& os, const ChunkMetadata& c) {
-  return os << c.ToString();
+inline std::ostream& operator<<(std::ostream& os, const ChunkHeader& chunk) {
+  return os << chunk.ToString();
 }
 
 // `ChunkPayloadView` defines a read-only view to the chunk raw data bytes.
-static_assert(assumptions::kChunkMetadataAndPayloadAreEncryptedOnWire);
+static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
 using ChunkPayloadView = absl::Span<const Byte>;
 static_assert(sizeof(ChunkPayloadView) == 16);
 
-// Returns true iff the (valid) chunk metadata matches the payload.
-inline bool IsMatch(const ChunkMetadata& chunk, ChunkPayloadView payload) {
+// Returns true iff the (valid) chunk header matches the payload.
+inline bool IsMatch(const ChunkHeader& chunk, ChunkPayloadView payload) {
   DCHECK(chunk.IsValid());
   return chunk.size == payload.size();
 }

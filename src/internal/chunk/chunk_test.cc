@@ -12,7 +12,7 @@ namespace {
 class ChunkTest : public ::testing::Test {
  protected:
   ChunkTest()
-      : chunk_(GenChunkMetadata(kChunkIndex)),
+      : chunk_(GenChunkHeader(kChunkIndex)),
         payload1_(GenPayload(kChunkSize)),
         payload2_(GenPayload(kChunkSize - 1)) {
     CHECK(chunk_.IsValid());
@@ -20,7 +20,7 @@ class ChunkTest : public ::testing::Test {
   }
 
  protected:
-  ChunkMetadata chunk_;
+  ChunkHeader chunk_;
   ChunkPayloadView payload1_;
   ChunkPayloadView payload2_;
 };

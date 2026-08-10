@@ -11,7 +11,7 @@
 
 namespace peregrine::internal::testing {
 
-void GenChunkMetadata(ChunkMetadata& chunk, const chunk_t index) {
+void GenChunkHeader(ChunkHeader& chunk, const chunk_t index) {
   chunk.handle = kHandle;
   chunk.reqid = kReqId;
   chunk.nchunks = kNumChunks;
@@ -20,13 +20,13 @@ void GenChunkMetadata(ChunkMetadata& chunk, const chunk_t index) {
   chunk.size = kChunkSize;
 }
 
-ChunkMetadata GenChunkMetadata(const chunk_t index) {
-  ChunkMetadata chunk;
-  GenChunkMetadata(chunk, index);
+ChunkHeader GenChunkHeader(const chunk_t index) {
+  ChunkHeader chunk;
+  GenChunkHeader(chunk, index);
   return chunk;
 }
 
-void GenChunkMetadata(absl::BitGenRef bitgen, ChunkMetadata& chunk) {
+void GenChunkHeader(absl::BitGenRef bitgen, ChunkHeader& chunk) {
   chunk.handle = Handle(util::Random<Handle::ValueType>(bitgen));
   chunk.reqid = ReqId(util::Random<ReqId::ValueType>(bitgen));
   chunk.nchunks = util::Random<uint32_t>(bitgen, 1, 0xffff'ffff);
@@ -35,9 +35,9 @@ void GenChunkMetadata(absl::BitGenRef bitgen, ChunkMetadata& chunk) {
   chunk.size = util::Random<uint32_t>(bitgen, 1, 0xffff'ffff);
 }
 
-ChunkMetadata GenChunkMetadata(absl::BitGenRef bitgen) {
-  ChunkMetadata chunk;
-  GenChunkMetadata(bitgen, chunk);
+ChunkHeader GenChunkHeader(absl::BitGenRef bitgen) {
+  ChunkHeader chunk;
+  GenChunkHeader(bitgen, chunk);
   return chunk;
 }
 

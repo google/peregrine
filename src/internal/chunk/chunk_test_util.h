@@ -22,17 +22,17 @@ constexpr uint32_t kChunkSize = 1024;
 constexpr uint32_t kNumChunks = 10;
 constexpr chunk_t kChunkIndex(1);
 
-// Generates chunk metadata.
-void GenChunkMetadata(ChunkMetadata& chunk, chunk_t index = kChunkIndex);
+// Generates chunk header.
+void GenChunkHeader(ChunkHeader& chunk, chunk_t index = kChunkIndex);
 
-// Generates chunk metadata.
-ChunkMetadata GenChunkMetadata(chunk_t index = kChunkIndex);
+// Generates chunk header.
+ChunkHeader GenChunkHeader(chunk_t index = kChunkIndex);
 
-// Generates random chunk metadata.
-void GenChunkMetadata(absl::BitGenRef bitgen, ChunkMetadata& chunk);
+// Generates random chunk header.
+void GenChunkHeader(absl::BitGenRef bitgen, ChunkHeader& chunk);
 
-// Generates random chunk metadata.
-ChunkMetadata GenChunkMetadata(absl::BitGenRef bitgen);
+// Generates random chunk header.
+ChunkHeader GenChunkHeader(absl::BitGenRef bitgen);
 
 // Generates chunk payload view.
 ChunkPayloadView GenPayload(size_t size);

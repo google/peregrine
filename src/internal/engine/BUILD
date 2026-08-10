@@ -74,7 +74,6 @@ cc_test(
         "//src/util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
-        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",

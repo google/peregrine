@@ -33,13 +33,13 @@ inline constexpr bool kAbslHashIsStableOnlyInOneProcessInvocation = true;
 // the last one, which may be smaller.
 //
 // Over the wire, each chunk has two parts: (1) the header, which contains
-// the chunk metadata such as #chunks, chunk index/address/size, etc., and
+// the chunk header such as #chunks, chunk index/address/size, etc., and
 // (2) the payload, which contains the actual chunk data. On the receive side,
-// it has to read the chunk header first to get the chunk metadata. It then
-// reads the payload and place it in its destination memory.
+// it has to read the chunk header first to get the chunk metadata, based on
+// which it can then reads the payload and place it in its destination memory.
 inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
 
-// When sent over network, both the chunk metadata and payload are encrypted by
+// When sent over network, both the chunk header and payload are encrypted by
 // layer-3 protocols (e.g., PSP https://github.com/google/psp). The encryption
 // is transparent to the transport layer.
 //
@@ -47,7 +47,7 @@ inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
 // in the chunk header. (We can further improve security by using a buffer id
 // instead of the actual address, and let the receiver look up the destination
 // address from the buffer id.)
-inline constexpr bool kChunkMetadataAndPayloadAreEncryptedOnWire = true;
+inline constexpr bool kChunkHeaderAndPayloadAreEncryptedOnWire = true;
 
 // Assumptions about network MTU.
 // ---------------------------------------------------------------------------
@@ -56,15 +56,14 @@ inline constexpr bool kChunkMetadataAndPayloadAreEncryptedOnWire = true;
 // known cases including jumbo frames.
 inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
 
-// Assumptions about chunk metadata serialization.
+// Assumptions about chunk header serialization.
 // ---------------------------------------------------------------------------
 //
-// For performance reasons, chunk metadata is serialized to a FIXED-SIZE string
-// using flatbuffer struct (https://github.com/google/flatbuffers). This saves
-// one read call in the receiver. Otherwise, we have to first read a length
-// field, and then read a variable-size string and parse it. In other words,
-// we treat chunk metadata as a fixed-size header.
-inline constexpr bool kChunkMetadataSerializesToFixedSizeFlatBufString = true;
+// For performance reasons, chunk header is serialized to a fixed-size (64B)
+// string using flatbuffer struct (https://github.com/google/flatbuffers).
+// This saves one read call in the receiver. Otherwise, we have to first read
+// a length field, and then read a variable-size string and parse it.
+inline constexpr bool kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf = true;
 
 // Assumptions about the chunk receive contention.
 // ---------------------------------------------------------------------------

@@ -187,7 +187,7 @@ void Engine::processWrite(Workers& workers, const Handle handle,
     CHECK_LE(n, std::numeric_limits<uint32_t>::max());  // Crash OK for now
     const uint32_t size = static_cast<uint32_t>(n);
     offset += size;
-    const ChunkMetadata chunk = {
+    const ChunkHeader chunk = {
         .handle = handle,
         .reqid = reqid,
         .nchunks = nchunks,

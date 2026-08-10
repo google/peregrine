@@ -1,13 +1,12 @@
 namespace peregrine.internal.flatbuf;
 
-// `ChunkHeader` is used to serialize `ChunkMetadata` in chunk.h.
-// They must be kept in sync.
-
 // Do not change.
 enum Constant:uint16 {
   MAGIC = 0x4750,  // 'PG' in little-endian order
 }
 
+// `flatbuf::ChunkHeader` has a fixed size of 64 bytes. It is used to serialize
+// the in-memory struct `ChunkHeader` in chunk.h. They must be kept in sync.
 struct ChunkHeader {
   // Two fixed fields. Do not change.
   magic:uint16;
