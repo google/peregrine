@@ -20,15 +20,17 @@ DEFINE_STRONG_INT_TYPE(addr_t, uintptr_t);
 DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
 
 // `ChunkHeader` defines chunk metadata.
-#pragma pack(push, 1)
 struct alignas(8) ChunkHeader final {
   static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
+  static_assert(assumptions::kChunkHeaderHasBackwardForwardCompatibilityIssue);
+  // LINT.IfChange
   Handle handle;     // handle id (fixed)
   ReqId reqid;       // request id (fixed)
   uint32_t nchunks;  // total #chunks (fixed)
   chunk_t index;     // chunk index (variable)
   addr_t addr;       // chunk address (variable)
   uint32_t size;     // chunk size (variable)
+  // LINT.ThenChange(chunk.fbs)
 
   // Returns true iff the chunk is valid.
   bool IsValid() const {
@@ -52,7 +54,6 @@ struct alignas(8) ChunkHeader final {
            a.size == b.size;
   }
 };
-#pragma pack(pop)
 static_assert(sizeof(ChunkHeader) == 32);
 
 inline std::ostream& operator<<(std::ostream& os, const ChunkHeader& chunk) {

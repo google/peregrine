@@ -12,6 +12,7 @@ struct ChunkHeader {
   magic:uint16;
   ver:uint16;
 
+  // LINT.IfChange
   // The following fields can change.
   // When they do, the `ver` field must be incremented in the new serializer.
   handle:uint32;
@@ -26,4 +27,5 @@ struct ChunkHeader {
   padding1:uint64;
   padding2:uint64;
   padding3:uint64;
+// LINT.ThenChange(chunk.h)
 }

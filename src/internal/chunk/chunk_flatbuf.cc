@@ -1,5 +1,6 @@
 #include "src/internal/chunk/chunk_flatbuf.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -16,6 +17,13 @@
 namespace peregrine::internal {
 
 static_assert(assumptions::kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf);
+static_assert(assumptions::kChunkHeaderHasBackwardForwardCompatibilityIssue);
+
+std::string ChunkUtil::Serialize(const ChunkHeader& chunk, uint16_t ver) {
+  const std::string s = serializeV1(chunk);
+  DCHECK_EQ(s.size(), kSize);
+  return s;
+}
 
 bool ChunkUtil::Deserialize(std::string_view s, ChunkHeader& chunk) {
   DCHECK_EQ(sizeof(flatbuf::ChunkHeader), kSize);
@@ -23,7 +31,7 @@ bool ChunkUtil::Deserialize(std::string_view s, ChunkHeader& chunk) {
     return false;
   }
 
-  alignas(flatbuf::ChunkHeader) uint8_t buf[kSize];
+  alignas(std::max_align_t) uint8_t buf[kSize];
   DCHECK_EQ(sizeof(buf), s.size());
   std::memcpy(buf, s.data(), kSize);
 

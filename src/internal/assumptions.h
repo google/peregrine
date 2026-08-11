@@ -65,6 +65,46 @@ inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
 // a length field, and then read a variable-size string and parse it.
 inline constexpr bool kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf = true;
 
+// Due to gradual rollout requirements, multiple versions of Peregrine binary
+// can run in production. They must be able to talk to each other.
+
+// In the control plane, all the control messages are serialized with protobuf,
+// (https://github.com/protocolbuffers/protobuf), which addresses the issue.
+//
+// In general, a Peregrine binary might contain multiple versions of data-plane
+// serialization schemas. When a local Peregrine starts, it uses gRPC to
+// exchange host/software info with its peer. They will negotiate a common
+// data-plane serialization schema that both sides can understand.
+//
+// In the data plane, here is what we do for the in-memory `ChunkHeader` struct
+// and its corresponding `flatbuffer::ChunkHeader` struct:
+//  - We keep a single evolving version of `ChunkHeader`, so the code using it
+//    never sees a new type.
+//
+//  - Multiple versions of `flatbuffer::ChunkHeader`s are kept in the same
+//    binary. They are completely _independent_. We can remove a version only
+//    if it's no longer used anymore. For this purpose, we monitor all the
+//    `flatbuffer::ChunkHeader` versions running in production.
+//
+// Now we discuss the Peregrine binary version compatibility issue:
+//  - Field position swap in the `ChunkHeader` is a non-breaking change.
+//
+//  - When a new field `NF` is added to `ChunkHeader`, a new version of
+//    `flatbuffer::v(n+1)::ChunkHeader` is created.
+//    * Hardened behavior of old binaries: They don't know about `NF`.
+//    * Expected behavior of the new binary: In its v(n) serializer, it neglects
+//      `NF`. In its v(n) deserializer, it generates a default value for `NF`.
+//    * The new binary must be able to work with the default value of `NF`.
+//
+//  - To remove an existing field `OF` from `ChunkHeader`, a new version of
+//    `flatbuffer::v(n+1)::ChunkHeader` is created.
+//    * Hardened behavior of old binaries: They know about `OF` and use it.
+//    * Expected behavior of the new binary: In its v(n) serializer, it
+//      serializes `OF` with a default value. In its v(n) deserializer, it
+//      neglects `OF` since it does not want to use it any more.
+//    * The old binaries must be able to work with the default value of `OF`.
+inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
+
 // Assumptions about the chunk receive contention.
 // ---------------------------------------------------------------------------
 //
