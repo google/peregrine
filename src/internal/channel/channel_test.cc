@@ -2,6 +2,7 @@
 
 #include <sys/socket.h>
 
+#include <array>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -38,18 +39,21 @@ class ChannelTest : public ::testing::TestWithParam<Param> {
       : size_(GetParam().size),
         part_(size_ / 4),
         src_(size_),
-        dst_(size_, 0) {
+        dst_(size_, 0),
+        siovs_({
+            {src_.data() + 0 * part_, part_},
+            {src_.data() + 1 * part_, part_},
+            {src_.data() + 2 * part_, part_},
+            {src_.data() + 3 * part_, part_},
+        }),
+        diovs_({
+            {dst_.data() + 0 * part_, part_},
+            {dst_.data() + 1 * part_, part_},
+            {dst_.data() + 2 * part_, part_ * 2},
+        }) {
     util::RandomNonZero(absl::MakeSpan(src_));
     DCHECK_NE(src_.data(), dst_.data());
-
     CHECK_EQ(size_, 4 * part_);
-    src_iov_ = {src_.data() + 0 * part_, part_};
-    src_iovs_ = {{src_.data() + 1 * part_, part_},
-                 {src_.data() + 2 * part_, part_},
-                 {src_.data() + 3 * part_, part_}};
-    dst_iov_ = {dst_.data() + 0 * part_, part_};
-    dst_iovs_ = {{dst_.data() + 1 * part_, part_},
-                 {dst_.data() + 2 * part_, 2 * part_}};
   }
 
  protected:
@@ -57,10 +61,11 @@ class ChannelTest : public ::testing::TestWithParam<Param> {
   const size_t part_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
-  IoVec src_iov_;
-  IoVec dst_iov_;
-  std::vector<IoVec> src_iovs_;
-  std::vector<IoVec> dst_iovs_;
+
+  static constexpr int kSrc = 4;
+  static constexpr int kDst = 3;
+  std::array<IoVec, kSrc> siovs_;
+  std::array<IoVec, kDst> diovs_;
 };
 
 INSTANTIATE_TEST_SUITE_P(
@@ -83,12 +88,12 @@ TEST_P(ChannelTest, ReadWrite) {
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
   // Send to one channel a number of times.
-  EXPECT_EQ(sndr->Write((Byte*)src_iov_.iov_base, src_iov_.iov_len), part_);
-  EXPECT_EQ(sndr->WriteV(src_iovs_), size_ - part_);
+  EXPECT_EQ(sndr->Write((Byte*)siovs_[0].iov_base, siovs_[0].iov_len), part_);
+  EXPECT_EQ(sndr->WriteV(absl::MakeSpan(&siovs_[1], kSrc - 1)), size_ - part_);
 
   // Receive from the other channel in a different way.
-  EXPECT_EQ(rcvr->Read((Byte*)dst_iov_.iov_base, dst_iov_.iov_len), part_);
-  EXPECT_EQ(rcvr->ReadV(absl::MakeSpan(dst_iovs_)), size_ - part_);
+  EXPECT_EQ(rcvr->Read((Byte*)diovs_[0].iov_base, diovs_[0].iov_len), part_);
+  EXPECT_EQ(rcvr->ReadV(absl::MakeSpan(&diovs_[1], kDst - 1)), size_ - part_);
 
   // Shutdown the channels and verify post-shutdown behavior.
   sndr->Shutdown();
