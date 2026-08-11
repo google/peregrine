@@ -9,12 +9,14 @@
 #include "absl/log/initialize.h"
 #include "test/integration/display.h"
 #include "test/integration/integration.h"
+#include "test/integration/metrics.h"
 #include "test/integration/runner.h"
 
 namespace {
 using ::peregrine::integration::Display;
 using ::peregrine::integration::PeregrineIntegration;
 using ::peregrine::integration::Runner;
+using ::peregrine::integration::Metrics;
 
 // Global Peregrine instance used to handle SIGINT.
 PeregrineIntegration* g_peregrine_ptr = nullptr;
@@ -34,6 +36,9 @@ void RegisterSigIntHandler() {
 int main(int argc, char* argv[]) {
   absl::ParseCommandLine(argc, argv);
   absl::InitializeLog();
+
+  // Reset metrics registry.
+  Metrics::Reset();
 
   // Create a test instance.
   PeregrineIntegration peregrine;

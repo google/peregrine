@@ -2,12 +2,9 @@
 
 #include <sys/socket.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
-
-#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -19,6 +16,8 @@
 #include "test/integration/controlpath-host.h"
 #include "test/integration/datapath-host.h"
 #include "test/integration/flags.h"
+#include "test/integration/metrics.h"
+#include "test/integration/settings.h"
 
 namespace peregrine::integration {
 
@@ -41,22 +40,24 @@ PeregrineIntegration::PeregrineIntegration() {
   const std::string rcvr_data = CreateEndpoint(AF_INET);
 
   controlpath_sndr_ = std::make_unique<ControlpathHost>(
-      "Sender Control Path", sndr_ctrl, rcvr_ctrl, "gRPC", "CONNECTED");
+      Component::kSenderControlpath, sndr_ctrl, rcvr_ctrl, "gRPC",
+      "CONNECTED");
   controlpath_rcvr_ = std::make_unique<ControlpathHost>(
-      "Receiver Control Path", rcvr_ctrl, "", "gRPC", "LISTENING");
+      Component::kReceiverControlpath, rcvr_ctrl, "", "gRPC", "LISTENING");
 
   datapath_sndr_ = std::make_unique<DatapathHost>(
-      "Sender Data Path", sndr_ctrl, sndr_data, rcvr_ctrl, rcvr_data,
-      flags_.buffer_size, flags_.conns_per_peer);
+      Component::kSenderDatapath, sndr_ctrl, sndr_data, rcvr_ctrl,
+      rcvr_data, flags_.buffer_size, flags_.conns_per_peer);
   datapath_rcvr_ = std::make_unique<DatapathHost>(
-      "Receiver Data Path", rcvr_ctrl, rcvr_data, "", "", flags_.buffer_size,
-      flags_.conns_per_peer);
+      Component::kReceiverDatapath, rcvr_ctrl, rcvr_data, "", "",
+      flags_.buffer_size, flags_.conns_per_peer);
 }
 
 PeregrineIntegration::Stats PeregrineIntegration::GetStats() const {
   Stats stats;
-  stats.transfers_completed = datapath_sndr_->n_transfers();
-  stats.bytes_transferred = datapath_sndr_->n_bytes();
+  stats.transfers_completed =
+      Metrics::GetTransfers(Component::kSenderDatapath);
+  stats.bytes_transferred = Metrics::GetBytes(Component::kSenderDatapath);
 
   const absl::Duration elapsed = absl::Now() - settings_.test_begin;
   const double nsec = absl::ToDoubleNanoseconds(elapsed);
@@ -110,8 +111,10 @@ void PeregrineIntegration::sendRequest() {
     const Status s = status_or.value();
     if (IsCompleted(s)) {
       if (s == Status::kSuccess) {
-        datapath_sndr_->IncrementTransfers(datapath_sndr_->DataSize());
-        datapath_rcvr_->IncrementTransfers(datapath_sndr_->DataSize());
+        Metrics::IncrementTransfers(Component::kSenderDatapath,
+                                    datapath_sndr_->DataSize());
+        Metrics::IncrementTransfers(Component::kReceiverDatapath,
+                                    datapath_sndr_->DataSize());
         if (flags_.verify_data) {
           CHECK(datapath_sndr_->Data() == datapath_rcvr_->Data())
               << "Data integrity verification failed!";

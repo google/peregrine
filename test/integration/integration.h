@@ -30,11 +30,6 @@ class PeregrineIntegration final {
   const Settings& settings() const { return settings_; }
   const Flags& flags() const { return flags_; }
 
-  ControlpathHost* controlpath_sndr() const { return controlpath_sndr_.get(); }
-  ControlpathHost* controlpath_rcvr() const { return controlpath_rcvr_.get(); }
-  DatapathHost* datapath_sndr() const { return datapath_sndr_.get(); }
-  DatapathHost* datapath_rcvr() const { return datapath_rcvr_.get(); }
-
  private:
   bool shouldContinue() const;
   void sendRequest();

@@ -30,12 +30,26 @@ cc_library(
 )
 
 cc_library(
+    name = "metrics",
+    srcs = ["metrics.cc"],
+    hdrs = ["metrics.h"],
+    deps = [
+        ":settings",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_library(
     name = "controlpath-host",
     srcs = ["controlpath-host.cc"],
     hdrs = ["controlpath-host.h"],
     deps = [
+        ":metrics",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -44,6 +58,7 @@ cc_library(
     srcs = ["datapath-host.cc"],
     hdrs = ["datapath-host.h"],
     deps = [
+        ":metrics",
         "//src/api:transport",
         "//src/api:transport_types",
         "//src/api:transport_util",
@@ -51,7 +66,6 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -80,10 +94,10 @@ cc_library(
         ":controlpath-host",
         ":datapath-host",
         ":flags",
+        ":metrics",
         ":settings",
         "//src/api:transport_types",
         "//src/util",
-        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
@@ -98,6 +112,7 @@ cc_library(
     deps = [
         ":flags",
         ":integration",
+        ":metrics",
         ":ncurses",
         ":settings",
         "@abseil-cpp//absl/flags:flag",
@@ -124,6 +139,7 @@ cc_binary(
     deps = [
         ":display",
         ":integration",
+        ":metrics",
         ":runner",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",

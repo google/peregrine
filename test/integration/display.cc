@@ -3,7 +3,6 @@
 #include <sys/resource.h>
 
 #include <algorithm>
-#include <concepts>
 #include <cstdint>
 #include <iostream>
 #include <memory>
@@ -22,26 +21,13 @@
 #include "absl/time/time.h"
 #include "test/integration/flags.h"
 #include "test/integration/integration.h"
+#include "test/integration/metrics.h"
 #include "test/integration/ncurses.h"
 #include "test/integration/settings.h"
 
 namespace peregrine::integration {
 
 namespace {
-template <typename T>
-concept HasDebugString = requires(const T& t) {
-  { t.DebugString() } -> std::same_as<std::string>;
-};
-
-template <HasDebugString Component, typename... Args>
-std::string DebugStringIfEnabled(absl::string_view name,
-                                 const Component* component, Args&&... args) {
-  if (component == nullptr) {
-    return absl::StrFormat("%s: disabled", name);
-  }
-  return component->DebugString(std::forward<Args>(args)...);
-}
-
 int GetMemUsageMiB() {
   struct rusage usage;
   const int ret = getrusage(RUSAGE_SELF, &usage);
@@ -83,14 +69,14 @@ void Display::Print(absl::Time time) const {
 
 void Display::PrintSummary() const {
   std::vector<std::string> results;
-  results.push_back(DebugStringIfEnabled(Settings::kSenderControlpathName,
-                                         integration_.controlpath_sndr()));
-  results.push_back(DebugStringIfEnabled(Settings::kReceiverControlpathName,
-                                         integration_.controlpath_rcvr()));
-  results.push_back(DebugStringIfEnabled(Settings::kSenderDatapathName,
-                                         integration_.datapath_sndr()));
-  results.push_back(DebugStringIfEnabled(Settings::kReceiverDatapathName,
-                                         integration_.datapath_rcvr()));
+  results.push_back(Metrics::GetControlpathDebugString(
+      Component::kSenderControlpath));
+  results.push_back(Metrics::GetControlpathDebugString(
+      Component::kReceiverControlpath));
+  results.push_back(Metrics::GetDatapathDebugString(
+      Component::kSenderDatapath));
+  results.push_back(Metrics::GetDatapathDebugString(
+      Component::kReceiverDatapath));
   results.push_back(absl::StrFormat(
       "Test started at %s and ran for %s.",
       absl::FormatTime(integration_.settings().test_begin),
@@ -127,17 +113,17 @@ std::string Display::genStats() const {
 void Display::ncursePrint(absl::Time now) const {
   CHECK_NE(ncurses_, nullptr);
   ncurses_->Print(NCursesWindow::kSenderControlpath, 0,
-                  DebugStringIfEnabled(Settings::kSenderControlpathName,
-                                       integration_.controlpath_sndr()));
+                  Metrics::GetControlpathDebugString(
+                      Component::kSenderControlpath));
   ncurses_->Print(NCursesWindow::kReceiverControlpath, 0,
-                  DebugStringIfEnabled(Settings::kReceiverControlpathName,
-                                       integration_.controlpath_rcvr()));
+                  Metrics::GetControlpathDebugString(
+                      Component::kReceiverControlpath));
   ncurses_->Print(NCursesWindow::kSenderDatapath, 0,
-                  DebugStringIfEnabled(Settings::kSenderDatapathName,
-                                       integration_.datapath_sndr()));
+                  Metrics::GetDatapathDebugString(
+                      Component::kSenderDatapath));
   ncurses_->Print(NCursesWindow::kReceiverDatapath, 0,
-                  DebugStringIfEnabled(Settings::kReceiverDatapathName,
-                                       integration_.datapath_rcvr()));
+                  Metrics::GetDatapathDebugString(
+                      Component::kReceiverDatapath));
   ncurses_->Print(NCursesWindow::kStats, 0, genStats());
   ncurses_->Print(NCursesWindow::kProgress, 0, genProgress(now));
   ncurses_->Refresh();
@@ -146,14 +132,14 @@ void Display::ncursePrint(absl::Time now) const {
 void Display::normalPrint(absl::Time now) const {
   std::vector<std::string> results;
   results.push_back(genProgress(now));
-  results.push_back(DebugStringIfEnabled(Settings::kSenderControlpathName,
-                                         integration_.controlpath_sndr()));
-  results.push_back(DebugStringIfEnabled(Settings::kReceiverControlpathName,
-                                         integration_.controlpath_rcvr()));
-  results.push_back(DebugStringIfEnabled(Settings::kSenderDatapathName,
-                                         integration_.datapath_sndr()));
-  results.push_back(DebugStringIfEnabled(Settings::kReceiverDatapathName,
-                                         integration_.datapath_rcvr()));
+  results.push_back(Metrics::GetControlpathDebugString(
+      Component::kSenderControlpath));
+  results.push_back(Metrics::GetControlpathDebugString(
+      Component::kReceiverControlpath));
+  results.push_back(Metrics::GetDatapathDebugString(
+      Component::kSenderDatapath));
+  results.push_back(Metrics::GetDatapathDebugString(
+      Component::kReceiverDatapath));
   output_ << absl::StrCat(
       "\n", absl::StrJoin(results, "\n-----------------------------------\n"),
       "\n");
