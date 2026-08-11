@@ -1,6 +1,6 @@
+load("@flatbuffers//:build_defs.bzl", "flatbuffer_cc_library")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
-load("//third_party/flatbuffers:flatbuffers.bzl", "cc_flatbuffers_library", "flatbuffers_library")
 
 package(default_visibility = ["//src/internal:internal_impl"])
 
@@ -32,14 +32,9 @@ cc_test(
     ],
 )
 
-flatbuffers_library(
-    name = "chunk_fbs",
-    srcs = ["chunk.fbs"],
-)
-
-cc_flatbuffers_library(
+flatbuffer_cc_library(
     name = "chunk_cc_fbs",
-    deps = [":chunk_fbs"],
+    srcs = ["chunk.fbs"],
 )
 
 cc_library(
@@ -52,7 +47,6 @@ cc_library(
         "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:types",
-        "//third_party/flatbuffers:runtime_cc",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
     ],

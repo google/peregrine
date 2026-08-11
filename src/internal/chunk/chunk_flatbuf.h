@@ -8,8 +8,8 @@
 
 #include "absl/log/check.h"
 #include "src/internal/assumptions.h"
-#include "src/internal/chunk/chunk.fbs.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/chunk/chunk_generated.h"
 
 namespace peregrine::internal {
 
@@ -42,12 +42,8 @@ class ChunkUtil final {
   static void deserializeV1(const flatbuf::ChunkHeader& h, ChunkHeader& chunk);
 
  private:
-  // Serializes the flatbuffer struct to a fixed-size string.
-  static std::string serialize(const flatbuf::ChunkHeader& h);
-
- private:
   // Magic number to identify the chunk serialization format. Do not change!
-  static constexpr uint16_t kMagic = (uint16_t)flatbuf::Constant::MAGIC;
+  static constexpr uint16_t kMagic = flatbuf::Constant::Constant_MAGIC;
   static_assert(kMagic == 0x4750);  //  'PG' in little-endian order
 };
 

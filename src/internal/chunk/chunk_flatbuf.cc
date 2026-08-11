@@ -1,6 +1,5 @@
 #include "src/internal/chunk/chunk_flatbuf.h"
 
-#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -8,25 +7,27 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "flatbuffers/include/flatbuffers/flatbuffer_builder.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
-#include "src/internal/chunk/chunk.fbs.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/chunk/chunk_generated.h"
 
 namespace peregrine::internal {
 
 static_assert(assumptions::kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf);
 
 bool ChunkUtil::Deserialize(std::string_view s, ChunkHeader& chunk) {
-  flatbuf::ChunkHeader h;
-  DCHECK_EQ(sizeof(h), kSize);
-  if (s.size() != sizeof(h)) {
+  DCHECK_EQ(sizeof(flatbuf::ChunkHeader), kSize);
+  if (s.size() != kSize) {
     return false;
   }
 
-  std::memcpy(&h, s.data(), sizeof(h));
+  alignas(flatbuf::ChunkHeader) uint8_t buf[kSize];
+  DCHECK_EQ(sizeof(buf), s.size());
+  std::memcpy(buf, s.data(), kSize);
+
+  const auto& h = *reinterpret_cast<const flatbuf::ChunkHeader*>(buf);
   if (h.magic() != kMagic) {
     return false;
   }
@@ -49,7 +50,8 @@ std::string ChunkUtil::serializeV1(const ChunkHeader& chunk) {
                                chunk.reqid.value(), chunk.nchunks,
                                chunk.index.value(), chunk.size,
                                chunk.addr.value(), /*paddings=*/0, 0, 0, 0);
-  return serialize(h);
+  DCHECK_EQ(sizeof(h), kSize);
+  return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
 }
 
 void ChunkUtil::deserializeV1(const flatbuf::ChunkHeader& h,
@@ -61,17 +63,6 @@ void ChunkUtil::deserializeV1(const flatbuf::ChunkHeader& h,
   chunk.index = chunk_t(h.index());
   chunk.addr = addr_t(h.addr());
   chunk.size = h.size();
-}
-
-std::string ChunkUtil::serialize(const flatbuf::ChunkHeader& h) {
-  flatbuffers::FlatBufferBuilder builder(sizeof(h) * 2);
-  builder.Align(8);
-  builder.PushBytes(reinterpret_cast<const uint8_t*>(&h), sizeof(h));
-
-  const uint8_t* const buf = builder.GetCurrentBufferPointer();
-  const size_t size = builder.GetSize();
-  DCHECK_EQ(size, kSize);
-  return std::string(reinterpret_cast<const char*>(buf), size);
 }
 
 }  // namespace peregrine::internal
