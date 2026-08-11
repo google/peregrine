@@ -67,9 +67,10 @@ inline constexpr bool kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf = true;
 
 // Due to gradual rollout requirements, multiple versions of Peregrine binary
 // can run in production. They must be able to talk to each other.
-
+//
 // In the control plane, all the control messages are serialized with protobuf,
-// (https://github.com/protocolbuffers/protobuf), which addresses the issue.
+// (https://github.com/protocolbuffers/protobuf), which addresses this
+// compatibility issue.
 //
 // In general, a Peregrine binary might contain multiple versions of data-plane
 // serialization schemas. When a local Peregrine starts, it uses gRPC to
@@ -77,7 +78,7 @@ inline constexpr bool kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf = true;
 // data-plane serialization schema that both sides can understand.
 //
 // In the data plane, here is what we do for the in-memory `ChunkHeader` struct
-// and its corresponding `flatbuffer::ChunkHeader` struct:
+// and its corresponding `flatbuffer::v1::ChunkHeader` struct (assuming v1):
 //  - We keep a single evolving version of `ChunkHeader`, so the code using it
 //    never sees a new type.
 //
@@ -86,23 +87,31 @@ inline constexpr bool kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf = true;
 //    if it's no longer used anymore. For this purpose, we monitor all the
 //    `flatbuffer::ChunkHeader` versions running in production.
 //
-// Now we discuss the Peregrine binary version compatibility issue:
-//  - Field position swap in the `ChunkHeader` is a non-breaking change.
+// Now we discuss how to address the Peregrine binary version compatibility:
+//  - Order: Field position swap in the `ChunkHeader` is a non-breaking change.
 //
-//  - When a new field `NF` is added to `ChunkHeader`, a new version of
-//    `flatbuffer::v(n+1)::ChunkHeader` is created.
+//  - Addition: When a new field `NF` is added to `ChunkHeader`, a new version
+//    `flatbuffer::v2::ChunkHeader` is created.
 //    * Hardened behavior of old binaries: They don't know about `NF`.
-//    * Expected behavior of the new binary: In its v(n) serializer, it neglects
-//      `NF`. In its v(n) deserializer, it generates a default value for `NF`.
-//    * The new binary must be able to work with the default value of `NF`.
+//    * Expected behavior of new binary: It keeps `flatbuffer::v1::ChunkHeader`
+//      and adds `flatbuffer::v2::ChunkHeader`. In its v2 (de)serializer, it
+//      uses `NF` since it is the reason why `NF` is added. However, in its v1
+//      serializer, it neglects `NF` since the old binaries don't know about it.
+//      In its v1 deserializer, it generates a default value for `NF` since
+//      `NF` is not present in the serialized data from old binaries.
+//    * The new binary must be able to work with the default value of `NF` that
+//      comes from its modified v1 deserializer.
 //
-//  - To remove an existing field `OF` from `ChunkHeader`, a new version of
-//    `flatbuffer::v(n+1)::ChunkHeader` is created.
+//  - Deletion: To remove an existing field `OF` from `ChunkHeader`, again, a
+//     new version `flatbuffer::v2::ChunkHeader` is created.
 //    * Hardened behavior of old binaries: They know about `OF` and use it.
-//    * Expected behavior of the new binary: In its v(n) serializer, it
-//      serializes `OF` with a default value. In its v(n) deserializer, it
-//      neglects `OF` since it does not want to use it any more.
+//    * Expected behavior of the new binary: In its v2 (de)serializer, it
+//      neglects `OF` since it is the reason why `OF` is removed. In its v1
+//      serializer, it serializes `OF` with a default value. In its v1
+//      deserializer, it neglects `OF` since it doesn't want to use it any more.
 //    * The old binaries must be able to work with the default value of `OF`.
+//    * This essentially means every field in `ChunkHeader` must have a default
+//      value, and all the binaries must work with these default values.
 inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
 
 // Assumptions about the chunk receive contention.

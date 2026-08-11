@@ -24,12 +24,12 @@ struct alignas(8) ChunkHeader final {
   static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
   static_assert(assumptions::kChunkHeaderHasBackwardForwardCompatibilityIssue);
   // LINT.IfChange
-  Handle handle;     // handle id (fixed)
-  ReqId reqid;       // request id (fixed)
-  uint32_t nchunks;  // total #chunks (fixed)
-  chunk_t index;     // chunk index (variable)
-  addr_t addr;       // chunk address (variable)
-  uint32_t size;     // chunk size (variable)
+  Handle handle = Handle(0);   // handle id (fixed)
+  ReqId reqid = ReqId(0);      // request id (fixed)
+  uint32_t nchunks = 0;        // total #chunks (fixed)
+  chunk_t index = chunk_t(0);  // chunk index (variable)
+  addr_t addr = addr_t(0);     // chunk address (variable)
+  uint32_t size = 0;           // chunk size (variable)
   // LINT.ThenChange(chunk.fbs)
 
   // Returns true iff the chunk is valid.
