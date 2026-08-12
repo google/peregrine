@@ -2,10 +2,10 @@
 #define PEREGRINE_SRC_INTERNAL_CONTROL_GRPC_CLIENT_H_
 
 #include <memory>
-#include <string_view>
 
 #include "absl/status/statusor.h"
 #include "grpcpp/security/credentials.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/service.grpc.pb.h"
 #include "src/util/macro.h"
@@ -18,7 +18,7 @@ class GrpcClient final {
  public:
   // Constructor binding to a peer endpoint (e.g. "127.0.0.1:50051")
   // using explicit gRPC channel credentials.
-  GrpcClient(std::string_view peer_address,
+  GrpcClient(const Endpoint& peer,
              std::shared_ptr<grpc::ChannelCredentials> creds);
 
   // Disallows copy/move operations.

@@ -2,7 +2,6 @@
 #define PEREGRINE_SRC_INTERNAL_CONTROL_GRPC_SERVER_H_
 
 #include <memory>
-#include <string_view>
 #include <utility>
 
 #include "absl/functional/any_invocable.h"
@@ -13,6 +12,7 @@
 #include "grpcpp/server.h"
 #include "grpcpp/server_context.h"
 #include "grpcpp/support/status.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/service.grpc.pb.h"
 #include "src/util/macro.h"
@@ -28,7 +28,7 @@ class GrpcServer final : public rpc::PeregrineService::Service {
 
   // Creates an asynchronous gRPC server using explicit server credentials.
   static absl::StatusOr<std::unique_ptr<GrpcServer>> Create(
-      std::string_view listen_address, RequestHandler&& handler,
+      const Endpoint& self, RequestHandler&& handler,
       std::shared_ptr<grpc::ServerCredentials> creds);
 
   // Disallows copy/move operations.

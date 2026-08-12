@@ -1,8 +1,6 @@
 #include "src/internal/control/grpc_client.h"
 
 #include <memory>
-#include <string>
-#include <string_view>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -13,6 +11,7 @@
 #include "grpcpp/create_channel.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/support/status.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/service.grpc.pb.h"
 
@@ -26,10 +25,10 @@ absl::Status ToAbslStatus(const grpc::Status& s) {
 }
 }  // namespace
 
-GrpcClient::GrpcClient(std::string_view peer_address,
+GrpcClient::GrpcClient(const Endpoint& peer,
                        std::shared_ptr<grpc::ChannelCredentials> creds)
     : stub_(rpc::PeregrineService::NewStub(
-          grpc::CreateChannel(std::string(peer_address), std::move(creds)))) {}
+          grpc::CreateChannel(peer.ToString(), std::move(creds)))) {}
 
 absl::StatusOr<proto::RespMsg> GrpcClient::SendUnary(
     const proto::ReqMsg& request) const {

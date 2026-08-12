@@ -2,8 +2,6 @@
 #define PEREGRINE_SRC_INTERNAL_CONTROL_CONTROL_H_
 
 #include <memory>
-#include <string>
-#include <string_view>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
@@ -13,6 +11,7 @@
 #include "absl/synchronization/mutex.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/control/grpc_client.h"
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.pb.h"
@@ -30,7 +29,7 @@ class Control final {
 
   // Creates a gRPC server with explicit security credentials.
   static absl::StatusOr<std::unique_ptr<Control>> Create(
-      std::string_view listen_addr, RequestHandler&& handler,
+      const Endpoint& self, RequestHandler&& handler,
       std::shared_ptr<grpc::ServerCredentials> server_creds,
       std::shared_ptr<grpc::ChannelCredentials> client_creds);
 
@@ -46,7 +45,7 @@ class Control final {
 
   // Synchronously sends a request message to a remote peer endpoint.
   // Returns the response message or an error status.
-  absl::StatusOr<proto::RespMsg> SendRequest(std::string_view peer_addr,
+  absl::StatusOr<proto::RespMsg> SendRequest(const Endpoint& peer,
                                              const proto::ReqMsg& req);
 
  private:
@@ -55,8 +54,8 @@ class Control final {
           std::shared_ptr<grpc::ChannelCredentials> client_creds);
 
   // Retrieves an active client stub for peer_addr or instantiates a new one.
-  GrpcClient* getOrCreateClient(std::string_view peer_addr)
-      ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
+  const GrpcClient& getOrCreateClient(const Endpoint& peer)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
   // Returns true iff the invariant holds.
   bool invariant() const {
@@ -64,11 +63,12 @@ class Control final {
   }
 
  private:
-  mutable absl::Mutex mu_;
   std::unique_ptr<GrpcServer> grpc_server_;
-  absl::flat_hash_map<std::string, std::unique_ptr<GrpcClient>> peer_clients_
-      ABSL_GUARDED_BY(mu_);
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;
+
+  absl::Mutex mu_;
+  absl::flat_hash_map<Endpoint, std::unique_ptr<GrpcClient>> peer_clients_
+      ABSL_GUARDED_BY(mu_);
 };
 
 }  // namespace peregrine::internal

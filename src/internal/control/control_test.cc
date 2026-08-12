@@ -33,7 +33,8 @@ TEST(ControlTest, SendPeerRequestsLoopback) {
     return absl::OkStatus();
   };
 
-  auto ctrl_or = Control::Create("127.0.0.1:0", std::move(handler),
+  const Endpoint self = Endpoint::Create("127.0.0.1:0");
+  auto ctrl_or = Control::Create(self, std::move(handler),
                                  grpc::InsecureServerCredentials(),
                                  grpc::InsecureChannelCredentials());  // NOLINT
   ASSERT_TRUE(ctrl_or.ok()) << ctrl_or.status();
@@ -51,11 +52,11 @@ TEST(ControlTest, SendPeerRequestsLoopback) {
   };
   const std::vector<Request> requests = {req_item};
 
-  const std::string target_addr = absl::StrFormat("127.0.0.1:%d", port);
+  const std::string p = absl::StrFormat("127.0.0.1:%d", port);
+  const Endpoint peer = Endpoint::Create(p);
   proto::ReqMsg req;
   ASSERT_TRUE(Message::Convert(host, requests, req));
-  const absl::StatusOr<proto::RespMsg> resp_or =
-      ctrl->SendRequest(target_addr, req);
+  const absl::StatusOr<proto::RespMsg> resp_or = ctrl->SendRequest(peer, req);
   EXPECT_TRUE(resp_or.ok()) << resp_or.status();
   EXPECT_TRUE(callback_invoked);
 }

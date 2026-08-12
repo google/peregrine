@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <string>
-#include <string_view>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -16,6 +15,7 @@
 #include "grpcpp/server_builder.h"
 #include "grpcpp/server_context.h"
 #include "grpcpp/support/status.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/control/message.pb.h"
 
 namespace peregrine::internal {
@@ -39,14 +39,14 @@ void GrpcServer::Shutdown() {
 }
 
 absl::StatusOr<std::unique_ptr<GrpcServer>> GrpcServer::Create(
-    std::string_view listen_address, RequestHandler&& handler,
+    const Endpoint& self, RequestHandler&& handler,
     std::shared_ptr<grpc::ServerCredentials> creds) {
   if (!handler) return absl::InvalidArgumentError("null RequestHandler");
 
   std::unique_ptr<GrpcServer> server(new GrpcServer(std::move(handler)));
 
   int port = 0;
-  const std::string addr(listen_address);
+  const std::string addr = self.ToString();
   grpc::ServerBuilder builder;
   builder.AddListeningPort(addr, std::move(creds), &port);
   builder.RegisterService(server.get());
@@ -54,7 +54,7 @@ absl::StatusOr<std::unique_ptr<GrpcServer>> GrpcServer::Create(
   server->server_ = builder.BuildAndStart();
   if ABSL_PREDICT_FALSE (server->server_ == nullptr) {
     return absl::InternalError(
-        absl::StrCat("GrpcServer failed to start on ", listen_address));
+        absl::StrCat("GrpcServer failed to start on ", addr));
   }
 
   DCHECK_GT(port, 0);

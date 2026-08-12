@@ -9,6 +9,7 @@
 #include "absl/strings/str_cat.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/control/grpc_client.h"
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.pb.h"
@@ -30,14 +31,16 @@ TEST(GrpcTest, SuccessfulRequest) {
     return absl::OkStatus();
   };
 
+  const Endpoint self = Endpoint::Create(kAddr);
   auto creds = grpc::InsecureServerCredentials();
-  auto server_or = GrpcServer::Create(kAddr, handler, creds);
+  auto server_or = GrpcServer::Create(self, handler, creds);
   ASSERT_TRUE(server_or.ok()) << server_or.status();
   std::unique_ptr<GrpcServer> server = std::move(*server_or);
   ASSERT_GT(server->port(), 0);
 
   const std::string server_addr = absl::StrCat(kAddrPrefix, server->port());
-  const GrpcClient client(server_addr, grpc::InsecureChannelCredentials());
+  const Endpoint peer = Endpoint::Create(server_addr);
+  const GrpcClient client(peer, grpc::InsecureChannelCredentials());
 
   proto::ReqMsg req;
   req.mutable_peer_requests();
@@ -52,14 +55,16 @@ TEST(GrpcTest, FailedRequest) {
     return absl::PermissionDeniedError(kErrMsg);
   };
 
+  const Endpoint self = Endpoint::Create(kAddr);
   auto creds = grpc::InsecureServerCredentials();
-  auto server_or = GrpcServer::Create(kAddr, handler, creds);
+  auto server_or = GrpcServer::Create(self, handler, creds);
   ASSERT_TRUE(server_or.ok()) << server_or.status();
   std::unique_ptr<GrpcServer> server = std::move(*server_or);
   ASSERT_GT(server->port(), 0);
 
   const std::string server_addr = absl::StrCat(kAddrPrefix, server->port());
-  const GrpcClient client(server_addr, grpc::InsecureChannelCredentials());
+  const Endpoint peer = Endpoint::Create(server_addr);
+  const GrpcClient client(peer, grpc::InsecureChannelCredentials());
 
   const proto::ReqMsg req;
   const absl::StatusOr<proto::RespMsg> resp_or = client.SendUnary(req);
