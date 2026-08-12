@@ -112,6 +112,15 @@ inline constexpr bool kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf = true;
 //    * The old binaries must be able to work with the default value of `OF`.
 //    * This essentially means every field in `ChunkHeader` must have a default
 //      value, and all the binaries must work with these default values.
+//
+// In summary, `ChunkHeader` will have two kinds of fields:
+//  - REQUIRED: not removeable, so no need to have a default value.
+//  - OPTIONAL: removeable, thus must have a default value. We can wrap each
+//      field `F` in `std::optional<F>` with `std::nullopt` as the default.
+//
+// When a new field is added, it may be hard to decide whether it's required or
+// optional. This question has been discussed in protobuf world. The solution
+// is, when in doubt, make the field OPTIONAL.
 inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
 
 // Assumptions about the chunk receive contention.
