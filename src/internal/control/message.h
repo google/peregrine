@@ -1,7 +1,6 @@
 #ifndef PEREGRINE_SRC_INTERNAL_CONTROL_MESSAGE_H_
 #define PEREGRINE_SRC_INTERNAL_CONTROL_MESSAGE_H_
 
-#include <cstddef>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -19,12 +18,9 @@ namespace peregrine::internal {
 // their proto representations.
 class Message final {
   static_assert(assumptions::kTcpListenersOfControlAndDataPlanesAreSeparate);
-  static_assert(assumptions::kThereIsOnlyOneWrapperControlMessageAtMost1KiB);
+  static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
 
  public:
-  // The maximum length of a serialized control message.
-  static constexpr size_t kMaxLen = 1024;
-
   // Serializes the control message to a string.
   static std::string Serialize(const proto::ReqMsg& msg) {
     return msg.SerializeAsString();

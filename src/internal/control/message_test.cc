@@ -41,8 +41,6 @@ TEST(MessageTest, Serialization) {
   Message::Convert(host, {req}, a);
 
   const std::string s = Message::Serialize(a);
-  ASSERT_LE(s.size(), Message::kMaxLen);
-
   proto::ReqMsg b;
   ASSERT_FALSE(b.has_peer_requests());
   EXPECT_TRUE(Message::Deserialize(s, b));

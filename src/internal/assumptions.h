@@ -15,10 +15,50 @@ inline constexpr bool kTransportImplementationHasItsOwnThreads = true;
 // Assumptions about hashing.
 // ---------------------------------------------------------------------------
 //
-// The absl::Hash values are stable only within a single instance of process
+// The `absl::Hash` values are stable only within a single instance of process
 // invocation. Across different process invocations of even the same program,
-// absl::Hash of the same key yields different values.
+// `absl::Hash` of the same key yields different values.
 inline constexpr bool kAbslHashIsStableOnlyInOneProcessInvocation = true;
+
+// Assumptions about control/data plane.
+// ---------------------------------------------------------------------------
+//
+// When a Peregrine transport instance starts, it needs to understand its host
+// environment first. It enumerates all the network interface cards (NICs) on
+// the host, and collects software information (such as ChunkHeader versions
+// supported, see the kChunkHeaderHasBackwardForwardCompatibilityIssue below).
+//
+// Then Peregrine starts a control-plane gRPC (https://github.com/grpc/grpc)
+// server bound to an arbitrary NIC and a predetermined port (e.g., `ip:port_c`,
+// which can be used to identify the Peregrine instance itself). It also starts
+// multiple data-plane TCP listeners, one per NIC (e.g. on `ip0::port_d0`,
+// `ip1::port_d1`, etc.). The data-plane TCP listeners are used to create TCP
+// connections bounded to specific NICs to carry data-plane traffic.
+//
+// Knowing the transport's control-plane listening address `ip:port_c`, other
+// peer transports can connect to it to query its host environment information
+// (such as data-plane TCP listener addresses, supported ChunkHeader versions)
+// and exchange control messages. Alternatively, each transport can report its
+// host info to a central server (such as https://github.com/etcd-io/etcd),
+// which can then be queried by all the transports.
+inline constexpr bool kTcpListenersOfControlAndDataPlanesAreSeparate = true;
+
+// Assumptions about control messages.
+// ---------------------------------------------------------------------------
+//
+// There are multiple types of messages in the control plane, such as transport
+// request, host info, software info, etc. All of them are wrapped in a single
+// control message using protobuf's `oneof` feature. All the control message
+// exchanges are done over gRPC. (The data plane, due to efficiency reasons,
+// runs over TCP/RDMA/..., to minimize the middle layers as much as possible.)
+inline constexpr bool kThereIsOnlyOneWrapperControlMessage = true;
+
+// Assumptions about network MTU.
+// ---------------------------------------------------------------------------
+//
+// We assume that network MTU is no more than 10 KiB. This should cover all the
+// known cases including jumbo frames.
+inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
 
 // Assumptions about transport request, handle, buffer and chunks.
 // ---------------------------------------------------------------------------
@@ -49,12 +89,37 @@ inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
 // address from the buffer id.)
 inline constexpr bool kChunkHeaderAndPayloadAreEncryptedOnWire = true;
 
-// Assumptions about network MTU.
+// Assumptions about the chunk receive contention.
 // ---------------------------------------------------------------------------
 //
-// We assume that network MTU is no more than 10 KiB. This should cover all the
-// known cases including jumbo frames.
-inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
+// A transport request contains one or more non-overlapping buffers, each of
+// which is further split into many fixed-size, non-overlapping chunks sent over
+// a set of communication channels. As a result, multiple chunks often arrive at
+// the receiver simultaneously. We assume that, in any time window, there are
+// not many (ideally, no) duplicate chunk arrivals. For each chunk, there can
+// be at most a few writer threads asking for permission to write the same chunk
+// data. Therefore, the write contention of the same chunk at the receiver side
+// is extremely low. On the other hand, multiple writer threads can write
+// different chunks at the same time.
+inline constexpr bool kReceiverSideChunkWriteContentionIsVeryLow = true;
+
+// Assumptions about the chunk write completion.
+// ---------------------------------------------------------------------------
+//
+// The non zero-copy TCP send call returns immediately after the data is copied
+// to the local kernel buffer, not after the data has been received by the
+// remote peer. Therefore we use the ack chunk from the receiver to signal the
+// chunk write completion. In comparison, zero-copy TCP send returns after the
+// data has been received by the remote peer, subject to that the send buffer
+// must be pinned in memory until the TCP acks all the sent packets.
+//
+// This assumption shows read and write are handled differently. For read, the
+// receiver knows immediately when the data is received locally. For write, the
+// sender needs to know after the data is received by the peer remotely.
+//
+// We will revisit this assumption periodically, and change the implementation
+// accordingly.
+inline constexpr bool kUseAckChunkToSignalChunkWriteCompletion = true;
 
 // Assumptions about chunk header serialization.
 // ---------------------------------------------------------------------------
@@ -122,64 +187,6 @@ inline constexpr bool kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf = true;
 // optional. This question has been discussed in protobuf world. The solution
 // is, when in doubt, make the field OPTIONAL.
 inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
-
-// Assumptions about the chunk receive contention.
-// ---------------------------------------------------------------------------
-//
-// A transport request contains one or more non-overlapping buffers, each of
-// which is further split into many fixed-size, non-overlapping chunks sent over
-// a set of communication channels. As a result, multiple chunks often arrive at
-// the receiver simultaneously. We assume that, in any time window, there are
-// not many (ideally, no) duplicate chunk arrivals. For each chunk, there can
-// be at most a few writer threads asking for permission to write the same chunk
-// data. Therefore, the write contention of the same chunk at the receiver side
-// is extremely low. On the other hand, multiple writer threads can write
-// different chunks at the same time.
-inline constexpr bool kReceiverSideChunkWriteContentionIsVeryLow = true;
-
-// The non zero-copy TCP send call returns immediately after the data is copied
-// to the local kernel buffer, not after the data has been received by the
-// remote peer. Therefore we use the ack chunk from the receiver to signal the
-// chunk write completion. In comparison, zero-copy TCP send returns after the
-// data has been received by the remote peer, subject to that the send buffer
-// must be pinned in memory until the TCP acks all the sent packets.
-//
-// This assumption shows read and write are handled differently. For read, the
-// receiver knows immediately when the data is received locally. For write, the
-// sender needs to know after the data is received by the peer remotely.
-inline constexpr bool kUseAckChunkToSignalChunkWriteCompletion = true;
-
-// Assumptions about control/data plane.
-// ---------------------------------------------------------------------------
-//
-// When a transport instance starts, it needs to understand its host environment
-// first. For example, it enumerates all the network interface cards (NICs) on
-// the host. Then the transport starts one control-plane TCP listener bound to
-// an arbitrary NIC (e.g. on ip:port_c, which can be used to identify the
-// transport instance itself). It also starts multiple data-plane TCP listeners
-// one per NIC (e.g. on ip0::port_d0 and ip1::port_d1). The data-plane TCP
-// listeners are used to create TCP connections bounded to specific NICs to
-// carry data-plane traffic, not control-plane messages.
-//
-// Knowing the transport's control-plane listening address ip:port_c, other peer
-// transports can connect to it to query its host environment information (such
-// as data-plane TCP listener addresses) and exchange control messages.
-// Alternatively, each transport can report its host info to a central server
-// (such as `etcd`), which can then be queried by all the transports.
-inline constexpr bool kTcpListenersOfControlAndDataPlanesAreSeparate = true;
-
-// Assumptions about control messages.
-// ---------------------------------------------------------------------------
-//
-// There are multiple types of messages in the control plane, such as transport
-// request, host device info, etc. All of them are wrapped in a single control
-// message using protobuf's `oneof` feature. This control message is serialized
-// in two fields: a 4-byte network-byte-order length field and a variable-size
-// string (serialization of the inner message, at most 1024 bytes). In total,
-// a serialized control message is at most 1028 bytes, well below the widely
-// used network MTU of 1500 bytes.
-inline constexpr bool kThereIsOnlyOneWrapperControlMessageAtMost1KiB = true;
-
 }  // namespace peregrine::assumptions
 
 #endif  // PEREGRINE_SRC_INTERNAL_ASSUMPTIONS_H_
