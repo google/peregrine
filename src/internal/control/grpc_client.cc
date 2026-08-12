@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -28,10 +29,14 @@ absl::Status ToAbslStatus(const grpc::Status& s) {
 GrpcClient::GrpcClient(const Endpoint& peer,
                        std::shared_ptr<grpc::ChannelCredentials> creds)
     : stub_(rpc::PeregrineService::NewStub(
-          grpc::CreateChannel(peer.ToString(), std::move(creds)))) {}
+          grpc::CreateChannel(peer.ToString(), std::move(creds)))) {
+  DCHECK(invariant());
+}
 
 absl::StatusOr<proto::RespMsg> GrpcClient::SendUnary(
     const proto::ReqMsg& request) const {
+  DCHECK(invariant());
+
   grpc::ClientContext context;
   proto::RespMsg response;
   const grpc::Status s = stub_->ProcessUnary(&context, request, &response);

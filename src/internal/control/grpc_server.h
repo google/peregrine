@@ -38,6 +38,9 @@ class GrpcServer final : public rpc::PeregrineService::Service {
   // Destructor.
   ~GrpcServer() override { Shutdown(); }
 
+  // Returns the actual TCP port bound by the gRPC server.
+  int Port() const { return port_; }
+
   // Processes a unary RPC request.
   // Returns OK on success, or an error status on failure.
   grpc::Status ProcessUnary(grpc::ServerContext* context,
@@ -46,9 +49,6 @@ class GrpcServer final : public rpc::PeregrineService::Service {
 
   // Gracefully terminates the gRPC server.
   void Shutdown();
-
-  // Returns the actual TCP port bound by the gRPC server.
-  int port() const { return port_; }
 
  private:
   // Constructor.

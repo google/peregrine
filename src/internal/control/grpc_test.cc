@@ -36,9 +36,10 @@ TEST(GrpcTest, SuccessfulRequest) {
   auto server_or = GrpcServer::Create(self, handler, creds);
   ASSERT_TRUE(server_or.ok()) << server_or.status();
   std::unique_ptr<GrpcServer> server = std::move(*server_or);
-  ASSERT_GT(server->port(), 0);
+  const int port = server->Port();
+  ASSERT_GT(port, 0);
 
-  const std::string server_addr = absl::StrCat(kAddrPrefix, server->port());
+  const std::string server_addr = absl::StrCat(kAddrPrefix, port);
   const Endpoint peer = Endpoint::Create(server_addr);
   const GrpcClient client(peer, grpc::InsecureChannelCredentials());
 
@@ -60,9 +61,10 @@ TEST(GrpcTest, FailedRequest) {
   auto server_or = GrpcServer::Create(self, handler, creds);
   ASSERT_TRUE(server_or.ok()) << server_or.status();
   std::unique_ptr<GrpcServer> server = std::move(*server_or);
-  ASSERT_GT(server->port(), 0);
+  const int port = server->Port();
+  ASSERT_GT(port, 0);
 
-  const std::string server_addr = absl::StrCat(kAddrPrefix, server->port());
+  const std::string server_addr = absl::StrCat(kAddrPrefix, port);
   const Endpoint peer = Endpoint::Create(server_addr);
   const GrpcClient client(peer, grpc::InsecureChannelCredentials());
 

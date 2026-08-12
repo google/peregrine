@@ -33,14 +33,11 @@ Control::Control(std::unique_ptr<GrpcServer> server,
 }
 
 Control::~Control() {
-  DCHECK(invariant());
-  {
-    absl::MutexLock _(mu_);
-    if (grpc_server_ != nullptr) {
-      grpc_server_->Shutdown();
-    }
+  if (grpc_server_ != nullptr) {
+    grpc_server_->Shutdown();
+    grpc_server_ = nullptr;
+    LOG(INFO) << kControl << "destroyed";
   }
-  LOG(INFO) << kControl << "destroyed";
 }
 
 absl::StatusOr<std::unique_ptr<Control>> Control::Create(
@@ -71,7 +68,7 @@ absl::StatusOr<proto::RespMsg> Control::SendRequest(const Endpoint& peer,
 const GrpcClient& Control::getOrCreateClient(const Endpoint& peer) {
   DCHECK(invariant());
 
-  absl::MutexLock _(mu_);
+  absl::MutexLock _(peer_clients_mu_);
   std::unique_ptr<GrpcClient>& client = peer_clients_[peer];
   if ABSL_PREDICT_FALSE (client == nullptr) {
     client = std::make_unique<GrpcClient>(peer, client_creds_);

@@ -41,7 +41,7 @@ class Control final {
   ~Control();
 
   // Returns the TCP port bound by the gRPC listener.
-  int Port() const { return grpc_server_->port(); }
+  int Port() const { return grpc_server_->Port(); }
 
   // Synchronously sends a request message to a remote peer endpoint.
   // Returns the response message or an error status.
@@ -55,7 +55,7 @@ class Control final {
 
   // Retrieves an active client stub for peer_addr or instantiates a new one.
   const GrpcClient& getOrCreateClient(const Endpoint& peer)
-      ABSL_LOCKS_EXCLUDED(mu_);
+      ABSL_LOCKS_EXCLUDED(peer_clients_mu_);
 
   // Returns true iff the invariant holds.
   bool invariant() const {
@@ -66,9 +66,9 @@ class Control final {
   std::unique_ptr<GrpcServer> grpc_server_;
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;
 
-  absl::Mutex mu_;
+  absl::Mutex peer_clients_mu_;
   absl::flat_hash_map<Endpoint, std::unique_ptr<GrpcClient>> peer_clients_
-      ABSL_GUARDED_BY(mu_);
+      ABSL_GUARDED_BY(peer_clients_mu_);
 };
 
 }  // namespace peregrine::internal

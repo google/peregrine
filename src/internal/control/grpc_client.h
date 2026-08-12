@@ -28,9 +28,13 @@ class GrpcClient final {
   // Destructor.
   ~GrpcClient() = default;
 
-  // Synchronously sends a control request to the peer and awaits a response.
+  // Synchronously sends a request to the peer and awaits a response.
   // Returns the response on success, or an error status on failure.
   absl::StatusOr<proto::RespMsg> SendUnary(const proto::ReqMsg& request) const;
+
+ private:
+  // Returns true if the invariant holds.
+  bool invariant() const { return stub_ != nullptr; }
 
  private:
   std::unique_ptr<rpc::PeregrineService::Stub> stub_;
