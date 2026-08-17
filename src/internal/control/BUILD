@@ -71,6 +71,7 @@ cc_library(
         ":grpc_server",
         ":message_cc_proto",
         "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",

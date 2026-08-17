@@ -12,6 +12,7 @@
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/control/grpc_client.h"
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.pb.h"
@@ -29,7 +30,7 @@ class Control final {
 
   // Creates a gRPC server with explicit security credentials.
   static absl::StatusOr<std::unique_ptr<Control>> Create(
-      const Endpoint& self, RequestHandler&& handler,
+      const HostInfo& self, RequestHandler&& handler,
       std::shared_ptr<grpc::ServerCredentials> server_creds,
       std::shared_ptr<grpc::ChannelCredentials> client_creds);
 
@@ -50,7 +51,7 @@ class Control final {
 
  private:
   // Private constructor initializing in pure gRPC mode.
-  Control(std::unique_ptr<GrpcServer> server,
+  Control(const HostInfo& self, std::unique_ptr<GrpcServer> server,
           std::shared_ptr<grpc::ChannelCredentials> client_creds);
 
   // Retrieves an active client stub for peer_addr or instantiates a new one.
@@ -63,6 +64,7 @@ class Control final {
   }
 
  private:
+  const HostInfo self_;
   std::unique_ptr<GrpcServer> grpc_server_;
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;
 

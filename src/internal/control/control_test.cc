@@ -33,7 +33,8 @@ TEST(ControlTest, SendPeerRequestsLoopback) {
     return absl::OkStatus();
   };
 
-  const Endpoint self = Endpoint::Create("127.0.0.1:0");
+  const HostInfo self = {.control_plane_listener =
+                             Endpoint::Create("127.0.0.1:0")};
   auto ctrl_or = Control::Create(self, std::move(handler),
                                  grpc::InsecureServerCredentials(),
                                  grpc::InsecureChannelCredentials());  // NOLINT
