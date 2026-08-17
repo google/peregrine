@@ -46,6 +46,18 @@ class Message final {
            a.raddr() == b.raddr() && a.len() == b.len();
   }
 
+  // Converts HostInfo to its proto ReqMsg.
+  static bool Convert(const HostInfo& host, proto::ReqMsg& msg);
+
+  // Converts a proto ReqMsg to HostInfo.
+  static bool Convert(const proto::ReqMsg& msg, HostInfo& host);
+
+  // Converts HostInfo to its proto RespMsg.
+  static bool Convert(const HostInfo& host, proto::RespMsg& msg);
+
+  // Converts a proto RespMsg to HostInfo.
+  static bool Convert(const proto::RespMsg& msg, HostInfo& host);
+
  private:
   // Converts a request to its proto.
   static bool convert(const HostInfo& host, proto::HostInfo& proto);

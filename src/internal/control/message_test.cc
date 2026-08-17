@@ -55,5 +55,49 @@ TEST(MessageTest, Serialization) {
   EXPECT_EQ(requests[0], req);
 }
 
+TEST(MessageTest, HostInfoExchange) {
+  // Construct a valid Multi-NIC HostInfo configuration.
+  const Endpoint c = Endpoint::Create("10.0.0.1:10000");
+  const Endpoint d0 = Endpoint::Create("10.0.0.1:35247");
+  const Endpoint d1 = Endpoint::Create("10.0.0.2:51691");
+  const HostInfo source = {
+      .control_plane_listener = c,
+      .data_plane_listeners = {d0, d1},
+  };
+  ASSERT_TRUE(source.IsValid());
+
+  // 1. ReqMsg End-to-End Round-Trip Validation
+  proto::ReqMsg req_proto;
+  ASSERT_TRUE(Message::Convert(source, req_proto));
+  EXPECT_TRUE(req_proto.has_host_info());
+
+  HostInfo dest_req;
+  ASSERT_TRUE(Message::Convert(req_proto, dest_req));
+  EXPECT_EQ(dest_req.control_plane_listener, c);
+  ASSERT_EQ(dest_req.data_plane_listeners.size(), 2);
+  EXPECT_EQ(dest_req.data_plane_listeners[0], d0);
+  EXPECT_EQ(dest_req.data_plane_listeners[1], d1);
+
+  // 2. RespMsg End-to-End Round-Trip Validation
+  proto::RespMsg resp_proto;
+  ASSERT_TRUE(Message::Convert(source, resp_proto));
+  EXPECT_TRUE(resp_proto.has_host_info());
+
+  HostInfo dest_resp;
+  ASSERT_TRUE(Message::Convert(resp_proto, dest_resp));
+  EXPECT_EQ(dest_resp.control_plane_listener, c);
+  ASSERT_EQ(dest_resp.data_plane_listeners.size(), 2);
+  EXPECT_EQ(dest_resp.data_plane_listeners[0], d0);
+  EXPECT_EQ(dest_resp.data_plane_listeners[1], d1);
+
+  // 3. Robustness/Negative Constraints: De-serialization of Empty Envelopes
+  proto::ReqMsg empty_req;
+  HostInfo empty_dest;
+  EXPECT_FALSE(Message::Convert(empty_req, empty_dest));
+
+  proto::RespMsg empty_resp;
+  EXPECT_FALSE(Message::Convert(empty_resp, empty_dest));
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

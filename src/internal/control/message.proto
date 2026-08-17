@@ -9,11 +9,15 @@ package peregrine.internal.proto;
 message ReqMsg {
   oneof msg {
     PeerRequests peer_requests = 1;
-    // Add other message types here.
+    HostInfo host_info = 2;
   }
 }
 
-message RespMsg {}
+message RespMsg {
+  oneof msg {
+    HostInfo host_info = 1;
+  }
+}
 
 // Below are inner messages.
 // ------------------------

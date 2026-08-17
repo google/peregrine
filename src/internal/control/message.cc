@@ -58,6 +58,26 @@ std::pair<HostInfo, std::vector<Request>> Message::Convert(
   return {host, std::move(requests)};
 }
 
+bool Message::Convert(const HostInfo& host, proto::ReqMsg& msg) {
+  msg.Clear();
+  return convert(host, *msg.mutable_host_info());
+}
+
+bool Message::Convert(const proto::ReqMsg& msg, HostInfo& host) {
+  if (!msg.has_host_info()) return false;
+  return convert(msg.host_info(), host);
+}
+
+bool Message::Convert(const HostInfo& host, proto::RespMsg& msg) {
+  msg.Clear();
+  return convert(host, *msg.mutable_host_info());
+}
+
+bool Message::Convert(const proto::RespMsg& msg, HostInfo& host) {
+  if (!msg.has_host_info()) return false;
+  return convert(msg.host_info(), host);
+}
+
 bool Message::convert(const HostInfo& host, proto::HostInfo& proto) {
   if (!host.IsValid()) return false;
 
