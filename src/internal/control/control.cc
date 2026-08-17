@@ -80,4 +80,27 @@ const GrpcClient& Control::getOrCreateClient(const Endpoint& peer) {
   return *client;
 }
 
+absl::StatusOr<HostInfo> Control::ResolvePeerHostInfo(
+    const Endpoint& peer_control_ep) {
+  if ABSL_PREDICT_FALSE (!peer_control_ep.HasNonzeroIpPort()) {
+    return absl::InvalidArgumentError("invalid peer endpoint");
+  }
+
+  absl::MutexLock _(peer_hosts_mu_);
+
+  std::unique_ptr<HostInfo>& host_info = peer_hosts_[peer_control_ep];
+  if ABSL_PREDICT_FALSE (host_info == nullptr) {
+    // TODO: Future CL to dispatch out-of-band Unary gRPC ExchangeHostInfo
+    // RPCs to remote peers. For now, we assume the control-plane listener is
+    // also the data-plane listener.
+    host_info = std::make_unique<HostInfo>(HostInfo{
+        .control_plane_listener = peer_control_ep,
+        .data_plane_listeners = {peer_control_ep},
+    });
+  }
+
+  DCHECK_NE(host_info, nullptr);
+  return *host_info;
+}
+
 }  // namespace peregrine::internal

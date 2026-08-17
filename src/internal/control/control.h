@@ -49,6 +49,10 @@ class Control final {
   absl::StatusOr<proto::RespMsg> SendRequest(const Endpoint& peer,
                                              const proto::ReqMsg& req);
 
+  // Resolves the physical multi-NIC HostInfo topology of a remote peer.
+  absl::StatusOr<HostInfo> ResolvePeerHostInfo(const Endpoint& peer_control_ep)
+      ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
+
  private:
   // Private constructor initializing in pure gRPC mode.
   Control(const HostInfo& self, std::unique_ptr<GrpcServer> server,
@@ -71,6 +75,10 @@ class Control final {
   absl::Mutex peer_clients_mu_;
   absl::flat_hash_map<Endpoint, std::unique_ptr<GrpcClient>> peer_clients_
       ABSL_GUARDED_BY(peer_clients_mu_);
+
+  absl::Mutex peer_hosts_mu_;
+  absl::flat_hash_map<Endpoint, std::unique_ptr<HostInfo>> peer_hosts_
+      ABSL_GUARDED_BY(peer_hosts_mu_);
 };
 
 }  // namespace peregrine::internal

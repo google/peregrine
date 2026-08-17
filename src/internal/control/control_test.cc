@@ -62,5 +62,40 @@ TEST(ControlTest, SendPeerRequestsLoopback) {
   EXPECT_TRUE(callback_invoked);
 }
 
+TEST(ControlTest, ResolvePeerHostInfo) {
+  const HostInfo self = {.control_plane_listener =
+                             Endpoint::Create("127.0.0.1:0")};
+  auto ctrl_or = Control::Create(
+      self,
+      [](const proto::ReqMsg&, proto::RespMsg*) { return absl::OkStatus(); },
+      grpc::InsecureServerCredentials(),
+      grpc::InsecureChannelCredentials());  // NOLINT
+  ASSERT_TRUE(ctrl_or.ok()) << ctrl_or.status();
+  std::unique_ptr<Control> ctrl = std::move(*ctrl_or);
+
+  // Valid Endpoint's resolution is cached.
+  const Endpoint remote_peer = Endpoint::Create("127.0.0.1:56789");
+  auto host_or = ctrl->ResolvePeerHostInfo(remote_peer);
+  ASSERT_TRUE(host_or.ok()) << host_or.status();
+
+  const HostInfo& resolved_host = *host_or;
+  EXPECT_EQ(resolved_host.control_plane_listener, remote_peer);
+  ASSERT_EQ(resolved_host.data_plane_listeners.size(), 1);
+  EXPECT_EQ(resolved_host.data_plane_listeners[0], remote_peer);
+
+  // Re-resolve the same endpoint to verify the HostInfo is cached.
+  auto host_cached_or = ctrl->ResolvePeerHostInfo(remote_peer);
+  ASSERT_TRUE(host_cached_or.ok()) << host_cached_or.status();
+  EXPECT_EQ(host_cached_or->control_plane_listener, remote_peer);
+  ASSERT_EQ(host_cached_or->data_plane_listeners.size(), 1);
+  EXPECT_EQ(host_cached_or->data_plane_listeners[0], remote_peer);
+
+  // Uninitialized or Zero-Value Endpoints trigger an error.
+  const Endpoint invalid_peer;
+  auto fail_or = ctrl->ResolvePeerHostInfo(invalid_peer);
+  EXPECT_FALSE(fail_or.ok());
+  EXPECT_EQ(fail_or.status().code(), absl::StatusCode::kInvalidArgument);
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing
