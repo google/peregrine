@@ -1,7 +1,6 @@
 #include "src/internal/lib/bitset.h"
 
 #include <cstdint>
-#include <string_view>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
@@ -11,8 +10,6 @@
 
 namespace peregrine::internal::testing {
 namespace {
-
-constexpr std::string_view kTag = "bitset: ";
 
 TEST(BitsetTest, Basic) {
   constexpr uint32_t kSize = 100;
@@ -29,7 +26,7 @@ TEST(BitsetTest, Basic) {
   EXPECT_EQ(m.Count(), kSize / 2);
   EXPECT_FALSE(m.IsEmpty());
   EXPECT_FALSE(m.IsFull());
-  LOG(INFO) << kTag << m;
+  LOG(INFO) << m;
 
   // Clear all of them.
   for (int i = 0; i < kSize; i += 2) {
@@ -38,7 +35,7 @@ TEST(BitsetTest, Basic) {
   }
   EXPECT_EQ(m.Count(), 0);
   EXPECT_TRUE(m.IsEmpty());
-  LOG(INFO) << kTag << m;
+  LOG(INFO) << m;
 
   // Set all of them.
   for (int i = 0; i < kSize; ++i) {
@@ -47,7 +44,7 @@ TEST(BitsetTest, Basic) {
   }
   EXPECT_EQ(m.Count(), kSize);
   EXPECT_TRUE(m.IsFull());
-  LOG(INFO) << kTag << m;
+  LOG(INFO) << m;
 }
 
 TEST(BitsetTest, ToString) {
@@ -57,9 +54,9 @@ TEST(BitsetTest, ToString) {
     ASSERT_EQ(m.Size(), size);
     for (int i = 0; i < size; ++i) {
       m.Set(util::Random<uint32_t>(bitgen, 0, size - 1));
-      LOG_IF(INFO, i % (size / 10) == 0) << kTag << m;
+      LOG_IF(INFO, i % (size / 10) == 0) << m;
     }
-    LOG(INFO) << kTag << m;
+    LOG(INFO) << m;
   }
 }
 

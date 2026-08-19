@@ -1,7 +1,6 @@
 #include "src/internal/socket/connector.h"
 
 #include <memory>
-#include <string_view>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
@@ -10,10 +9,6 @@
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
-
-namespace {
-constexpr std::string_view kConnector = "tcp connector ";
-}  // namespace
 
 std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
                                                 const Endpoint& local) {
@@ -35,7 +30,7 @@ std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
   }
 
   DCHECK(socket->IsConnected());
-  LOG(INFO) << kConnector << "made " << *socket;
+  LOG(INFO) << "made " << *socket;
   return socket;
 }
 

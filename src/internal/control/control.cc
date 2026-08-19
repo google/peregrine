@@ -1,7 +1,6 @@
 #include "src/internal/control/control.h"
 
 #include <memory>
-#include <string_view>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -20,10 +19,6 @@
 
 namespace peregrine::internal {
 
-namespace {
-constexpr std::string_view kControl = "grpc control plane ";
-}  // namespace
-
 Control::Control(const HostInfo& self, std::unique_ptr<GrpcServer> grpc_server,
                  std::shared_ptr<grpc::ChannelCredentials> client_creds)
     : self_(self),
@@ -34,14 +29,14 @@ Control::Control(const HostInfo& self, std::unique_ptr<GrpcServer> grpc_server,
       [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
         return handleIncomingRequest(req, resp);
       });
-  LOG(INFO) << kControl << "created on port " << Port();
+  LOG(INFO) << "created on port " << Port();
 }
 
 Control::~Control() {
   if (grpc_server_ != nullptr) {
     grpc_server_->Shutdown();
     grpc_server_ = nullptr;
-    LOG(INFO) << kControl << "destroyed";
+    LOG(INFO) << "destroyed";
   }
 }
 

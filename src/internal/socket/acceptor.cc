@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <memory>
-#include <string_view>
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -17,10 +16,6 @@
 
 namespace peregrine::internal {
 
-namespace {
-constexpr std::string_view kAcceptor = "tcp acceptor ";
-}  // namespace
-
 std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(const Endpoint& local) {
   const int family = local.GetIpAddr().AddressFamily();
   std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family);
@@ -33,14 +28,14 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(const Endpoint& local) {
     return nullptr;
   }
 
-  LOG(INFO) << kAcceptor << "created, " << *socket;
+  LOG(INFO) << "created, " << *socket;
   return absl::WrapUnique(new TcpAcceptor(std::move(socket)));
 }
 
 void TcpAcceptor::Start(AcceptCallback accept) {
   DCHECK(invariant());
   DCHECK_NE(accept, nullptr);
-  LOG(INFO) << kAcceptor << "starting, " << *listener_;
+  LOG(INFO) << "starting, " << *listener_;
 
   const int family = listener_->family();
   while (!stop_.load(std::memory_order_relaxed)) {
@@ -55,7 +50,7 @@ void TcpAcceptor::Start(AcceptCallback accept) {
     std::unique_ptr<TcpSocket> socket = TcpSocket::Create(fd, family);
     DCHECK(socket->IsBlocking());
     DCHECK(socket->IsConnected());
-    LOG(INFO) << kAcceptor << "made " << *socket;
+    LOG(INFO) << "made " << *socket;
     accept(std::move(socket));
   }
 }
@@ -64,7 +59,7 @@ void TcpAcceptor::Stop() {
   DCHECK(invariant());
   stop_.store(true, std::memory_order_relaxed);
   listener_->Shutdown();  // unblocks Accept()
-  LOG(INFO) << kAcceptor << "stopped, " << *listener_;
+  LOG(INFO) << "stopped, " << *listener_;
 }
 
 }  // namespace peregrine::internal

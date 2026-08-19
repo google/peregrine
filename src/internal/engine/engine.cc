@@ -6,7 +6,6 @@
 #include <cstring>
 #include <limits>
 #include <memory>
-#include <string_view>
 #include <thread>  // NOLINT
 #include <utility>
 
@@ -34,8 +33,6 @@
 namespace peregrine::internal {
 
 namespace {
-constexpr std::string_view kEngine = "engine ";
-
 absl::Status AlreadyExistsError(const Handle h) {
   return absl::FailedPreconditionError(
       absl::StrFormat("handle 0x%x already exists", h.value()));
@@ -52,7 +49,7 @@ std::unique_ptr<Engine> Engine::Create(const HostInfo& self,
   const Endpoint& endpoint = self.control_plane_listener;
   std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(endpoint);
   if ABSL_PREDICT_FALSE (acceptor == nullptr) {
-    LOG(WARNING) << kEngine << "failed to create acceptor: " << self;
+    LOG(WARNING) << "failed to create acceptor: " << self;
     return nullptr;
   }
   return absl::WrapUnique(
@@ -80,7 +77,7 @@ Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, const HostInfo& self,
   // Start a main loop thread.
   main_thread_ = std::jthread([this]() { mainLoop(); });
 
-  LOG(INFO) << kEngine << "created @ " << self_;
+  LOG(INFO) << "created @ " << self_;
 }
 
 Engine::~Engine() {
@@ -90,7 +87,7 @@ Engine::~Engine() {
     stop_ = true;
   }
   // all threads are joined in their destructor.
-  LOG(INFO) << kEngine << "destroyed @ " << self_;
+  LOG(INFO) << "destroyed @ " << self_;
 }
 
 void Engine::accept(std::unique_ptr<TcpSocket> socket) {
