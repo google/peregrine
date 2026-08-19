@@ -1,7 +1,5 @@
 #include "src/internal/control/control.h"
 
-#include <netinet/in.h>
-
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -13,11 +11,11 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "grpcpp/security/credentials.h"
-#include "grpcpp/security/server_credentials.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/grpc_client.h"
 #include "src/internal/control/grpc_server.h"
+#include "src/internal/control/message.h"
 #include "src/internal/control/message.pb.h"
 
 namespace peregrine::internal {
@@ -26,13 +24,17 @@ namespace {
 constexpr std::string_view kControl = "grpc control plane ";
 }  // namespace
 
-Control::Control(const HostInfo& self, std::unique_ptr<GrpcServer> server,
+Control::Control(const HostInfo& self, std::unique_ptr<GrpcServer> grpc_server,
                  std::shared_ptr<grpc::ChannelCredentials> client_creds)
     : self_(self),
-      grpc_server_(std::move(server)),
+      grpc_server_(std::move(grpc_server)),
       client_creds_(std::move(client_creds)) {
   DCHECK(invariant());
-  LOG(INFO) << kControl << "created";
+  grpc_server_->SetRequestHandler(
+      [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
+        return handleIncomingRequest(req, resp);
+      });
+  LOG(INFO) << kControl << "created on port " << Port();
 }
 
 Control::~Control() {
@@ -43,23 +45,30 @@ Control::~Control() {
   }
 }
 
-absl::StatusOr<std::unique_ptr<Control>> Control::Create(
-    const HostInfo& self, RequestHandler&& handler,
-    std::shared_ptr<grpc::ServerCredentials> server_creds,
-    std::shared_ptr<grpc::ChannelCredentials> client_creds) {
-  if (server_creds == nullptr)
-    return absl::InvalidArgumentError("null server credentials");
-  if (client_creds == nullptr)
-    return absl::InvalidArgumentError("null client credentials");
+absl::Status Control::handleIncomingRequest(const proto::ReqMsg& req,
+                                            proto::RespMsg* resp) {
+  if (req.has_host_info()) {
+    return handleHostInfo(req, resp);
+  }
 
-  auto server =
-      GrpcServer::Create(self.control_plane_listener, std::move(server_creds));
-  if (!server.ok()) return server.status();
+  return absl::UnimplementedError("unsupported request type");
+}
 
-  (*server)->SetRequestHandler(std::move(handler));
-
-  return std::unique_ptr<Control>(
-      new Control(self, *std::move(server), std::move(client_creds)));
+absl::Status Control::handleHostInfo(const proto::ReqMsg& req,
+                                     proto::RespMsg* resp) {
+  HostInfo peer_info;
+  if ABSL_PREDICT_FALSE (!Message::Convert(req, peer_info)) {
+    return absl::InvalidArgumentError("malformed host info in request");
+  }
+  {
+    absl::MutexLock _(peer_hosts_mu_);
+    const Endpoint& peer_ep = peer_info.control_plane_listener;
+    peer_hosts_[peer_ep] = std::make_unique<HostInfo>(std::move(peer_info));
+  }
+  if ABSL_PREDICT_FALSE (resp != nullptr && !Message::Convert(self_, *resp)) {
+    return absl::InternalError("failed to serialize self host info");
+  }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<proto::RespMsg> Control::SendRequest(const Endpoint& peer,

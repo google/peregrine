@@ -5,12 +5,10 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "grpcpp/security/credentials.h"
-#include "grpcpp/security/server_credentials.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/grpc_client.h"
@@ -25,14 +23,10 @@ namespace peregrine::internal {
 // It is thread-safe.
 class Control final {
  public:
-  using RequestHandler =
-      absl::AnyInvocable<absl::Status(const proto::ReqMsg&, proto::RespMsg*)>;
-
-  // Creates a gRPC server with explicit security credentials.
-  static absl::StatusOr<std::unique_ptr<Control>> Create(
-      const HostInfo& self, RequestHandler&& handler,
-      std::shared_ptr<grpc::ServerCredentials> server_creds,
-      std::shared_ptr<grpc::ChannelCredentials> client_creds);
+  // Constructor.
+  explicit Control(const HostInfo& self,
+                   std::unique_ptr<GrpcServer> grpc_server,
+                   std::shared_ptr<grpc::ChannelCredentials> client_creds);
 
   // Disallows copy and move.
   DISALLOW_COPY(Control);
@@ -54,9 +48,14 @@ class Control final {
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
  private:
-  // Private constructor initializing in pure gRPC mode.
-  Control(const HostInfo& self, std::unique_ptr<GrpcServer> server,
-          std::shared_ptr<grpc::ChannelCredentials> client_creds);
+  // Handles incoming RPC requests by dispatching to dedicated message handlers.
+  absl::Status handleIncomingRequest(const proto::ReqMsg& req,
+                                     proto::RespMsg* resp)
+      ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
+
+  // Handles out-of-band HostInfo exchange requests.
+  absl::Status handleHostInfo(const proto::ReqMsg& req, proto::RespMsg* resp)
+      ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
   // Retrieves an active client stub for peer_addr or instantiates a new one.
   const GrpcClient& getOrCreateClient(const Endpoint& peer)
@@ -64,7 +63,8 @@ class Control final {
 
   // Returns true iff the invariant holds.
   bool invariant() const {
-    return grpc_server_ != nullptr && client_creds_ != nullptr;
+    return self_.IsValid() && grpc_server_ != nullptr &&
+           client_creds_ != nullptr;
   }
 
  private:
