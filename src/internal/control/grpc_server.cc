@@ -1,5 +1,6 @@
 #include "src/internal/control/grpc_server.h"
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <utility>
@@ -39,11 +40,8 @@ void GrpcServer::Shutdown() {
 }
 
 absl::StatusOr<std::unique_ptr<GrpcServer>> GrpcServer::Create(
-    const Endpoint& self, RequestHandler&& handler,
-    std::shared_ptr<grpc::ServerCredentials> creds) {
-  if (!handler) return absl::InvalidArgumentError("null RequestHandler");
-
-  std::unique_ptr<GrpcServer> server(new GrpcServer(std::move(handler)));
+    const Endpoint& self, std::shared_ptr<grpc::ServerCredentials> creds) {
+  std::unique_ptr<GrpcServer> server(new GrpcServer());
 
   int port = 0;
   const std::string addr = self.ToString();
@@ -74,8 +72,13 @@ grpc::Status GrpcServer::ProcessUnary(grpc::ServerContext* context,
   if ABSL_PREDICT_FALSE (response == nullptr)
     return InvalidArgumentError("null response");
 
-  DCHECK_NE(handler_, nullptr);
-  const absl::Status s = handler_(*request, response);
+  RequestHandler* const handler = handler_.load(std::memory_order_acquire);
+  if ABSL_PREDICT_FALSE (handler == nullptr) {
+    return grpc::Status(grpc::StatusCode::UNAVAILABLE, "no request handler");
+  }
+
+  DCHECK(invariant());
+  const absl::Status s = (*handler)(*request, response);
   if ABSL_PREDICT_FALSE (!s.ok()) return ToGrpcStatus(s);
   return grpc::Status::OK;
 }

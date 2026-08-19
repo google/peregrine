@@ -52,9 +52,11 @@ absl::StatusOr<std::unique_ptr<Control>> Control::Create(
   if (client_creds == nullptr)
     return absl::InvalidArgumentError("null client credentials");
 
-  auto server = GrpcServer::Create(self.control_plane_listener,
-                                   std::move(handler), std::move(server_creds));
+  auto server =
+      GrpcServer::Create(self.control_plane_listener, std::move(server_creds));
   if (!server.ok()) return server.status();
+
+  (*server)->SetRequestHandler(std::move(handler));
 
   return std::unique_ptr<Control>(
       new Control(self, *std::move(server), std::move(client_creds)));

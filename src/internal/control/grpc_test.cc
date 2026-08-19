@@ -33,9 +33,10 @@ TEST(GrpcTest, SuccessfulRequest) {
 
   const Endpoint self = Endpoint::Create(kAddr);
   auto creds = grpc::InsecureServerCredentials();
-  auto server_or = GrpcServer::Create(self, handler, creds);
+  auto server_or = GrpcServer::Create(self, creds);
   ASSERT_TRUE(server_or.ok()) << server_or.status();
   std::unique_ptr<GrpcServer> server = std::move(*server_or);
+  server->SetRequestHandler(handler);
   const int port = server->Port();
   ASSERT_GT(port, 0);
 
@@ -58,9 +59,10 @@ TEST(GrpcTest, FailedRequest) {
 
   const Endpoint self = Endpoint::Create(kAddr);
   auto creds = grpc::InsecureServerCredentials();
-  auto server_or = GrpcServer::Create(self, handler, creds);
+  auto server_or = GrpcServer::Create(self, creds);
   ASSERT_TRUE(server_or.ok()) << server_or.status();
   std::unique_ptr<GrpcServer> server = std::move(*server_or);
+  server->SetRequestHandler(handler);
   const int port = server->Port();
   ASSERT_GT(port, 0);
 
@@ -74,6 +76,25 @@ TEST(GrpcTest, FailedRequest) {
   const absl::Status s = resp_or.status();
   EXPECT_EQ(s.code(), kPermissionDenied);
   EXPECT_NE(s.message().find(kErrMsg), std::string::npos);
+}
+
+TEST(GrpcTest, RequestWithoutHandlerReturnsUnavailable) {
+  const Endpoint self = Endpoint::Create(kAddr);
+  auto creds = grpc::InsecureServerCredentials();
+  auto server_or = GrpcServer::Create(self, creds);
+  ASSERT_TRUE(server_or.ok()) << server_or.status();
+  std::unique_ptr<GrpcServer> server = std::move(*server_or);
+  const int port = server->Port();
+  ASSERT_GT(port, 0);
+
+  const std::string server_addr = absl::StrCat(kAddrPrefix, port);
+  const Endpoint peer = Endpoint::Create(server_addr);
+  const GrpcClient client(peer, grpc::InsecureChannelCredentials());
+
+  const proto::ReqMsg req;
+  const absl::StatusOr<proto::RespMsg> resp_or = client.SendUnary(req);
+  EXPECT_FALSE(resp_or.ok());
+  EXPECT_EQ(resp_or.status().code(), absl::StatusCode::kUnavailable);
 }
 
 }  // namespace
