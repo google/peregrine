@@ -6,10 +6,12 @@
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "grpcpp/security/credentials.h"
+#include "grpcpp/security/server_credentials.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/grpc_client.h"
@@ -19,17 +21,42 @@
 
 namespace peregrine::internal {
 
-Control::Control(const HostInfo& self, std::unique_ptr<GrpcServer> grpc_server,
-                 std::shared_ptr<grpc::ChannelCredentials> client_creds)
-    : self_(self),
-      grpc_server_(std::move(grpc_server)),
-      client_creds_(std::move(client_creds)) {
-  DCHECK(invariant());
-  grpc_server_->SetRequestHandler(
-      [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
-        return handleIncomingRequest(req, resp);
+std::unique_ptr<Control> Control::Create(
+    const HostInfo& self, std::shared_ptr<grpc::ServerCredentials> server_creds,
+    std::shared_ptr<grpc::ChannelCredentials> client_creds) {
+  if ABSL_PREDICT_FALSE (!self.IsValid()) {
+    LOG(WARNING) << "failed to create control: invalid host info " << self;
+    return nullptr;
+  }
+  if ABSL_PREDICT_FALSE (server_creds == nullptr) {
+    LOG(WARNING) << "failed to create control: null server credentials";
+    return nullptr;
+  }
+  if ABSL_PREDICT_FALSE (client_creds == nullptr) {
+    LOG(WARNING) << "failed to create control: null client credentials";
+    return nullptr;
+  }
+
+  // Allocate Control object so its pointer is stable for the callback.
+  auto control = absl::WrapUnique(new Control(self, std::move(client_creds)));
+
+  // Create GrpcServer with the request handler attached.
+  auto grpc_server_or = GrpcServer::Create(
+      self.control_plane_listener, std::move(server_creds),
+      [ctrl = control.get()](const proto::ReqMsg& req, proto::RespMsg* resp) {
+        return ctrl->handleIncomingRequest(req, resp);
       });
-  LOG(INFO) << "created on port " << Port();
+  if ABSL_PREDICT_FALSE (!grpc_server_or.ok()) {
+    LOG(WARNING) << "failed to create grpc server on "
+                 << self.control_plane_listener << ": "
+                 << grpc_server_or.status();
+    return nullptr;
+  }
+  control->grpc_server_ = *std::move(grpc_server_or);
+
+  DCHECK(control->invariant());
+  LOG(INFO) << "control created on port " << control->Port();
+  return control;
 }
 
 Control::~Control() {

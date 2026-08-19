@@ -1,7 +1,6 @@
 #ifndef PEREGRINE_SRC_INTERNAL_CONTROL_GRPC_SERVER_H_
 #define PEREGRINE_SRC_INTERNAL_CONTROL_GRPC_SERVER_H_
 
-#include <atomic>
 #include <memory>
 #include <utility>
 
@@ -24,14 +23,14 @@ namespace peregrine::internal {
 // It is thread-safe.
 class GrpcServer final : public rpc::PeregrineService::Service {
  public:
-  using RequestHandler =
-      absl::AnyInvocable<absl::Status(const proto::ReqMsg&, proto::RespMsg*)>;
+  using RequestHandler = absl::AnyInvocable<absl::Status(
+      const proto::ReqMsg&, proto::RespMsg*) const>;
 
-  // Creates an asynchronous gRPC server using explicit server credentials.
-  // Note: The server is created without a request handler attached; callers
-  // must attach a handler before incoming requests can be processed.
+  // Creates an asynchronous gRPC server using explicit server credentials and
+  // request handler.
   static absl::StatusOr<std::unique_ptr<GrpcServer>> Create(
-      const Endpoint& self, std::shared_ptr<grpc::ServerCredentials> creds);
+      const Endpoint& self, std::shared_ptr<grpc::ServerCredentials> creds,
+      RequestHandler&& handler);
 
   // Disallows copy/move operations.
   DISALLOW_COPY(GrpcServer);
@@ -39,14 +38,6 @@ class GrpcServer final : public rpc::PeregrineService::Service {
 
   // Destructor.
   ~GrpcServer() override { Shutdown(); }
-
-  // Sets the request handler callback once.
-  void SetRequestHandler(RequestHandler&& handler) {
-    DCHECK(handler_.load(std::memory_order_relaxed) == nullptr);
-    owned_handler_ = std::make_unique<RequestHandler>(std::move(handler));
-    handler_.store(owned_handler_.get(), std::memory_order_release);
-    DCHECK(invariant());
-  }
 
   // Returns the actual TCP port bound by the gRPC server.
   int Port() const { return port_; }
@@ -62,23 +53,20 @@ class GrpcServer final : public rpc::PeregrineService::Service {
 
  private:
   // Constructor.
-  GrpcServer()
-      : port_(0),
-        server_(nullptr),
-        owned_handler_(nullptr),
-        handler_(nullptr) {}
+  explicit GrpcServer(RequestHandler&& handler)
+      : port_(0), server_(nullptr), handler_(std::move(handler)) {
+    DCHECK_NE(handler_, nullptr);
+  }
 
   // Returns true if the gRPC server is in a valid state.
-  bool invariant() const { return port_ > 0 && server_ != nullptr; }
+  bool invariant() const {
+    return port_ > 0 && server_ != nullptr && handler_ != nullptr;
+  }
 
  private:
   int port_;
   std::unique_ptr<grpc::Server> server_;
-
-  // Atomic pointer is sufficient because handler transitions from nullptr to
-  // invocable exactly once and is never modified afterwards.
-  std::unique_ptr<RequestHandler> owned_handler_;
-  std::atomic<RequestHandler*> handler_;
+  const RequestHandler handler_;
 };
 
 }  // namespace peregrine::internal

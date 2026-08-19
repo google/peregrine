@@ -2,13 +2,16 @@
 #define PEREGRINE_SRC_INTERNAL_CONTROL_CONTROL_H_
 
 #include <memory>
+#include <utility>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "grpcpp/security/credentials.h"
+#include "grpcpp/security/server_credentials.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/grpc_client.h"
@@ -23,10 +26,11 @@ namespace peregrine::internal {
 // It is thread-safe.
 class Control final {
  public:
-  // Constructor.
-  explicit Control(const HostInfo& self,
-                   std::unique_ptr<GrpcServer> grpc_server,
-                   std::shared_ptr<grpc::ChannelCredentials> client_creds);
+  // Creates a control plane instance.
+  static std::unique_ptr<Control> Create(
+      const HostInfo& self,
+      std::shared_ptr<grpc::ServerCredentials> server_creds,
+      std::shared_ptr<grpc::ChannelCredentials> client_creds);
 
   // Disallows copy and move.
   DISALLOW_COPY(Control);
@@ -48,6 +52,13 @@ class Control final {
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
  private:
+  // Constructor.
+  Control(const HostInfo& self,
+          std::shared_ptr<grpc::ChannelCredentials> client_creds)
+      : self_(self), client_creds_(std::move(client_creds)) {
+    DCHECK(self_.IsValid());
+    DCHECK_NE(client_creds_, nullptr);
+  }
   // Handles incoming RPC requests by dispatching to dedicated message handlers.
   absl::Status handleIncomingRequest(const proto::ReqMsg& req,
                                      proto::RespMsg* resp)

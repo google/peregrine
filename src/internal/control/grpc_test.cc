@@ -33,10 +33,9 @@ TEST(GrpcTest, SuccessfulRequest) {
 
   const Endpoint self = Endpoint::Create(kAddr);
   auto creds = grpc::InsecureServerCredentials();
-  auto server_or = GrpcServer::Create(self, creds);
+  auto server_or = GrpcServer::Create(self, creds, std::move(handler));
   ASSERT_TRUE(server_or.ok()) << server_or.status();
   std::unique_ptr<GrpcServer> server = std::move(*server_or);
-  server->SetRequestHandler(handler);
   const int port = server->Port();
   ASSERT_GT(port, 0);
 
@@ -59,10 +58,9 @@ TEST(GrpcTest, FailedRequest) {
 
   const Endpoint self = Endpoint::Create(kAddr);
   auto creds = grpc::InsecureServerCredentials();
-  auto server_or = GrpcServer::Create(self, creds);
+  auto server_or = GrpcServer::Create(self, creds, std::move(handler));
   ASSERT_TRUE(server_or.ok()) << server_or.status();
   std::unique_ptr<GrpcServer> server = std::move(*server_or);
-  server->SetRequestHandler(handler);
   const int port = server->Port();
   ASSERT_GT(port, 0);
 
@@ -78,23 +76,27 @@ TEST(GrpcTest, FailedRequest) {
   EXPECT_NE(s.message().find(kErrMsg), std::string::npos);
 }
 
-TEST(GrpcTest, RequestWithoutHandlerReturnsUnavailable) {
+TEST(GrpcTest, NullCredentialsReturnsInvalidArgument) {
   const Endpoint self = Endpoint::Create(kAddr);
-  auto creds = grpc::InsecureServerCredentials();
-  auto server_or = GrpcServer::Create(self, creds);
-  ASSERT_TRUE(server_or.ok()) << server_or.status();
-  std::unique_ptr<GrpcServer> server = std::move(*server_or);
-  const int port = server->Port();
-  ASSERT_GT(port, 0);
+  auto valid_handler = [](const proto::ReqMsg&, proto::RespMsg*) {
+    return absl::OkStatus();
+  };
 
-  const std::string server_addr = absl::StrCat(kAddrPrefix, port);
-  const Endpoint peer = Endpoint::Create(server_addr);
-  const GrpcClient client(peer, grpc::InsecureChannelCredentials());
+  auto null_creds_or =
+      GrpcServer::Create(self, /*creds=*/nullptr, std::move(valid_handler));
+  EXPECT_FALSE(null_creds_or.ok());
+  EXPECT_EQ(null_creds_or.status().code(), absl::StatusCode::kInvalidArgument);
+}
 
-  const proto::ReqMsg req;
-  const absl::StatusOr<proto::RespMsg> resp_or = client.SendUnary(req);
-  EXPECT_FALSE(resp_or.ok());
-  EXPECT_EQ(resp_or.status().code(), absl::StatusCode::kUnavailable);
+TEST(GrpcTest, NullHandlerReturnsInvalidArgument) {
+  const Endpoint self = Endpoint::Create(kAddr);
+  auto valid_creds = grpc::InsecureServerCredentials();
+
+  auto null_handler_or =
+      GrpcServer::Create(self, valid_creds, /*handler=*/nullptr);
+  EXPECT_FALSE(null_handler_or.ok());
+  EXPECT_EQ(null_handler_or.status().code(),
+            absl::StatusCode::kInvalidArgument);
 }
 
 }  // namespace
