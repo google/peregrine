@@ -91,23 +91,44 @@ const GrpcClient& Control::getOrCreateClient(const Endpoint& peer) {
   return *client;
 }
 
-absl::StatusOr<HostInfo> Control::ResolvePeerHostInfo(
-    const Endpoint& peer_control_ep) {
-  if ABSL_PREDICT_FALSE (!peer_control_ep.HasNonzeroIpPort()) {
+absl::StatusOr<HostInfo> Control::ResolvePeerHostInfo(const Endpoint& peer) {
+  if ABSL_PREDICT_FALSE (!peer.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError("invalid peer endpoint");
   }
 
-  absl::MutexLock _(peer_hosts_mu_);
+  // Fast-path: Check cache under lock (read-only lookup).
+  {
+    absl::MutexLock _(peer_hosts_mu_);
+    const auto it = peer_hosts_.find(peer);
+    if ABSL_PREDICT_TRUE (it != peer_hosts_.end() && it->second != nullptr) {
+      return *it->second;
+    }
+  }
 
-  std::unique_ptr<HostInfo>& host_info = peer_hosts_[peer_control_ep];
-  if ABSL_PREDICT_FALSE (host_info == nullptr) {
-    // TODO: Future CL to dispatch out-of-band Unary gRPC ExchangeHostInfo
-    // RPCs to remote peers. For now, we assume the control-plane listener is
-    // also the data-plane listener.
-    host_info = std::make_unique<HostInfo>(HostInfo{
-        .control_plane_listener = peer_control_ep,
-        .data_plane_listeners = {peer_control_ep},
-    });
+  // Slow-path: Out-of-band gRPC request (no lock held during network I/O).
+  proto::ReqMsg req;
+  if ABSL_PREDICT_FALSE (!Message::Convert(self_, req)) {
+    return absl::InternalError(
+        "failed to serialize self host info into request");
+  }
+
+  absl::StatusOr<proto::RespMsg> resp_or = SendRequest(peer, req);
+  if ABSL_PREDICT_FALSE (!resp_or.ok()) {
+    return resp_or.status();
+  }
+
+  HostInfo peer_info;
+  if ABSL_PREDICT_FALSE (!Message::Convert(*resp_or, peer_info)) {
+    return absl::InternalError(
+        "failed to deserialize peer host info from response");
+  }
+
+  absl::MutexLock _(peer_hosts_mu_);
+  // We need to query the map again to avoid a data race with another thread
+  // that may have already updated the cache.
+  std::unique_ptr<HostInfo>& host_info = peer_hosts_[peer];
+  if (host_info == nullptr) {
+    host_info = std::make_unique<HostInfo>(std::move(peer_info));
   }
 
   DCHECK_NE(host_info, nullptr);

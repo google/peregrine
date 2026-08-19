@@ -97,8 +97,6 @@ cc_test(
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
         "//src/util",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",

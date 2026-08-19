@@ -5,13 +5,10 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -27,41 +24,89 @@
 namespace peregrine::internal::testing {
 namespace {
 
-TEST(ControlTest, ResolvePeerHostInfo) {
+TEST(ControlTest, DynamicResolvePeerHostInfoBetweenNodes) {
+  const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
+  ASSERT_GT(port_a, 0);
+  const HostInfo host_a = {
+      .control_plane_listener =
+          Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port_a)),
+      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
+  };
+
+  const uint16_t port_b = util::FindFreePort(AF_INET, /*tcp=*/true);
+  ASSERT_GT(port_b, 0);
+  const HostInfo host_b = {
+      .control_plane_listener =
+          Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port_b)),
+      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
+  };
+
+  auto server_a_or = GrpcServer::Create(host_a.control_plane_listener,
+                                        grpc::InsecureServerCredentials());
+  ASSERT_TRUE(server_a_or.ok()) << server_a_or.status();
+  Control ctrl_a(host_a, std::move(*server_a_or),
+                 grpc::InsecureChannelCredentials());
+
+  auto server_b_or = GrpcServer::Create(host_b.control_plane_listener,
+                                        grpc::InsecureServerCredentials());
+  ASSERT_TRUE(server_b_or.ok()) << server_b_or.status();
+  Control ctrl_b(host_b, std::move(*server_b_or),
+                 grpc::InsecureChannelCredentials());
+
+  // 1. Node A dynamically resolves Node B via gRPC slow-path (cache miss).
+  auto resolved_b_or =
+      ctrl_a.ResolvePeerHostInfo(host_b.control_plane_listener);
+  ASSERT_TRUE(resolved_b_or.ok()) << resolved_b_or.status();
+  EXPECT_EQ(resolved_b_or->control_plane_listener,
+            host_b.control_plane_listener);
+  ASSERT_EQ(resolved_b_or->data_plane_listeners.size(), 1);
+  EXPECT_EQ(resolved_b_or->data_plane_listeners[0],
+            host_b.data_plane_listeners[0]);
+
+  // 2. Node A re-resolves Node B via cache fast-path.
+  auto cached_b_or = ctrl_a.ResolvePeerHostInfo(host_b.control_plane_listener);
+  ASSERT_TRUE(cached_b_or.ok()) << cached_b_or.status();
+  EXPECT_EQ(cached_b_or->control_plane_listener, host_b.control_plane_listener);
+  ASSERT_EQ(cached_b_or->data_plane_listeners.size(), 1);
+  EXPECT_EQ(cached_b_or->data_plane_listeners[0],
+            host_b.data_plane_listeners[0]);
+
+  // 3. Node B automatically cached Node A from the inbound gRPC request.
+  auto cached_a_or = ctrl_b.ResolvePeerHostInfo(host_a.control_plane_listener);
+  ASSERT_TRUE(cached_a_or.ok()) << cached_a_or.status();
+  EXPECT_EQ(cached_a_or->control_plane_listener, host_a.control_plane_listener);
+  ASSERT_EQ(cached_a_or->data_plane_listeners.size(), 1);
+  EXPECT_EQ(cached_a_or->data_plane_listeners[0],
+            host_a.data_plane_listeners[0]);
+}
+
+TEST(ControlTest, ResolvePeerHostInfoErrors) {
   const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port, 0);
   const HostInfo self = {
       .control_plane_listener =
           Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port)),
+      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
   auto server_or = GrpcServer::Create(self.control_plane_listener,
                                       grpc::InsecureServerCredentials());
   ASSERT_TRUE(server_or.ok()) << server_or.status();
-  Control ctrl(self, std::move(*server_or),
-               grpc::InsecureChannelCredentials());  // NOLINT
-
-  // Valid Endpoint's resolution is cached.
-  const Endpoint remote_peer = Endpoint::Create("127.0.0.1:56789");
-  auto host_or = ctrl.ResolvePeerHostInfo(remote_peer);
-  ASSERT_TRUE(host_or.ok()) << host_or.status();
-
-  const HostInfo& resolved_host = *host_or;
-  EXPECT_EQ(resolved_host.control_plane_listener, remote_peer);
-  ASSERT_EQ(resolved_host.data_plane_listeners.size(), 1);
-  EXPECT_EQ(resolved_host.data_plane_listeners[0], remote_peer);
-
-  // Re-resolve the same endpoint to verify the HostInfo is cached.
-  auto host_cached_or = ctrl.ResolvePeerHostInfo(remote_peer);
-  ASSERT_TRUE(host_cached_or.ok()) << host_cached_or.status();
-  EXPECT_EQ(host_cached_or->control_plane_listener, remote_peer);
-  ASSERT_EQ(host_cached_or->data_plane_listeners.size(), 1);
-  EXPECT_EQ(host_cached_or->data_plane_listeners[0], remote_peer);
+  Control ctrl(self, std::move(*server_or), grpc::InsecureChannelCredentials());
 
   // Uninitialized or Zero-Value Endpoints trigger an error.
   const Endpoint invalid_peer;
   auto fail_or = ctrl.ResolvePeerHostInfo(invalid_peer);
   EXPECT_FALSE(fail_or.ok());
   EXPECT_EQ(fail_or.status().code(), absl::StatusCode::kInvalidArgument);
+
+  // Non-existent peer endpoint triggers an unavailable error over gRPC.
+  const uint16_t unused_port = util::FindFreePort(AF_INET, /*tcp=*/true);
+  ASSERT_GT(unused_port, 0);
+  const Endpoint unreachable_peer =
+      Endpoint::Create(absl::StrFormat("127.0.0.1:%d", unused_port));
+  auto unreachable_or = ctrl.ResolvePeerHostInfo(unreachable_peer);
+  EXPECT_FALSE(unreachable_or.ok());
+  EXPECT_EQ(unreachable_or.status().code(), absl::StatusCode::kUnavailable);
 }
 
 TEST(ControlTest, HandleIncomingHostInfoRequest) {
