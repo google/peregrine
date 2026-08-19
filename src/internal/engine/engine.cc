@@ -10,8 +10,10 @@
 #include <thread>  // NOLINT
 #include <utility>
 
+#include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
@@ -43,6 +45,19 @@ absl::Status NotFoundError(const Handle h) {
       absl::StrFormat("handle 0x%x not found", h.value()));
 }
 }  // namespace
+
+std::unique_ptr<Engine> Engine::Create(const HostInfo& self,
+                                       int num_conns_per_peer) {
+  // TODO(yongx): add data plane endpoints.
+  const Endpoint& endpoint = self.control_plane_listener;
+  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(endpoint);
+  if ABSL_PREDICT_FALSE (acceptor == nullptr) {
+    LOG(WARNING) << kEngine << "failed to create acceptor: " << self;
+    return nullptr;
+  }
+  return absl::WrapUnique(
+      new Engine(std::move(acceptor), self, num_conns_per_peer));
+}
 
 Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, const HostInfo& self,
                int num_conns_per_peer)

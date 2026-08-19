@@ -3,21 +3,16 @@
 #include <algorithm>
 #include <memory>
 #include <string_view>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/log/log.h"
 #include "src/api/transport.h"
-#include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
-#include "src/internal/socket/acceptor.h"
 #include "src/internal/transport_impl.h"
 
 namespace peregrine {
 
-using internal::Endpoint;
 using internal::HostInfo;
-using internal::TcpAcceptor;
 using internal::TransportImpl;
 
 std::unique_ptr<Transport> CreateTransport(std::string_view endpoints,
@@ -28,16 +23,8 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoints,
     return nullptr;
   }
 
-  // TODO(yongx): add data plane endpoints.
-  const Endpoint& endpoint = self.control_plane_listener;
-  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(endpoint);
-  if ABSL_PREDICT_FALSE (acceptor == nullptr) {
-    LOG(WARNING) << "failed to create acceptor: " << self;
-    return nullptr;
-  }
-
   const int n = std::min(std::max(1, num_conns_per_peer), 100);
-  return std::make_unique<TransportImpl>(std::move(acceptor), self, n);
+  return TransportImpl::Create(self, n);
 }
 
 }  // namespace peregrine

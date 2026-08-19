@@ -39,9 +39,9 @@ class Engine {
   static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
 
  public:
-  // Constructor.
-  explicit Engine(std::unique_ptr<TcpAcceptor> acceptor, const HostInfo& self,
-                  int num_conns_per_peer);
+  // Creates an engine.
+  static std::unique_ptr<Engine> Create(const HostInfo& self,
+                                        int num_conns_per_peer);
 
   // Destructor.
   ~Engine();
@@ -60,6 +60,11 @@ class Engine {
     ReqId reqid;
     Request request;
   };
+
+ private:
+  // Constructor.
+  Engine(std::unique_ptr<TcpAcceptor> acceptor, const HostInfo& self,
+         int num_conns_per_peer);
 
  private:
   using Workers = std::vector<std::unique_ptr<Worker>>;

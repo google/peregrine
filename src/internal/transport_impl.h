@@ -12,7 +12,6 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/engine/engine.h"
-#include "src/internal/socket/acceptor.h"
 
 namespace peregrine::internal {
 
@@ -23,10 +22,9 @@ namespace peregrine::internal {
 // It is thread-safe.
 class TransportImpl final : public Transport {
  public:
-  // Constructor.
-  explicit TransportImpl(std::unique_ptr<TcpAcceptor> acceptor,
-                         const HostInfo& self, int num_conns_per_peer)
-      : engine_(std::move(acceptor), self, num_conns_per_peer) {}
+  // Creates a transport.
+  static std::unique_ptr<TransportImpl> Create(const HostInfo& self,
+                                               int num_conns_per_peer);
 
   // Posts a batch of transport `requests` to communicate with the `peer`.
   //
@@ -44,11 +42,18 @@ class TransportImpl final : public Transport {
   // request status and automatically removes the `handle` if processing is
   // complete.
   absl::StatusOr<Status> Poll(Handle handle) override {
-    return engine_.QueryUpdate(handle);
+    return engine_->QueryUpdate(handle);
   }
 
  private:
-  Engine engine_;
+  // Constructor.
+  explicit TransportImpl(std::unique_ptr<Engine> engine)
+      : engine_(std::move(engine)) {
+    DCHECK_NE(engine_, nullptr);
+  }
+
+ private:
+  std::unique_ptr<Engine> engine_;
 };
 
 }  // namespace peregrine::internal

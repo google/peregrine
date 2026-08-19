@@ -1,18 +1,34 @@
 #include "src/internal/transport_impl.h"
 
+#include <memory>
 #include <string_view>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
+#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/engine/engine.h"
 
 namespace peregrine::internal {
+
+std::unique_ptr<TransportImpl> TransportImpl::Create(const HostInfo& self,
+                                                     int num_conns_per_peer) {
+  auto engine = Engine::Create(self, num_conns_per_peer);
+  if (engine == nullptr) {
+    LOG(WARNING) << "failed to create engine: " << self;
+    return nullptr;
+  }
+
+  return absl::WrapUnique(new TransportImpl(std::move(engine)));
+}
 
 absl::StatusOr<Handle> TransportImpl::Post(std::string_view peer,
                                            absl::Span<const Request> requests) {
@@ -41,7 +57,7 @@ absl::StatusOr<Handle> TransportImpl::Post(std::string_view peer,
         "All requests must have the same op type");
   }
 
-  return engine_.Enqueue(endpoint, requests);
+  return engine_->Enqueue(endpoint, requests);
 }
 
 }  // namespace peregrine::internal
