@@ -71,6 +71,7 @@ cc_library(
         ":grpc_server",
         ":message",
         ":message_cc_proto",
+        "//src/internal:assumptions",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
         "//src/util:macro",

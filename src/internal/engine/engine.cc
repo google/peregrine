@@ -19,6 +19,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
+#include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
@@ -45,6 +46,7 @@ absl::Status NotFoundError(const Handle h) {
 
 std::unique_ptr<Engine> Engine::Create(const HostInfo& self,
                                        int num_conns_per_peer) {
+  static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
   // TODO(yongx): add data plane endpoints.
   const Endpoint& endpoint = self.control_plane_listener;
   std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(endpoint);
