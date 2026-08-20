@@ -25,6 +25,24 @@ TEST(TransportUtilTest, Create) {
   }
 }
 
+TEST(TransportUtilTest, CreateWildcardAndZeroPort) {
+  // 0.0.0.0:0 should resolve to 127.0.0.1:<free_port>
+  EXPECT_THAT(CreateTransport("0.0.0.0:0", kNumConnsPerPeer),
+              ::testing::NotNull());
+
+  // [::]:0 should resolve to [::1]:<free_port>
+  EXPECT_THAT(CreateTransport("[::]:0", kNumConnsPerPeer),
+              ::testing::NotNull());
+
+  // 127.0.0.1:0 should resolve port
+  EXPECT_THAT(CreateTransport("127.0.0.1:0", kNumConnsPerPeer),
+              ::testing::NotNull());
+
+  // [::1]:0 should resolve port
+  EXPECT_THAT(CreateTransport("[::1]:0", kNumConnsPerPeer),
+              ::testing::NotNull());
+}
+
 TEST(TransportUtilTest, CreateInvalidEndpoints) {
   EXPECT_THAT(CreateTransport("", kNumConnsPerPeer), ::testing::IsNull());
   EXPECT_THAT(CreateTransport("invalid", kNumConnsPerPeer),
