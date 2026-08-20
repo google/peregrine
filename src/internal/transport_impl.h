@@ -10,7 +10,7 @@
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
-#include "src/internal/base/hostinfo.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/engine/engine.h"
 
 namespace peregrine::internal {
@@ -23,7 +23,7 @@ namespace peregrine::internal {
 class TransportImpl final : public Transport {
  public:
   // Creates a transport.
-  static std::unique_ptr<TransportImpl> Create(const HostInfo& self,
+  static std::unique_ptr<TransportImpl> Create(const Endpoint& control_ep,
                                                int num_conns_per_peer);
 
   // Posts a batch of transport `requests` to communicate with the `peer`.

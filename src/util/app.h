@@ -31,15 +31,14 @@ class App final {
   App(size_t size, int num_conns_per_peer)
       : data_(size),
         control_plane_listener_(createEndpoint(AF_INET)),
-        data_plane_listener_(createEndpoint(AF_INET)),
-        host_(absl::StrCat(control_plane_listener_, ",", data_plane_listener_)),
-        transport_(CreateTransport(host_, num_conns_per_peer)) {
+        transport_(
+            CreateTransport(control_plane_listener_, num_conns_per_peer)) {
     DCHECK_GT(size, 0);
     CHECK_NE(transport_, nullptr);  // Crash OK
   }
 
-  // Returns the endpoint.
-  std::string GetEndpoint() const { return control_plane_listener_; }
+  // Returns the control plane endpoint.
+  std::string GetControlEndpoint() const { return control_plane_listener_; }
 
   // Returns the transport.
   Transport& GetTransport() const { return *transport_; }
@@ -69,8 +68,6 @@ class App final {
  private:
   std::vector<Byte> data_;
   const std::string control_plane_listener_;
-  const std::string data_plane_listener_;
-  const std::string host_;
   std::unique_ptr<Transport> transport_;
 };
 

@@ -8,11 +8,16 @@
 
 namespace peregrine {
 
-// Creates a new transport instance that listens on the tcp `endpoint`s
-// (e.g., "10.0.0.1:10000, 10.0.0.1:35247, 10.0.0.2:51691"). The
-// `num_conns_per_peer` parameter guides the transport to make this number
-// (in the range [1, 100]) of parallel connections between itself and each peer.
-std::unique_ptr<Transport> CreateTransport(std::string_view endpoints,
+// Creates a new transport instance that listens for control messages on
+// `control_endpoint` (e.g., "10.0.0.1:10000"). The `num_conns_per_peer`
+// parameter guides the transport to make this number (in the range [1, 100]) of
+// parallel connections between itself and each peer.
+//
+// TODO: Currently, control_endpoint is used for data transport while control
+// is not yet hooked up. When control is enabled, control_endpoint will be used
+// for gRPC control messages and data plane listeners will only be discovered
+// via control messages.
+std::unique_ptr<Transport> CreateTransport(std::string_view control_endpoint,
                                            int num_conns_per_peer = 8);
 
 }  // namespace peregrine

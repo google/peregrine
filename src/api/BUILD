@@ -67,7 +67,7 @@ cc_library(
     deps = [
         ":transport",
         "//src/internal:transport_impl",
-        "//src/internal/base:hostinfo",
+        "//src/internal/base:endpoint",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
     ],

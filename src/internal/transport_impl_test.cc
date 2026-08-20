@@ -102,7 +102,7 @@ TEST_P(TransportImplTest, Read) {
   // Use one thread to emulate a local process.
   std::thread a([this]() {
     Transport& t = a_.GetTransport();
-    const std::string peer = b_.GetEndpoint();
+    const std::string peer = b_.GetControlEndpoint();
     const Request req = {
         .op = Op::kRead,
         .laddr = a_.DataPtr(),
@@ -134,7 +134,7 @@ TEST_P(TransportImplTest, Write) {
   // Use one thread to emulate a local process.
   std::thread a([this]() {
     Transport& t = a_.GetTransport();
-    const std::string peer = b_.GetEndpoint();
+    const std::string peer = b_.GetControlEndpoint();
     const std::vector<Request> reqs = MakeRequests(Op::kWrite);
     ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, reqs));
     WaitForCompletion(t, h, reqs);

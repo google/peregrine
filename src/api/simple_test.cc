@@ -56,7 +56,7 @@ TEST_F(SimpleTest, Read) {
 
   // Post a read request (local <- remote).
   Transport& lt = l_.GetTransport();
-  const std::string peer = r_.GetEndpoint();
+  const std::string peer = r_.GetControlEndpoint();
   const Request req = {
       .op = Op::kRead,
       .laddr = l_.DataPtr(),
@@ -80,7 +80,7 @@ TEST_F(SimpleTest, Write) {
 
   // Post multiple write requests (local -> remote).
   Transport& lt = l_.GetTransport();
-  const std::string peer = r_.GetEndpoint();
+  const std::string peer = r_.GetControlEndpoint();
   const Request req1 = {
       .op = Op::kWrite,
       .laddr = l_.DataPtr(),

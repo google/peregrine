@@ -19,8 +19,21 @@
 
 namespace peregrine::internal {
 
-std::unique_ptr<TransportImpl> TransportImpl::Create(const HostInfo& self,
+std::unique_ptr<TransportImpl> TransportImpl::Create(const Endpoint& control_ep,
                                                      int num_conns_per_peer) {
+  if ABSL_PREDICT_FALSE (!control_ep.HasNonzeroIpPort()) {
+    LOG(WARNING) << "invalid control endpoint: " << control_ep;
+    return nullptr;
+  }
+
+  // TODO: Currently, control_endpoint is used for data transport while control
+  // is not yet hooked up. When control is enabled, control_endpoint will be
+  // used for gRPC control messages and data plane listeners will only be
+  // discovered via control messages.
+  const HostInfo self = {
+      .control_plane_listener = control_ep,
+  };
+
   auto engine = Engine::Create(self, num_conns_per_peer);
   if (engine == nullptr) {
     LOG(WARNING) << "failed to create engine: " << self;

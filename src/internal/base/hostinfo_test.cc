@@ -31,5 +31,15 @@ TEST(HostInfoTest, Create) {
   LOG(INFO) << b;
 }
 
+TEST(HostInfoTest, ToString) {
+  const Endpoint c = Endpoint::Create("127.0.0.1:12345");
+  const Endpoint d = Endpoint::Create("[::1]:54321");
+  const HostInfo host = {.control_plane_listener = c,
+                         .data_plane_listeners = {d}};
+  EXPECT_TRUE(host.IsValid());
+  EXPECT_EQ(host.ToString(), "host: 127.0.0.1:12345, [::1]:54321");
+  LOG(INFO) << host;
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing
