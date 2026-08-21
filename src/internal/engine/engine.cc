@@ -44,23 +44,22 @@ absl::Status NotFoundError(const Handle h) {
 }
 }  // namespace
 
-std::unique_ptr<Engine> Engine::Create(const HostInfo& self,
-                                       int num_conns_per_peer) {
+std::unique_ptr<Engine> Engine::Create(int num_conns_per_peer, HostInfo& self) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
   // TODO: Use control_plane_listener for data plane acceptor for now. In
   // upcoming CLs, data plane listeners will be dynamically bound and populated.
-  const Endpoint& endpoint = self.control_plane_listener;
-  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(endpoint);
+  std::unique_ptr<TcpAcceptor> acceptor =
+      TcpAcceptor::Create(self.control_plane_listener);
   if ABSL_PREDICT_FALSE (acceptor == nullptr) {
     LOG(WARNING) << "failed to create acceptor: " << self;
     return nullptr;
   }
   return absl::WrapUnique(
-      new Engine(std::move(acceptor), self, num_conns_per_peer));
+      new Engine(std::move(acceptor), num_conns_per_peer, self));
 }
 
-Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, const HostInfo& self,
-               int num_conns_per_peer)
+Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, int num_conns_per_peer,
+               HostInfo& self)
     : self_(self),
       num_conns_per_peer_(num_conns_per_peer),
       stop_(false),

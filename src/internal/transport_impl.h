@@ -3,7 +3,6 @@
 
 #include <memory>
 #include <string_view>
-#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
@@ -11,6 +10,7 @@
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/engine/engine.h"
 
 namespace peregrine::internal {
@@ -47,12 +47,10 @@ class TransportImpl final : public Transport {
 
  private:
   // Constructor.
-  explicit TransportImpl(std::unique_ptr<Engine> engine)
-      : engine_(std::move(engine)) {
-    DCHECK_NE(engine_, nullptr);
-  }
+  TransportImpl() = default;
 
  private:
+  HostInfo self_;
   std::unique_ptr<Engine> engine_;
 };
 

@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <string_view>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_set.h"
@@ -26,21 +25,25 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(const Endpoint& control_ep,
     return nullptr;
   }
 
-  // TODO: Currently, control_endpoint is used for data transport while control
-  // is not yet hooked up. When control is enabled, control_endpoint will be
-  // used for gRPC control messages and data plane listeners will only be
-  // discovered via control messages.
-  const HostInfo self = {
-      .control_plane_listener = control_ep,
-  };
+  auto transport = absl::WrapUnique(new TransportImpl());
+  // TODO: When control is hooked up, control_plane_listener will be populated
+  // by Control which starts the gRPC server. For now, this endpoint is also
+  // used by Engine for data connections, which will change in upcoming CLs.
+  transport->self_.control_plane_listener = control_ep;
 
-  auto engine = Engine::Create(self, num_conns_per_peer);
-  if (engine == nullptr) {
-    LOG(WARNING) << "failed to create engine: " << self;
+  transport->engine_ = Engine::Create(num_conns_per_peer, transport->self_);
+  if (transport->engine_ == nullptr) {
+    LOG(WARNING) << "failed to create engine: " << transport->self_;
     return nullptr;
   }
 
-  return absl::WrapUnique(new TransportImpl(std::move(engine)));
+  if (!transport->self_.IsValid()) {
+    LOG(WARNING) << "failed to create transport: invalid HostInfo "
+                 << transport->self_.ToString();
+    return nullptr;
+  }
+
+  return transport;
 }
 
 absl::StatusOr<Handle> TransportImpl::Post(std::string_view peer,

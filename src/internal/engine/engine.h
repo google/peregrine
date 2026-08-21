@@ -40,8 +40,7 @@ class Engine {
 
  public:
   // Creates an engine.
-  static std::unique_ptr<Engine> Create(const HostInfo& self,
-                                        int num_conns_per_peer);
+  static std::unique_ptr<Engine> Create(int num_conns_per_peer, HostInfo& self);
 
   // Destructor.
   ~Engine();
@@ -63,8 +62,8 @@ class Engine {
 
  private:
   // Constructor.
-  Engine(std::unique_ptr<TcpAcceptor> acceptor, const HostInfo& self,
-         int num_conns_per_peer);
+  Engine(std::unique_ptr<TcpAcceptor> acceptor, int num_conns_per_peer,
+         HostInfo& self);
 
  private:
   using Workers = std::vector<std::unique_ptr<Worker>>;
@@ -112,7 +111,7 @@ class Engine {
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
-  const HostInfo self_;
+  HostInfo& self_;
   const int num_conns_per_peer_;
 
   absl::Mutex mu_;
