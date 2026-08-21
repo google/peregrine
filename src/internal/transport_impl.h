@@ -11,6 +11,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/control/control.h"
 #include "src/internal/engine/engine.h"
 
 namespace peregrine::internal {
@@ -51,6 +52,7 @@ class TransportImpl final : public Transport {
 
  private:
   HostInfo self_;
+  std::unique_ptr<Control> control_;
   std::unique_ptr<Engine> engine_;
 };
 

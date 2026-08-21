@@ -60,8 +60,10 @@ class BindTest(absltest.TestCase):
     local = f"127.0.0.1:{port1}"
     remote = f"127.0.0.1:{port2}"
 
-    transport = pg.create_transport(local, num_conns_per_peer=2)
-    self.assertIsNotNone(transport)
+    local_transport = pg.create_transport(local, num_conns_per_peer=2)
+    self.assertIsNotNone(local_transport)
+    remote_transport = pg.create_transport(remote, num_conns_per_peer=2)
+    self.assertIsNotNone(remote_transport)
 
     req = pg.Request(
         op=pg.Op.READ,
@@ -69,13 +71,13 @@ class BindTest(absltest.TestCase):
         raddr=ctypes.addressof(rbuf),
         len=512,
     )
-    handle = transport.post(remote, [req])
+    handle = local_transport.post(remote, [req])
     self.assertIsInstance(handle, pg.Handle)
 
     timeout = datetime.timedelta(seconds=10)
     end_time = time.monotonic() + timeout.total_seconds()
     while time.monotonic() < end_time:
-      status = transport.poll(handle)
+      status = local_transport.poll(handle)
       self.assertIsInstance(status, pg.Status)
       if not pg.is_completed(status):
         time.sleep(0.1)

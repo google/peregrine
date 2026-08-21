@@ -39,8 +39,9 @@ class Control final {
   // Destructor.
   ~Control();
 
-  // Returns the TCP port bound by the gRPC listener.
-  int Port() const { return grpc_server_->Port(); }
+  // Starts the gRPC server to begin accepting incoming control requests.
+  // Must be called only after host topology is ready to be served.
+  bool Start();
 
   // Synchronously sends a request message to a remote peer endpoint.
   // Returns the response message or an error status.
@@ -54,9 +55,13 @@ class Control final {
  private:
   // Constructor.
   Control(const HostInfo& self,
+          std::shared_ptr<grpc::ServerCredentials> server_creds,
           std::shared_ptr<grpc::ChannelCredentials> client_creds)
-      : self_(self), client_creds_(std::move(client_creds)) {
-    DCHECK(self_.IsValid());
+      : self_(self),
+        server_creds_(std::move(server_creds)),
+        client_creds_(std::move(client_creds)) {
+    DCHECK(self_.control_plane_listener.HasNonzeroIpPort());
+    DCHECK_NE(server_creds_, nullptr);
     DCHECK_NE(client_creds_, nullptr);
   }
   // Handles incoming RPC requests by dispatching to dedicated message handlers.
@@ -74,12 +79,13 @@ class Control final {
 
   // Returns true iff the invariant holds.
   bool invariant() const {
-    return self_.IsValid() && grpc_server_ != nullptr &&
-           client_creds_ != nullptr;
+    return self_.control_plane_listener.HasNonzeroIpPort() &&
+           grpc_server_ != nullptr && client_creds_ != nullptr;
   }
 
  private:
-  const HostInfo self_;
+  const HostInfo& self_;
+  std::shared_ptr<grpc::ServerCredentials> server_creds_;
   std::unique_ptr<GrpcServer> grpc_server_;
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;
 

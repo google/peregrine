@@ -26,8 +26,9 @@ std::unique_ptr<Control> Control::Create(
     const HostInfo& self, std::shared_ptr<grpc::ServerCredentials> server_creds,
     std::shared_ptr<grpc::ChannelCredentials> client_creds) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
-  if ABSL_PREDICT_FALSE (!self.IsValid()) {
-    LOG(WARNING) << "failed to create control: invalid host info " << self;
+  if ABSL_PREDICT_FALSE (!self.control_plane_listener.HasNonzeroIpPort()) {
+    LOG(WARNING) << "failed to create control: invalid control plane listener "
+                 << self.control_plane_listener;
     return nullptr;
   }
   if ABSL_PREDICT_FALSE (server_creds == nullptr) {
@@ -39,26 +40,30 @@ std::unique_ptr<Control> Control::Create(
     return nullptr;
   }
 
-  // Allocate Control object so its pointer is stable for the callback.
-  auto control = absl::WrapUnique(new Control(self, std::move(client_creds)));
+  return absl::WrapUnique(
+      new Control(self, std::move(server_creds), std::move(client_creds)));
+}
+
+bool Control::Start() {
+  if (grpc_server_ != nullptr) return true;
 
   // Create GrpcServer with the request handler attached.
   auto grpc_server_or = GrpcServer::Create(
-      self.control_plane_listener, std::move(server_creds),
-      [ctrl = control.get()](const proto::ReqMsg& req, proto::RespMsg* resp) {
-        return ctrl->handleIncomingRequest(req, resp);
+      self_.control_plane_listener, std::move(server_creds_),
+      [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
+        return handleIncomingRequest(req, resp);
       });
   if ABSL_PREDICT_FALSE (!grpc_server_or.ok()) {
     LOG(WARNING) << "failed to create grpc server on "
-                 << self.control_plane_listener << ": "
+                 << self_.control_plane_listener << ": "
                  << grpc_server_or.status();
-    return nullptr;
+    return false;
   }
-  control->grpc_server_ = *std::move(grpc_server_or);
+  grpc_server_ = *std::move(grpc_server_or);
 
-  DCHECK(control->invariant());
-  LOG(INFO) << "control created on port " << control->Port();
-  return control;
+  DCHECK(invariant());
+  LOG(INFO) << "control started on " << self_.control_plane_listener;
+  return true;
 }
 
 Control::~Control() {

@@ -18,6 +18,7 @@ cc_library(
         "//src/internal/channel",
         "//src/internal/channel:channel_util",
         "//src/internal/chunk",
+        "//src/internal/control",
         "//src/internal/request:request_tracker",
         "//src/internal/socket:acceptor",
         "//src/internal/socket:connector",

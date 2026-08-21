@@ -42,6 +42,7 @@ cc_library(
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
+        "//src/internal/control",
         "//src/internal/engine",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
@@ -52,6 +53,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
+        "@grpc//:grpc++",
     ],
 )
 

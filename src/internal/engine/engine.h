@@ -20,6 +20,7 @@
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
 #include "src/internal/coding_style.h"
+#include "src/internal/control/control.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
@@ -40,7 +41,8 @@ class Engine {
 
  public:
   // Creates an engine.
-  static std::unique_ptr<Engine> Create(int num_conns_per_peer, HostInfo& self);
+  static std::unique_ptr<Engine> Create(int num_conns_per_peer, HostInfo& self,
+                                        Control& control);
 
   // Destructor.
   ~Engine();
@@ -63,7 +65,7 @@ class Engine {
  private:
   // Constructor.
   Engine(std::unique_ptr<TcpAcceptor> acceptor, int num_conns_per_peer,
-         HostInfo& self);
+         HostInfo& self, Control& control);
 
  private:
   using Workers = std::vector<std::unique_ptr<Worker>>;
@@ -113,6 +115,7 @@ class Engine {
  private:
   HostInfo& self_;
   const int num_conns_per_peer_;
+  Control& control_;
 
   absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);

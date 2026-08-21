@@ -26,6 +26,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_util.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/control/control.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
@@ -44,24 +45,31 @@ absl::Status NotFoundError(const Handle h) {
 }
 }  // namespace
 
-std::unique_ptr<Engine> Engine::Create(int num_conns_per_peer, HostInfo& self) {
+std::unique_ptr<Engine> Engine::Create(int num_conns_per_peer, HostInfo& self,
+                                       Control& control) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
-  // TODO: Use control_plane_listener for data plane acceptor for now. In
-  // upcoming CLs, data plane listeners will be dynamically bound and populated.
-  std::unique_ptr<TcpAcceptor> acceptor =
-      TcpAcceptor::Create(self.control_plane_listener);
+  // Create data plane TCP acceptor on an ephemeral port.
+  // TODO: Enumerate routable interfaces and set up listener on the first
+  // interface instead of using the IP address from the control plane listener.
+  // For multi-NIC environments, create a listener per interface.
+  const Endpoint data_listen_ep(self.control_plane_listener.GetIpAddr(), 0);
+  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(data_listen_ep);
   if ABSL_PREDICT_FALSE (acceptor == nullptr) {
     LOG(WARNING) << "failed to create acceptor: " << self;
     return nullptr;
   }
+
+  self.data_plane_listeners = {acceptor->BoundEndpoint()};
+
   return absl::WrapUnique(
-      new Engine(std::move(acceptor), num_conns_per_peer, self));
+      new Engine(std::move(acceptor), num_conns_per_peer, self, control));
 }
 
 Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, int num_conns_per_peer,
-               HostInfo& self)
+               HostInfo& self, Control& control)
     : self_(self),
       num_conns_per_peer_(num_conns_per_peer),
+      control_(control),
       stop_(false),
       acceptor_(std::move(acceptor)) {
   DCHECK_GE(num_conns_per_peer_, 1);
@@ -104,8 +112,21 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
   if (workers.size() >= num_conns_per_peer_) {
     return true;
   }
+  auto host_info_or = control_.ResolvePeerHostInfo(peer);
+  if (!host_info_or.ok()) {
+    LOG(WARNING) << "failed to resolve peer " << peer << ": "
+                 << host_info_or.status();
+    return false;
+  }
+  if (host_info_or->data_plane_listeners.empty()) {
+    LOG(WARNING) << "no data plane listeners found for peer " << peer;
+    return false;
+  }
+  // We only use the first data plane listener for now.
+  const Endpoint& target = host_info_or->data_plane_listeners[0];
+
   for (int i = 0; i < 2 * num_conns_per_peer_; ++i) {
-    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
+    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(target);
     if (socket == nullptr) continue;
     std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
     auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,

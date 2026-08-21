@@ -60,5 +60,21 @@ TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
   });
 }
 
+TEST(TcpAcceptorTest, EphemeralPortBindingIPv4) {
+  const Endpoint ep = Endpoint::Create("127.0.0.1:0");
+  auto acceptor = TcpAcceptor::Create(ep);
+  ASSERT_NE(acceptor, nullptr);
+  EXPECT_GT(acceptor->BoundEndpoint().Port(), 0);
+  EXPECT_EQ(acceptor->BoundEndpoint().GetIpAddr().ToString(), "127.0.0.1");
+}
+
+TEST(TcpAcceptorTest, EphemeralPortBindingIPv6) {
+  const Endpoint ep = Endpoint::Create("[::1]:0");
+  auto acceptor = TcpAcceptor::Create(ep);
+  ASSERT_NE(acceptor, nullptr);
+  EXPECT_GT(acceptor->BoundEndpoint().Port(), 0);
+  EXPECT_EQ(acceptor->BoundEndpoint().GetIpAddr().ToString(), "::1");
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

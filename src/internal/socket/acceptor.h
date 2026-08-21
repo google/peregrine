@@ -9,6 +9,7 @@
 #include "absl/log/check.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/socket/socket_tcp.h"
+#include "src/internal/socket/socket_util.h"
 
 namespace peregrine::internal {
 
@@ -24,6 +25,11 @@ class TcpAcceptor {
 
   // Returns the underlying tcp listen socket.
   const TcpSocket& Socket() const { return *listener_; }
+
+  // Returns the bound listening endpoint.
+  Endpoint BoundEndpoint() const {
+    return Endpoint::Create(SelfAddrPort(listener_->fd()));
+  }
 
   // Starts running the acceptor.
   void Start(AcceptCallback accept);
