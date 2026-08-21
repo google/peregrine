@@ -1,4 +1,4 @@
-#include "src/internal/hw/nic.h"
+#include "src/util/nic.h"
 
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -16,7 +16,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 
-namespace peregrine::internal {
+namespace peregrine::util {
 
 namespace {
 std::string Error(absl::string_view msg, int last_errno) {
@@ -68,4 +68,4 @@ absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics() {
   return nics;
 }
 
-}  // namespace peregrine::internal
+}  // namespace peregrine::util

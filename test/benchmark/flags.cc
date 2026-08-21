@@ -1,14 +1,24 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/string_view.h"
+#include "src/util/nic.h"
 #include "test/benchmark/types.h"
 
 ABSL_FLAG(bool, ipv4, true, "Use IPv4 if true, otherwise IPv6");
+
+ABSL_FLAG(
+    std::string, ip, "",
+    "Local non-zero, non-loopback network interface IP address to bind to "
+    "(e.g. 10.0.0.1)");
 
 ABSL_FLAG(std::string, role, "receiver",
           "Role to run as: 'sender|send|s' or 'receiver|recv|r'");
@@ -48,6 +58,47 @@ Role ParseRole() {
     LOG(FATAL) << "invalid role: " << s;
   }
 }
+
+std::string ParseIp(absl::string_view ip) {
+  if (ip.empty()) {
+    LOG(FATAL) << "--ip must be specified with a valid non-zero, non-loopback "
+                  "network interface IP address.";
+  }
+
+  // Reject loopback and zero addresses.
+  if (ip == "127.0.0.1" || ip == "::1" || ip == "0.0.0.0" || ip == "::" ||
+      absl::StartsWith(ip, "127.")) {
+    LOG(FATAL) << "--ip cannot be a loopback or wildcard IP address (" << ip
+               << "). Please specify a valid physical network interface IP.";
+  }
+
+  // Validate at runtime that the provided IP matches one of the local NIC
+  // interfaces.
+  const auto nics = peregrine::util::EnumerateNics();
+  bool found = false;
+  std::vector<std::string> available_ips;
+  for (const auto& [ifname, ips] : nics) {
+    for (const auto& if_ip : ips) {
+      available_ips.push_back(absl::StrFormat("%s: %s", ifname, if_ip));
+      if (if_ip == ip) {
+        found = true;
+        break;
+      }
+    }
+    if (found) break;
+  }
+
+  if (!found) {
+    LOG(FATAL) << "Specified --ip '" << ip
+               << "' does not match any local interface on this machine.\n"
+               << "Available interfaces and IPs:\n  "
+               << absl::StrJoin(available_ips, "\n  ");
+  }
+
+  return std::string(ip);
+}
+
+std::string ParseIp() { return ParseIp(absl::GetFlag(FLAGS_ip)); }
 
 bool ParseIPver() { return absl::GetFlag(FLAGS_ipv4); }
 

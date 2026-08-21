@@ -17,10 +17,12 @@ cc_library(
     hdrs = ["flags.h"],
     deps = [
         ":types",
+        "//src/util:nic",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 

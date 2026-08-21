@@ -43,12 +43,12 @@ using ::peregrine::Status;
 using ::peregrine::util::FindFreePort;
 using ::peregrine::util::RandomNonZero;
 
-std::string GenEndpoint(bool ipv4, uint16_t port) {
+std::string GenEndpoint(bool ipv4, std::string_view ip, uint16_t port) {
   const int family = ipv4 ? AF_INET : AF_INET6;
-  const std::string_view ip = ipv4 ? "0.0.0.0" : "[::]";
   const uint16_t listen_port = port ?: FindFreePort(family, /*tcp=*/true);
   CHECK_GT(listen_port, 0);
-  return absl::StrCat(ip, ":", listen_port);
+  return ipv4 ? absl::StrCat(ip, ":", listen_port)
+              : absl::StrCat("[", ip, "]:", listen_port);
 }
 
 absl::Duration GetCpuTime() {
@@ -59,9 +59,10 @@ absl::Duration GetCpuTime() {
 }
 }  // namespace
 
-void RunRcvr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size) {
+void RunRcvr(bool ipv4, std::string_view ip, uint16_t port, int nconns,
+             uint64_t xfer_size) {
   // Create transport.
-  const std::string self = GenEndpoint(ipv4, port);
+  const std::string self = GenEndpoint(ipv4, ip, port);
   uint32_t listen_port = 0;
   CHECK(
       absl::SimpleAtoi(self.substr(self.find_last_of(':') + 1), &listen_port));
@@ -128,8 +129,9 @@ void RunRcvr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size) {
   close(control_fd);
 }
 
-void RunSndr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size,
-             std::string_view peer_host, uint32_t num_xfers) {
+void RunSndr(bool ipv4, std::string_view ip, uint16_t port, int nconns,
+             uint64_t xfer_size, std::string_view peer_host,
+             uint32_t num_xfers) {
   // Connect to receiver control
   const int client_fd =
       ConnectControlWithRetry(ipv4, peer_host, ParseControlPort());
@@ -150,7 +152,7 @@ void RunSndr(bool ipv4, uint16_t port, int nconns, uint64_t xfer_size,
   DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b != 0; }));
 
   // Create transport.
-  const std::string self = GenEndpoint(ipv4, port);
+  const std::string self = GenEndpoint(ipv4, ip, port);
   const std::unique_ptr<Transport> transport = CreateTransport(self, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
 

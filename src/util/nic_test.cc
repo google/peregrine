@@ -1,4 +1,4 @@
-#include "src/internal/hw/nic.h"
+#include "src/util/nic.h"
 
 #include <string>
 #include <vector>
@@ -7,7 +7,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/log.h"
 
-namespace peregrine::internal::testing {
+namespace peregrine::util::testing {
 namespace {
 
 TEST(NicsTest, EnumerateNics) {
@@ -23,4 +23,4 @@ TEST(NicsTest, EnumerateNics) {
 }
 
 }  // namespace
-}  // namespace peregrine::internal::testing
+}  // namespace peregrine::util::testing
