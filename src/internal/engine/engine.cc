@@ -112,18 +112,18 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
   if (workers.size() >= num_conns_per_peer_) {
     return true;
   }
-  auto host_info_or = control_.ResolvePeerHostInfo(peer);
-  if (!host_info_or.ok()) {
+  auto host_info = control_.GetPeerHostInfo(peer);
+  if (!host_info.ok()) {
     LOG(WARNING) << "failed to resolve peer " << peer << ": "
-                 << host_info_or.status();
+                 << host_info.status();
     return false;
   }
-  if (host_info_or->data_plane_listeners.empty()) {
+  if (host_info->data_plane_listeners.empty()) {
     LOG(WARNING) << "no data plane listeners found for peer " << peer;
     return false;
   }
   // We only use the first data plane listener for now.
-  const Endpoint& target = host_info_or->data_plane_listeners[0];
+  const Endpoint& target = host_info->data_plane_listeners[0];
 
   for (int i = 0; i < 2 * num_conns_per_peer_; ++i) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(target);

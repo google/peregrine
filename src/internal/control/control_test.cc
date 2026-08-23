@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -23,7 +22,7 @@
 namespace peregrine::internal::testing {
 namespace {
 
-TEST(ControlTest, DynamicResolvePeerHostInfoBetweenNodes) {
+TEST(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
   const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port_a, 0);
   HostInfo host_a = {
@@ -51,8 +50,7 @@ TEST(ControlTest, DynamicResolvePeerHostInfoBetweenNodes) {
   ASSERT_TRUE(ctrl_b->Start());
 
   // 1. Node A dynamically resolves Node B via gRPC slow-path (cache miss).
-  auto resolved_b_or =
-      ctrl_a->ResolvePeerHostInfo(host_b.control_plane_listener);
+  auto resolved_b_or = ctrl_a->GetPeerHostInfo(host_b.control_plane_listener);
   ASSERT_TRUE(resolved_b_or.ok()) << resolved_b_or.status();
   EXPECT_EQ(resolved_b_or->control_plane_listener,
             host_b.control_plane_listener);
@@ -61,7 +59,7 @@ TEST(ControlTest, DynamicResolvePeerHostInfoBetweenNodes) {
             host_b.data_plane_listeners[0]);
 
   // 2. Node A re-resolves Node B via cache fast-path.
-  auto cached_b_or = ctrl_a->ResolvePeerHostInfo(host_b.control_plane_listener);
+  auto cached_b_or = ctrl_a->GetPeerHostInfo(host_b.control_plane_listener);
   ASSERT_TRUE(cached_b_or.ok()) << cached_b_or.status();
   EXPECT_EQ(cached_b_or->control_plane_listener, host_b.control_plane_listener);
   ASSERT_EQ(cached_b_or->data_plane_listeners.size(), 1);
@@ -69,7 +67,7 @@ TEST(ControlTest, DynamicResolvePeerHostInfoBetweenNodes) {
             host_b.data_plane_listeners[0]);
 
   // 3. Node B automatically cached Node A from the inbound gRPC request.
-  auto cached_a_or = ctrl_b->ResolvePeerHostInfo(host_a.control_plane_listener);
+  auto cached_a_or = ctrl_b->GetPeerHostInfo(host_a.control_plane_listener);
   ASSERT_TRUE(cached_a_or.ok()) << cached_a_or.status();
   EXPECT_EQ(cached_a_or->control_plane_listener, host_a.control_plane_listener);
   ASSERT_EQ(cached_a_or->data_plane_listeners.size(), 1);
@@ -77,7 +75,7 @@ TEST(ControlTest, DynamicResolvePeerHostInfoBetweenNodes) {
             host_a.data_plane_listeners[0]);
 }
 
-TEST(ControlTest, ResolvePeerHostInfoErrors) {
+TEST(ControlTest, GetPeerHostInfoErrors) {
   const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port, 0);
   HostInfo self = {
@@ -92,7 +90,7 @@ TEST(ControlTest, ResolvePeerHostInfoErrors) {
 
   // Uninitialized or Zero-Value Endpoints trigger an error.
   const Endpoint invalid_peer;
-  auto fail_or = ctrl->ResolvePeerHostInfo(invalid_peer);
+  auto fail_or = ctrl->GetPeerHostInfo(invalid_peer);
   EXPECT_FALSE(fail_or.ok());
   EXPECT_EQ(fail_or.status().code(), absl::StatusCode::kInvalidArgument);
 
@@ -101,7 +99,7 @@ TEST(ControlTest, ResolvePeerHostInfoErrors) {
   ASSERT_GT(unused_port, 0);
   const Endpoint unreachable_peer =
       Endpoint::Create(absl::StrFormat("127.0.0.1:%d", unused_port));
-  auto unreachable_or = ctrl->ResolvePeerHostInfo(unreachable_peer);
+  auto unreachable_or = ctrl->GetPeerHostInfo(unreachable_peer);
   EXPECT_FALSE(unreachable_or.ok());
   EXPECT_EQ(unreachable_or.status().code(), absl::StatusCode::kUnavailable);
 }
@@ -142,7 +140,7 @@ TEST(ControlTest, HandleIncomingHostInfoRequest) {
             server_host.data_plane_listeners[0]);
 
   // Verify that the server cached the client's HostInfo in peer_hosts_.
-  auto cached_client_or = ctrl->ResolvePeerHostInfo(client_ep);
+  auto cached_client_or = ctrl->GetPeerHostInfo(client_ep);
   ASSERT_TRUE(cached_client_or.ok()) << cached_client_or.status();
   EXPECT_EQ(cached_client_or->control_plane_listener, client_ep);
   ASSERT_EQ(cached_client_or->data_plane_listeners.size(), 1);

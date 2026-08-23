@@ -39,8 +39,8 @@ class Control final {
   // Destructor.
   ~Control();
 
-  // Starts the gRPC server to begin accepting incoming control requests.
-  // Must be called only after host topology is ready to be served.
+  // Starts the gRPC server to begin accepting incoming request messages.
+  // Must be called only after host info is ready to be served.
   bool Start();
 
   // Synchronously sends a request message to a remote peer endpoint.
@@ -48,8 +48,8 @@ class Control final {
   absl::StatusOr<proto::RespMsg> SendRequest(const Endpoint& peer,
                                              const proto::ReqMsg& req);
 
-  // Resolves the physical multi-NIC HostInfo topology of a remote peer.
-  absl::StatusOr<HostInfo> ResolvePeerHostInfo(const Endpoint& peer_control_ep)
+  // Returns the HostInfo of a remote peer.
+  absl::StatusOr<HostInfo> GetPeerHostInfo(const Endpoint& peer)
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
  private:
@@ -64,6 +64,7 @@ class Control final {
     DCHECK_NE(server_creds_, nullptr);
     DCHECK_NE(client_creds_, nullptr);
   }
+
   // Handles incoming RPC requests by dispatching to dedicated message handlers.
   absl::Status handleIncomingRequest(const proto::ReqMsg& req,
                                      proto::RespMsg* resp)
@@ -80,21 +81,21 @@ class Control final {
   // Returns true iff the invariant holds.
   bool invariant() const {
     return self_.control_plane_listener.HasNonzeroIpPort() &&
-           grpc_server_ != nullptr && client_creds_ != nullptr;
+           client_creds_ != nullptr && grpc_server_ != nullptr;
   }
 
  private:
   const HostInfo& self_;
   std::shared_ptr<grpc::ServerCredentials> server_creds_;
-  std::unique_ptr<GrpcServer> grpc_server_;
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;
+  std::unique_ptr<GrpcServer> grpc_server_;
 
   absl::Mutex peer_clients_mu_;
   absl::flat_hash_map<Endpoint, std::unique_ptr<GrpcClient>> peer_clients_
       ABSL_GUARDED_BY(peer_clients_mu_);
 
   absl::Mutex peer_hosts_mu_;
-  absl::flat_hash_map<Endpoint, std::unique_ptr<HostInfo>> peer_hosts_
+  absl::flat_hash_map<Endpoint, HostInfo> peer_hosts_
       ABSL_GUARDED_BY(peer_hosts_mu_);
 };
 

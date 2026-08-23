@@ -45,24 +45,25 @@ std::unique_ptr<Control> Control::Create(
 }
 
 bool Control::Start() {
+  DCHECK(self_.IsValid());
+
   if (grpc_server_ != nullptr) return true;
 
-  // Create GrpcServer with the request handler attached.
-  auto grpc_server_or = GrpcServer::Create(
-      self_.control_plane_listener, std::move(server_creds_),
-      [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
-        return handleIncomingRequest(req, resp);
-      });
-  if ABSL_PREDICT_FALSE (!grpc_server_or.ok()) {
-    LOG(WARNING) << "failed to create grpc server on "
-                 << self_.control_plane_listener << ": "
-                 << grpc_server_or.status();
+  const Endpoint& endpoint = self_.control_plane_listener;
+  auto req_handler = [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
+    return handleIncomingRequest(req, resp);
+  };
+  auto grpc_server = GrpcServer::Create(endpoint, std::move(server_creds_),
+                                        std::move(req_handler));
+  if ABSL_PREDICT_FALSE (!grpc_server.ok()) {
+    LOG(WARNING) << "failed to create grpc server on " << endpoint << ": "
+                 << grpc_server.status();
     return false;
   }
-  grpc_server_ = *std::move(grpc_server_or);
 
+  grpc_server_ = *std::move(grpc_server);
   DCHECK(invariant());
-  LOG(INFO) << "control started on " << self_.control_plane_listener;
+  LOG(INFO) << "control started on " << endpoint;
   return true;
 }
 
@@ -79,7 +80,6 @@ absl::Status Control::handleIncomingRequest(const proto::ReqMsg& req,
   if (req.has_host_info()) {
     return handleHostInfo(req, resp);
   }
-
   return absl::UnimplementedError("unsupported request type");
 }
 
@@ -89,12 +89,16 @@ absl::Status Control::handleHostInfo(const proto::ReqMsg& req,
   if ABSL_PREDICT_FALSE (!Message::Convert(req, peer_info)) {
     return absl::InvalidArgumentError("malformed host info in request");
   }
+  DCHECK(peer_info.IsValid());
   {
     absl::MutexLock _(peer_hosts_mu_);
-    const Endpoint& peer_ep = peer_info.control_plane_listener;
-    peer_hosts_[peer_ep] = std::make_unique<HostInfo>(std::move(peer_info));
+    const Endpoint& peer = peer_info.control_plane_listener;
+    peer_hosts_.insert_or_assign(peer, std::move(peer_info));
   }
-  if ABSL_PREDICT_FALSE (resp != nullptr && !Message::Convert(self_, *resp)) {
+  if ABSL_PREDICT_FALSE (resp == nullptr) {
+    return absl::InternalError("null response message");
+  }
+  if ABSL_PREDICT_FALSE (!Message::Convert(self_, *resp)) {
     return absl::InternalError("failed to serialize self host info");
   }
   return absl::OkStatus();
@@ -120,48 +124,40 @@ const GrpcClient& Control::getOrCreateClient(const Endpoint& peer) {
   return *client;
 }
 
-absl::StatusOr<HostInfo> Control::ResolvePeerHostInfo(const Endpoint& peer) {
+absl::StatusOr<HostInfo> Control::GetPeerHostInfo(const Endpoint& peer) {
   if ABSL_PREDICT_FALSE (!peer.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError("invalid peer endpoint");
   }
 
-  // Fast-path: Check cache under lock (read-only lookup).
+  // Fast-path: peer host info already cached.
   {
     absl::MutexLock _(peer_hosts_mu_);
     const auto it = peer_hosts_.find(peer);
-    if ABSL_PREDICT_TRUE (it != peer_hosts_.end() && it->second != nullptr) {
-      return *it->second;
-    }
+    if ABSL_PREDICT_TRUE (it != peer_hosts_.end()) return it->second;
   }
 
-  // Slow-path: Out-of-band gRPC request (no lock held during network I/O).
+  // Slow-path: use gRPC to fetch peer host info.
   proto::ReqMsg req;
   if ABSL_PREDICT_FALSE (!Message::Convert(self_, req)) {
     return absl::InternalError(
         "failed to serialize self host info into request");
   }
 
-  absl::StatusOr<proto::RespMsg> resp_or = SendRequest(peer, req);
-  if ABSL_PREDICT_FALSE (!resp_or.ok()) {
-    return resp_or.status();
+  absl::StatusOr<proto::RespMsg> resp = SendRequest(peer, req);
+  if ABSL_PREDICT_FALSE (!resp.ok()) {
+    return resp.status();
   }
 
   HostInfo peer_info;
-  if ABSL_PREDICT_FALSE (!Message::Convert(*resp_or, peer_info)) {
+  if ABSL_PREDICT_FALSE (!Message::Convert(*resp, peer_info)) {
     return absl::InternalError(
         "failed to deserialize peer host info from response");
   }
+  DCHECK(peer_info.IsValid());
 
   absl::MutexLock _(peer_hosts_mu_);
-  // We need to query the map again to avoid a data race with another thread
-  // that may have already updated the cache.
-  std::unique_ptr<HostInfo>& host_info = peer_hosts_[peer];
-  if (host_info == nullptr) {
-    host_info = std::make_unique<HostInfo>(std::move(peer_info));
-  }
-
-  DCHECK_NE(host_info, nullptr);
-  return *host_info;
+  peer_hosts_.insert_or_assign(peer, peer_info);
+  return peer_info;
 }
 
 }  // namespace peregrine::internal
