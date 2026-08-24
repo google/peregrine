@@ -15,6 +15,7 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -43,12 +44,13 @@ using ::peregrine::Status;
 using ::peregrine::util::FindFreePort;
 using ::peregrine::util::RandomNonZero;
 
-std::string GenEndpoint(bool ipv4, std::string_view ip, uint16_t port) {
-  const int family = ipv4 ? AF_INET : AF_INET6;
+std::string GenEndpoint(std::string_view ip, uint16_t port) {
+  const bool ipv6 = absl::StrContains(ip, ':');
+  const int family = ipv6 ? AF_INET6 : AF_INET;
   const uint16_t listen_port = port ?: FindFreePort(family, /*tcp=*/true);
   CHECK_GT(listen_port, 0);
-  return ipv4 ? absl::StrCat(ip, ":", listen_port)
-              : absl::StrCat("[", ip, "]:", listen_port);
+  return ipv6 ? absl::StrCat("[", ip, "]:", listen_port)
+              : absl::StrCat(ip, ":", listen_port);
 }
 
 absl::Duration GetCpuTime() {
@@ -59,27 +61,17 @@ absl::Duration GetCpuTime() {
 }
 }  // namespace
 
-void RunRcvr(bool ipv4, std::string_view ip, uint16_t port, int nconns,
-             uint64_t xfer_size) {
+void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
+             uint16_t app_control_port, int nconns, uint64_t xfer_size) {
   // Create transport.
-  const std::string self = GenEndpoint(ipv4, ip, port);
-  uint32_t listen_port = 0;
-  CHECK(
-      absl::SimpleAtoi(self.substr(self.find_last_of(':') + 1), &listen_port));
-  CHECK_GT(listen_port, 0);
+  const std::string self = GenEndpoint(ip, peregrine_control_port);
   const std::unique_ptr<Transport> transport = CreateTransport(self, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
 
   // Wait for sender's control connection.
-  const int control_fd = CreateControlListener(ipv4, ParseControlPort());
+  const int control_fd = CreateControlListener(ip, app_control_port);
   const int sender_fd = accept(control_fd, nullptr, nullptr);
   CHECK_GE(sender_fd, 0) << "Failed to accept control sender connection";
-
-  // Send control message to sender telling it our transport data port.
-  proto::ControlMessage data_port_msg;
-  data_port_msg.mutable_data_port()->set_port(listen_port);
-  CHECK(SendControlMessage(sender_fd, data_port_msg))
-      << "Failed to send DataPort message";
 
   // Allocate buffer and fill with zeros.
   const std::vector<Byte> buf(xfer_size, 0);
@@ -91,8 +83,9 @@ void RunRcvr(bool ipv4, std::string_view ip, uint16_t port, int nconns,
       "Buffer addr : %p\n"
       "Buffer size : %s\n"
       "Listening at: %s\n"
+      "App control : %d\n"
       "Control negotiated. Press Ctrl+C to terminate.",
-      buf.data(), ToString(buf.size()), self);
+      buf.data(), ToString(buf.size()), self, app_control_port);
 
   const absl::Time start_time = absl::Now();
   const absl::Duration start_cpu = GetCpuTime();
@@ -129,22 +122,11 @@ void RunRcvr(bool ipv4, std::string_view ip, uint16_t port, int nconns,
   close(control_fd);
 }
 
-void RunSndr(bool ipv4, std::string_view ip, uint16_t port, int nconns,
-             uint64_t xfer_size, std::string_view peer_host,
-             uint32_t num_xfers) {
+void RunSndr(std::string_view ip, uint16_t peregrine_control_port,
+             uint16_t app_control_port, int nconns, uint64_t xfer_size,
+             std::string_view peer_host, uint32_t num_xfers) {
   // Connect to receiver control
-  const int client_fd =
-      ConnectControlWithRetry(ipv4, peer_host, ParseControlPort());
-
-  // Expect DataPort control message to get receiver's transport data port.
-  proto::ControlMessage data_port_msg;
-  CHECK(ProcessControlMessage(client_fd, &data_port_msg))
-      << "Failed to receive DataPort message";
-  CHECK(data_port_msg.has_data_port());
-  const std::string peer_endpoint =
-      ipv4 ? absl::StrCat(peer_host, ":", data_port_msg.data_port().port())
-           : absl::StrCat("[", peer_host,
-                          "]:", data_port_msg.data_port().port());
+  const int client_fd = ConnectControlWithRetry(peer_host, app_control_port);
 
   // Pre-allocate source buffer
   std::vector<Byte> buf(xfer_size);
@@ -152,9 +134,12 @@ void RunSndr(bool ipv4, std::string_view ip, uint16_t port, int nconns,
   DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b != 0; }));
 
   // Create transport.
-  const std::string self = GenEndpoint(ipv4, ip, port);
+  const std::string self = GenEndpoint(ip, /*port=*/0);
   const std::unique_ptr<Transport> transport = CreateTransport(self, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
+
+  const std::string peer_endpoint =
+      GenEndpoint(peer_host, peregrine_control_port);
 
   // Show info.
   std::cout << absl::StrFormat(

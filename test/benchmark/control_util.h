@@ -15,10 +15,10 @@ bool SendControlMessage(int fd, const proto::ControlMessage& msg);
 bool ProcessControlMessage(int fd, proto::ControlMessage* msg);
 
 // Creates a TCP socket listening on the specified port.
-int CreateControlListener(bool ipv4, uint16_t port);
+int CreateControlListener(std::string_view ip, uint16_t port);
 
 // Connects via TCP to a remote control host with retries.
-int ConnectControlWithRetry(bool ipv4, std::string_view host, uint16_t port);
+int ConnectControlWithRetry(std::string_view host, uint16_t port);
 
 }  // namespace peregrine::benchmark
 

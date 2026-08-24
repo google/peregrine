@@ -13,8 +13,6 @@
 #include "src/util/nic.h"
 #include "test/benchmark/types.h"
 
-ABSL_FLAG(bool, ipv4, true, "Use IPv4 if true, otherwise IPv6");
-
 ABSL_FLAG(
     std::string, ip, "",
     "Local non-zero, non-loopback network interface IP address to bind to "
@@ -23,11 +21,16 @@ ABSL_FLAG(
 ABSL_FLAG(std::string, role, "receiver",
           "Role to run as: 'sender|send|s' or 'receiver|recv|r'");
 
-ABSL_FLAG(uint16_t, port, 0,
-          "Local port to listen on (0 let the operating system choose)");
+ABSL_FLAG(
+    uint16_t, app_control_port, 9999,
+    "TCP port for the application control message exchange (listen port for "
+    "receiver; target destination port for sender)");
 
-ABSL_FLAG(uint16_t, control_port, 9999,
-          "TCP port used for the control message exchange");
+ABSL_FLAG(
+    uint16_t, peregrine_control_port, 9998,
+    "TCP port for Peregrine's gRPC control plane (listen port for receiver; "
+    "target destination port for sender; sender's local listener uses an "
+    "ephemeral port)");
 
 ABSL_FLAG(int, conn, 8,
           "#Connections to make between this process and each peer");
@@ -100,11 +103,11 @@ std::string ParseIp(absl::string_view ip) {
 
 std::string ParseIp() { return ParseIp(absl::GetFlag(FLAGS_ip)); }
 
-bool ParseIPver() { return absl::GetFlag(FLAGS_ipv4); }
+uint16_t ParseAppControlPort() { return absl::GetFlag(FLAGS_app_control_port); }
 
-uint16_t ParsePort() { return absl::GetFlag(FLAGS_port); }
-
-uint16_t ParseControlPort() { return absl::GetFlag(FLAGS_control_port); }
+uint16_t ParsePeregrineControlPort() {
+  return absl::GetFlag(FLAGS_peregrine_control_port);
+}
 
 int ParseNumConns() {
   const int v = absl::GetFlag(FLAGS_conn);

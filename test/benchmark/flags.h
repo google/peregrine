@@ -10,9 +10,8 @@
 
 ABSL_DECLARE_FLAG(std::string, role);
 ABSL_DECLARE_FLAG(std::string, ip);
-ABSL_DECLARE_FLAG(bool, ipv4);
-ABSL_DECLARE_FLAG(uint16_t, port);
-ABSL_DECLARE_FLAG(uint16_t, control_port);
+ABSL_DECLARE_FLAG(uint16_t, app_control_port);
+ABSL_DECLARE_FLAG(uint16_t, peregrine_control_port);
 ABSL_DECLARE_FLAG(int, conn);
 ABSL_DECLARE_FLAG(std::string, peer);
 ABSL_DECLARE_FLAG(uint64_t, xfer_size);
@@ -34,14 +33,13 @@ std::string ParseIp();
 // interface so that incoming and outgoing traffic is routable to it.
 std::string ParseIp(std::string_view ip);
 
-// Parses the IPv4/IPv6 mode.
-bool ParseIPver();
+// Parses the benchmark application rendezvous control port (listen port for
+// receiver; target destination port for sender).
+uint16_t ParseAppControlPort();
 
-// Parses the local port.
-uint16_t ParsePort();
-
-// Parses the control port.
-uint16_t ParseControlPort();
+// Parses the Peregrine gRPC control plane port (listen port for receiver;
+// target destination port for sender; sender's local listener is ephemeral).
+uint16_t ParsePeregrineControlPort();
 
 // Parses the #connections per peer.
 int ParseNumConns();

@@ -67,6 +67,7 @@ cc_library(
         ":control_cc_proto",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
     ],
 )
