@@ -42,6 +42,7 @@ bool IsIPv6(std::string_view host) { return absl::StrContains(host, ':'); }
 }  // namespace
 
 int CreateControlListener(std::string_view ip, uint16_t port) {
+  const std::string ip_str(ip);
   const bool ipv6 = IsIPv6(ip);
   int fd = socket(ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, 0);
   CHECK_GE(fd, 0) << "Failed to create control listener socket";
@@ -53,16 +54,17 @@ int CreateControlListener(std::string_view ip, uint16_t port) {
 
   if (ipv6) {
     struct sockaddr_in6 addr = {.sin6_family = AF_INET6,
-                                .sin6_port = htons(port),
-                                .sin6_addr = in6addr_any};
+                                .sin6_port = htons(port)};
+    CHECK_EQ(inet_pton(AF_INET6, ip_str.c_str(), &addr.sin6_addr), 1)
+        << "Failed to parse IPv6 address: " << ip;
     CHECK_EQ(bind(fd, (struct sockaddr*)&addr, sizeof(addr)), 0)
-        << "Failed to bind control listener to port " << port;
+        << "Failed to bind control listener to " << ip << ":" << port;
   } else {
-    struct sockaddr_in addr = {.sin_family = AF_INET,
-                               .sin_port = htons(port),
-                               .sin_addr = {.s_addr = INADDR_ANY}};
+    struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(port)};
+    CHECK_EQ(inet_pton(AF_INET, ip_str.c_str(), &addr.sin_addr), 1)
+        << "Failed to parse IPv4 address: " << ip;
     CHECK_EQ(bind(fd, (struct sockaddr*)&addr, sizeof(addr)), 0)
-        << "Failed to bind control listener to port " << port;
+        << "Failed to bind control listener to " << ip << ":" << port;
   }
 
   CHECK_EQ(listen(fd, 1), 0) << "Failed to listen on control socket";
