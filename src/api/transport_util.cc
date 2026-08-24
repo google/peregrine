@@ -10,6 +10,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "src/api/transport.h"
+#include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/ipaddr.h"
 #include "src/internal/transport_impl.h"
@@ -17,6 +18,7 @@
 
 namespace peregrine {
 
+using internal::Config;
 using internal::Endpoint;
 using internal::IpAddr;
 using internal::TransportImpl;
@@ -91,7 +93,8 @@ std::unique_ptr<Transport> CreateTransport(std::string_view control_endpoint,
   }
 
   const int n = std::min(std::max(1, num_conns_per_peer), 100);
-  return TransportImpl::Create(ctrl_ep, n);
+  const Config config = {.num_conns_per_peer = n};
+  return TransportImpl::Create(config, ctrl_ep);
 }
 
 }  // namespace peregrine

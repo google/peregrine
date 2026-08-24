@@ -14,35 +14,35 @@
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
 #include "src/api/transport_types.h"
+#include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
-#include "src/internal/base/hostinfo.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine.h"
 
 namespace peregrine::internal {
 
-std::unique_ptr<TransportImpl> TransportImpl::Create(const Endpoint& control_ep,
-                                                     int num_conns_per_peer) {
+std::unique_ptr<TransportImpl> TransportImpl::Create(
+    const Config& config, const Endpoint& control_ep) {
   if ABSL_PREDICT_FALSE (!control_ep.HasNonzeroIpPort()) {
     LOG(WARNING) << "invalid control endpoint: " << control_ep;
     return nullptr;
   }
 
-  auto transport = absl::WrapUnique(new TransportImpl());
+  auto transport = absl::WrapUnique(new TransportImpl(config));
   transport->self_.control_plane_listener = control_ep;
 
   // TODO: Currently, insecure credentials are used for control plane
   // communication. These credentials should be provided externally via
   // CreateTransport(), which will be interfaced in upcoming CLs.
-  transport->control_ =
-      Control::Create(transport->self_, grpc::InsecureServerCredentials(),
-                      grpc::InsecureChannelCredentials());
+  transport->control_ = Control::Create(transport->config_, transport->self_,
+                                        grpc::InsecureServerCredentials(),
+                                        grpc::InsecureChannelCredentials());
   if (transport->control_ == nullptr) {
     LOG(WARNING) << "failed to create control: " << transport->self_;
     return nullptr;
   }
 
-  transport->engine_ = Engine::Create(num_conns_per_peer, transport->self_,
+  transport->engine_ = Engine::Create(transport->config_, transport->self_,
                                       *transport->control_);
   if (transport->engine_ == nullptr) {
     LOG(WARNING) << "failed to create engine: " << transport->self_;

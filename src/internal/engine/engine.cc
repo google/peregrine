@@ -20,6 +20,7 @@
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
@@ -45,7 +46,7 @@ absl::Status NotFoundError(const Handle h) {
 }
 }  // namespace
 
-std::unique_ptr<Engine> Engine::Create(int num_conns_per_peer, HostInfo& self,
+std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
                                        Control& control) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
   // Create data plane TCP acceptor on an ephemeral port.
@@ -62,18 +63,17 @@ std::unique_ptr<Engine> Engine::Create(int num_conns_per_peer, HostInfo& self,
   self.data_plane_listeners = {acceptor->BoundEndpoint()};
 
   return absl::WrapUnique(
-      new Engine(std::move(acceptor), num_conns_per_peer, self, control));
+      new Engine(config, self, std::move(acceptor), control));
 }
 
-Engine::Engine(std::unique_ptr<TcpAcceptor> acceptor, int num_conns_per_peer,
-               HostInfo& self, Control& control)
-    : self_(self),
-      num_conns_per_peer_(num_conns_per_peer),
+Engine::Engine(const Config& config, HostInfo& self,
+               std::unique_ptr<TcpAcceptor> acceptor, Control& control)
+    : config_(config),
+      self_(self),
       control_(control),
       stop_(false),
       acceptor_(std::move(acceptor)) {
-  DCHECK_GE(num_conns_per_peer_, 1);
-  DCHECK_LE(num_conns_per_peer_, 100);
+  DCHECK(config_.IsValid());
 
   // Start an acceptor thread.
   DCHECK_NE(acceptor_, nullptr);
@@ -109,7 +109,8 @@ void Engine::accept(std::unique_ptr<TcpSocket> socket) {
 }
 
 bool Engine::connect(Workers& workers, const Endpoint& peer) {
-  if (workers.size() >= num_conns_per_peer_) {
+  const int num_conns = config_.num_conns_per_peer;
+  if (workers.size() >= num_conns) {
     return true;
   }
   auto host_info = control_.GetPeerHostInfo(peer);
@@ -125,14 +126,14 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
   // We only use the first data plane listener for now.
   const Endpoint& target = host_info->data_plane_listeners[0];
 
-  for (int i = 0; i < 2 * num_conns_per_peer_; ++i) {
+  for (int i = 0; i < 2 * num_conns; ++i) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(target);
     if (socket == nullptr) continue;
     std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
     auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
                                        incoming_, std::move(ch));
     workers.push_back(std::move(sw));
-    if (workers.size() >= num_conns_per_peer_) break;
+    if (workers.size() >= num_conns) break;
   }
   return !workers.empty();
 }

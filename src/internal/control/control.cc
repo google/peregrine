@@ -13,6 +13,7 @@
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/grpc_client.h"
@@ -23,7 +24,8 @@
 namespace peregrine::internal {
 
 std::unique_ptr<Control> Control::Create(
-    const HostInfo& self, std::shared_ptr<grpc::ServerCredentials> server_creds,
+    const Config& config, const HostInfo& self,
+    std::shared_ptr<grpc::ServerCredentials> server_creds,
     std::shared_ptr<grpc::ChannelCredentials> client_creds) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
   if ABSL_PREDICT_FALSE (!self.control_plane_listener.HasNonzeroIpPort()) {
@@ -40,8 +42,8 @@ std::unique_ptr<Control> Control::Create(
     return nullptr;
   }
 
-  return absl::WrapUnique(
-      new Control(self, std::move(server_creds), std::move(client_creds)));
+  return absl::WrapUnique(new Control(config, self, std::move(server_creds),
+                                      std::move(client_creds)));
 }
 
 bool Control::Start() {

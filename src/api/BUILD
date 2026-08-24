@@ -67,6 +67,7 @@ cc_library(
     deps = [
         ":transport",
         "//src/internal:transport_impl",
+        "//src/internal/base:config",
         "//src/internal/base:endpoint",
         "//src/internal/base:ipaddr",
         "//src/util",

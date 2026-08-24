@@ -40,6 +40,7 @@ cc_library(
     deps = [
         "//src/api:transport",
         "//src/api:transport_types",
+        "//src/internal/base:config",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
         "//src/internal/control",

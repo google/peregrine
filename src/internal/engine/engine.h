@@ -16,6 +16,7 @@
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
@@ -41,7 +42,7 @@ class Engine {
 
  public:
   // Creates an engine.
-  static std::unique_ptr<Engine> Create(int num_conns_per_peer, HostInfo& self,
+  static std::unique_ptr<Engine> Create(const Config& config, HostInfo& self,
                                         Control& control);
 
   // Destructor.
@@ -64,8 +65,8 @@ class Engine {
 
  private:
   // Constructor.
-  Engine(std::unique_ptr<TcpAcceptor> acceptor, int num_conns_per_peer,
-         HostInfo& self, Control& control);
+  Engine(const Config& config, HostInfo& self,
+         std::unique_ptr<TcpAcceptor> acceptor, Control& control);
 
  private:
   using Workers = std::vector<std::unique_ptr<Worker>>;
@@ -113,8 +114,8 @@ class Engine {
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
+  const Config& config_;
   HostInfo& self_;
-  const int num_conns_per_peer_;
   Control& control_;
 
   absl::Mutex mu_;

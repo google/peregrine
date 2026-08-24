@@ -9,6 +9,7 @@
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
+#include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/control.h"
@@ -23,9 +24,9 @@ namespace peregrine::internal {
 // It is thread-safe.
 class TransportImpl final : public Transport {
  public:
-  // Creates a transport.
-  static std::unique_ptr<TransportImpl> Create(const Endpoint& control_ep,
-                                               int num_conns_per_peer);
+  // Creates a transport with the given `config` and control endpoint.
+  static std::unique_ptr<TransportImpl> Create(const Config& config,
+                                               const Endpoint& control_ep);
 
   // Posts a batch of transport `requests` to communicate with the `peer`.
   //
@@ -48,9 +49,10 @@ class TransportImpl final : public Transport {
 
  private:
   // Constructor.
-  TransportImpl() = default;
+  explicit TransportImpl(const Config& config) : config_(config) {}
 
  private:
+  const Config config_;
   HostInfo self_;
   std::unique_ptr<Control> control_;
   std::unique_ptr<Engine> engine_;

@@ -12,6 +12,7 @@
 #include "absl/synchronization/mutex.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
+#include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/grpc_client.h"
@@ -28,7 +29,7 @@ class Control final {
  public:
   // Creates a control plane instance.
   static std::unique_ptr<Control> Create(
-      const HostInfo& self,
+      const Config& config, const HostInfo& self,
       std::shared_ptr<grpc::ServerCredentials> server_creds,
       std::shared_ptr<grpc::ChannelCredentials> client_creds);
 
@@ -54,12 +55,14 @@ class Control final {
 
  private:
   // Constructor.
-  Control(const HostInfo& self,
+  Control(const Config& config, const HostInfo& self,
           std::shared_ptr<grpc::ServerCredentials> server_creds,
           std::shared_ptr<grpc::ChannelCredentials> client_creds)
-      : self_(self),
+      : config_(config),
+        self_(self),
         server_creds_(std::move(server_creds)),
         client_creds_(std::move(client_creds)) {
+    DCHECK(config_.IsValid());
     DCHECK(self_.control_plane_listener.HasNonzeroIpPort());
     DCHECK_NE(server_creds_, nullptr);
     DCHECK_NE(client_creds_, nullptr);
@@ -80,11 +83,13 @@ class Control final {
 
   // Returns true iff the invariant holds.
   bool invariant() const {
-    return self_.control_plane_listener.HasNonzeroIpPort() &&
+    return config_.IsValid() &&
+           self_.control_plane_listener.HasNonzeroIpPort() &&
            client_creds_ != nullptr && grpc_server_ != nullptr;
   }
 
  private:
+  const Config& config_;
   const HostInfo& self_;
   std::shared_ptr<grpc::ServerCredentials> server_creds_;
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;

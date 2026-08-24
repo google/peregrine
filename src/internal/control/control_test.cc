@@ -13,6 +13,7 @@
 #include "absl/strings/str_format.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
+#include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/message.h"
@@ -23,6 +24,7 @@ namespace peregrine::internal::testing {
 namespace {
 
 TEST(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
+  const Config config = {.num_conns_per_peer = 1};
   const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port_a, 0);
   HostInfo host_a = {
@@ -39,13 +41,15 @@ TEST(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
   };
 
-  auto ctrl_a = Control::Create(host_a, grpc::InsecureServerCredentials(),
-                                grpc::InsecureChannelCredentials());
+  auto ctrl_a =
+      Control::Create(config, host_a, grpc::InsecureServerCredentials(),
+                      grpc::InsecureChannelCredentials());
   ASSERT_NE(ctrl_a, nullptr);
   ASSERT_TRUE(ctrl_a->Start());
 
-  auto ctrl_b = Control::Create(host_b, grpc::InsecureServerCredentials(),
-                                grpc::InsecureChannelCredentials());
+  auto ctrl_b =
+      Control::Create(config, host_b, grpc::InsecureServerCredentials(),
+                      grpc::InsecureChannelCredentials());
   ASSERT_NE(ctrl_b, nullptr);
   ASSERT_TRUE(ctrl_b->Start());
 
@@ -76,6 +80,7 @@ TEST(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
 }
 
 TEST(ControlTest, GetPeerHostInfoErrors) {
+  const Config config = {.num_conns_per_peer = 1};
   const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port, 0);
   HostInfo self = {
@@ -83,7 +88,7 @@ TEST(ControlTest, GetPeerHostInfoErrors) {
           Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port)),
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
-  auto ctrl = Control::Create(self, grpc::InsecureServerCredentials(),
+  auto ctrl = Control::Create(config, self, grpc::InsecureServerCredentials(),
                               grpc::InsecureChannelCredentials());
   ASSERT_NE(ctrl, nullptr);
   ASSERT_TRUE(ctrl->Start());
@@ -105,6 +110,7 @@ TEST(ControlTest, GetPeerHostInfoErrors) {
 }
 
 TEST(ControlTest, HandleIncomingHostInfoRequest) {
+  const Config config = {.num_conns_per_peer = 1};
   const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port, 0);
   HostInfo server_host = {
@@ -113,8 +119,9 @@ TEST(ControlTest, HandleIncomingHostInfoRequest) {
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
 
-  auto ctrl = Control::Create(server_host, grpc::InsecureServerCredentials(),
-                              grpc::InsecureChannelCredentials());
+  auto ctrl =
+      Control::Create(config, server_host, grpc::InsecureServerCredentials(),
+                      grpc::InsecureChannelCredentials());
   ASSERT_NE(ctrl, nullptr);
   ASSERT_TRUE(ctrl->Start());
 
@@ -149,6 +156,7 @@ TEST(ControlTest, HandleIncomingHostInfoRequest) {
 }
 
 TEST(ControlTest, NullServerCredentialsReturnsNullptr) {
+  const Config config = {.num_conns_per_peer = 1};
   const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port, 0);
   HostInfo host = {
@@ -157,12 +165,13 @@ TEST(ControlTest, NullServerCredentialsReturnsNullptr) {
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
 
-  EXPECT_EQ(Control::Create(host, /*server_creds=*/nullptr,
+  EXPECT_EQ(Control::Create(config, host, /*server_creds=*/nullptr,
                             grpc::InsecureChannelCredentials()),
             nullptr);
 }
 
 TEST(ControlTest, NullClientCredentialsReturnsNullptr) {
+  const Config config = {.num_conns_per_peer = 1};
   const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port, 0);
   HostInfo host = {
@@ -171,7 +180,7 @@ TEST(ControlTest, NullClientCredentialsReturnsNullptr) {
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
 
-  EXPECT_EQ(Control::Create(host, grpc::InsecureServerCredentials(),
+  EXPECT_EQ(Control::Create(config, host, grpc::InsecureServerCredentials(),
                             /*client_creds=*/nullptr),
             nullptr);
 }

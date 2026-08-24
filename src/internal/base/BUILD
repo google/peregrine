@@ -4,6 +4,11 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//src/internal:internal_impl"])
 
 cc_library(
+    name = "config",
+    hdrs = ["config.h"],
+)
+
+cc_library(
     name = "types",
     hdrs = ["types.h"],
     deps = [
