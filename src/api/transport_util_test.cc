@@ -14,43 +14,32 @@
 namespace peregrine::testing {
 namespace {
 
+using ::testing::IsNull;
+using ::testing::NotNull;
+
 constexpr int kNumConnsPerPeer = 4;
 
-TEST(TransportUtilTest, Create) {
+TEST(TransportUtilTest, ValidEndpoints) {
   for (int family : {AF_INET, AF_INET6}) {
     const std::string_view ip = family == AF_INET ? "127.0.0.1" : "[::1]";
     const uint16_t port = util::FindFreePort(family, /*tcp=*/true);
     const std::string ep = absl::StrFormat("%s:%d", ip, port);
-    EXPECT_THAT(CreateTransport(ep, kNumConnsPerPeer), ::testing::NotNull());
+    EXPECT_THAT(CreateTransport(ep, kNumConnsPerPeer), NotNull());
   }
 }
 
-TEST(TransportUtilTest, CreateWildcardAndZeroPort) {
-  // 0.0.0.0:0 should resolve to 127.0.0.1:<free_port>
-  EXPECT_THAT(CreateTransport("0.0.0.0:0", kNumConnsPerPeer),
-              ::testing::NotNull());
-
-  // [::]:0 should resolve to [::1]:<free_port>
-  EXPECT_THAT(CreateTransport("[::]:0", kNumConnsPerPeer),
-              ::testing::NotNull());
-
-  // 127.0.0.1:0 should resolve port
-  EXPECT_THAT(CreateTransport("127.0.0.1:0", kNumConnsPerPeer),
-              ::testing::NotNull());
-
-  // [::1]:0 should resolve port
-  EXPECT_THAT(CreateTransport("[::1]:0", kNumConnsPerPeer),
-              ::testing::NotNull());
+TEST(TransportUtilTest, InvalidEndpoints) {
+  EXPECT_THAT(CreateTransport("", kNumConnsPerPeer), IsNull());
+  EXPECT_THAT(CreateTransport("invalid", kNumConnsPerPeer), IsNull());
+  EXPECT_THAT(CreateTransport("127.0.0.1", kNumConnsPerPeer), IsNull());
+  EXPECT_THAT(CreateTransport("9.9.9.999:80", kNumConnsPerPeer), IsNull());
 }
 
-TEST(TransportUtilTest, CreateInvalidEndpoints) {
-  EXPECT_THAT(CreateTransport("", kNumConnsPerPeer), ::testing::IsNull());
-  EXPECT_THAT(CreateTransport("invalid", kNumConnsPerPeer),
-              ::testing::IsNull());
-  EXPECT_THAT(CreateTransport("127.0.0.1", kNumConnsPerPeer),
-              ::testing::IsNull());
-  EXPECT_THAT(CreateTransport("999.999.999.999:80", kNumConnsPerPeer),
-              ::testing::IsNull());
+TEST(TransportUtilTest, WildcardAndZeroPort) {
+  EXPECT_THAT(CreateTransport("0.0.0.0:9999", kNumConnsPerPeer), IsNull());
+  EXPECT_THAT(CreateTransport("[::]:9999", kNumConnsPerPeer), IsNull());
+  EXPECT_THAT(CreateTransport("127.0.0.1:0", kNumConnsPerPeer), IsNull());
+  EXPECT_THAT(CreateTransport("[::1]:0", kNumConnsPerPeer), IsNull());
 }
 
 }  // namespace

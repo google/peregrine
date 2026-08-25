@@ -69,11 +69,7 @@ cc_library(
         "//src/internal:transport_impl",
         "//src/internal/base:config",
         "//src/internal/base:endpoint",
-        "//src/internal/base:ipaddr",
-        "//src/util",
         "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/strings",
     ],
 )
 
