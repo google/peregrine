@@ -171,6 +171,7 @@ cc_test(
     deps = [
         ":channel_util",
         "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
         "//src/internal/socket:acceptor",
         "//src/internal/socket:socket_tcp",
         "//src/internal/util:test_util",

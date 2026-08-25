@@ -49,19 +49,15 @@ absl::Status NotFoundError(const Handle h) {
 std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
                                        Control& control) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
-  // Create data plane TCP acceptor on an ephemeral port.
-  // TODO: Enumerate routable interfaces and set up listener on the first
-  // interface instead of using the IP address from the control plane listener.
-  // For multi-NIC environments, create a listener per interface.
-  const Endpoint data_listen_ep(self.control_plane_listener.GetIpAddr(), 0);
-  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(data_listen_ep);
+  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(self);
   if ABSL_PREDICT_FALSE (acceptor == nullptr) {
     LOG(WARNING) << "failed to create acceptor: " << self;
     return nullptr;
   }
-
-  self.data_plane_listeners = {acceptor->BoundEndpoint()};
-
+  if ABSL_PREDICT_FALSE (!self.IsValid()) {
+    LOG(WARNING) << "invalid self host info: " << self;
+    return nullptr;
+  }
   return absl::WrapUnique(
       new Engine(config, self, std::move(acceptor), control));
 }

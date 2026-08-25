@@ -7,6 +7,7 @@
 #include "absl/log/check.h"
 #include "absl/synchronization/notification.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
 #include "src/internal/socket/socket_tcp.h"
@@ -17,7 +18,7 @@ namespace peregrine::internal::testing {
 
 std::pair<std::unique_ptr<TcpSocket>, std::unique_ptr<TcpSocket>>
 CreateTcpSocketPair(int family) {
-  const Endpoint a(TestOnly_LocalEndpoint(family, /*tcp=*/true));
+  HostInfo a(TestOnly_LocalHostInfo(family, /*tcp=*/true));
   std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(a);
   CHECK_NE(acceptor, nullptr);
 
@@ -29,13 +30,14 @@ CreateTcpSocketPair(int family) {
     socket_accepted.Notify();
   };
   std::jthread acceptor_thread([&]() {
-    DCHECK(acceptor->Socket().IsBlocking());
     acceptor_started.Notify();
     acceptor->Start(accept);
   });
 
   acceptor_started.WaitForNotification();
-  std::unique_ptr<TcpSocket> sb = TcpConnector::Create(/*peer=*/a);
+  const Endpoint peer = a.data_plane_listeners[0];
+  const Endpoint local = {};
+  std::unique_ptr<TcpSocket> sb = TcpConnector::Create(peer, local);
 
   socket_accepted.WaitForNotification();
   acceptor->Stop();

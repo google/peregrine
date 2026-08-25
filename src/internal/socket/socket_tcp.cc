@@ -29,8 +29,8 @@
 
 namespace peregrine::internal {
 
-std::unique_ptr<TcpSocket> TcpSocket::Create(int family) {
-  const fd_t fd = CreateSocket(family, SOCK_STREAM, /*blocking=*/true);
+std::unique_ptr<TcpSocket> TcpSocket::Create(int family, bool blocking) {
+  const fd_t fd = CreateSocket(family, SOCK_STREAM, blocking);
   if ABSL_PREDICT_FALSE (fd.value() < 0) {
     return nullptr;
   } else {
@@ -113,12 +113,15 @@ int AcceptConn(const int family, const fd_t fd) {
 
 fd_t TcpSocket::Accept() const {
   DCHECK(invariant());
-  DCHECK(IsBlocking());
+  DCHECK(IsNonBlocking() || IsBlocking());
 
   const int ret = AcceptConn(family_, fd_);
   if ABSL_PREDICT_FALSE (ret < 0) {
     // At this point, shutdown() is the only reason that can cause EINVAL.
-    if (const auto last_errno = errno; last_errno == EINVAL) {
+    const auto last_errno = errno;
+    if (WouldBlock(last_errno)) {
+      return fd_t(-3);
+    } else if (last_errno == EINVAL) {
       LOG(WARNING) << okMsg("accept shutdown");
       DCHECK(IsShutdown(-2));
       return fd_t(-2);

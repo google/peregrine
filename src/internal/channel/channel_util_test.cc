@@ -5,11 +5,13 @@
 #include <thread>  // NOLINT
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
@@ -28,14 +30,16 @@ std::string ToString(const TestParamInfo<Param>& info) {
   return absl::StrFormat("IPv%d", family == AF_INET ? 4 : 6);
 }
 
+constexpr bool kTcp = true;
+
 class ChannelUtilTest : public ::testing::TestWithParam<Param> {
  protected:
   ChannelUtilTest()
       : family_(std::get<0>(GetParam())),
-        local_(TestOnly_LocalEndpoint(family_, /*tcp=*/true)),
-        peer_(local_),
-        acceptor_(TcpAcceptor::Create(local_)) {
-    CHECK_EQ(local_, peer_);
+        self_(TestOnly_LocalHostInfoWithZeroDataPlanePorts(family_, kTcp)),
+        acceptor_(TcpAcceptor::Create(self_)),
+        peers_(self_.data_plane_listeners) {
+    CHECK(self_.IsValid());
     CHECK_NE(acceptor_, nullptr);
   }
 
@@ -46,9 +50,9 @@ class ChannelUtilTest : public ::testing::TestWithParam<Param> {
 
  protected:
   const int family_;
-  const Endpoint local_;
-  const Endpoint peer_;
+  HostInfo self_;
   std::unique_ptr<TcpAcceptor> acceptor_;
+  const std::vector<Endpoint> peers_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
@@ -56,13 +60,14 @@ INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
 
 TEST_P(ChannelUtilTest, Create) {
   std::jthread ta([&]() {
-    DCHECK(acceptor_->Socket().IsBlocking());
     acceptor_->Start(Accept);
   });
 
-  constexpr int kNumChannels = 8;
-  Channels chs = Create(peer_, kNumChannels);
-  EXPECT_EQ(chs.size(), kNumChannels);
+  for (const Endpoint& peer : peers_) {
+    constexpr int kNumChannels = 8;
+    Channels chs = Create(peer, kNumChannels);
+    EXPECT_EQ(chs.size(), kNumChannels);
+  }
 
   acceptor_->Stop();
 }

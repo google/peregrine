@@ -50,6 +50,9 @@ Endpoint TestOnly_LocalEndpoint(int family, bool tcp);
 // Creates localhost host info in the given address `family` and protocol.
 HostInfo TestOnly_LocalHostInfo(int family, bool tcp);
 
+// Creates localhost host info in the given address `family` and protocol.
+HostInfo TestOnly_LocalHostInfoWithZeroDataPlanePorts(int family, bool tcp);
+
 // Finds an unused TCP port in the given address `family`.
 // Return a nonzero port if successful, otherwise crashes.
 port_t TestOnly_FindFreeTcpPort(int family);

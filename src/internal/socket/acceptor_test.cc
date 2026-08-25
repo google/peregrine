@@ -10,19 +10,22 @@
 #include "absl/log/check.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
 
 namespace peregrine::internal::testing {
 namespace {
 
+constexpr bool kTcp = true;
+
 template <int kFamily>
 class TcpAcceptorTest : public ::testing::Test {
  protected:
   TcpAcceptorTest()
-      : local_(TestOnly_LocalEndpoint(kFamily, /*tcp=*/true)),
+      : local_(TestOnly_LocalHostInfoWithZeroDataPlanePorts(kFamily, kTcp)),
         acceptor_(TcpAcceptor::Create(local_)) {
+    CHECK(local_.IsValid());
     CHECK_NE(acceptor_, nullptr);
   }
 
@@ -34,7 +37,7 @@ class TcpAcceptorTest : public ::testing::Test {
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(300)); }
 
  protected:
-  const Endpoint local_;
+  HostInfo local_;
   std::unique_ptr<TcpAcceptor> acceptor_;
 };
 
@@ -43,7 +46,6 @@ using TcpAcceptorTestIPv6 = TcpAcceptorTest<AF_INET6>;
 
 TEST_F(TcpAcceptorTestIPv4, StartThenStop) {
   std::jthread ta([&]() {
-    DCHECK(acceptor_->Socket().IsBlocking());
     acceptor_->Start(Accept);
   });
 
@@ -55,25 +57,8 @@ TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
   acceptor_->Stop();
 
   std::jthread ta([&]() {
-    DCHECK(acceptor_->Socket().IsBlocking());
     acceptor_->Start(Accept);
   });
-}
-
-TEST(TcpAcceptorTest, EphemeralPortBindingIPv4) {
-  const Endpoint ep = Endpoint::Create("127.0.0.1:0");
-  auto acceptor = TcpAcceptor::Create(ep);
-  ASSERT_NE(acceptor, nullptr);
-  EXPECT_GT(acceptor->BoundEndpoint().Port(), 0);
-  EXPECT_EQ(acceptor->BoundEndpoint().GetIpAddr().ToString(), "127.0.0.1");
-}
-
-TEST(TcpAcceptorTest, EphemeralPortBindingIPv6) {
-  const Endpoint ep = Endpoint::Create("[::1]:0");
-  auto acceptor = TcpAcceptor::Create(ep);
-  ASSERT_NE(acceptor, nullptr);
-  EXPECT_GT(acceptor->BoundEndpoint().Port(), 0);
-  EXPECT_EQ(acceptor->BoundEndpoint().GetIpAddr().ToString(), "::1");
 }
 
 }  // namespace

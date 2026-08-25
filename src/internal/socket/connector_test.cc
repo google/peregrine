@@ -5,12 +5,15 @@
 #include <memory>
 #include <thread>  // NOLINT
 #include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
@@ -18,15 +21,17 @@
 namespace peregrine::internal::testing {
 namespace {
 
+constexpr bool kTcp = true;
+
 template <int kFamily>
 class TcpConnectorTest : public ::testing::Test {
  protected:
   TcpConnectorTest()
-      : local_(TestOnly_LocalEndpoint(kFamily, /*tcp=*/true)),
-        local_ip_(local_.GetIpAddr(), /*port=*/0),
-        peer_(local_),
-        acceptor_(TcpAcceptor::Create(local_)) {
-    CHECK_EQ(local_, peer_);
+      : self_(TestOnly_LocalHostInfoWithZeroDataPlanePorts(kFamily, kTcp)),
+        local_(self_.data_plane_listeners[0].GetIpAddr(), /*port=*/0),
+        acceptor_(TcpAcceptor::Create(self_)),
+        peers_(self_.data_plane_listeners) {
+    CHECK(self_.IsValid());
     CHECK_NE(acceptor_, nullptr);
   }
 
@@ -38,10 +43,10 @@ class TcpConnectorTest : public ::testing::Test {
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(100)); }
 
  protected:
+  HostInfo self_;
   const Endpoint local_;
-  const Endpoint local_ip_;
-  const Endpoint peer_;
   std::unique_ptr<TcpAcceptor> acceptor_;
+  const std::vector<Endpoint> peers_;
 };
 
 using TcpConnectorTestIPv4 = TcpConnectorTest<AF_INET>;
@@ -49,16 +54,17 @@ using TcpConnectorTestIPv6 = TcpConnectorTest<AF_INET6>;
 
 TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
   std::jthread ta([&]() {
-    DCHECK(acceptor_->Socket().IsBlocking());
     acceptor_->Start(Accept);
   });
 
   ShortSleep();
   std::jthread tc([&]() {
-    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_);
-    CHECK_NE(socket, nullptr);
-    DCHECK(socket->IsBlocking());
-    DCHECK(socket->IsConnected());
+    for (const Endpoint& peer : peers_) {
+      std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
+      CHECK_NE(socket, nullptr);
+      DCHECK(socket->IsBlocking());
+      DCHECK(socket->IsConnected());
+    }
   });
 
   ShortSleep();
@@ -67,15 +73,16 @@ TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
 
 TEST_F(TcpConnectorTestIPv6, BindConnectBeforeAccept) {
   std::jthread tc([&]() {
-    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_, local_ip_);
-    CHECK_NE(socket, nullptr);
-    DCHECK(socket->IsBlocking());
-    DCHECK(socket->IsConnected());
+    for (const Endpoint& peer : peers_) {
+      std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer, local_);
+      CHECK_NE(socket, nullptr);
+      DCHECK(socket->IsBlocking());
+      DCHECK(socket->IsConnected());
+    }
   });
 
   ShortSleep();
   std::jthread ta([&]() {
-    DCHECK(acceptor_->Socket().IsBlocking());
     acceptor_->Start(Accept);
   });
 

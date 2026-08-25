@@ -27,7 +27,7 @@ namespace peregrine::internal {
 class TcpSocket final : public SocketBase {
  public:
   // Creates an unconnected tcp socket.
-  static std::unique_ptr<TcpSocket> Create(int family);
+  static std::unique_ptr<TcpSocket> Create(int family, bool blocking = true);
 
   // Creates a connected tcp socket.
   static std::unique_ptr<TcpSocket> Create(fd_t fd, int family);

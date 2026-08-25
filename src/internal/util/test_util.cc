@@ -67,4 +67,17 @@ HostInfo TestOnly_LocalHostInfo(int family, bool tcp) {
   }
 }
 
+HostInfo TestOnly_LocalHostInfoWithZeroDataPlanePorts(int family, bool tcp) {
+  const IpAddr ipaddr = IpLocalhost(family);
+  if (tcp) {
+    const auto c = Endpoint(ipaddr, TestOnly_FindFreeTcpPort(family));
+    const auto d = Endpoint(ipaddr, 0);
+    return HostInfo{c, {d}};
+  } else {
+    const auto c = Endpoint(ipaddr, TestOnly_FindFreeUdpPort(family));
+    const auto d = Endpoint(ipaddr, 0);
+    return HostInfo{c, {d}};
+  }
+}
+
 }  // namespace peregrine::internal::testing
