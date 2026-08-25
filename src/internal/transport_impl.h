@@ -24,9 +24,9 @@ namespace peregrine::internal {
 // It is thread-safe.
 class TransportImpl final : public Transport {
  public:
-  // Creates a transport with the given `config` and control endpoint.
+  // Creates a transport with the given `config` and control `endpoint`.
   static std::unique_ptr<TransportImpl> Create(const Config& config,
-                                               const Endpoint& control_ep);
+                                               const Endpoint& endpoint);
 
   // Posts a batch of transport `requests` to communicate with the `peer`.
   //

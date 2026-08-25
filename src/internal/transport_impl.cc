@@ -16,54 +16,48 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/base/hostinfo.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine.h"
 
 namespace peregrine::internal {
 
-std::unique_ptr<TransportImpl> TransportImpl::Create(
-    const Config& config, const Endpoint& control_ep) {
-  if ABSL_PREDICT_FALSE (!control_ep.HasNonzeroIpPort()) {
-    LOG(WARNING) << "invalid control endpoint: " << control_ep;
+std::unique_ptr<TransportImpl> TransportImpl::Create(const Config& config,
+                                                     const Endpoint& endpoint) {
+  if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
+    LOG(WARNING) << "invalid control endpoint: " << endpoint;
     return nullptr;
   }
 
-  auto transport = absl::WrapUnique(new TransportImpl(config));
-  transport->self_.control_plane_listener = control_ep;
-
-  // TODO: Currently, insecure credentials are used for control plane
-  // communication. These credentials should be provided externally via
-  // CreateTransport(), which will be interfaced in upcoming CLs.
-  transport->control_ = Control::Create(transport->config_, transport->self_,
-                                        grpc::InsecureServerCredentials(),
-                                        grpc::InsecureChannelCredentials());
-  if (transport->control_ == nullptr) {
-    LOG(WARNING) << "failed to create control: " << transport->self_;
+  // Populate HostInfo and create control plane.
+  auto t = absl::WrapUnique(new TransportImpl(config));
+  t->self_.control_plane_listener = endpoint;
+  // TODO: provide security credentials via input parameters.
+  auto svr_creds = grpc::InsecureServerCredentials();
+  auto cli_creds = grpc::InsecureChannelCredentials();
+  t->control_ = Control::Create(t->config_, t->self_, svr_creds, cli_creds);
+  if ABSL_PREDICT_FALSE (t->control_ == nullptr) {
+    LOG(WARNING) << "failed to create control: " << t->self_;
     return nullptr;
   }
 
-  transport->engine_ = Engine::Create(transport->config_, transport->self_,
-                                      *transport->control_);
-  if (transport->engine_ == nullptr) {
-    LOG(WARNING) << "failed to create engine: " << transport->self_;
+  // Create data plane and populate HostInfo.
+  t->engine_ = Engine::Create(t->config_, t->self_, *t->control_);
+  if ABSL_PREDICT_FALSE (t->engine_ == nullptr) {
+    LOG(WARNING) << "failed to create engine: " << t->self_;
+    return nullptr;
+  }
+  if ABSL_PREDICT_FALSE (!t->self_.IsValid()) {
+    LOG(WARNING) << "failed to create transport: invalid " << t->self_;
     return nullptr;
   }
 
-  if (!transport->self_.IsValid()) {
-    LOG(WARNING) << "failed to create transport: invalid HostInfo "
-                 << transport->self_.ToString();
+  // HostInfo populated. Now start serving control RPCs.
+  if ABSL_PREDICT_FALSE (!t->control_->Start()) {
+    LOG(WARNING) << "failed to start control plane: " << t->self_;
     return nullptr;
   }
-
-  // Start serving control RPCs only after HostInfo is fully populated by
-  // engine to prevent startup races and ensure peers resolve valid data plane
-  // listeners.
-  if (!transport->control_->Start()) {
-    LOG(WARNING) << "failed to start control plane: " << transport->self_;
-    return nullptr;
-  }
-
-  return transport;
+  return t;
 }
 
 absl::StatusOr<Handle> TransportImpl::Post(std::string_view peer,
