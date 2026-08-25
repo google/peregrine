@@ -55,16 +55,22 @@ std::unique_ptr<TcpSocket> TcpAcceptor::createOne(Endpoint& endpoint,
   return socket;
 }
 
+namespace {
+void FillListenerIpAddrs(HostInfo& self) {
+  // TODO(mubashirq): scan nics and find all routable ipv{4,6} addrs.
+  self.data_plane_listeners = {
+      Endpoint(self.control_plane_listener.GetIpAddr(), 0),
+  };
+}
+}  // namespace
+
 std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(HostInfo& self) {
   std::unique_ptr<Poller> poller = Poller::Create();
   if ABSL_PREDICT_FALSE (poller == nullptr) {
     return nullptr;
   }
 
-  // TODO(mubashirq): create per-NIC listeners.
-  self.data_plane_listeners = {
-      Endpoint(self.control_plane_listener.GetIpAddr(), 0),
-  };
+  FillListenerIpAddrs(self);
   absl::flat_hash_map<fd_t, Listener> listeners;
   for (Endpoint& e : self.data_plane_listeners) {
     std::unique_ptr<TcpSocket> socket = createOne(e, poller.get());
