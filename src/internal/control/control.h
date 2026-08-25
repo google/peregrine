@@ -28,10 +28,9 @@ namespace peregrine::internal {
 class Control final {
  public:
   // Creates a control plane instance.
-  static std::unique_ptr<Control> Create(
-      const Config& config, const HostInfo& self,
-      std::shared_ptr<grpc::ServerCredentials> server_creds,
-      std::shared_ptr<grpc::ChannelCredentials> client_creds);
+  static std::unique_ptr<Control> Create(const Config& config,
+                                         SecurityCredentials creds,
+                                         const HostInfo& self);
 
   // Disallows copy and move.
   DISALLOW_COPY(Control);
@@ -55,13 +54,11 @@ class Control final {
 
  private:
   // Constructor.
-  Control(const Config& config, const HostInfo& self,
-          std::shared_ptr<grpc::ServerCredentials> server_creds,
-          std::shared_ptr<grpc::ChannelCredentials> client_creds)
+  Control(const Config& config, SecurityCredentials creds, const HostInfo& self)
       : config_(config),
         self_(self),
-        server_creds_(std::move(server_creds)),
-        client_creds_(std::move(client_creds)) {
+        server_creds_(std::move(creds.server_creds)),
+        client_creds_(std::move(creds.client_creds)) {
     DCHECK(config_.IsValid());
     DCHECK(self_.control_plane_listener.HasNonzeroIpPort());
     DCHECK_NE(server_creds_, nullptr);

@@ -6,6 +6,7 @@ package(default_visibility = ["//src/internal:internal_impl"])
 cc_library(
     name = "config",
     hdrs = ["config.h"],
+    deps = ["@grpc//:grpc++"],
 )
 
 cc_library(

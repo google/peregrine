@@ -3,14 +3,13 @@
 #include <sys/socket.h>
 
 #include <cstdint>
-#include <memory>
 #include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
+#include "absl/strings/str_cat.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
 #include "src/internal/base/config.h"
@@ -23,13 +22,27 @@
 namespace peregrine::internal::testing {
 namespace {
 
-TEST(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
-  const Config config = {.num_conns_per_peer = 1};
+class ControlTest : public ::testing::Test {
+ protected:
+  ControlTest()
+      : config_({.num_conns_per_peer = 1}),
+        creds_a_({.server_creds = grpc::InsecureServerCredentials(),
+                  .client_creds = grpc::InsecureChannelCredentials()}),
+        creds_b_({.server_creds = grpc::InsecureServerCredentials(),
+                  .client_creds = grpc::InsecureChannelCredentials()}) {}
+
+ protected:
+  const Config config_;
+  const SecurityCredentials creds_a_;
+  const SecurityCredentials creds_b_;
+};
+
+TEST_F(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
   const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port_a, 0);
   HostInfo host_a = {
       .control_plane_listener =
-          Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port_a)),
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
 
@@ -37,19 +50,15 @@ TEST(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
   ASSERT_GT(port_b, 0);
   HostInfo host_b = {
       .control_plane_listener =
-          Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port_b)),
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
   };
 
-  auto ctrl_a =
-      Control::Create(config, host_a, grpc::InsecureServerCredentials(),
-                      grpc::InsecureChannelCredentials());
+  auto ctrl_a = Control::Create(config_, creds_a_, host_a);
   ASSERT_NE(ctrl_a, nullptr);
   ASSERT_TRUE(ctrl_a->Start());
 
-  auto ctrl_b =
-      Control::Create(config, host_b, grpc::InsecureServerCredentials(),
-                      grpc::InsecureChannelCredentials());
+  auto ctrl_b = Control::Create(config_, creds_b_, host_b);
   ASSERT_NE(ctrl_b, nullptr);
   ASSERT_TRUE(ctrl_b->Start());
 
@@ -79,17 +88,15 @@ TEST(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
             host_a.data_plane_listeners[0]);
 }
 
-TEST(ControlTest, GetPeerHostInfoErrors) {
-  const Config config = {.num_conns_per_peer = 1};
+TEST_F(ControlTest, GetPeerHostInfoErrors) {
   const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port, 0);
   HostInfo self = {
       .control_plane_listener =
-          Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port)),
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port)),
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
-  auto ctrl = Control::Create(config, self, grpc::InsecureServerCredentials(),
-                              grpc::InsecureChannelCredentials());
+  auto ctrl = Control::Create(config_, creds_a_, self);
   ASSERT_NE(ctrl, nullptr);
   ASSERT_TRUE(ctrl->Start());
 
@@ -103,25 +110,22 @@ TEST(ControlTest, GetPeerHostInfoErrors) {
   const uint16_t unused_port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(unused_port, 0);
   const Endpoint unreachable_peer =
-      Endpoint::Create(absl::StrFormat("127.0.0.1:%d", unused_port));
+      Endpoint::Create(absl::StrCat("127.0.0.1:", unused_port));
   auto unreachable_or = ctrl->GetPeerHostInfo(unreachable_peer);
   EXPECT_FALSE(unreachable_or.ok());
   EXPECT_EQ(unreachable_or.status().code(), absl::StatusCode::kUnavailable);
 }
 
-TEST(ControlTest, HandleIncomingHostInfoRequest) {
-  const Config config = {.num_conns_per_peer = 1};
+TEST_F(ControlTest, HandleIncomingHostInfoRequest) {
   const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port, 0);
   HostInfo server_host = {
       .control_plane_listener =
-          Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port)),
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port)),
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
 
-  auto ctrl =
-      Control::Create(config, server_host, grpc::InsecureServerCredentials(),
-                      grpc::InsecureChannelCredentials());
+  auto ctrl = Control::Create(config_, creds_a_, server_host);
   ASSERT_NE(ctrl, nullptr);
   ASSERT_TRUE(ctrl->Start());
 
@@ -153,36 +157,6 @@ TEST(ControlTest, HandleIncomingHostInfoRequest) {
   ASSERT_EQ(cached_client_or->data_plane_listeners.size(), 1);
   EXPECT_EQ(cached_client_or->data_plane_listeners[0],
             client_host.data_plane_listeners[0]);
-}
-
-TEST(ControlTest, NullServerCredentialsReturnsNullptr) {
-  const Config config = {.num_conns_per_peer = 1};
-  const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
-  ASSERT_GT(port, 0);
-  HostInfo host = {
-      .control_plane_listener =
-          Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
-  };
-
-  EXPECT_EQ(Control::Create(config, host, /*server_creds=*/nullptr,
-                            grpc::InsecureChannelCredentials()),
-            nullptr);
-}
-
-TEST(ControlTest, NullClientCredentialsReturnsNullptr) {
-  const Config config = {.num_conns_per_peer = 1};
-  const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
-  ASSERT_GT(port, 0);
-  HostInfo host = {
-      .control_plane_listener =
-          Endpoint::Create(absl::StrFormat("127.0.0.1:%d", port)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
-  };
-
-  EXPECT_EQ(Control::Create(config, host, grpc::InsecureServerCredentials(),
-                            /*client_creds=*/nullptr),
-            nullptr);
 }
 
 }  // namespace

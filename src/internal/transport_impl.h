@@ -26,6 +26,7 @@ class TransportImpl final : public Transport {
  public:
   // Creates a transport with the given `config` and control `endpoint`.
   static std::unique_ptr<TransportImpl> Create(const Config& config,
+                                               SecurityCredentials creds,
                                                const Endpoint& endpoint);
 
   // Posts a batch of transport `requests` to communicate with the `peer`.

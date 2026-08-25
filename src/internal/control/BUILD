@@ -102,7 +102,7 @@ cc_test(
         "//src/util",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
         "@grpc//:grpc++",
     ],

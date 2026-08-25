@@ -70,6 +70,7 @@ cc_library(
         "//src/internal/base:config",
         "//src/internal/base:endpoint",
         "@abseil-cpp//absl/base:core_headers",
+        "@grpc//:grpc++",
     ],
 )
 

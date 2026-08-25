@@ -10,8 +10,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
-#include "grpcpp/security/credentials.h"
-#include "grpcpp/security/server_credentials.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
@@ -23,27 +21,21 @@
 
 namespace peregrine::internal {
 
-std::unique_ptr<Control> Control::Create(
-    const Config& config, const HostInfo& self,
-    std::shared_ptr<grpc::ServerCredentials> server_creds,
-    std::shared_ptr<grpc::ChannelCredentials> client_creds) {
+std::unique_ptr<Control> Control::Create(const Config& config,
+                                         SecurityCredentials creds,
+                                         const HostInfo& self) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
   if ABSL_PREDICT_FALSE (!self.control_plane_listener.HasNonzeroIpPort()) {
     LOG(WARNING) << "failed to create control: invalid control plane listener "
                  << self.control_plane_listener;
     return nullptr;
   }
-  if ABSL_PREDICT_FALSE (server_creds == nullptr) {
-    LOG(WARNING) << "failed to create control: null server credentials";
-    return nullptr;
-  }
-  if ABSL_PREDICT_FALSE (client_creds == nullptr) {
-    LOG(WARNING) << "failed to create control: null client credentials";
+  if ABSL_PREDICT_FALSE (!creds.IsValid()) {
+    LOG(WARNING) << "failed to create control: invalid security credentials";
     return nullptr;
   }
 
-  return absl::WrapUnique(new Control(config, self, std::move(server_creds),
-                                      std::move(client_creds)));
+  return absl::WrapUnique(new Control(config, creds, self));
 }
 
 bool Control::Start() {

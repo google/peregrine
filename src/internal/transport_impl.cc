@@ -11,8 +11,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "grpcpp/security/credentials.h"
-#include "grpcpp/security/server_credentials.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
@@ -23,6 +21,7 @@
 namespace peregrine::internal {
 
 std::unique_ptr<TransportImpl> TransportImpl::Create(const Config& config,
+                                                     SecurityCredentials creds,
                                                      const Endpoint& endpoint) {
   if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
     LOG(WARNING) << "invalid control endpoint: " << endpoint;
@@ -32,10 +31,7 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(const Config& config,
   // Populate HostInfo and create control plane.
   auto t = absl::WrapUnique(new TransportImpl(config));
   t->self_.control_plane_listener = endpoint;
-  // TODO: provide security credentials via input parameters.
-  auto svr_creds = grpc::InsecureServerCredentials();
-  auto cli_creds = grpc::InsecureChannelCredentials();
-  t->control_ = Control::Create(t->config_, t->self_, svr_creds, cli_creds);
+  t->control_ = Control::Create(t->config_, creds, t->self_);
   if ABSL_PREDICT_FALSE (t->control_ == nullptr) {
     LOG(WARNING) << "failed to create control: " << t->self_;
     return nullptr;
