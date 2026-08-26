@@ -79,6 +79,7 @@ cc_test(
         ":interface",
         ":nic",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )

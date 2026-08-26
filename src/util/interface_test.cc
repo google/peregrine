@@ -3,41 +3,38 @@
 #include <sys/socket.h>
 
 #include <string>
+#include <string_view>
 
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "src/util/nic.h"
 
 namespace peregrine::util {
 namespace {
 
-// TODO: For comprehensive testing, add helper functions to mock network
-// interfaces and sysfs filesystem paths.
-
-// Logs host network topology and enumerated IP interfaces. No assertions.
-TEST(InterfaceTest, EnumerateIpInterfaces_HostTopology) {
-  LOG(INFO) << "Host Nics:";
+void PrintNics() {
+  LOG(INFO) << "NICs";
   for (const auto& [nic, ips] : EnumerateNics()) {
-    LOG(INFO) << "  NIC " << nic << ":";
+    LOG(INFO) << " " << nic << "";
     for (const std::string& ip : ips) {
-      LOG(INFO) << "    IP: " << ip;
+      LOG(INFO) << "  " << ip;
     }
   }
+}
 
-  LOG(INFO) << "EnumerateIpInterfaces (All):";
-  for (const auto& ip : EnumerateIpInterfaces(AF_UNSPEC)) {
+void PrintIps(std::string_view title, absl::Span<const std::string> ips) {
+  LOG(INFO) << title;
+  for (const auto& ip : ips) {
     LOG(INFO) << "  " << ip;
   }
+}
 
-  LOG(INFO) << "EnumerateIpInterfaces (IPv4):";
-  for (const auto& ip : EnumerateIpInterfaces(AF_INET)) {
-    LOG(INFO) << "  " << ip;
-  }
-
-  LOG(INFO) << "EnumerateIpInterfaces (IPv6):";
-  for (const auto& ip : EnumerateIpInterfaces(AF_INET6)) {
-    LOG(INFO) << "  " << ip;
-  }
+TEST(InterfaceTest, FindRoutableIpAddrs) {
+  PrintNics();
+  PrintIps("IPv4/v6", FindRoutableIpAddrs(AF_UNSPEC));
+  PrintIps("IPv4", FindRoutableIpAddrs(AF_INET));
+  PrintIps("IPv6", FindRoutableIpAddrs(AF_INET6));
 }
 
 }  // namespace

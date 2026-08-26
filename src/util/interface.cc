@@ -16,91 +16,76 @@
 namespace peregrine::util {
 namespace {
 
-// Evaluates if an IPv4 address is routable (excluding loopback 127.0.0.0/8,
-// link-local 169.254.0.0/16, and multicast 224.0.0.0/4).
-bool IsRoutableIpv4(const struct in_addr& addr) {
-  if (addr.s_addr == INADDR_ANY) return false;
+// Returns true iff the ipv4 address is routable.
+bool IsRoutable(const struct in_addr& addr) {
   const uint32_t a = ntohl(addr.s_addr);
-  return (a & 0xFF000000) != 0x7F000000 &&  // RFC 1122: Loopback (127.0.0.0/8)
-         (a & 0xFFFF0000) !=
-             0xA9FE0000 &&  // RFC 3927: Link-Local (169.254.0.0/16)
-         !IN_MULTICAST(a);  // RFC 1112: Multicast (224.0.0.0/4)
+  if (a == 0) return false;             // INADDR_ANY
+  if (a >> 28 == 0xE) return false;     // RFC 1112: Multicast (224.0.0.0/4)
+  if (a >> 24 == 0x7F) return false;    // RFC 1122: Loopback (127.0.0.0/8)
+  if (a >> 16 == 0xA9FE) return false;  // RFC 3927: Link-Local (169.254.0.0/16)
+  return true;
 }
 
-// Evaluates if an IPv6 address is routable (excluding loopback ::1, link-local
-// fe80::/10, site-local fec0::/10, and multicast ff00::/8).
-bool IsRoutableIpv6(const struct in6_addr& addr) {
-  return !IN6_IS_ADDR_UNSPECIFIED(&addr) && !IN6_IS_ADDR_LOOPBACK(&addr) &&
-         !IN6_IS_ADDR_LINKLOCAL(&addr) && !IN6_IS_ADDR_SITELOCAL(&addr) &&
-         !IN6_IS_ADDR_MULTICAST(&addr);
+// Returns true iff the ipv6 address is routable.
+bool IsRoutable(const struct in6_addr& addr) {
+  if (IN6_IS_ADDR_UNSPECIFIED(&addr)) return false;
+  if (IN6_IS_ADDR_MULTICAST(&addr)) return false;
+  if (IN6_IS_ADDR_LOOPBACK(&addr)) return false;
+  if (IN6_IS_ADDR_LINKLOCAL(&addr)) return false;
+  if (IN6_IS_ADDR_SITELOCAL(&addr)) return false;
+  return true;
 }
 
-// Evaluates if a raw IP literal matches the given family filter and is
-// routable.
-bool IsRoutableIpAddress(const std::string& raw_ip, int family) {
+// Returns true iff a raw ip literal is in the given family and is routable.
+bool IsRoutable(const std::string& ip, const int family) {
   if (family == AF_INET || family == AF_UNSPEC) {
-    struct in_addr in4;
-    if (::inet_pton(AF_INET, raw_ip.c_str(), &in4) == 1) {
-      return IsRoutableIpv4(in4);
-    }
+    struct in_addr ip4;
+    if (::inet_pton(AF_INET, ip.c_str(), &ip4) == 1) return IsRoutable(ip4);
   }
   if (family == AF_INET6 || family == AF_UNSPEC) {
-    struct in6_addr in6;
-    if (::inet_pton(AF_INET6, raw_ip.c_str(), &in6) == 1) {
-      return IsRoutableIpv6(in6);
-    }
+    struct in6_addr ip6;
+    if (::inet_pton(AF_INET6, ip.c_str(), &ip6) == 1) return IsRoutable(ip6);
   }
   return false;
 }
 
-constexpr std::string_view kNetPath = "/sys/class/net/";
-
-// Returns true iff `ifname` corresponds to an active bonded master or a
-// physical (PCIe-backed) network adapter.
-//
-// TODO: We currently assume the bonded master interface is
-// assigned the IP address and its underlying slave interfaces are not. In
-// general, slave interfaces may also carry configuration or different
-// bonding modes, so this should be refined in the future.
-//
-// Note: Virtual interfaces (e.g., veth, bridges, or containers) may also be
-// assigned valid IP addresses, so checking for /device may not be sufficient
-// if running in containerized environments without direct hardware passthrough.
-bool IsBondedOrPhysicalInterface(std::string_view ifname) {
-  // Admit active Link-Aggregated Bonding Masters (e.g., 'eth0').
-  const std::string s = absl::StrCat(kNetPath, ifname, "/bonding");
-  if (::access(s.c_str(), F_OK) == 0) return true;
-
-  // Reject Virtual Containers, Bridges, and Loopbacks lacking direct PCIe
-  // anchors (/sys/class/net/<name>/device).
-  const std::string device = absl::StrCat(kNetPath, ifname, "/device");
-  return ::access(device.c_str(), F_OK) == 0;
+bool Exists(const std::string_view ifname, const std::string_view suffix) {
+  const std::string s = absl::StrCat("/sys/class/net/", ifname, suffix);
+  return ::access(s.c_str(), F_OK) == 0;
 }
 
-// Returns true iff `ifname` operates under the Linux RDMA/InfiniBand subsystem.
-bool IsRdmaInterface(std::string_view ifname) {
-  const std::string s = absl::StrCat(kNetPath, ifname, "/device/infiniband");
-  return ::access(s.c_str(), F_OK) == 0;
+// Returns true iff `ifname` is an active bonded master or a physical
+// (PCIe-backed) network adapter.
+bool IsBondedOrPhysicalInterface(const std::string_view ifname) {
+  // TODO: We assume the bonded master interface is assigned ip address but its
+  // underlying slave interfaces are not. In general, slave interfaces may also
+  // carry configuration or different bonding modes, so this must be revisited.
+  //
+  // Note: Virtual interfaces (e.g., veth, bridges, or containers) may also be
+  // assigned valid ip addresses, so checking for /device may not be sufficient
+  // for containerized environments without direct hardware passthrough.
+  return Exists(ifname, "/bonding") || Exists(ifname, "/device");
+}
+
+// Returns true iff `ifname` is under the RDMA/InfiniBand subsystem.
+bool IsRdmaInterface(const std::string_view ifname) {
+  return Exists(ifname, "/device/infiniband");
 }
 
 }  // namespace
 
-std::vector<std::string> EnumerateIpInterfaces(int family) {
-  std::vector<std::string> ips;
-
-  for (const auto& [ifname, ip_strings] : EnumerateNics()) {
-    if (!IsBondedOrPhysicalInterface(ifname) || IsRdmaInterface(ifname)) {
-      continue;
-    }
-
-    for (const std::string& raw_ip : ip_strings) {
-      if (IsRoutableIpAddress(raw_ip, family)) {
-        ips.push_back(raw_ip);
+std::vector<std::string> FindRoutableIpAddrs(const int family) {
+  std::vector<std::string> addrs;
+  for (const auto& [ifname, ips] : EnumerateNics()) {
+    if (IsRdmaInterface(ifname)) continue;
+    if (!IsBondedOrPhysicalInterface(ifname)) continue;
+    for (const auto& ip : ips) {
+      if (IsRoutable(ip, family)) {
+        addrs.push_back(ip);
       }
     }
   }
-
-  return ips;
+  return addrs;
 }
 
 }  // namespace peregrine::util

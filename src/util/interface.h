@@ -8,9 +8,9 @@
 
 namespace peregrine::util {
 
-// Returns all routable Multi-NIC IP addresses matching the given address family
+// Returns all the routable ip addresses matching the given address family
 // (AF_UNSPEC for any, AF_INET for IPv4, AF_INET6 for IPv6).
-std::vector<std::string> EnumerateIpInterfaces(int family = AF_UNSPEC);
+std::vector<std::string> FindRoutableIpAddrs(int family = AF_UNSPEC);
 
 }  // namespace peregrine::util
 
