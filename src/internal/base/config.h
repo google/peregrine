@@ -5,6 +5,7 @@
 
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
+#include "src/internal/assumptions.h"
 
 namespace peregrine::internal {
 
@@ -14,12 +15,10 @@ struct Config {
   // The number of connections to maintain per peer.
   int num_conns_per_peer = 1;
 
-  // Whether to require TCP-over-PSP encryption on data plane connections.
-  // This is not supposed to be used in Google Cloud, because Google VPC
-  // automatically encrypts all user traffic by default (see
-  // kChunkHeaderAndPayloadAreEncryptedOnWire in assumptions.h and
-  // https://docs.cloud.google.com/docs/security/encryption-in-transit).
-  bool require_psp_tcp = false;
+  // Whether to require encryption on data plane connections.
+  // Set to false when network is encrypted, e.g. in GCP.
+  static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
+  bool require_dataplane_encryption = false;
 
   // Returns true iff the config is valid.
   bool IsValid() const {

@@ -106,8 +106,8 @@ inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
 inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
 
 // When sent over network, both the chunk header and payload are encrypted by
-// layer-3 protocols (e.g., PSP https://github.com/google/psp). The encryption
-// is transparent to the transport layer.
+// layer-3 protocols (e.g., Google Cloud automatically encrypts network data
+// using PSP: https://cloud.google.com/docs/security/encryption-in-transit).
 //
 // Therefore, it is ok to store the destination memory address of chunk data
 // in the chunk header. (We can further improve security by using a buffer id
