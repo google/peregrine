@@ -10,12 +10,15 @@ message ReqMsg {
   oneof msg {
     PeerRequests peer_requests = 1;
     HostInfo host_info = 2;
+    RdmaConnectRequest rdma_connect_req = 3;
   }
 }
 
 message RespMsg {
   oneof msg {
     HostInfo host_info = 1;
+    PeerResponse peer_response = 2;
+    RdmaConnectResponse rdma_connect_resp = 3;
   }
 }
 
@@ -25,6 +28,27 @@ message RespMsg {
 message PeerRequests {
   HostInfo peer = 1;
   repeated Request requests = 2;
+}
+
+// Response to PeerRequests containing resolved remote memory keys.
+message PeerResponse {
+  repeated uint32 rkeys = 1;
+}
+
+// Request to establish an RDMA Queue Pair connection with a remote peer.
+message RdmaConnectRequest {
+  HostInfo peer = 1;       // Initiator's host information
+  string device_name = 2;  // Target device on remote host, e.g. "irdma0"
+  uint32 qpn = 3;          // Initiator's local QP number
+  bytes gid = 4;           // Initiator's local GID (16 bytes)
+  uint32 psn = 5;          // Initiator's starting packet sequence number
+}
+
+// Response to RdmaConnectRequest containing the responder's QP parameters.
+message RdmaConnectResponse {
+  uint32 qpn = 1;  // Responder's assigned QP number
+  bytes gid = 2;   // Responder's GID on that device (16 bytes)
+  uint32 psn = 3;  // Responder's starting packet sequence number
 }
 
 // See internal/base/hostinfo.h
@@ -59,4 +83,5 @@ message Request {
   uint64 laddr = 2;  // address in this local process
   uint64 raddr = 3;  // address in the remote peer process
   uint64 len = 4;    // buffer length in bytes
+  uint32 rkey = 5;   // remote memory region key (for RDMA one-sided operations)
 }

@@ -34,6 +34,11 @@ std::string ToString(const Status s) {
 }
 
 std::string Request::ToString() const {
+  if (rkey != 0) {
+    return absl::StrFormat(
+        "Request(op: %s, local_addr: %p, remote_addr: %p, len: %d, rkey: %#x)",
+        peregrine::ToString(op), laddr, raddr, len, rkey);
+  }
   return absl::StrFormat(
       "Request(op: %s, local_addr: %p, remote_addr: %p, len: %d)",
       peregrine::ToString(op), laddr, raddr, len);

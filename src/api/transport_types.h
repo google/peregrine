@@ -31,6 +31,7 @@ struct Request final {
   Byte* laddr = nullptr;  // address in this local process
   Byte* raddr = nullptr;  // address in the remote peer process
   size_t len = 0;         // buffer length in bytes
+  uint32_t rkey = 0;      // remote memory region key (for RDMA operations)
   // LINT.ThenChange(src/internal/control/message.proto)
 
   // Returns true iff the request is valid.
@@ -41,7 +42,7 @@ struct Request final {
   // Returns true iff the requests are equal.
   friend bool operator==(const Request& a, const Request& b) {
     return a.op == b.op && a.laddr == b.laddr && a.raddr == b.raddr &&
-           a.len == b.len;
+           a.len == b.len && a.rkey == b.rkey;
   }
 
   // Returns a string representation of the transport request.

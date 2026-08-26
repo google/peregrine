@@ -43,7 +43,7 @@ class Message final {
   // Returns true iff the proto requests are equal.
   static bool AreEqual(const proto::Request& a, const proto::Request& b) {
     return a.op() == b.op() && a.laddr() == b.laddr() &&
-           a.raddr() == b.raddr() && a.len() == b.len();
+           a.raddr() == b.raddr() && a.len() == b.len() && a.rkey() == b.rkey();
   }
 
   // Converts HostInfo to its proto ReqMsg.

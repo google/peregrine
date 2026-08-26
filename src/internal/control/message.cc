@@ -144,6 +144,7 @@ bool Message::convert(const Request& r, proto::Request& proto) {
   proto.set_laddr(reinterpret_cast<uint64_t>(r.laddr));
   proto.set_raddr(reinterpret_cast<uint64_t>(r.raddr));
   proto.set_len(r.len);
+  proto.set_rkey(r.rkey);
   return true;
 }
 
@@ -156,6 +157,7 @@ bool Message::convert(const proto::Request& proto, Request& r) {
   r.laddr = reinterpret_cast<Byte*>(proto.laddr());
   r.raddr = reinterpret_cast<Byte*>(proto.raddr());
   r.len = proto.len();
+  r.rkey = proto.rkey();
   return r.IsValid();
 }
 

@@ -36,6 +36,7 @@ TEST(MessageTest, Serialization) {
       .laddr = reinterpret_cast<Byte*>(kLaddr),
       .raddr = reinterpret_cast<Byte*>(kRaddr),
       .len = kLen,
+      .rkey = 0xCAFE,
   };
   proto::ReqMsg a;
   Message::Convert(host, {req}, a);
@@ -53,6 +54,7 @@ TEST(MessageTest, Serialization) {
   EXPECT_EQ(hb.data_plane_listeners[1], d1);
   EXPECT_EQ(requests.size(), 1);
   EXPECT_EQ(requests[0], req);
+  EXPECT_EQ(requests[0].rkey, 0xCAFE);
 }
 
 TEST(MessageTest, HostInfoExchange) {
@@ -130,6 +132,89 @@ TEST(MessageTest, HostInfoExchangeWithRdma) {
   EXPECT_EQ(dest_req.rdma_interfaces[1].name, "irdma1");
   EXPECT_EQ(dest_req.rdma_interfaces[1].gid, dummy_gid);
   EXPECT_EQ(dest_req.rdma_interfaces[1].port_num, 1);
+}
+
+TEST(MessageTest, RdmaConnectMessages) {
+  const std::string dummy_gid(16, '\xCD');
+
+  proto::ReqMsg req_msg;
+  auto* req = req_msg.mutable_rdma_connect_req();
+  req->set_device_name("irdma0");
+  req->set_qpn(1234);
+  req->set_gid(dummy_gid);
+  req->set_psn(0);
+
+  EXPECT_TRUE(req_msg.has_rdma_connect_req());
+  EXPECT_EQ(req_msg.rdma_connect_req().device_name(), "irdma0");
+  EXPECT_EQ(req_msg.rdma_connect_req().qpn(), 1234);
+  EXPECT_EQ(req_msg.rdma_connect_req().gid(), dummy_gid);
+  EXPECT_EQ(req_msg.rdma_connect_req().psn(), 0);
+
+  proto::RespMsg resp_msg;
+  auto* resp = resp_msg.mutable_rdma_connect_resp();
+  resp->set_qpn(5678);
+  resp->set_gid(dummy_gid);
+  resp->set_psn(0);
+
+  EXPECT_TRUE(resp_msg.has_rdma_connect_resp());
+  EXPECT_EQ(resp_msg.rdma_connect_resp().qpn(), 5678);
+  EXPECT_EQ(resp_msg.rdma_connect_resp().gid(), dummy_gid);
+  EXPECT_EQ(resp_msg.rdma_connect_resp().psn(), 0);
+}
+
+TEST(MessageTest, PeerResponseMessages) {
+  proto::RespMsg resp_msg;
+  auto* peer_resp = resp_msg.mutable_peer_response();
+  peer_resp->add_rkeys(0x1111);
+  peer_resp->add_rkeys(0x2222);
+
+  EXPECT_TRUE(resp_msg.has_peer_response());
+  ASSERT_EQ(resp_msg.peer_response().rkeys_size(), 2);
+  EXPECT_EQ(resp_msg.peer_response().rkeys(0), 0x1111);
+  EXPECT_EQ(resp_msg.peer_response().rkeys(1), 0x2222);
+}
+
+TEST(MessageTest, AreEqualAndRKey) {
+  proto::Request r1;
+  r1.set_op(proto::Request::READ);
+  r1.set_laddr(0x1000);
+  r1.set_raddr(0x2000);
+  r1.set_len(1024);
+  r1.set_rkey(0xABCD);
+
+  proto::Request r2;
+  r2.set_op(proto::Request::READ);
+  r2.set_laddr(0x1000);
+  r2.set_raddr(0x2000);
+  r2.set_len(1024);
+  r2.set_rkey(0xABCD);
+
+  EXPECT_TRUE(Message::AreEqual(r1, r2));
+
+  // Mismatched rkey
+  proto::Request r3 = r1;
+  r3.set_rkey(0x1234);
+  EXPECT_FALSE(Message::AreEqual(r1, r3));
+
+  // Mismatched op
+  proto::Request r4 = r1;
+  r4.set_op(proto::Request::WRITE);
+  EXPECT_FALSE(Message::AreEqual(r1, r4));
+
+  // Mismatched laddr
+  proto::Request r5 = r1;
+  r5.set_laddr(0x9999);
+  EXPECT_FALSE(Message::AreEqual(r1, r5));
+
+  // Mismatched raddr
+  proto::Request r6 = r1;
+  r6.set_raddr(0x9999);
+  EXPECT_FALSE(Message::AreEqual(r1, r6));
+
+  // Mismatched len
+  proto::Request r7 = r1;
+  r7.set_len(2048);
+  EXPECT_FALSE(Message::AreEqual(r1, r7));
 }
 
 }  // namespace

@@ -58,5 +58,34 @@ TEST(TransportRequest, Validity) {
   LOG(INFO) << rv;
 }
 
+TEST(TransportRequest, RKeyAndEquality) {
+  const Request r1 = {
+      .op = Op::kRead,
+      .laddr = reinterpret_cast<Byte*>(0x1000),
+      .raddr = reinterpret_cast<Byte*>(0x2000),
+      .len = 1024,
+      .rkey = 0xABCD,
+  };
+  const Request r2 = {
+      .op = Op::kRead,
+      .laddr = reinterpret_cast<Byte*>(0x1000),
+      .raddr = reinterpret_cast<Byte*>(0x2000),
+      .len = 1024,
+      .rkey = 0xABCD,
+  };
+  const Request r3 = {
+      .op = Op::kRead,
+      .laddr = reinterpret_cast<Byte*>(0x1000),
+      .raddr = reinterpret_cast<Byte*>(0x2000),
+      .len = 1024,
+      .rkey = 0x1234,
+  };
+
+  EXPECT_TRUE(r1.IsValid());
+  EXPECT_EQ(r1, r2);
+  EXPECT_NE(r1, r3);
+  EXPECT_NE(r1.ToString().find("rkey: 0xabcd"), std::string::npos);
+}
+
 }  // namespace
 }  // namespace peregrine::testing
