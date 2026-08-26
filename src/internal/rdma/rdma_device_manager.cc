@@ -1,4 +1,4 @@
-#include "src/internal/rdma/rdma_context.h"
+#include "src/internal/rdma/rdma_device_manager.h"
 
 #include <infiniband/verbs.h>
 
@@ -43,17 +43,19 @@ std::unique_ptr<RdmaDeviceContext> openDeviceContext(struct ibv_device* dev) {
 
 }  // namespace
 
-RdmaContext::RdmaContext(
+RdmaDeviceManager::RdmaDeviceManager(
     std::vector<std::unique_ptr<RdmaDeviceContext>> devices,
     absl::flat_hash_map<std::string, RdmaDeviceContext*> device_map)
     : devices_(std::move(devices)), device_map_(std::move(device_map)) {
-  LOG(INFO) << "RdmaContext initialized with " << devices_.size()
+  LOG(INFO) << "RdmaDeviceManager initialized with " << devices_.size()
             << " device(s)";
 }
 
-RdmaContext::~RdmaContext() { LOG(INFO) << "RdmaContext destroyed"; }
+RdmaDeviceManager::~RdmaDeviceManager() {
+  LOG(INFO) << "RdmaDeviceManager destroyed";
+}
 
-RdmaDeviceContext* RdmaContext::GetDevice(std::string_view name) const {
+RdmaDeviceContext* RdmaDeviceManager::GetDevice(std::string_view name) const {
   auto it = device_map_.find(name);
   if (it == device_map_.end()) {
     return nullptr;
@@ -61,7 +63,7 @@ RdmaDeviceContext* RdmaContext::GetDevice(std::string_view name) const {
   return it->second;
 }
 
-absl::StatusOr<std::unique_ptr<RdmaContext>> RdmaContext::Create() {
+absl::StatusOr<std::unique_ptr<RdmaDeviceManager>> RdmaDeviceManager::Create() {
   int num_devices = 0;
   struct ibv_device** device_list = getDeviceList(num_devices);
   if (device_list == nullptr) {
@@ -96,7 +98,7 @@ absl::StatusOr<std::unique_ptr<RdmaContext>> RdmaContext::Create() {
   }
 
   return absl::WrapUnique(
-      new RdmaContext(std::move(devices), std::move(device_map)));
+      new RdmaDeviceManager(std::move(devices), std::move(device_map)));
 }
 
 }  // namespace peregrine::internal

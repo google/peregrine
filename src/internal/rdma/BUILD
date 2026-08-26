@@ -29,9 +29,9 @@ cc_test(
 )
 
 cc_library(
-    name = "rdma_context",
-    srcs = ["rdma_context.cc"],
-    hdrs = ["rdma_context.h"],
+    name = "rdma_device_manager",
+    srcs = ["rdma_device_manager.cc"],
+    hdrs = ["rdma_device_manager.h"],
     deps = [
         ":rdma_device_context",
         "//:libibverbs",
@@ -46,11 +46,11 @@ cc_library(
 )
 
 cc_test(
-    name = "rdma_context_test",
-    srcs = ["rdma_context_test.cc"],
+    name = "rdma_device_manager_test",
+    srcs = ["rdma_device_manager_test.cc"],
     deps = [
-        ":rdma_context",
         ":rdma_device_context",
+        ":rdma_device_manager",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
         "@googletest//:gtest_main",

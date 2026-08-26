@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_INTERNAL_RDMA_RDMA_CONTEXT_H_
-#define PEREGRINE_SRC_INTERNAL_RDMA_RDMA_CONTEXT_H_
+#ifndef PEREGRINE_SRC_INTERNAL_RDMA_RDMA_DEVICE_MANAGER_H_
+#define PEREGRINE_SRC_INTERNAL_RDMA_RDMA_DEVICE_MANAGER_H_
 
 #include <memory>
 #include <string>
@@ -18,21 +18,21 @@ namespace peregrine::internal {
 // opens all active RDMA Host Channel Adapters (HCAs).
 //
 // It is thread-compatible but not thread-safe.
-class RdmaContext final {
-  // TODO: Handle async events that indicate failures(QP timeouts, device
+class RdmaDeviceManager final {
+  // TODO: Handle async events that indicate failures (QP timeouts, device
   // faults, etc.) here or in RdmaDeviceContext. Each `ibv_context` contains an
   // `async_fd` member that is used with epoll to pull these events from the
   // kernel.
 
  public:
-  // Creates an RdmaContext by discovering and opening all system HCAs.
-  static absl::StatusOr<std::unique_ptr<RdmaContext>> Create();
+  // Creates an RdmaDeviceManager by discovering and opening all system HCAs.
+  static absl::StatusOr<std::unique_ptr<RdmaDeviceManager>> Create();
 
-  DISALLOW_COPY(RdmaContext);
-  DISALLOW_MOVE(RdmaContext);
+  DISALLOW_COPY(RdmaDeviceManager);
+  DISALLOW_MOVE(RdmaDeviceManager);
 
   // Destructor.
-  ~RdmaContext();
+  ~RdmaDeviceManager();
 
   // Returns all open hardware RDMA device contexts.
   absl::Span<const std::unique_ptr<RdmaDeviceContext>> Devices() const {
@@ -45,8 +45,9 @@ class RdmaContext final {
 
  private:
   // Constructor.
-  RdmaContext(std::vector<std::unique_ptr<RdmaDeviceContext>> devices,
-              absl::flat_hash_map<std::string, RdmaDeviceContext*> device_map);
+  RdmaDeviceManager(
+      std::vector<std::unique_ptr<RdmaDeviceContext>> devices,
+      absl::flat_hash_map<std::string, RdmaDeviceContext*> device_map);
 
  private:
   std::vector<std::unique_ptr<RdmaDeviceContext>> devices_;
@@ -55,4 +56,4 @@ class RdmaContext final {
 
 }  // namespace peregrine::internal
 
-#endif  // PEREGRINE_SRC_INTERNAL_RDMA_RDMA_CONTEXT_H_
+#endif  // PEREGRINE_SRC_INTERNAL_RDMA_RDMA_DEVICE_MANAGER_H_
