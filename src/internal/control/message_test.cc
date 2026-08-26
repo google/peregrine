@@ -99,5 +99,38 @@ TEST(MessageTest, HostInfoExchange) {
   EXPECT_FALSE(Message::Convert(empty_resp, empty_dest));
 }
 
+TEST(MessageTest, HostInfoExchangeWithRdma) {
+  const Endpoint c = Endpoint::Create("10.0.0.1:10000");
+  const Endpoint d0 = Endpoint::Create("10.0.0.1:35247");
+  const std::string dummy_gid(16, '\xAB');
+  const HostInfo source = {
+      .control_plane_listener = c,
+      .data_plane_listeners = {d0},
+      .rdma_interfaces =
+          {
+              RdmaInterface{.name = "irdma0", .gid = dummy_gid, .port_num = 1},
+              RdmaInterface{.name = "irdma1", .gid = dummy_gid, .port_num = 1},
+          },
+  };
+  ASSERT_TRUE(source.IsValid());
+
+  proto::ReqMsg req_proto;
+  ASSERT_TRUE(Message::Convert(source, req_proto));
+  EXPECT_TRUE(req_proto.has_host_info());
+
+  HostInfo dest_req;
+  ASSERT_TRUE(Message::Convert(req_proto, dest_req));
+  EXPECT_EQ(dest_req.control_plane_listener, c);
+  ASSERT_EQ(dest_req.data_plane_listeners.size(), 1);
+  EXPECT_EQ(dest_req.data_plane_listeners[0], d0);
+  ASSERT_EQ(dest_req.rdma_interfaces.size(), 2);
+  EXPECT_EQ(dest_req.rdma_interfaces[0].name, "irdma0");
+  EXPECT_EQ(dest_req.rdma_interfaces[0].gid, dummy_gid);
+  EXPECT_EQ(dest_req.rdma_interfaces[0].port_num, 1);
+  EXPECT_EQ(dest_req.rdma_interfaces[1].name, "irdma1");
+  EXPECT_EQ(dest_req.rdma_interfaces[1].gid, dummy_gid);
+  EXPECT_EQ(dest_req.rdma_interfaces[1].port_num, 1);
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

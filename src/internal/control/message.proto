@@ -28,9 +28,19 @@ message PeerRequests {
 }
 
 // See internal/base/hostinfo.h
+// TODO: Consider unifying TCP data_plane_listeners and rdma_interfaces into a
+// polymorphic DataPlaneEndpoint message.
 message HostInfo {
   Endpoint control_plane_listener = 1;
   repeated Endpoint data_plane_listeners = 2;
+  repeated RdmaInterface rdma_interfaces = 3;
+}
+
+// Represents a local RDMA hardware interface on the host.
+message RdmaInterface {
+  string name = 1;      // Device name, e.g. "irdma0"
+  bytes gid = 2;        // 16-byte raw RoCEv2 GID
+  uint32 port_num = 3;  // Physical port number on HCA (typically 1)
 }
 
 // See internal/base/endpoint.h

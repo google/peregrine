@@ -24,8 +24,18 @@ bool HostInfo::IsValid() const {
   es.insert(data_plane_listeners.begin(), data_plane_listeners.end());
   const bool unique_endpoints = es.size() == 1 + data_plane_listeners.size();
 
+  const bool rdma_interfaces_valid =
+      std::all_of(rdma_interfaces.begin(), rdma_interfaces.end(),
+                  [](const RdmaInterface& r) { return r.IsValid(); });
+
+  absl::flat_hash_set<std::string_view> rdma_names;
+  for (const auto& r : rdma_interfaces) {
+    rdma_names.insert(r.name);
+  }
+  const bool unique_rdma_names = rdma_names.size() == rdma_interfaces.size();
+
   return control_plane_listener_valid && data_plane_listeners_empty_or_valid &&
-         unique_endpoints;
+         unique_endpoints && rdma_interfaces_valid && unique_rdma_names;
 }
 
 HostInfo HostInfo::Create(std::string_view ipaddr_port_pairs) {
@@ -51,6 +61,9 @@ std::string HostInfo::ToString() const {
   std::string s = absl::StrCat("host: ", control_plane_listener.ToString());
   for (const auto& e : data_plane_listeners) {
     absl::StrAppend(&s, ", ", e.ToString());
+  }
+  for (const auto& r : rdma_interfaces) {
+    absl::StrAppend(&s, ", rdma:[", r.name, ", port:", r.port_num, "]");
   }
   return s;
 }

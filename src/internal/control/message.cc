@@ -89,6 +89,14 @@ bool Message::convert(const HostInfo& host, proto::HostInfo& proto) {
     if (dp == nullptr) return false;
     dp->set_ip_port(e.ToString());
   }
+
+  for (const auto& r : host.rdma_interfaces) {
+    auto* rdma = proto.add_rdma_interfaces();
+    if (rdma == nullptr) return false;
+    rdma->set_name(r.name);
+    rdma->set_gid(r.gid);
+    rdma->set_port_num(r.port_num);
+  }
   return true;
 }
 
@@ -107,9 +115,21 @@ bool Message::convert(const proto::HostInfo& proto, HostInfo& host) {
     ds.push_back(e);
   }
 
+  std::vector<RdmaInterface> rdma_ifs;
+  rdma_ifs.reserve(proto.rdma_interfaces_size());
+  for (const auto& r : proto.rdma_interfaces()) {
+    if (r.name().empty() || r.gid().size() != 16) return false;
+    rdma_ifs.push_back(RdmaInterface{
+        .name = std::string(r.name()),
+        .gid = std::string(r.gid()),
+        .port_num = r.port_num() ? r.port_num() : 1,
+    });
+  }
+
   host = {
       .control_plane_listener = c,
       .data_plane_listeners = std::move(ds),
+      .rdma_interfaces = std::move(rdma_ifs),
   };
   DCHECK(host.IsValid());
   return true;
