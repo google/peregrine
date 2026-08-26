@@ -66,6 +66,7 @@ cc_library(
         ":rdma_device_context",
         ":rdma_device_manager",
         "//:libibverbs",  # buildcleaner: keep
+        "//src/internal:assumptions",
         "//src/util:macro",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",

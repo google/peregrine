@@ -1,8 +1,10 @@
 #ifndef PEREGRINE_SRC_API_TRANSPORT_H_
 #define PEREGRINE_SRC_API_TRANSPORT_H_
 
+#include <cstddef>
 #include <string_view>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
@@ -31,6 +33,20 @@ class Transport {
   // request status and automatically removes the `handle` if processing is
   // complete.
   virtual absl::StatusOr<Status> Poll(Handle handle) = 0;
+
+  // Registers a contiguous memory buffer of `length` bytes starting at `addr`
+  // with the transport.
+  //
+  // Pins pages and registers the memory across all active hardware adapters.
+  // Returns an error status if registration fails.
+  virtual absl::Status RegisterMemory(void* addr, size_t length) = 0;
+
+  // Deregisters the memory buffer starting at base `addr` previously registered
+  // via RegisterMemory().
+  //
+  // Unpins pages and releases hardware memory regions. Returns an error status
+  // if deregistration fails.
+  virtual absl::Status DeregisterMemory(const void* addr) = 0;
 };
 
 }  // namespace peregrine

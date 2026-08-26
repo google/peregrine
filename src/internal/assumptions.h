@@ -213,6 +213,27 @@ inline constexpr bool kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf = true;
 // optional. This question has been discussed in protobuf world. The solution
 // is, when in doubt, make the field OPTIONAL.
 inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
+
+// Assumptions about memory registration and buffer allocation.
+// ---------------------------------------------------------------------------
+//
+// Peregrine does not handle buffer memory allocation for transports. It is the
+// responsibility of the application to allocate memory slabs to be pinned down
+// for RDMA communication.
+//
+// Peregrine provides functions via `Transport::RegisterMemory()` /
+// `RdmaMemoryManager` to pin and register these pre-allocated memory buffers
+// across all active RDMA devices on the host:
+//  - The application allocates and provides contiguous memory slabs.
+//  - Peregrine registers each slab atomically across all active HCA protection
+//    domains.
+//  - Lookups support interval range containment within a single registered
+//    slab (sub-slices within a slab share the parent slab's LKey/RKey).
+//  - Chunked or partial memory registration spanning across distinct slabs in a
+//    single transfer request is not supported.
+//  - No NUMA locality or NUMA-aware memory pinning is supported.
+inline constexpr bool
+    kApplicationAllocatesMemorySlabsAndPeregrineRegistersThem = true;
 }  // namespace peregrine::assumptions
 
 #endif  // PEREGRINE_SRC_INTERNAL_ASSUMPTIONS_H_

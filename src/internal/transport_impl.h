@@ -1,10 +1,12 @@
 #ifndef PEREGRINE_SRC_INTERNAL_TRANSPORT_IMPL_H_
 #define PEREGRINE_SRC_INTERNAL_TRANSPORT_IMPL_H_
 
+#include <cstddef>
 #include <memory>
 #include <string_view>
 
 #include "absl/log/check.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "src/api/transport.h"
@@ -46,6 +48,22 @@ class TransportImpl final : public Transport {
   // complete.
   absl::StatusOr<Status> Poll(Handle handle) override {
     return engine_->QueryUpdate(handle);
+  }
+
+  // Registers a contiguous memory buffer of `length` bytes starting at `addr`
+  // with the transport.
+  absl::Status RegisterMemory(void* addr, size_t length) override {
+    // TODO: When RDMA classes are integrated into Engine, delegate memory
+    // registration to the engine's RdmaMemoryManager.
+    return absl::OkStatus();
+  }
+
+  // Deregisters the memory buffer starting at base `addr` previously registered
+  // via RegisterMemory().
+  absl::Status DeregisterMemory(const void* addr) override {
+    // TODO: When RDMA classes are integrated into Engine, delegate memory
+    // deregistration to the engine's RdmaMemoryManager.
+    return absl::OkStatus();
   }
 
  private:

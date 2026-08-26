@@ -33,6 +33,7 @@ cc_library(
     hdrs = ["transport.h"],
     deps = [
         ":transport_types",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",
     ],

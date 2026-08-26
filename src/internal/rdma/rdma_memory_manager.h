@@ -12,6 +12,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "src/internal/assumptions.h"
 #include "src/internal/rdma/rdma_device_manager.h"
 #include "src/util/macro.h"
 
@@ -24,6 +25,9 @@ namespace peregrine::internal {
 // It is thread-compatible but not thread-safe.
 class RdmaMemoryManager final {
  public:
+  static_assert(
+      assumptions::kApplicationAllocatesMemorySlabsAndPeregrineRegistersThem);
+
   // Default access flags for memory registration (local write, remote write,
   // remote read).
   static constexpr int kDefaultAccessFlags =
