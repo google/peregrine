@@ -81,6 +81,7 @@ cc_test(
     name = "nic_test",
     srcs = ["nic_test.cc"],
     deps = [
+        ":ipaddr",
         ":nic",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",

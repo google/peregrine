@@ -10,8 +10,10 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -19,6 +21,8 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
+#include "src/util/ipaddr.h"
 
 namespace peregrine::util {
 
@@ -93,17 +97,22 @@ bool IsRoutable(const struct in6_addr& addr) {
   return true;
 }
 
-// Returns true iff the ip addr is in the given family and is routable.
-bool IsRoutable(const std::string& ip, const int family) {
+// Returns the ip addr in the given family if it is routable.
+std::optional<util::IpAddr> GetRoutableIpAddr(const std::string& ip,
+                                              const int family) {
   if (family == AF_INET || family == AF_UNSPEC) {
     struct in_addr ip4;
-    if (inet_pton(AF_INET, ip.c_str(), &ip4) == 1) return IsRoutable(ip4);
+    if (inet_pton(AF_INET, ip.c_str(), &ip4) == 1 && IsRoutable(ip4)) {
+      return util::IpAddr(ip4);
+    }
   }
   if (family == AF_INET6 || family == AF_UNSPEC) {
     struct in6_addr ip6;
-    if (inet_pton(AF_INET6, ip.c_str(), &ip6) == 1) return IsRoutable(ip6);
+    if (inet_pton(AF_INET6, ip.c_str(), &ip6) == 1 && IsRoutable(ip6)) {
+      return util::IpAddr(ip6);
+    }
   }
-  return false;
+  return std::nullopt;
 }
 
 // Returns true iff the file at `/sys/class/net/<ifc>/<suffix>` exists.
@@ -134,19 +143,39 @@ bool IsRdmaInterface(const std::string_view ifc) {
 }
 }  // namespace
 
-absl::flat_hash_map<std::string, std::vector<std::string>> FindRoutableIpAddrs(
+absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     const int family) {
-  absl::flat_hash_map<std::string, std::vector<std::string>> ifc_ips;
+  absl::flat_hash_map<std::string, NicInfo> ifc_ips;
   for (const auto& [ifc, ips] : EnumerateNics()) {
     if (!IsPhysicalInterface(ifc) && !IsBondedInterface(ifc)) continue;
-    if (IsRdmaInterface(ifc)) continue;
+    std::vector<IpAddr> addrs;
     for (const auto& ip : ips) {
-      if (IsRoutable(ip, family)) {
-        ifc_ips[ifc].push_back(ip);
-      }
+      const std::optional<util::IpAddr> a = GetRoutableIpAddr(ip, family);
+      if (a.has_value()) addrs.push_back(*a);
+    }
+    if (!addrs.empty()) {
+      const NicType t = IsRdmaInterface(ifc) ? NicType::kRDMA : NicType::kIP;
+      ifc_ips[ifc] = NicInfo{.type = t, .addrs = std::move(addrs)};
     }
   }
   return ifc_ips;
+}
+
+std::string ToString(const NicType t) {
+  switch (t) {
+    case NicType::kIP:
+      return "ip";
+    case NicType::kRDMA:
+      return "rdma";
+  }
+}
+
+std::string ToString(const NicInfo& ni) {
+  return absl::StrCat(
+      ToString(ni.type), ": ",
+      absl::StrJoin(ni.addrs, ",", [](std::string* out, const IpAddr& ip) {
+        absl::StrAppend(out, ip.ToString());
+      }));
 }
 
 }  // namespace peregrine::util
