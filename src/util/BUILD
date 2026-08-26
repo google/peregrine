@@ -64,6 +64,28 @@ cc_test(
 )
 
 cc_library(
+    name = "interface",
+    srcs = ["interface.cc"],
+    hdrs = ["interface.h"],
+    deps = [
+        ":nic",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
+    ],
+)
+
+cc_test(
+    name = "interface_test",
+    srcs = ["interface_test.cc"],
+    deps = [
+        ":interface",
+        ":nic",
+        "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "util",
     srcs = ["util.cc"],
     hdrs = ["util.h"],
