@@ -22,8 +22,8 @@
 namespace peregrine::internal {
 
 std::unique_ptr<Control> Control::Create(const Config& config,
-                                         SecurityCredentials creds,
-                                         const HostInfo& self) {
+                                         const HostInfo& self,
+                                         SecurityCredentials creds) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
   if ABSL_PREDICT_FALSE (!self.control_plane_listener.HasNonzeroIpPort()) {
     LOG(WARNING) << "failed to create control: invalid control plane listener "
@@ -35,7 +35,7 @@ std::unique_ptr<Control> Control::Create(const Config& config,
     return nullptr;
   }
 
-  return absl::WrapUnique(new Control(config, creds, self));
+  return absl::WrapUnique(new Control(config, self, creds));
 }
 
 bool Control::Start() {

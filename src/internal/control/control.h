@@ -29,8 +29,8 @@ class Control final {
  public:
   // Creates a control plane instance.
   static std::unique_ptr<Control> Create(const Config& config,
-                                         SecurityCredentials creds,
-                                         const HostInfo& self);
+                                         const HostInfo& self,
+                                         SecurityCredentials creds);
 
   // Disallows copy and move.
   DISALLOW_COPY(Control);
@@ -54,7 +54,7 @@ class Control final {
 
  private:
   // Constructor.
-  Control(const Config& config, SecurityCredentials creds, const HostInfo& self)
+  Control(const Config& config, const HostInfo& self, SecurityCredentials creds)
       : config_(config),
         self_(self),
         server_creds_(std::move(creds.server_creds)),

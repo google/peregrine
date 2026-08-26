@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <memory>
 #include <string_view>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "grpcpp/security/credentials.h"
@@ -32,7 +33,7 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
   };
   const int n = std::min(std::max(1, num_conns_per_peer), 100);
   const Config config = {.num_conns_per_peer = n};
-  return TransportImpl::Create(config, creds, e);
+  return TransportImpl::Create(config, e, std::move(creds));
 }
 
 }  // namespace peregrine

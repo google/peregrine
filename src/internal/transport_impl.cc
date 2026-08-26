@@ -20,18 +20,26 @@
 
 namespace peregrine::internal {
 
-std::unique_ptr<TransportImpl> TransportImpl::Create(const Config& config,
-                                                     SecurityCredentials creds,
-                                                     const Endpoint& endpoint) {
+std::unique_ptr<TransportImpl> TransportImpl::Create(
+    const Config& config, const Endpoint& endpoint, SecurityCredentials creds) {
+  if ABSL_PREDICT_FALSE (!config.IsValid()) {
+    LOG(WARNING) << "invalid config";
+    return nullptr;
+  }
   if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
     LOG(WARNING) << "invalid control endpoint: " << endpoint;
+    return nullptr;
+  }
+  if ABSL_PREDICT_FALSE (!creds.IsValid()) {
+    LOG(WARNING) << "invalid security credentials";
     return nullptr;
   }
 
   // Populate HostInfo and create control plane.
   auto t = absl::WrapUnique(new TransportImpl(config));
   t->self_.control_plane_listener = endpoint;
-  t->control_ = Control::Create(t->config_, creds, t->self_);
+  t->self_.data_plane_listeners = {};
+  t->control_ = Control::Create(t->config_, t->self_, creds);
   if ABSL_PREDICT_FALSE (t->control_ == nullptr) {
     LOG(WARNING) << "failed to create control: " << t->self_;
     return nullptr;

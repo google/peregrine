@@ -54,11 +54,11 @@ TEST_F(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
   };
 
-  auto ctrl_a = Control::Create(config_, creds_a_, host_a);
+  auto ctrl_a = Control::Create(config_, host_a, creds_a_);
   ASSERT_NE(ctrl_a, nullptr);
   ASSERT_TRUE(ctrl_a->Start());
 
-  auto ctrl_b = Control::Create(config_, creds_b_, host_b);
+  auto ctrl_b = Control::Create(config_, host_b, creds_b_);
   ASSERT_NE(ctrl_b, nullptr);
   ASSERT_TRUE(ctrl_b->Start());
 
@@ -96,7 +96,7 @@ TEST_F(ControlTest, GetPeerHostInfoErrors) {
           Endpoint::Create(absl::StrCat("127.0.0.1:", port)),
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
-  auto ctrl = Control::Create(config_, creds_a_, self);
+  auto ctrl = Control::Create(config_, self, creds_a_);
   ASSERT_NE(ctrl, nullptr);
   ASSERT_TRUE(ctrl->Start());
 
@@ -125,7 +125,7 @@ TEST_F(ControlTest, HandleIncomingHostInfoRequest) {
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
 
-  auto ctrl = Control::Create(config_, creds_a_, server_host);
+  auto ctrl = Control::Create(config_, server_host, creds_a_);
   ASSERT_NE(ctrl, nullptr);
   ASSERT_TRUE(ctrl->Start());
 
