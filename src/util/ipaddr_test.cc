@@ -1,4 +1,4 @@
-#include "src/internal/base/ipaddr.h"
+#include "src/util/ipaddr.h"
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -10,7 +10,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 
-namespace peregrine::internal::testing {
+namespace peregrine::util::testing {
 namespace {
 
 TEST(IPv4AddrTest, ParseIPv4Addr) {
@@ -98,4 +98,4 @@ TEST(IpAddrTest, IPv6) {
 }
 
 }  // namespace
-}  // namespace peregrine::internal::testing
+}  // namespace peregrine::util::testing

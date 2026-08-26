@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_INTERNAL_BASE_IPADDR_H_
-#define PEREGRINE_SRC_INTERNAL_BASE_IPADDR_H_
+#ifndef PEREGRINE_SRC_UTIL_IPADDR_H_
+#define PEREGRINE_SRC_UTIL_IPADDR_H_
 
 #include <netinet/in.h>
 #include <sys/types.h>
@@ -15,10 +15,9 @@
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
-#include "src/internal/assumptions.h"
 #include "src/util/macro.h"
 
-namespace peregrine::internal {
+namespace peregrine::util {
 
 // ip v{4,6} addresses
 using ipv4_t = ::in_addr;
@@ -85,13 +84,11 @@ class IpAddr final {
 
   // Returns a hash signature of the ip address.
   size_t Hash() const {
-    static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     return Hash(*this);
   }
 
   // Returns a hash signature of the ip address.
   static size_t Hash(const IpAddr& ip) {
-    static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     return absl::Hash<IpAddr>{}(ip);
   }
 
@@ -102,7 +99,6 @@ class IpAddr final {
   // Calculates a hash value for the ip address.
   template <typename H>
   friend H AbslHashValue(H h, const IpAddr& ip) {
-    static_assert(assumptions::kAbslHashIsStableOnlyInOneProcessInvocation);
     if (ip.IsIPv4()) {
       return H::combine(std::move(h), ip.IPv4Addr().s_addr);
     } else {
@@ -120,6 +116,6 @@ inline std::ostream& operator<<(std::ostream& os, const IpAddr& ip) {
   return os << ip.ToString();
 }
 
-}  // namespace peregrine::internal
+}  // namespace peregrine::util
 
-#endif  // PEREGRINE_SRC_INTERNAL_BASE_IPADDR_H_
+#endif  // PEREGRINE_SRC_UTIL_IPADDR_H_

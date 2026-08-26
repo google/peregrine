@@ -9,8 +9,8 @@
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "src/internal/assumptions.h"
-#include "src/internal/base/ipaddr.h"
 #include "src/internal/base/types.h"
+#include "src/util/ipaddr.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -32,13 +32,13 @@ class Endpoint final {
   }
 
   // Constructor for ipv4.
-  Endpoint(ipv4_t ip4, port_t port) : ipaddr_(ip4), port_(port) {}
+  Endpoint(util::ipv4_t ip4, port_t port) : ipaddr_(ip4), port_(port) {}
 
   // Constructor for ipv6.
-  Endpoint(ipv6_t ip6, port_t port) : ipaddr_(ip6), port_(port) {}
+  Endpoint(util::ipv6_t ip6, port_t port) : ipaddr_(ip6), port_(port) {}
 
   // Constructor for ipv{4,6}.
-  Endpoint(const IpAddr& ip, port_t port) : ipaddr_(ip), port_(port) {}
+  Endpoint(const util::IpAddr& ip, port_t port) : ipaddr_(ip), port_(port) {}
 
   // Allows copy/move.
   ALLOW_COPY(Endpoint);
@@ -57,7 +57,7 @@ class Endpoint final {
   bool HasNonzeroIpPort() const { return port_ != 0 && !ipaddr_.IsZero(); }
 
   // Returns the ip address of the endpoint.
-  const IpAddr& GetIpAddr() const { return ipaddr_; };
+  const util::IpAddr& GetIpAddr() const { return ipaddr_; };
 
   // Returns true iff the endpoint has an ipv4 address.
   bool IsIPv4() const { return ipaddr_.IsIPv4(); }
@@ -66,13 +66,13 @@ class Endpoint final {
   bool IsIPv6() const { return ipaddr_.IsIPv6(); }
 
   // Returns the ipv4 address of the ipv4 endpoint.
-  const ipv4_t& IPv4Addr() const {
+  const util::ipv4_t& IPv4Addr() const {
     DCHECK(IsIPv4());
     return ipaddr_.IPv4Addr();
   }
 
   // Returns the ipv6 address of the ipv6 endpoint.
-  const ipv6_t& IPv6Addr() const {
+  const util::ipv6_t& IPv6Addr() const {
     DCHECK(IsIPv6());
     return ipaddr_.IPv6Addr();
   }
@@ -115,7 +115,7 @@ class Endpoint final {
   }
 
  private:
-  IpAddr ipaddr_;
+  util::IpAddr ipaddr_;
   port_t port_;
 };
 

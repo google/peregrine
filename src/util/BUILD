@@ -40,10 +40,35 @@ cc_library(
 )
 
 cc_library(
+    name = "ipaddr",
+    srcs = ["ipaddr.cc"],
+    hdrs = ["ipaddr.h"],
+    deps = [
+        ":macro",
+        "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "ipaddr_test",
+    srcs = ["ipaddr_test.cc"],
+    deps = [
+        ":ipaddr",
+        "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "nic",
     srcs = ["nic.cc"],
     hdrs = ["nic.h"],
     deps = [
+        ":ipaddr",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

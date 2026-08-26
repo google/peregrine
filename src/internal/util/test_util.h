@@ -6,10 +6,10 @@
 
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
-#include "src/internal/base/ipaddr.h"
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_udp.h"
+#include "src/util/ipaddr.h"
 
 namespace peregrine::internal::testing {
 
@@ -20,27 +20,27 @@ inline constexpr std::string_view kIPv4Localhost = "127.0.0.1";
 inline constexpr std::string_view kIPv6Localhost = "::1";
 
 // Returns the ipv4 `ANY_ADDR` (all 0's).
-inline IpAddr IPv4AnyAddr() {
-  return IpAddr(ParseIPv4Addr(kIPv4AnyAddr).value());
+inline util::IpAddr IPv4AnyAddr() {
+  return util::IpAddr(util::ParseIPv4Addr(kIPv4AnyAddr).value());
 }
 
 // Returns the ipv6 `ANY_ADDR` (all 0's).
-inline IpAddr IPv6AnyAddr() {
-  return IpAddr(ParseIPv6Addr(kIPv6AnyAddr).value());
+inline util::IpAddr IPv6AnyAddr() {
+  return util::IpAddr(util::ParseIPv6Addr(kIPv6AnyAddr).value());
 }
 
 // Returns the ipv4 localhost address.
-inline IpAddr IPv4Localhost() {
-  return IpAddr(ParseIPv4Addr(kIPv4Localhost).value());
+inline util::IpAddr IPv4Localhost() {
+  return util::IpAddr(util::ParseIPv4Addr(kIPv4Localhost).value());
 }
 
 // Returns the ipv6 localhost address.
-inline IpAddr IPv6Localhost() {
-  return IpAddr(ParseIPv6Addr(kIPv6Localhost).value());
+inline util::IpAddr IPv6Localhost() {
+  return util::IpAddr(util::ParseIPv6Addr(kIPv6Localhost).value());
 }
 
 // Returns an ipv4 or ipv6 localhost address in the given address `family`.
-inline IpAddr IpLocalhost(int family) {
+inline util::IpAddr IpLocalhost(int family) {
   return family == AF_INET ? IPv4Localhost() : IPv6Localhost();
 }
 

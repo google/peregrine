@@ -72,11 +72,11 @@ cc_library(
     deps = [
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
-        "//src/internal/base:ipaddr",
         "//src/internal/base:types",
         "//src/internal/socket:socket_tcp",
         "//src/internal/socket:socket_udp",
         "//src/util",
+        "//src/util:ipaddr",
         "@abseil-cpp//absl/log:check",
     ],
 )

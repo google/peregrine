@@ -1,4 +1,4 @@
-#include "src/internal/base/ipaddr.h"
+#include "src/util/ipaddr.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -14,7 +14,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
 
-namespace peregrine::internal {
+namespace peregrine::util {
 
 namespace {
 std::string PtonErrorMsg(std::string_view ip, int v, int last_errno) {
@@ -113,4 +113,4 @@ std::string IpAddr::ToString() const {
   return IsIPv4() ? ToIPv4String(IPv4Addr()) : ToIPv6String(IPv6Addr());
 }
 
-}  // namespace peregrine::internal
+}  // namespace peregrine::util

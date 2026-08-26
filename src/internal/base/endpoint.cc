@@ -8,11 +8,16 @@
 #include "absl/log/log.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
-#include "src/internal/base/ipaddr.h"
+#include "src/util/ipaddr.h"
 
 namespace peregrine::internal {
 
 namespace {
+using util::ipv4_t;
+using util::ipv6_t;
+using util::ParseIPv4Addr;
+using util::ParseIPv6Addr;
+
 inline bool LooksLikeIPv6(std::string_view addr) {
   return addr.starts_with('[') && addr.ends_with(']');
 }
