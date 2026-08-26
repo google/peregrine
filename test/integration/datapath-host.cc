@@ -1,9 +1,9 @@
 #include "test/integration/datapath-host.h"
 
 #include <cstddef>
+#include <string_view>
 
 #include "absl/log/check.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "src/api/transport_util.h"
 #include "src/util/util.h"
@@ -11,10 +11,10 @@
 
 namespace peregrine::integration {
 
-DatapathHost::DatapathHost(Component c, absl::string_view control_ep,
-                           absl::string_view data_ep,
-                           absl::string_view peer_control_ep,
-                           absl::string_view peer_data_ep, size_t buf_size,
+DatapathHost::DatapathHost(Component c, std::string_view control_ep,
+                           std::string_view data_ep,
+                           std::string_view peer_control_ep,
+                           std::string_view peer_data_ep, size_t buf_size,
                            int num_conns)
     : control_endpoint_(control_ep),
       data_endpoint_(data_ep),

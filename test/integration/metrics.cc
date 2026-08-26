@@ -2,12 +2,12 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/base/no_destructor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "test/integration/settings.h"
 
@@ -48,7 +48,7 @@ MetricsState& GetState() {
   return *state;
 }
 
-absl::string_view ComponentName(Component c) {
+std::string_view ComponentName(Component c) {
   switch (c) {
     case Component::kSenderControlpath:
       return Settings::kSenderControlpathName;
@@ -85,10 +85,10 @@ DatapathMetrics* GetDatapath(Component c, MetricsState& s) {
 
 }  // namespace
 
-void Metrics::SetControlpathInfo(Component c, absl::string_view endpoint,
-                                 absl::string_view peer_endpoint,
-                                 absl::string_view mode,
-                                 absl::string_view status) {
+void Metrics::SetControlpathInfo(Component c, std::string_view endpoint,
+                                 std::string_view peer_endpoint,
+                                 std::string_view mode,
+                                 std::string_view status) {
   absl::MutexLock lock(GetMutex());
   ControlpathMetrics* cp = GetControlpath(c, GetState());
   if (cp != nullptr) {
@@ -100,9 +100,9 @@ void Metrics::SetControlpathInfo(Component c, absl::string_view endpoint,
   }
 }
 
-void Metrics::SetDatapathInfo(Component c, absl::string_view endpoint,
-                              absl::string_view peer_endpoint,
-                              absl::string_view status) {
+void Metrics::SetDatapathInfo(Component c, std::string_view endpoint,
+                              std::string_view peer_endpoint,
+                              std::string_view status) {
   absl::MutexLock lock(GetMutex());
   DatapathMetrics* dp = GetDatapath(c, GetState());
   if (dp != nullptr) {
@@ -143,7 +143,7 @@ int64_t Metrics::GetBytes(Component c) {
 std::string Metrics::GetControlpathDebugString(Component c) {
   absl::MutexLock lock(GetMutex());
   ControlpathMetrics* cp = GetControlpath(c, GetState());
-  absl::string_view name = ComponentName(c);
+  std::string_view name = ComponentName(c);
   if (cp == nullptr || !cp->active) {
     return absl::StrFormat("%s: disabled", name);
   }
@@ -164,7 +164,7 @@ std::string Metrics::GetControlpathDebugString(Component c) {
 std::string Metrics::GetDatapathDebugString(Component c) {
   absl::MutexLock lock(GetMutex());
   DatapathMetrics* dp = GetDatapath(c, GetState());
-  absl::string_view name = ComponentName(c);
+  std::string_view name = ComponentName(c);
   if (dp == nullptr || !dp->active) {
     return absl::StrFormat("%s: disabled", name);
   }

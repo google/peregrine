@@ -3,8 +3,7 @@
 
 #include <cstdint>
 #include <string>
-
-#include "absl/strings/string_view.h"
+#include <string_view>
 
 namespace peregrine::integration {
 
@@ -23,15 +22,15 @@ class Metrics final {
   ~Metrics() = delete;
 
   // Sets the control path host metrics/status.
-  static void SetControlpathInfo(Component c, absl::string_view endpoint,
-                                 absl::string_view peer_endpoint,
-                                 absl::string_view mode,
-                                 absl::string_view status);
+  static void SetControlpathInfo(Component c, std::string_view endpoint,
+                                 std::string_view peer_endpoint,
+                                 std::string_view mode,
+                                 std::string_view status);
 
   // Sets the data path host metrics/status.
-  static void SetDatapathInfo(Component c, absl::string_view endpoint,
-                              absl::string_view peer_endpoint,
-                              absl::string_view status);
+  static void SetDatapathInfo(Component c, std::string_view endpoint,
+                              std::string_view peer_endpoint,
+                              std::string_view status);
 
   // Increments transfers and bytes for a datapath host.
   static void IncrementTransfers(Component c, int64_t bytes);

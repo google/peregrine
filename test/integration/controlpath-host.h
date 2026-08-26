@@ -2,8 +2,8 @@
 #define PEREGRINE_TEST_INTEGRATION_CONTROLPATH_HOST_H_
 
 #include <string>
+#include <string_view>
 
-#include "absl/strings/string_view.h"
 #include "test/integration/metrics.h"
 
 namespace peregrine::integration {
@@ -11,9 +11,9 @@ namespace peregrine::integration {
 // Control plane host for Peregrine integration test.
 class ControlpathHost final {
  public:
-  ControlpathHost(Component c, absl::string_view endpoint,
-                  absl::string_view peer_endpoint, absl::string_view mode,
-                  absl::string_view status);
+  ControlpathHost(Component c, std::string_view endpoint,
+                  std::string_view peer_endpoint, std::string_view mode,
+                  std::string_view status);
   ~ControlpathHost() = default;
 
   const std::string& endpoint() const { return endpoint_; }

@@ -7,10 +7,10 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/strings/str_cat.h"
-#include "absl/strings/string_view.h"
 #include "src/util/nic.h"
 
 namespace peregrine::util {
@@ -44,16 +44,16 @@ bool IsRoutableIpAddress(const std::string& raw_ip, int family) {
       return IsRoutableIpv4(in4);
     }
   }
-
   if (family == AF_INET6 || family == AF_UNSPEC) {
     struct in6_addr in6;
     if (::inet_pton(AF_INET6, raw_ip.c_str(), &in6) == 1) {
       return IsRoutableIpv6(in6);
     }
   }
-
   return false;
 }
+
+constexpr std::string_view kNetPath = "/sys/class/net/";
 
 // Returns true iff `ifname` corresponds to an active bonded master or a
 // physical (PCIe-backed) network adapter.
@@ -66,25 +66,21 @@ bool IsRoutableIpAddress(const std::string& raw_ip, int family) {
 // Note: Virtual interfaces (e.g., veth, bridges, or containers) may also be
 // assigned valid IP addresses, so checking for /device may not be sufficient
 // if running in containerized environments without direct hardware passthrough.
-bool IsBondedOrPhysicalInterface(absl::string_view ifname) {
+bool IsBondedOrPhysicalInterface(std::string_view ifname) {
   // Admit active Link-Aggregated Bonding Masters (e.g., 'eth0').
-  if (::access(absl::StrCat("/sys/class/net/", ifname, "/bonding").c_str(),
-               F_OK) == 0) {
-    return true;
-  }
+  const std::string s = absl::StrCat(kNetPath, ifname, "/bonding");
+  if (::access(s.c_str(), F_OK) == 0) return true;
 
   // Reject Virtual Containers, Bridges, and Loopbacks lacking direct PCIe
   // anchors (/sys/class/net/<name>/device).
-  const std::string sys_net_device =
-      absl::StrCat("/sys/class/net/", ifname, "/device");
-  return ::access(sys_net_device.c_str(), F_OK) == 0;
+  const std::string device = absl::StrCat(kNetPath, ifname, "/device");
+  return ::access(device.c_str(), F_OK) == 0;
 }
 
 // Returns true iff `ifname` operates under the Linux RDMA/InfiniBand subsystem.
-bool IsRdmaInterface(absl::string_view ifname) {
-  const std::string sys_net_infiniband =
-      absl::StrCat("/sys/class/net/", ifname, "/device/infiniband");
-  return ::access(sys_net_infiniband.c_str(), F_OK) == 0;
+bool IsRdmaInterface(std::string_view ifname) {
+  const std::string s = absl::StrCat(kNetPath, ifname, "/device/infiniband");
+  return ::access(s.c_str(), F_OK) == 0;
 }
 
 }  // namespace

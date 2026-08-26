@@ -23,10 +23,7 @@ cc_library(
 cc_library(
     name = "settings",
     hdrs = ["settings.h"],
-    deps = [
-        "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/time",
-    ],
+    deps = ["@abseil-cpp//absl/time"],
 )
 
 cc_library(
@@ -35,7 +32,6 @@ cc_library(
     hdrs = ["metrics.h"],
     deps = [
         ":settings",
-        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
@@ -47,10 +43,7 @@ cc_library(
     name = "controlpath-host",
     srcs = ["controlpath-host.cc"],
     hdrs = ["controlpath-host.h"],
-    deps = [
-        ":metrics",
-        "@abseil-cpp//absl/strings",
-    ],
+    deps = [":metrics"],
 )
 
 cc_library(
@@ -65,7 +58,6 @@ cc_library(
         "//src/util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -115,12 +107,10 @@ cc_library(
         ":metrics",
         ":ncurses",
         ":settings",
-        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/time",
     ],
 )

@@ -5,10 +5,11 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
+
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/api/transport_types.h"
@@ -22,7 +23,7 @@
 namespace peregrine::integration {
 
 namespace {
-constexpr absl::string_view kLocalhost = "127.0.0.1";
+constexpr std::string_view kLocalhost = "127.0.0.1";
 
 std::string CreateEndpoint(int family) {
   const uint16_t port = util::FindFreePort(family, /*tcp=*/true);

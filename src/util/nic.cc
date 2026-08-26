@@ -8,18 +8,18 @@
 #include <cerrno>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/string_view.h"
 
 namespace peregrine::util {
 
 namespace {
-std::string Error(absl::string_view msg, int last_errno) {
+std::string Error(std::string_view msg, int last_errno) {
   return absl::StrFormat("%s errno=%d(%s)", msg, last_errno,
                          std::strerror(last_errno));
 }

@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -9,7 +10,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/string_view.h"
 #include "src/util/nic.h"
 #include "test/benchmark/types.h"
 
@@ -62,7 +62,7 @@ Role ParseRole() {
   }
 }
 
-std::string ParseIp(absl::string_view ip) {
+std::string ParseIp(std::string_view ip) {
   if (ip.empty()) {
     LOG(FATAL) << "--ip must be specified with a valid non-zero, non-loopback "
                   "network interface IP address.";

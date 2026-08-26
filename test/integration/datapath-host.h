@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
@@ -21,9 +20,9 @@ namespace peregrine::integration {
 // Datapath host for Peregrine integration test.
 class DatapathHost final {
  public:
-  DatapathHost(Component c, absl::string_view control_ep,
-               absl::string_view data_ep, absl::string_view peer_control_ep,
-               absl::string_view peer_data_ep, size_t buf_size, int num_conns);
+  DatapathHost(Component c, std::string_view control_ep,
+               std::string_view data_ep, std::string_view peer_control_ep,
+               std::string_view peer_data_ep, size_t buf_size, int num_conns);
   ~DatapathHost() = default;
 
   // Posts requests using this host's transport.
