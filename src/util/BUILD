@@ -47,6 +47,7 @@ cc_library(
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
     ],
 )
@@ -58,28 +59,6 @@ cc_test(
         ":nic",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "interface",
-    srcs = ["interface.cc"],
-    hdrs = ["interface.h"],
-    deps = [
-        ":nic",
-        "@abseil-cpp//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "interface_test",
-    srcs = ["interface_test.cc"],
-    deps = [
-        ":interface",
-        ":nic",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )
