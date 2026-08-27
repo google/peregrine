@@ -180,3 +180,48 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "channel_rdma",
+    srcs = ["channel_rdma.cc"],
+    hdrs = ["channel_rdma.h"],
+    deps = [
+        ":channel",
+        ":channel_types",
+        "//:libibverbs",  # buildcleaner: keep
+        "//src/api:transport_types",
+        "//src/internal/base:types",
+        "//src/internal/chunk",
+        "//src/internal/chunk:chunk_flatbuf",
+        "//src/internal/rdma:rdma_queue_pair",
+        "//src/util:macro",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "channel_rdma_test",
+    srcs = ["channel_rdma_test.cc"],
+    tags = [
+        "local",
+        "manual",
+    ],
+    deps = [
+        ":channel_rdma",
+        ":channel_types",
+        "//:libibverbs",  # buildcleaner: keep
+        "//src/api:transport_types",
+        "//src/internal/base:types",
+        "//src/internal/chunk",
+        "//src/internal/chunk:chunk_flatbuf",
+        "//src/internal/rdma:rdma_device_context",
+        "//src/internal/rdma:rdma_device_manager",
+        "//src/internal/rdma:rdma_memory_manager",
+        "//src/internal/rdma:rdma_queue_pair",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest_main",
+    ],
+)
