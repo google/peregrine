@@ -14,17 +14,9 @@
 namespace peregrine::internal {
 
 // This class represents a Reliable Connected (RC) RDMA Queue Pair.
-// It manages QP lifecycle, hardware resource binding to an RdmaDeviceContext,
-// and state transitions (RESET -> INIT -> RTR -> RTS).
-//
-// TODO: Implement dynamic GID/subnet reachability matrix and CIDR route
-// matching for heterogeneous multi-subnet topologies.
-//
-// TODO: Support multiple completion queues per HCA (one per polling worker
-// thread).
-//
-// TODO: Add Automatic Path Migration (APM) and dynamic QP reconnection on
-// network path failure.
+// It manages QP lifecycle, dedicated hardware Completion Queue (CQ) ownership,
+// hardware resource binding to an RdmaDeviceContext, and state transitions
+// (RESET -> INIT -> RTR -> RTS).
 //
 // It is thread-compatible but not thread-safe.
 class RdmaQueuePair final {
@@ -36,6 +28,7 @@ class RdmaQueuePair final {
     uint32_t max_recv_wr = 1024;
     uint32_t max_send_sge = 1;
     uint32_t max_recv_sge = 1;
+    uint32_t cq_size = 2048;  // Dedicated CQ entries
     enum ibv_mtu path_mtu = IBV_MTU_1024;
     uint8_t hop_limit = 255;    // IP Time-To-Live
     uint8_t traffic_class = 0;  // IP DSCP / QoS priority bits
@@ -52,8 +45,8 @@ class RdmaQueuePair final {
   };
 
   // Creates and initializes an RC Queue Pair on the specified device. The QP is
-  // automatically transitioned into INIT state and is ready for credential
-  // exchange.
+  // allocated its own private Completion Queue and automatically transitioned
+  // into INIT state.
   // Returns nullptr or an error status on creation failure.
   static absl::StatusOr<std::unique_ptr<RdmaQueuePair>> Create(
       RdmaDeviceContext* device_context, const Options& options);
@@ -65,7 +58,7 @@ class RdmaQueuePair final {
   DISALLOW_COPY(RdmaQueuePair);
   DISALLOW_MOVE(RdmaQueuePair);
 
-  // Destructor. Destroys the underlying ibv_qp.
+  // Destructor. Destroys the underlying ibv_qp and private ibv_cq.
   ~RdmaQueuePair();
 
   // Connects the QP to the remote peer (transitions INIT -> RTR -> RTS).
@@ -84,6 +77,11 @@ class RdmaQueuePair final {
   // Returns the underlying ibv_qp handle.
   struct ibv_qp* GetQp() const { return qp_; }
 
+  // Returns the dedicated completion queue for this Queue Pair.
+  struct ibv_cq* GetSendCq() const { return cq_; }
+  struct ibv_cq* GetRecvCq() const { return cq_; }
+  struct ibv_cq* GetCq() const { return cq_; }
+
   // Returns the associated device context.
   RdmaDeviceContext* GetDeviceContext() const { return device_context_; }
 
@@ -101,7 +99,7 @@ class RdmaQueuePair final {
   };
 
   RdmaQueuePair(RdmaDeviceContext* device_context, struct ibv_qp* qp,
-                const Options& options);
+                struct ibv_cq* cq, const Options& options);
 
   // Internal state machine transitions.
   absl::Status Init();
@@ -112,6 +110,7 @@ class RdmaQueuePair final {
  private:
   RdmaDeviceContext* const device_context_;
   struct ibv_qp* qp_;
+  struct ibv_cq* cq_;
   const Options options_;
   State state_;
 };

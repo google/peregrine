@@ -17,13 +17,16 @@
 namespace peregrine::internal {
 
 RdmaQueuePair::RdmaQueuePair(RdmaDeviceContext* device_context,
-                             struct ibv_qp* qp, const Options& options)
+                             struct ibv_qp* qp, struct ibv_cq* cq,
+                             const Options& options)
     : device_context_(device_context),
       qp_(qp),
+      cq_(cq),
       options_(options),
       state_(State::kReset) {
   DCHECK(device_context_ != nullptr);
   DCHECK(qp_ != nullptr);
+  DCHECK(cq_ != nullptr);
 }
 
 RdmaQueuePair::~RdmaQueuePair() {
@@ -35,6 +38,14 @@ RdmaQueuePair::~RdmaQueuePair() {
     }
     qp_ = nullptr;
   }
+  if (cq_ != nullptr) {
+    const int ret = ibv_destroy_cq(cq_);
+    if (ret != 0) {
+      LOG(WARNING) << "failed to destroy ibv_cq: " << ret << " ("
+                   << strerror(ret) << ")";
+    }
+    cq_ = nullptr;
+  }
 }
 
 absl::StatusOr<std::unique_ptr<RdmaQueuePair>> RdmaQueuePair::Create(
@@ -43,10 +54,18 @@ absl::StatusOr<std::unique_ptr<RdmaQueuePair>> RdmaQueuePair::Create(
     return absl::InvalidArgumentError("device_context is null");
   }
 
+  struct ibv_cq* cq = ibv_create_cq(device_context->GetDeviceContext(),
+                                    options.cq_size, nullptr, nullptr, 0);
+  if (cq == nullptr) {
+    return absl::InternalError(
+        absl::StrFormat("ibv_create_cq failed on device %s: %s",
+                        device_context->Name(), strerror(errno)));
+  }
+
   struct ibv_qp_init_attr init_attr = {};
   init_attr.qp_type = kQpType;
-  init_attr.send_cq = device_context->GetCq();
-  init_attr.recv_cq = device_context->GetCq();
+  init_attr.send_cq = cq;
+  init_attr.recv_cq = cq;
   init_attr.cap.max_send_wr = options.max_send_wr;
   init_attr.cap.max_recv_wr = options.max_recv_wr;
   init_attr.cap.max_send_sge = options.max_send_sge;
@@ -55,13 +74,14 @@ absl::StatusOr<std::unique_ptr<RdmaQueuePair>> RdmaQueuePair::Create(
 
   struct ibv_qp* qp = ibv_create_qp(device_context->GetPd(), &init_attr);
   if (qp == nullptr) {
+    ibv_destroy_cq(cq);
     return absl::InternalError(
         absl::StrFormat("ibv_create_qp failed on device %s: %s",
                         device_context->Name(), strerror(errno)));
   }
 
   std::unique_ptr<RdmaQueuePair> queue_pair(
-      new RdmaQueuePair(device_context, qp, options));
+      new RdmaQueuePair(device_context, qp, cq, options));
   absl::Status init_status = queue_pair->Init();
   if (!init_status.ok()) {
     return init_status;

@@ -39,6 +39,8 @@ TEST(RdmaQueuePairTest, LifecycleAndCreation) {
   EXPECT_FALSE(qp->IsConnected());
   EXPECT_GT(qp->Qpn(), 0);
   EXPECT_NE(qp->GetQp(), nullptr);
+  EXPECT_NE(qp->GetSendCq(), nullptr);
+  EXPECT_NE(qp->GetRecvCq(), nullptr);
   EXPECT_EQ(qp->GetDeviceContext(), dev_ctx);
 
   auto gid_or = qp->GetLocalGid();
