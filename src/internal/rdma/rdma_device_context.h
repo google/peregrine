@@ -17,6 +17,11 @@ namespace peregrine::internal {
 // It is thread-compatible but not thread-safe.
 class RdmaDeviceContext final {
  public:
+  // Default physical port number for single-port RDMA adapters.
+  // TODO: Support multi-port HCAs if physical adapters expose multiple active
+  // ports.
+  static constexpr uint8_t kDefaultPortNum = 1;
+
   // Creates an RdmaDeviceContext by opening the given verbs device.
   // Returns nullptr on failure.
   static std::unique_ptr<RdmaDeviceContext> Create(struct ibv_device* device);
@@ -42,11 +47,18 @@ class RdmaDeviceContext final {
   // Returns the cached hardware device attributes.
   const struct ibv_device_attr& GetDeviceAttr() const { return device_attr_; }
 
+  // Returns the routable GID index for this device (e.g. RoCEv2 IPv4 slot).
+  int GidIndex() const { return gid_index_; }
+
+  // Returns the probed local GID for this device.
+  const union ibv_gid& LocalGid() const { return local_gid_; }
+
  private:
   // Constructor.
   RdmaDeviceContext(struct ibv_context* context, struct ibv_pd* pd,
                     struct ibv_cq* cq,
-                    const struct ibv_device_attr& device_attr);
+                    const struct ibv_device_attr& device_attr, int gid_index,
+                    const union ibv_gid& local_gid);
 
  private:
   const std::string name_;
@@ -56,6 +68,8 @@ class RdmaDeviceContext final {
   // to enable zero-contention lock-free polling across multiple QPs.
   struct ibv_cq* cq_;
   const struct ibv_device_attr device_attr_;
+  const int gid_index_;
+  const union ibv_gid local_gid_;
 };
 
 }  // namespace peregrine::internal

@@ -1,6 +1,7 @@
 #include "src/internal/rdma/rdma_device_context.h"
 
 #include <infiniband/verbs.h>
+#include <netinet/in.h>
 
 #include <cerrno>
 #include <cstdint>
@@ -98,23 +99,60 @@ struct ibv_cq* createCq(struct ibv_context* context,
   return cq;
 }
 
+int findRoutableGid(struct ibv_context* context, uint8_t port_num) {
+  if (context == nullptr) return 0;
+  struct ibv_port_attr port_attr = {};
+  if (ibv_query_port(context, port_num, &port_attr) != 0) {
+    return 0;
+  }
+
+  int fallback_ipv6_idx = -1;
+
+  for (int i = 0; i < port_attr.gid_tbl_len; ++i) {
+    struct ibv_gid_entry entry = {};
+    if (ibv_query_gid_ex(context, port_num, i, &entry, 0) == 0) {
+      if (entry.gid_type != IBV_GID_TYPE_ROCE_V2) continue;
+
+      const auto* in6 = reinterpret_cast<const struct in6_addr*>(entry.gid.raw);
+
+      // 1. Highest priority: RoCEv2 IPv4-mapped address (::ffff:A.B.C.D)
+      if (IN6_IS_ADDR_V4MAPPED(in6)) {
+        return i;
+      }
+
+      // 2. Secondary priority: Global Routable IPv6 (not link-local, loopback,
+      // or multicast)
+      if (!IN6_IS_ADDR_LINKLOCAL(in6) && !IN6_IS_ADDR_LOOPBACK(in6) &&
+          !IN6_IS_ADDR_MULTICAST(in6) && fallback_ipv6_idx == -1) {
+        fallback_ipv6_idx = i;
+      }
+    }
+  }
+
+  return fallback_ipv6_idx != -1 ? fallback_ipv6_idx : 0;
+}
+
 }  // namespace
 
 RdmaDeviceContext::RdmaDeviceContext(struct ibv_context* context,
                                      struct ibv_pd* pd, struct ibv_cq* cq,
-                                     const struct ibv_device_attr& device_attr)
+                                     const struct ibv_device_attr& device_attr,
+                                     int gid_index,
+                                     const union ibv_gid& local_gid)
     : name_(getDeviceName(context)),
       context_(context),
       pd_(pd),
       cq_(cq),
-      device_attr_(device_attr) {
+      device_attr_(device_attr),
+      gid_index_(gid_index),
+      local_gid_(local_gid) {
   DCHECK_NE(context_, nullptr);
   DCHECK_NE(pd_, nullptr);
   DCHECK_NE(cq_, nullptr);
   LOG(INFO) << "RDMA device context created for: " << name_
             << " (max_cqe=" << device_attr_.max_cqe
             << ", ports=" << static_cast<int>(device_attr_.phys_port_cnt)
-            << ")";
+            << ", gid_index=" << gid_index_ << ")";
 }
 
 RdmaDeviceContext::~RdmaDeviceContext() {
@@ -164,7 +202,21 @@ std::unique_ptr<RdmaDeviceContext> RdmaDeviceContext::Create(
     return nullptr;
   }
 
-  return absl::WrapUnique(new RdmaDeviceContext(context, pd, cq, attr));
+  const int gid_index = findRoutableGid(context, kDefaultPortNum);
+  union ibv_gid local_gid = {};
+  if (ibv_query_gid(context, kDefaultPortNum, gid_index, &local_gid) != 0) {
+    LOG(WARNING) << ErrorMsg(
+        absl::StrFormat("ibv_query_gid failed for %s on port %d, gid_index %d",
+                        getDeviceName(context), kDefaultPortNum, gid_index),
+        errno);
+    ibv_destroy_cq(cq);
+    ibv_dealloc_pd(pd);
+    ibv_close_device(context);
+    return nullptr;
+  }
+
+  return absl::WrapUnique(
+      new RdmaDeviceContext(context, pd, cq, attr, gid_index, local_gid));
 }
 
 }  // namespace peregrine::internal

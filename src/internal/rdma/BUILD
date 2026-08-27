@@ -91,3 +91,33 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "rdma_queue_pair",
+    srcs = ["rdma_queue_pair.cc"],
+    hdrs = ["rdma_queue_pair.h"],
+    deps = [
+        ":rdma_device_context",
+        "//:libibverbs",  # buildcleaner: keep
+        "//src/util:macro",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "rdma_queue_pair_test",
+    srcs = ["rdma_queue_pair_test.cc"],
+    deps = [
+        ":rdma_device_context",
+        ":rdma_device_manager",
+        ":rdma_queue_pair",
+        "//:libibverbs",  # buildcleaner: keep
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)

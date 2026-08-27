@@ -36,12 +36,14 @@ TEST(RdmaDeviceContextTest, CreateAndVerify) {
     EXPECT_THAT(dev_ctx->GetCq(), NotNull());
     EXPECT_FALSE(dev_ctx->Name().empty());
     EXPECT_GT(dev_ctx->GetDeviceAttr().max_cqe, 0);
+    EXPECT_GE(dev_ctx->GidIndex(), 0);
 
     const auto& attr = dev_ctx->GetDeviceAttr();
     LOG(INFO) << "[Test Verified] Device Name: " << dev_ctx->Name()
               << " | Max CQE: " << attr.max_cqe << " | Max QP: " << attr.max_qp
               << " | Max MR: " << attr.max_mr
-              << " | Phys Ports: " << static_cast<int>(attr.phys_port_cnt);
+              << " | Phys Ports: " << static_cast<int>(attr.phys_port_cnt)
+              << " | GID Index: " << dev_ctx->GidIndex();
   }
 
   ibv_free_device_list(device_list);
