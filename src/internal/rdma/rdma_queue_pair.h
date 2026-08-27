@@ -55,6 +55,7 @@ class RdmaQueuePair final {
     return Create(device_context, Options{});
   }
 
+  // Disallows copy and move.
   DISALLOW_COPY(RdmaQueuePair);
   DISALLOW_MOVE(RdmaQueuePair);
 

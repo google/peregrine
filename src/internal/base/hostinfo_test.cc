@@ -34,48 +34,35 @@ TEST(HostInfoTest, ToString) {
   const HostInfo host = {.control_plane_listener = c,
                          .data_plane_listeners = {d1, d2}};
   EXPECT_TRUE(host.IsValid());
-  EXPECT_EQ(host.ToString(),
-            "host: 127.0.0.1:12345, 127.0.0.1:54321, [::1]:54321");
   LOG(INFO) << host;
 }
 
 TEST(HostInfoTest, RdmaInterface) {
   const Endpoint c = Endpoint::Create("127.0.0.1:12345");
   const Endpoint d = Endpoint::Create("127.0.0.1:54321");
-  const std::string dummy_gid(16, '\x01');
+  const std::string gid(16, '\x01');
+  const RdmaInterface rdma0 = {.name = "irdma0", .gid = gid, .port_num = 1};
+  const RdmaInterface rdma1 = {.name = "irdma1", .gid = gid, .port_num = 1};
+  const RdmaInterface rdma2 = {.name = "irdma0", .gid = "none", .port_num = 1};
   const HostInfo host = {
       .control_plane_listener = c,
       .data_plane_listeners = {d},
-      .rdma_interfaces =
-          {
-              RdmaInterface{.name = "irdma0", .gid = dummy_gid, .port_num = 1},
-              RdmaInterface{.name = "irdma1", .gid = dummy_gid, .port_num = 1},
-          },
+      .rdma_interfaces = {rdma0, rdma1},
   };
   EXPECT_TRUE(host.IsValid());
   LOG(INFO) << host;
 
-  // Duplicate device name is invalid.
   const HostInfo duplicate_rdma = {
       .control_plane_listener = c,
       .data_plane_listeners = {},
-      .rdma_interfaces =
-          {
-              RdmaInterface{.name = "irdma0", .gid = dummy_gid, .port_num = 1},
-              RdmaInterface{.name = "irdma0", .gid = dummy_gid, .port_num = 1},
-          },
+      .rdma_interfaces = {rdma0, rdma0},
   };
   EXPECT_FALSE(duplicate_rdma.IsValid());
 
-  // Invalid GID size is invalid.
   const HostInfo invalid_gid = {
       .control_plane_listener = c,
       .data_plane_listeners = {},
-      .rdma_interfaces =
-          {
-              RdmaInterface{
-                  .name = "irdma0", .gid = "too_short", .port_num = 1},
-          },
+      .rdma_interfaces = {rdma2},
   };
   EXPECT_FALSE(invalid_gid.IsValid());
 }

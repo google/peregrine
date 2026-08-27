@@ -24,10 +24,9 @@ namespace peregrine::internal {
 //
 // It is thread-compatible but not thread-safe.
 class RdmaMemoryManager final {
- public:
-  static_assert(
-      assumptions::kApplicationAllocatesMemorySlabsAndPeregrineRegistersThem);
+  static_assert(assumptions::kPeregrineRegistersApplicationAllocatedMemory);
 
+ public:
   // Default access flags for memory registration (local write, remote write,
   // remote read).
   static constexpr int kDefaultAccessFlags =
@@ -37,6 +36,7 @@ class RdmaMemoryManager final {
   // manager.
   explicit RdmaMemoryManager(const RdmaDeviceManager* device_manager);
 
+  // Disallows copy and move.
   DISALLOW_COPY(RdmaMemoryManager);
   DISALLOW_MOVE(RdmaMemoryManager);
 

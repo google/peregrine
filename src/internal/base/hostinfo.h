@@ -7,22 +7,33 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/strings/str_cat.h"
 #include "src/internal/base/endpoint.h"
 
 namespace peregrine::internal {
 
-// Represents a local RDMA hardware interface on the host.
+// This struct represents a RDMA interface.
 struct RdmaInterface {
   std::string name;
   std::string gid;  // 16-byte raw GID
   uint32_t port_num = 1;
 
+  // Returns true iff the interface is valid.
   bool IsValid() const {
     return !name.empty() && gid.size() == 16 && port_num > 0;
   }
 
+  // Returns a string representation of the interface.
+  std::string ToString() const {
+    return absl::StrCat(name, "-port:", port_num);
+  }
+
   bool operator==(const RdmaInterface& other) const = default;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const RdmaInterface& r) {
+  return os << r.ToString();
+}
 
 // This struct represents the host information.
 // It is thread-compatible and but not thread-safe.

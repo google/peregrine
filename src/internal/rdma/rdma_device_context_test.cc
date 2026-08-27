@@ -45,7 +45,6 @@ TEST(RdmaDeviceContextTest, CreateAndVerify) {
               << " | Phys Ports: " << static_cast<int>(attr.phys_port_cnt)
               << " | GID Index: " << dev_ctx->GidIndex();
   }
-
   ibv_free_device_list(device_list);
 }
 

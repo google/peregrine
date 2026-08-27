@@ -3,6 +3,7 @@
 
 #include <infiniband/verbs.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -26,6 +27,7 @@ class RdmaDeviceContext final {
   // Returns nullptr on failure.
   static std::unique_ptr<RdmaDeviceContext> Create(struct ibv_device* device);
 
+  // Disallows copy and move.
   DISALLOW_COPY(RdmaDeviceContext);
   DISALLOW_MOVE(RdmaDeviceContext);
 

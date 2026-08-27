@@ -3,7 +3,6 @@
 #include <infiniband/verbs.h>
 
 #include <atomic>
-#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -29,8 +28,6 @@ RdmaChannel::RdmaChannel(std::unique_ptr<RdmaQueuePair> qp, uint32_t lkey,
     : qp_(std::move(qp)), lkey_(lkey), rkey_(rkey), is_shutdown_(false) {
   DCHECK(qp_ != nullptr);
 }
-
-RdmaChannel::~RdmaChannel() { Shutdown(); }
 
 void RdmaChannel::Shutdown() {
   if (is_shutdown_.exchange(true, std::memory_order_acq_rel)) {

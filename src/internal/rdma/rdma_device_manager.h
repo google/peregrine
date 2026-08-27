@@ -28,6 +28,7 @@ class RdmaDeviceManager final {
   // Creates an RdmaDeviceManager by discovering and opening all system HCAs.
   static absl::StatusOr<std::unique_ptr<RdmaDeviceManager>> Create();
 
+  // Disallows copy and move.
   DISALLOW_COPY(RdmaDeviceManager);
   DISALLOW_MOVE(RdmaDeviceManager);
 

@@ -14,7 +14,6 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_types.h"
 #include "src/internal/rdma/rdma_queue_pair.h"
-#include "src/util/macro.h"
 
 namespace peregrine::internal {
 
@@ -25,9 +24,6 @@ class RdmaChannel final : public Channel {
  public:
   // Constructor.
   RdmaChannel(std::unique_ptr<RdmaQueuePair> qp, uint32_t lkey, uint32_t rkey);
-
-  DISALLOW_COPY(RdmaChannel);
-  DISALLOW_MOVE(RdmaChannel);
 
   // Destructor.
   ~RdmaChannel() override;

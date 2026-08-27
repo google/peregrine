@@ -194,7 +194,6 @@ cc_library(
         "//src/internal/chunk",
         "//src/internal/chunk:chunk_flatbuf",
         "//src/internal/rdma:rdma_queue_pair",
-        "//src/util:macro",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
