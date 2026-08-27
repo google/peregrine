@@ -15,6 +15,7 @@ cc_library(
         "//src/internal/base:hostinfo",
         "//src/internal/base:types",
         "//src/internal/event:poller",
+        "//src/util:nic",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/functional:any_invocable",

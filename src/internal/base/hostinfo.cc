@@ -13,10 +13,10 @@
 namespace peregrine::internal {
 
 bool HostInfo::IsValid() const {
-  const bool control_plane_listener_valid =
-      !control_plane_listener.HasZeroPort();
+  const bool control_plane_valid = control_plane_listener.HasNonzeroIpPort();
 
-  const bool data_plane_listeners_empty_or_valid =
+  const bool data_plane_not_empty = !data_plane_listeners.empty();
+  const bool data_plane_valid =
       std::all_of(data_plane_listeners.begin(), data_plane_listeners.end(),
                   [](const Endpoint& e) { return e.HasNonzeroIpPort(); });
 
@@ -29,12 +29,10 @@ bool HostInfo::IsValid() const {
                   [](const RdmaInterface& r) { return r.IsValid(); });
 
   absl::flat_hash_set<std::string_view> rdma_names;
-  for (const auto& r : rdma_interfaces) {
-    rdma_names.insert(r.name);
-  }
+  for (const auto& r : rdma_interfaces) rdma_names.insert(r.name);
   const bool unique_rdma_names = rdma_names.size() == rdma_interfaces.size();
 
-  return control_plane_listener_valid && data_plane_listeners_empty_or_valid &&
+  return control_plane_valid && data_plane_not_empty && data_plane_valid &&
          unique_endpoints && rdma_interfaces_valid && unique_rdma_names;
 }
 

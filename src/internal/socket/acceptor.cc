@@ -20,6 +20,7 @@
 #include "src/internal/event/poller.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_util.h"
+#include "src/util/nic.h"
 
 namespace peregrine::internal {
 
@@ -56,25 +57,34 @@ std::unique_ptr<TcpSocket> TcpAcceptor::createOne(Endpoint& endpoint,
 }
 
 namespace {
-void FillListenerIpAddrs(HostInfo& self) {
-  // TODO(mubashirq): scan nics and find all routable ipv{4,6} addrs.
-  self.data_plane_listeners = {
-      Endpoint(self.control_plane_listener.GetIpAddr(), 0),
-  };
+bool FillListenerIpAddrs(HostInfo& self) {
+  auto& ls = self.data_plane_listeners;
+  DCHECK(ls.empty());
+  for (const auto& [ifc, nis] : util::FindRoutableIpAddrs()) {
+    if (nis.type == util::NicType::kRDMA) continue;
+    for (const auto& ip : nis.addrs) ls.push_back(Endpoint(ip, 0));
+  }
+  return !ls.empty();
 }
 }  // namespace
 
 std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(HostInfo& self) {
   std::unique_ptr<Poller> poller = Poller::Create();
   if ABSL_PREDICT_FALSE (poller == nullptr) {
+    LOG(ERROR) << "failed to create poller";
     return nullptr;
   }
 
-  FillListenerIpAddrs(self);
+  if (!FillListenerIpAddrs(self)) {
+    LOG(ERROR) << "failed to fill data plane tcp listeners";
+    return nullptr;
+  }
+
   absl::flat_hash_map<fd_t, Listener> listeners;
   for (Endpoint& e : self.data_plane_listeners) {
     std::unique_ptr<TcpSocket> socket = createOne(e, poller.get());
     if ABSL_PREDICT_FALSE (socket == nullptr) {
+      LOG(ERROR) << "failed to create tcp listening socket for " << e;
       return nullptr;
     }
     DCHECK(e.HasNonzeroIpPort());

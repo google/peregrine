@@ -36,7 +36,7 @@ class ChannelUtilTest : public ::testing::TestWithParam<Param> {
  protected:
   ChannelUtilTest()
       : family_(std::get<0>(GetParam())),
-        self_(TestOnly_LocalHostInfoWithZeroDataPlanePorts(family_, kTcp)),
+        self_(TestOnly_LocalHostInfo(family_, kTcp)),
         acceptor_(TcpAcceptor::Create(self_)),
         peers_(self_.data_plane_listeners) {
     CHECK(self_.IsValid());

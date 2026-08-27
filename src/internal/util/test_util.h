@@ -47,11 +47,9 @@ inline util::IpAddr IpLocalhost(int family) {
 // Creates a localhost endpoint in the given address `family` and protocol.
 Endpoint TestOnly_LocalEndpoint(int family, bool tcp);
 
-// Creates localhost host info in the given address `family` and protocol.
+// Creates localhost host info in the given address `family` and protocol
+// with one control plane endpoint and no data plane endpoints.
 HostInfo TestOnly_LocalHostInfo(int family, bool tcp);
-
-// Creates localhost host info in the given address `family` and protocol.
-HostInfo TestOnly_LocalHostInfoWithZeroDataPlanePorts(int family, bool tcp);
 
 // Finds an unused TCP port in the given address `family`.
 // Return a nonzero port if successful, otherwise crashes.

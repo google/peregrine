@@ -50,7 +50,8 @@ TEST(TestUtilTest, LocalHostInfo) {
   for (const int family : {AF_INET, AF_INET6}) {
     for (const bool tcp : {true, false}) {
       const HostInfo h = TestOnly_LocalHostInfo(family, tcp);
-      EXPECT_TRUE(h.IsValid());
+      EXPECT_TRUE(h.control_plane_listener.HasNonzeroIpPort());
+      EXPECT_TRUE(h.data_plane_listeners.empty());
       LOG(INFO) << h;
     }
   }

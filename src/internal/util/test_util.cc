@@ -58,25 +58,10 @@ HostInfo TestOnly_LocalHostInfo(int family, bool tcp) {
   const util::IpAddr ipaddr = IpLocalhost(family);
   if (tcp) {
     const auto c = Endpoint(ipaddr, TestOnly_FindFreeTcpPort(family));
-    const auto d = Endpoint(ipaddr, TestOnly_FindFreeTcpPort(family));
-    return HostInfo{c, {d}};
+    return HostInfo{c, {}};
   } else {
     const auto c = Endpoint(ipaddr, TestOnly_FindFreeUdpPort(family));
-    const auto d = Endpoint(ipaddr, TestOnly_FindFreeUdpPort(family));
-    return HostInfo{c, {d}};
-  }
-}
-
-HostInfo TestOnly_LocalHostInfoWithZeroDataPlanePorts(int family, bool tcp) {
-  const util::IpAddr ipaddr = IpLocalhost(family);
-  if (tcp) {
-    const auto c = Endpoint(ipaddr, TestOnly_FindFreeTcpPort(family));
-    const auto d = Endpoint(ipaddr, 0);
-    return HostInfo{c, {d}};
-  } else {
-    const auto c = Endpoint(ipaddr, TestOnly_FindFreeUdpPort(family));
-    const auto d = Endpoint(ipaddr, 0);
-    return HostInfo{c, {d}};
+    return HostInfo{c, {}};
   }
 }
 

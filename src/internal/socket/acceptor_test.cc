@@ -23,7 +23,7 @@ template <int kFamily>
 class TcpAcceptorTest : public ::testing::Test {
  protected:
   TcpAcceptorTest()
-      : local_(TestOnly_LocalHostInfoWithZeroDataPlanePorts(kFamily, kTcp)),
+      : local_(TestOnly_LocalHostInfo(kFamily, kTcp)),
         acceptor_(TcpAcceptor::Create(local_)) {
     CHECK(local_.IsValid());
     CHECK_NE(acceptor_, nullptr);

@@ -27,8 +27,7 @@ template <int kFamily>
 class TcpConnectorTest : public ::testing::Test {
  protected:
   TcpConnectorTest()
-      : self_(TestOnly_LocalHostInfoWithZeroDataPlanePorts(kFamily, kTcp)),
-        local_(self_.data_plane_listeners[0].GetIpAddr(), /*port=*/0),
+      : self_(TestOnly_LocalHostInfo(kFamily, kTcp)),
         acceptor_(TcpAcceptor::Create(self_)),
         peers_(self_.data_plane_listeners) {
     CHECK(self_.IsValid());
@@ -74,7 +73,7 @@ TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
 TEST_F(TcpConnectorTestIPv6, BindConnectBeforeAccept) {
   std::jthread tc([&]() {
     for (const Endpoint& peer : peers_) {
-      std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer, local_);
+      std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());

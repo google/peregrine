@@ -19,6 +19,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -82,7 +83,6 @@ bool IsRoutable(const struct in_addr& addr) {
   const uint32_t a = ntohl(addr.s_addr);
   if (a == 0) return false;             // INADDR_ANY
   if (a >> 28 == 0xE) return false;     // RFC 1112: Multicast (224.0.0.0/4)
-  if (a >> 24 == 0x7F) return false;    // RFC 1122: Loopback (127.0.0.0/8)
   if (a >> 16 == 0xA9FE) return false;  // RFC 3927: Link-Local (169.254.0.0/16)
   return true;
 }
@@ -91,7 +91,6 @@ bool IsRoutable(const struct in_addr& addr) {
 bool IsRoutable(const struct in6_addr& addr) {
   if (IN6_IS_ADDR_UNSPECIFIED(&addr)) return false;
   if (IN6_IS_ADDR_MULTICAST(&addr)) return false;
-  if (IN6_IS_ADDR_LOOPBACK(&addr)) return false;
   if (IN6_IS_ADDR_LINKLOCAL(&addr)) return false;
   if (IN6_IS_ADDR_SITELOCAL(&addr)) return false;
   return true;
@@ -141,13 +140,22 @@ bool IsBondedInterface(const std::string_view ifc) {
 bool IsRdmaInterface(const std::string_view ifc) {
   return Exists(ifc, "/device/infiniband");
 }
+
+// Returns true iff the interface `ifc` is the loopback interface.
+bool IsLoopbackInterface(const std::string_view ifc) {
+  return absl::StartsWithIgnoreCase(ifc, "lo");
+}
 }  // namespace
 
 absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     const int family) {
   absl::flat_hash_map<std::string, NicInfo> ifc_ips;
   for (const auto& [ifc, ips] : EnumerateNics()) {
-    if (!IsPhysicalInterface(ifc) && !IsBondedInterface(ifc)) continue;
+    if (!IsLoopbackInterface(ifc) && !IsPhysicalInterface(ifc) &&
+        !IsBondedInterface(ifc)) {
+      continue;
+    }
+
     std::vector<IpAddr> addrs;
     for (const auto& ip : ips) {
       const std::optional<util::IpAddr> a = GetRoutableIpAddr(ip, family);
