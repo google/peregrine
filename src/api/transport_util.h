@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "src/api/transport.h"
+#include "src/api/transport_types.h"
 
 namespace peregrine {
 
@@ -15,8 +16,10 @@ namespace peregrine {
 //
 // TODO: Support passing in both server and client gRPC credentials instead of
 // hardcoding insecure credentials.
-std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
-                                           int num_conns_per_peer = 8);
+std::unique_ptr<Transport> CreateTransport(
+    std::string_view endpoint,
+    TransportType transport_type = TransportType::kTcp,
+    int num_conns_per_peer = 8);
 
 }  // namespace peregrine
 

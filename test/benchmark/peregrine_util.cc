@@ -65,7 +65,8 @@ void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
              uint16_t app_control_port, int nconns, uint64_t xfer_size) {
   // Create transport.
   const std::string self = GenEndpoint(ip, peregrine_control_port);
-  const std::unique_ptr<Transport> transport = CreateTransport(self, nconns);
+  const std::unique_ptr<Transport> transport =
+      CreateTransport(self, TransportType::kTcp, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
 
   // Wait for sender's control connection.
@@ -135,7 +136,8 @@ void RunSndr(std::string_view ip, uint16_t peregrine_control_port,
 
   // Create transport.
   const std::string self = GenEndpoint(ip, /*port=*/0);
-  const std::unique_ptr<Transport> transport = CreateTransport(self, nconns);
+  const std::unique_ptr<Transport> transport =
+      CreateTransport(self, TransportType::kTcp, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
 
   const std::string peer_endpoint =

@@ -19,6 +19,10 @@ class BindTest(absltest.TestCase):
     self.assertEqual(pg.Op.READ.value, 1)
     self.assertEqual(pg.Op.WRITE.value, 2)
 
+  def test_transport_type_enum(self):
+    self.assertEqual(pg.TransportType.TCP.value, 1)
+    self.assertEqual(pg.TransportType.RDMA.value, 2)
+
   def test_request(self):
     # Allocate safe virtual buffer memory addresses
     lbuf = ctypes.create_string_buffer(1024)

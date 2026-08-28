@@ -67,6 +67,7 @@ cc_library(
     hdrs = ["transport_util.h"],
     deps = [
         ":transport",
+        ":transport_types",
         "//src/internal:transport_impl",
         "//src/internal/base:config",
         "//src/internal/base:endpoint",
@@ -79,6 +80,7 @@ cc_test(
     name = "transport_util_test",
     srcs = ["transport_util_test.cc"],
     deps = [
+        ":transport_types",
         ":transport_util",
         "//src/util",
         "@abseil-cpp//absl/strings:str_format",

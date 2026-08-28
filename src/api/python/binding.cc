@@ -89,7 +89,13 @@ NB_MODULE(peregrine, m) {
           },
           nb::arg("handle"));
 
+  // Bind `TransportType` enum
+  nb::enum_<TransportType>(m, "TransportType")
+      .value("TCP", TransportType::kTcp)
+      .value("RDMA", TransportType::kRdma);
+
   m.def("create_transport", &CreateTransport, nb::arg("control_endpoint"),
+        nb::arg("transport_type") = TransportType::kTcp,
         nb::arg("num_conns_per_peer") = 8);
 
   // Bind `Status` enum and helper functions

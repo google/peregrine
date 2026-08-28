@@ -21,7 +21,7 @@ DatapathHost::DatapathHost(Component c, std::string_view control_ep,
       peer_control_endpoint_(peer_control_ep),
       peer_data_endpoint_(peer_data_ep),
       data_(buf_size),
-      transport_(CreateTransport(control_ep, num_conns)) {
+      transport_(CreateTransport(control_ep, TransportType::kTcp, num_conns)) {
   DCHECK_GT(buf_size, 0);
   CHECK_NE(transport_, nullptr);
   Metrics::SetDatapathInfo(c, data_ep, peer_data_ep, "ACTIVE");

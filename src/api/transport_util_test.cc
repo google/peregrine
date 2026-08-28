@@ -9,6 +9,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
+#include "src/api/transport_types.h"
 #include "src/util/util.h"
 
 namespace peregrine::testing {
@@ -24,22 +25,36 @@ TEST(TransportUtilTest, ValidEndpoints) {
     const std::string_view ip = family == AF_INET ? "127.0.0.1" : "[::1]";
     const uint16_t port = util::FindFreePort(family, /*tcp=*/true);
     const std::string ep = absl::StrFormat("%s:%d", ip, port);
-    EXPECT_THAT(CreateTransport(ep, kNumConnsPerPeer), NotNull());
+    EXPECT_THAT(CreateTransport(ep), NotNull());
+    EXPECT_THAT(CreateTransport(ep, TransportType::kTcp, kNumConnsPerPeer),
+                NotNull());
   }
 }
 
 TEST(TransportUtilTest, InvalidEndpoints) {
-  EXPECT_THAT(CreateTransport("", kNumConnsPerPeer), IsNull());
-  EXPECT_THAT(CreateTransport("invalid", kNumConnsPerPeer), IsNull());
-  EXPECT_THAT(CreateTransport("127.0.0.1", kNumConnsPerPeer), IsNull());
-  EXPECT_THAT(CreateTransport("9.9.9.999:80", kNumConnsPerPeer), IsNull());
+  EXPECT_THAT(CreateTransport(""), IsNull());
+  EXPECT_THAT(CreateTransport("invalid"), IsNull());
+  EXPECT_THAT(CreateTransport("127.0.0.1"), IsNull());
+  EXPECT_THAT(CreateTransport("9.9.9.999:80"), IsNull());
 }
 
 TEST(TransportUtilTest, WildcardAndZeroPort) {
-  EXPECT_THAT(CreateTransport("0.0.0.0:9999", kNumConnsPerPeer), IsNull());
-  EXPECT_THAT(CreateTransport("[::]:9999", kNumConnsPerPeer), IsNull());
-  EXPECT_THAT(CreateTransport("127.0.0.1:0", kNumConnsPerPeer), IsNull());
-  EXPECT_THAT(CreateTransport("[::1]:0", kNumConnsPerPeer), IsNull());
+  EXPECT_THAT(CreateTransport("0.0.0.0:9999"), IsNull());
+  EXPECT_THAT(CreateTransport("[::]:9999"), IsNull());
+  EXPECT_THAT(CreateTransport("127.0.0.1:0"), IsNull());
+  EXPECT_THAT(CreateTransport("[::1]:0"), IsNull());
+}
+
+TEST(TransportUtilTest, TransportTypeSelection) {
+  const uint16_t port_tcp = util::FindFreePort(AF_INET, /*tcp=*/true);
+  const std::string ep_tcp = absl::StrFormat("127.0.0.1:%d", port_tcp);
+  EXPECT_THAT(CreateTransport(ep_tcp, TransportType::kTcp, kNumConnsPerPeer),
+              NotNull());
+
+  const uint16_t port_rdma = util::FindFreePort(AF_INET, /*tcp=*/true);
+  const std::string ep_rdma = absl::StrFormat("127.0.0.1:%d", port_rdma);
+  EXPECT_THAT(CreateTransport(ep_rdma, TransportType::kRdma, kNumConnsPerPeer),
+              IsNull());
 }
 
 }  // namespace

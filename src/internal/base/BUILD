@@ -7,6 +7,7 @@ cc_library(
     name = "config",
     hdrs = ["config.h"],
     deps = [
+        "//src/api:transport_types",
         "//src/internal:assumptions",
         "@grpc//:grpc++",
     ],

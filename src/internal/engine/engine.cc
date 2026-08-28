@@ -49,17 +49,26 @@ absl::Status NotFoundError(const Handle h) {
 std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
                                        Control& control) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
-  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(self);
-  if ABSL_PREDICT_FALSE (acceptor == nullptr) {
-    LOG(WARNING) << "failed to create acceptor: " << self;
+  if (config.transport_type == TransportType::kTcp) {
+    std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(self);
+    if ABSL_PREDICT_FALSE (acceptor == nullptr) {
+      LOG(WARNING) << "failed to create acceptor: " << self;
+      return nullptr;
+    }
+    if ABSL_PREDICT_FALSE (!self.IsValid()) {
+      LOG(WARNING) << "invalid self host info: " << self;
+      return nullptr;
+    }
+    return absl::WrapUnique(
+        new Engine(config, self, std::move(acceptor), control));
+  }
+
+  if (config.transport_type == TransportType::kRdma) {
+    LOG(WARNING) << "rdma transport is not yet supported in Engine";
     return nullptr;
   }
-  if ABSL_PREDICT_FALSE (!self.IsValid()) {
-    LOG(WARNING) << "invalid self host info: " << self;
-    return nullptr;
-  }
-  return absl::WrapUnique(
-      new Engine(config, self, std::move(acceptor), control));
+
+  return nullptr;
 }
 
 Engine::Engine(const Config& config, HostInfo& self,

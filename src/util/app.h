@@ -31,8 +31,8 @@ class App final {
   App(size_t size, int num_conns_per_peer)
       : data_(size),
         control_plane_listener_(createEndpoint(AF_INET)),
-        transport_(
-            CreateTransport(control_plane_listener_, num_conns_per_peer)) {
+        transport_(CreateTransport(control_plane_listener_, TransportType::kTcp,
+                                   num_conns_per_peer)) {
     DCHECK_GT(size, 0);
     CHECK_NE(transport_, nullptr);  // Crash OK
   }

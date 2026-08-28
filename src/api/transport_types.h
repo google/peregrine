@@ -24,6 +24,12 @@ enum class Op : uint8_t {
   kWrite = 2,  // Write to peer
 };
 
+// Supported underlying data plane transports.
+enum class TransportType : uint8_t {
+  kTcp = 1,
+  kRdma = 2,
+};
+
 // Per-peer transport request.
 struct Request final {
   // LINT.IfChange

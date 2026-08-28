@@ -15,14 +15,16 @@ namespace peregrine::internal {
 bool HostInfo::IsValid() const {
   const bool control_plane_valid = control_plane_listener.HasNonzeroIpPort();
 
-  const bool data_plane_not_empty = !data_plane_listeners.empty();
-  const bool data_plane_valid =
+  const bool has_data_plane =
+      !data_plane_listeners.empty() || !rdma_interfaces.empty();
+  const bool data_plane_listeners_valid =
       std::all_of(data_plane_listeners.begin(), data_plane_listeners.end(),
                   [](const Endpoint& e) { return e.HasNonzeroIpPort(); });
-
   const bool rdma_interfaces_valid =
       std::all_of(rdma_interfaces.begin(), rdma_interfaces.end(),
                   [](const RdmaInterface& r) { return r.IsValid(); });
+  const bool data_plane_valid =
+      has_data_plane && data_plane_listeners_valid && rdma_interfaces_valid;
 
   absl::flat_hash_set<Endpoint> es = {control_plane_listener};
   es.insert(data_plane_listeners.begin(), data_plane_listeners.end());
@@ -32,8 +34,8 @@ bool HostInfo::IsValid() const {
   for (const auto& r : rdma_interfaces) rdma_names.insert(r.name);
   const bool unique_rdma_names = rdma_names.size() == rdma_interfaces.size();
 
-  return control_plane_valid && data_plane_not_empty && data_plane_valid &&
-         rdma_interfaces_valid && unique_endpoints && unique_rdma_names;
+  return control_plane_valid && data_plane_valid && unique_endpoints &&
+         unique_rdma_names;
 }
 
 HostInfo HostInfo::Create(std::string_view ipaddr_port_pairs) {

@@ -52,6 +52,14 @@ TEST(HostInfoTest, RdmaInterface) {
   EXPECT_TRUE(host.IsValid());
   LOG(INFO) << host;
 
+  const HostInfo rdma_only = {
+      .control_plane_listener = c,
+      .data_plane_listeners = {},
+      .rdma_interfaces = {rdma0, rdma1},
+  };
+  EXPECT_TRUE(rdma_only.IsValid());
+  LOG(INFO) << rdma_only;
+
   const HostInfo duplicate_rdma = {
       .control_plane_listener = c,
       .data_plane_listeners = {},

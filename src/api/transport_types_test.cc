@@ -16,6 +16,11 @@ TEST(TransportOp, ToString) {
   LOG(INFO) << "Op: " << Op::kWrite;
 }
 
+TEST(TransportType, Values) {
+  EXPECT_EQ(static_cast<int>(TransportType::kTcp), 1);
+  EXPECT_EQ(static_cast<int>(TransportType::kRdma), 2);
+}
+
 TEST(TransportStatus, Values) {
   EXPECT_FALSE(IsInProgress(Status::kNotFound));
   EXPECT_FALSE(IsCompleted(Status::kNotFound));
