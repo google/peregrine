@@ -9,6 +9,7 @@ cc_library(
     hdrs = ["engine.h"],
     deps = [
         ":worker",
+        "//:libibverbs",  # buildcleaner: keep
         "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal:coding_style",
@@ -20,6 +21,8 @@ cc_library(
         "//src/internal/channel:channel_util",
         "//src/internal/chunk",
         "//src/internal/control",
+        "//src/internal/rdma:rdma_device_context",
+        "//src/internal/rdma:rdma_device_manager",
         "//src/internal/request:request_tracker",
         "//src/internal/socket:acceptor",
         "//src/internal/socket:connector",

@@ -29,6 +29,8 @@
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/worker.h"
+#include "src/internal/rdma/rdma_device_context.h"
+#include "src/internal/rdma/rdma_device_manager.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
 #include "src/internal/socket/socket_tcp.h"
@@ -49,45 +51,68 @@ absl::Status NotFoundError(const Handle h) {
 std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
                                        Control& control) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
+  std::unique_ptr<TcpAcceptor> acceptor = nullptr;
+  std::unique_ptr<RdmaDeviceManager> rdma_device_manager = nullptr;
+
   if (config.transport_type == TransportType::kTcp) {
-    std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(self);
+    acceptor = TcpAcceptor::Create(self);
     if ABSL_PREDICT_FALSE (acceptor == nullptr) {
       LOG(WARNING) << "failed to create acceptor: " << self;
       return nullptr;
     }
-    if ABSL_PREDICT_FALSE (!self.IsValid()) {
-      LOG(WARNING) << "invalid self host info: " << self;
+  } else if (config.transport_type == TransportType::kRdma) {
+    auto rdma_mgr_or = RdmaDeviceManager::Create();
+    if ABSL_PREDICT_FALSE (!rdma_mgr_or.ok()) {
+      LOG(WARNING) << "failed to create rdma device manager: "
+                   << rdma_mgr_or.status();
       return nullptr;
     }
-    return absl::WrapUnique(
-        new Engine(config, self, std::move(acceptor), control));
-  }
-
-  if (config.transport_type == TransportType::kRdma) {
-    LOG(WARNING) << "rdma transport is not yet supported in Engine";
+    rdma_device_manager = std::move(*rdma_mgr_or);
+    for (const auto& dev : rdma_device_manager->Devices()) {
+      self.rdma_interfaces.push_back({
+          .name = std::string(dev->Name()),
+          .gid = std::string(reinterpret_cast<const char*>(dev->LocalGid().raw),
+                             sizeof(dev->LocalGid().raw)),
+          .port_num = RdmaDeviceContext::kDefaultPortNum,
+      });
+    }
+    if ABSL_PREDICT_FALSE (self.rdma_interfaces.empty()) {
+      LOG(WARNING) << "no active RDMA devices found: " << self;
+      return nullptr;
+    }
+  } else {
     return nullptr;
   }
 
-  return nullptr;
+  if ABSL_PREDICT_FALSE (!self.IsValid()) {
+    LOG(WARNING) << "invalid self host info: " << self;
+    return nullptr;
+  }
+  return absl::WrapUnique(new Engine(config, self, std::move(acceptor),
+                                     std::move(rdma_device_manager), control));
 }
 
 Engine::Engine(const Config& config, HostInfo& self,
-               std::unique_ptr<TcpAcceptor> acceptor, Control& control)
+               std::unique_ptr<TcpAcceptor> acceptor,
+               std::unique_ptr<RdmaDeviceManager> rdma_device_manager,
+               Control& control)
     : config_(config),
       self_(self),
       control_(control),
       stop_(false),
-      acceptor_(std::move(acceptor)) {
+      acceptor_(std::move(acceptor)),
+      rdma_device_manager_(std::move(rdma_device_manager)) {
   DCHECK(config_.IsValid());
 
-  // Start an acceptor thread.
-  DCHECK_NE(acceptor_, nullptr);
-  acceptor_thread_ = std::jthread([this]() {
-    auto callback = [this](std::unique_ptr<TcpSocket> socket) {
-      accept(std::move(socket));
-    };
-    acceptor_->Start(callback);
-  });
+  // Start an acceptor thread if TCP acceptor is present.
+  if (acceptor_ != nullptr) {
+    acceptor_thread_ = std::jthread([this]() {
+      auto callback = [this](std::unique_ptr<TcpSocket> socket) {
+        accept(std::move(socket));
+      };
+      acceptor_->Start(callback);
+    });
+  }
 
   // Start a main loop thread.
   main_thread_ = std::jthread([this]() { mainLoop(); });
@@ -98,7 +123,9 @@ Engine::Engine(const Config& config, HostInfo& self,
 Engine::~Engine() {
   {
     absl::MutexLock _(mu_);
-    acceptor_->Stop();
+    if (acceptor_ != nullptr) {
+      acceptor_->Stop();
+    }
     stop_ = true;
   }
   // all threads are joined in their destructor.

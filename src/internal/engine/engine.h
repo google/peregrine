@@ -23,6 +23,7 @@
 #include "src/internal/coding_style.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/worker.h"
+#include "src/internal/rdma/rdma_device_manager.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
@@ -66,7 +67,9 @@ class Engine {
  private:
   // Constructor.
   Engine(const Config& config, HostInfo& self,
-         std::unique_ptr<TcpAcceptor> acceptor, Control& control);
+         std::unique_ptr<TcpAcceptor> acceptor,
+         std::unique_ptr<RdmaDeviceManager> rdma_device_manager,
+         Control& control);
 
  private:
   using Workers = std::vector<std::unique_ptr<Worker>>;
@@ -126,7 +129,12 @@ class Engine {
   RequestTracker outgoing_;
   RequestTracker incoming_;
 
+  // TCP data plane.
   std::unique_ptr<TcpAcceptor> acceptor_;
+
+  // RDMA data plane.
+  std::unique_ptr<RdmaDeviceManager> rdma_device_manager_;
+
   absl::flat_hash_map<Endpoint, Workers> send_workers_;
   Workers recv_workers_;
   std::jthread acceptor_thread_;
