@@ -159,5 +159,61 @@ TEST_F(ControlTest, HandleIncomingHostInfoRequest) {
             client_host.data_plane_listeners[0]);
 }
 
+TEST_F(ControlTest, ConnectRdmaPeer) {
+  const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
+  const uint16_t port_b = util::FindFreePort(AF_INET, /*tcp=*/true);
+  ASSERT_GT(port_a, 0);
+  ASSERT_GT(port_b, 0);
+
+  const HostInfo host_a = {
+      .control_plane_listener =
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
+      .rdma_interfaces = {{.name = "irdma0", .gid = std::string(16, '\0')}},
+  };
+  const HostInfo host_b = {
+      .control_plane_listener =
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
+      .rdma_interfaces = {{.name = "irdma0", .gid = std::string(16, '\0')}},
+  };
+
+  auto ctrl_a = Control::Create(config_, host_a, creds_a_);
+  ASSERT_NE(ctrl_a, nullptr);
+  ASSERT_TRUE(ctrl_a->Start());
+
+  auto ctrl_b = Control::Create(config_, host_b, creds_b_);
+  ASSERT_NE(ctrl_b, nullptr);
+  ASSERT_TRUE(ctrl_b->Start());
+
+  // Register an RDMA connect handler on Node B.
+  ctrl_b->SetRdmaConnectHandler(
+      [](const proto::RdmaConnectRequest& req,
+         proto::RdmaConnectResponse* resp) -> absl::Status {
+        EXPECT_EQ(req.device_name(), "irdma0");
+        EXPECT_EQ(req.qpn(), 100);
+        EXPECT_EQ(req.psn(), 0x123456);
+        resp->set_qpn(200);
+        resp->set_gid(req.gid());
+        resp->set_psn(0x654321);
+        return absl::OkStatus();
+      });
+
+  const std::vector<uint8_t> dummy_gid(16, 0xAB);
+  auto resp_or = ctrl_a->ConnectRdmaPeer(host_b.control_plane_listener,
+                                         "irdma0", 100, dummy_gid, 0x123456);
+  ASSERT_TRUE(resp_or.ok()) << resp_or.status();
+  EXPECT_EQ(resp_or->qpn(), 200);
+  EXPECT_EQ(resp_or->psn(), 0x654321);
+  EXPECT_EQ(resp_or->gid(),
+            std::string_view(reinterpret_cast<const char*>(dummy_gid.data()),
+                             dummy_gid.size()));
+
+  // Invalid GID size fails fast client-side.
+  const std::vector<uint8_t> invalid_gid(10, 0xAB);
+  EXPECT_FALSE(ctrl_a
+                   ->ConnectRdmaPeer(host_b.control_plane_listener, "irdma0",
+                                     100, invalid_gid, 0x123456)
+                   .ok());
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

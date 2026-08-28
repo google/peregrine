@@ -24,6 +24,7 @@
 #include "src/internal/control/control.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/rdma/rdma_device_manager.h"
+#include "src/internal/rdma/rdma_queue_pair.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
@@ -36,7 +37,7 @@ namespace peregrine::internal {
 // CPU/memory/PCIe/NIC locality and network multipaths are key in this class
 // to improve the transport performance.
 // It is thread-safe.
-class Engine {
+class Engine final {
   static_assert(assumptions::kTransportImplementationHasItsOwnThreads);
   static_assert(coding_style::kClassPrivateFunctionNamesStartWithLowercase);
   static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
@@ -79,6 +80,10 @@ class Engine {
 
   // Connects to the `peer` to create a number of workers.
   bool connect(Workers& workers, const Endpoint& peer);
+
+  // Handles an incoming RDMA connection request from a remote peer.
+  absl::Status handleRdmaConnect(const proto::RdmaConnectRequest& req,
+                                 proto::RdmaConnectResponse* resp);
 
  private:
   // Generates a random handle.
@@ -134,6 +139,7 @@ class Engine {
 
   // RDMA data plane.
   std::unique_ptr<RdmaDeviceManager> rdma_device_manager_;
+  std::vector<std::unique_ptr<RdmaQueuePair>> qps_ ABSL_GUARDED_BY(mu_);
 
   absl::flat_hash_map<Endpoint, Workers> send_workers_;
   Workers recv_workers_;

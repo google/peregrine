@@ -71,6 +71,7 @@ cc_library(
         ":grpc_server",
         ":message",
         ":message_cc_proto",
+        "//:libibverbs",  # buildcleaner: keep
         "//src/internal:assumptions",
         "//src/internal/base:config",
         "//src/internal/base:endpoint",
@@ -78,12 +79,15 @@ cc_library(
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
         "@grpc//:grpc++",
     ],
 )

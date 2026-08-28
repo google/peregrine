@@ -1,15 +1,20 @@
 #include "src/internal/control/control.h"
 
+#include <cstdint>
 #include <memory>
+#include <string_view>
 #include <utility>
 
+#include "infiniband/verbs.h"
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
@@ -61,6 +66,11 @@ bool Control::Start() {
   return true;
 }
 
+void Control::SetRdmaConnectHandler(RdmaConnectHandler handler) {
+  absl::MutexLock _(rdma_handler_mu_);
+  rdma_connect_handler_ = std::move(handler);
+}
+
 Control::~Control() {
   if (grpc_server_ != nullptr) {
     grpc_server_->Shutdown();
@@ -74,6 +84,9 @@ absl::Status Control::handleIncomingRequest(const proto::ReqMsg& req,
   if (req.has_host_info()) {
     return handleHostInfo(req, resp);
   }
+  if (req.has_rdma_connect_req()) {
+    return handleRdmaConnect(req, resp);
+  }
   return absl::UnimplementedError("unsupported request type");
 }
 
@@ -81,7 +94,7 @@ absl::Status Control::handleHostInfo(const proto::ReqMsg& req,
                                      proto::RespMsg* resp) {
   HostInfo peer_info;
   if ABSL_PREDICT_FALSE (!Message::Convert(req, peer_info)) {
-    return absl::InvalidArgumentError("malformed host info in request");
+    return absl::InternalError("failed to deserialize peer host info");
   }
   DCHECK(peer_info.IsValid());
   {
@@ -95,6 +108,28 @@ absl::Status Control::handleHostInfo(const proto::ReqMsg& req,
   if ABSL_PREDICT_FALSE (!Message::Convert(self_, *resp)) {
     return absl::InternalError("failed to serialize self host info");
   }
+  return absl::OkStatus();
+}
+
+absl::Status Control::handleRdmaConnect(const proto::ReqMsg& req,
+                                        proto::RespMsg* resp) {
+  if (resp == nullptr) {
+    return absl::InternalError("null response message");
+  }
+  proto::RdmaConnectResponse rdma_resp;
+  absl::Status status;
+  {
+    absl::MutexLock _(rdma_handler_mu_);
+    if (!rdma_connect_handler_) {
+      return absl::FailedPreconditionError(
+          "no RDMA connect handler registered");
+    }
+    status = rdma_connect_handler_(req.rdma_connect_req(), &rdma_resp);
+  }
+  if (!status.ok()) {
+    return status;
+  }
+  *resp->mutable_rdma_connect_resp() = std::move(rdma_resp);
   return absl::OkStatus();
 }
 
@@ -152,6 +187,36 @@ absl::StatusOr<HostInfo> Control::GetPeerHostInfo(const Endpoint& peer) {
   absl::MutexLock _(peer_hosts_mu_);
   peer_hosts_.insert_or_assign(peer, peer_info);
   return peer_info;
+}
+
+absl::StatusOr<proto::RdmaConnectResponse> Control::ConnectRdmaPeer(
+    const Endpoint& peer, std::string_view device_name, uint32_t qpn,
+    absl::Span<const uint8_t> gid, uint32_t psn) {
+  if (!peer.HasNonzeroIpPort()) {
+    return absl::InvalidArgumentError("invalid peer endpoint");
+  }
+  if (gid.size() != sizeof(union ibv_gid)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("invalid GID size: expected %d bytes, got %d",
+                        sizeof(union ibv_gid), gid.size()));
+  }
+
+  proto::ReqMsg req;
+  proto::RdmaConnectRequest* connect_req = req.mutable_rdma_connect_req();
+  connect_req->set_device_name(device_name);
+  connect_req->set_qpn(qpn);
+  connect_req->set_gid(
+      std::string_view(reinterpret_cast<const char*>(gid.data()), gid.size()));
+  connect_req->set_psn(psn);
+
+  auto resp = SendRequest(peer, req);
+  if (!resp.ok()) {
+    return resp.status();
+  }
+  if (!resp->has_rdma_connect_resp()) {
+    return absl::InternalError("missing RdmaConnectResponse in response");
+  }
+  return resp->rdma_connect_resp();
 }
 
 }  // namespace peregrine::internal

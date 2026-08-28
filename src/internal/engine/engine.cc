@@ -6,9 +6,11 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <string_view>
 #include <thread>  // NOLINT
 #include <utility>
 
+#include "infiniband/verbs.h"
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -31,9 +33,11 @@
 #include "src/internal/engine/worker.h"
 #include "src/internal/rdma/rdma_device_context.h"
 #include "src/internal/rdma/rdma_device_manager.h"
+#include "src/internal/rdma/rdma_queue_pair.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
 #include "src/internal/socket/socket_tcp.h"
+#include "src/util/util.h"
 
 namespace peregrine::internal {
 
@@ -88,8 +92,18 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
     LOG(WARNING) << "invalid self host info: " << self;
     return nullptr;
   }
-  return absl::WrapUnique(new Engine(config, self, std::move(acceptor),
-                                     std::move(rdma_device_manager), control));
+  auto e =
+      absl::WrapUnique(new Engine(config, self, std::move(acceptor),
+                                  std::move(rdma_device_manager), control));
+
+  // Register RDMA connection handler into Control.
+  control.SetRdmaConnectHandler(
+      [engine = e.get()](const proto::RdmaConnectRequest& req,
+                         proto::RdmaConnectResponse* resp) {
+        return engine->handleRdmaConnect(req, resp);
+      });
+
+  return e;
 }
 
 Engine::Engine(const Config& config, HostInfo& self,
@@ -121,6 +135,7 @@ Engine::Engine(const Config& config, HostInfo& self,
 }
 
 Engine::~Engine() {
+  control_.SetRdmaConnectHandler(nullptr);
   {
     absl::MutexLock _(mu_);
     if (acceptor_ != nullptr) {
@@ -274,6 +289,61 @@ void Engine::processRead(const Handle handle, const ReqId reqid,
   auto tracker = incoming_.FindOrCreate(handle, reqid, /*num_channels=*/1);
   std::memcpy(request.laddr, request.raddr, request.len);
   tracker->Set(chunk_t(0));
+}
+
+absl::Status Engine::handleRdmaConnect(const proto::RdmaConnectRequest& req,
+                                       proto::RdmaConnectResponse* resp) {
+  if (rdma_device_manager_ == nullptr) {
+    return absl::FailedPreconditionError("RDMA is not enabled on this engine");
+  }
+  if (resp == nullptr) {
+    return absl::InvalidArgumentError("null response pointer");
+  }
+
+  RdmaDeviceContext* dev = rdma_device_manager_->GetDevice(req.device_name());
+  if (dev == nullptr) {
+    return absl::NotFoundError(
+        absl::StrFormat("RDMA device not found: %s", req.device_name()));
+  }
+
+  if (req.gid().size() != sizeof(union ibv_gid)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("invalid GID size: expected %d, got %d",
+                        sizeof(union ibv_gid), req.gid().size()));
+  }
+
+  auto qp_or = RdmaQueuePair::Create(dev);
+  if (!qp_or.ok()) {
+    return qp_or.status();
+  }
+  auto qp = std::move(*qp_or);
+
+  union ibv_gid remote_gid = {};
+  std::memcpy(remote_gid.raw, req.gid().data(), sizeof(remote_gid.raw));
+
+  uint32_t local_psn = 0;
+  {
+    absl::MutexLock _(mu_);
+    local_psn = util::Random<uint32_t>(bitgen_) & 0x00FFFFFF;
+  }
+
+  auto status = qp->Connect(req.qpn(), remote_gid, req.psn(), local_psn);
+  if (!status.ok()) {
+    return status;
+  }
+
+  resp->set_qpn(qp->Qpn());
+  resp->set_gid(
+      std::string_view(reinterpret_cast<const char*>(dev->LocalGid().raw),
+                       sizeof(dev->LocalGid().raw)));
+  resp->set_psn(local_psn);
+
+  {
+    absl::MutexLock _(mu_);
+    qps_.push_back(std::move(qp));
+  }
+
+  return absl::OkStatus();
 }
 
 }  // namespace peregrine::internal
