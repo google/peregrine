@@ -177,18 +177,18 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
 
 bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
   const int num_conns = config_.num_conns_per_peer;
-  auto host_info = control_.GetPeerHostInfo(peer);
-  if (!host_info.ok()) {
+  auto peer_info = control_.GetPeerHostInfo(peer);
+  if (!peer_info.ok()) {
     LOG(WARNING) << "failed to resolve peer " << peer << ": "
-                 << host_info.status();
+                 << peer_info.status();
     return false;
   }
-  if (host_info->data_plane_listeners.empty()) {
+  if (peer_info->data_plane_listeners.empty()) {
     LOG(WARNING) << "no data plane listeners found for peer " << peer;
     return false;
   }
   // We only use the first data plane listener for now.
-  const Endpoint& target = host_info->data_plane_listeners[0];
+  const Endpoint& target = peer_info->data_plane_listeners[0];
 
   for (int i = 0; i < 2 * num_conns; ++i) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(target);
@@ -202,9 +202,89 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
   return !workers.empty();
 }
 
-bool Engine::connectRdma(Workers& /*workers*/, const Endpoint& peer) {
-  LOG(WARNING) << "RDMA connect is not implemented yet for peer " << peer;
-  return false;
+bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
+  if (rdma_device_manager_ == nullptr ||
+      rdma_device_manager_->Devices().empty()) {
+    LOG(WARNING) << "no local RDMA devices available";
+    return false;
+  }
+
+  // Select local RDMA device to allocate the sender QP. For now, we select
+  // the first device in the list.
+  RdmaDeviceContext* local_dev = rdma_device_manager_->Devices()[0].get();
+
+  const int num_conns = config_.num_conns_per_peer;
+  auto peer_info = control_.GetPeerHostInfo(peer);
+  if (!peer_info.ok()) {
+    LOG(WARNING) << "failed to resolve peer " << peer << ": "
+                 << peer_info.status();
+    return false;
+  }
+  if (peer_info->rdma_interfaces.empty()) {
+    LOG(WARNING) << "no RDMA interfaces found for peer " << peer;
+    return false;
+  }
+
+  // Target device name on the remote peer. For now, we select the first
+  // interface in the list.
+  const std::string_view remote_device_name =
+      peer_info->rdma_interfaces[0].name;
+
+  for (int i = 0; i < 2 * num_conns; ++i) {
+    auto qp_or = RdmaQueuePair::Create(local_dev);
+    if (!qp_or.ok()) {
+      LOG(WARNING) << "failed to create local RDMA queue pair: "
+                   << qp_or.status();
+      continue;
+    }
+    auto qp = std::move(*qp_or);
+
+    uint32_t local_psn = 0;
+    uint32_t local_lkey = 0;
+    uint32_t initiator_rkey = 0;
+    {
+      absl::MutexLock _(mu_);
+      local_psn = util::Random<uint32_t>(bitgen_) & 0x00FFFFFF;
+      if (rdma_memory_manager_ != nullptr) {
+        local_lkey = rdma_memory_manager_->GetDefaultLKey(local_dev->Name());
+        initiator_rkey =
+            rdma_memory_manager_->GetDefaultRKey(local_dev->Name());
+      }
+    }
+
+    auto resp_or = control_.ConnectRdmaPeer(peer, remote_device_name, qp->Qpn(),
+                                            local_dev->LocalGid().raw,
+                                            local_psn, initiator_rkey);
+    if (!resp_or.ok()) {
+      LOG(WARNING) << "ConnectRdmaPeer RPC failed for peer " << peer << ": "
+                   << resp_or.status();
+      continue;
+    }
+    const auto& resp = *resp_or;
+
+    if (resp.gid().size() != sizeof(union ibv_gid)) {
+      LOG(WARNING) << "invalid GID size in RdmaConnectResponse from peer "
+                   << peer;
+      continue;
+    }
+
+    union ibv_gid remote_gid = {};
+    std::memcpy(remote_gid.raw, resp.gid().data(), sizeof(remote_gid.raw));
+
+    auto status = qp->Connect(resp.qpn(), remote_gid, resp.psn(), local_psn);
+    if (!status.ok()) {
+      LOG(WARNING) << "failed to connect local QP to RTS: " << status;
+      continue;
+    }
+
+    auto channel = CreateRdmaChannel(std::move(qp), local_lkey, resp.rkey());
+    auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
+                                       incoming_, std::move(channel));
+    workers.push_back(std::move(sw));
+    if (workers.size() >= num_conns) break;
+  }
+
+  return !workers.empty();
 }
 
 absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
