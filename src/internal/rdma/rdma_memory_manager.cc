@@ -199,6 +199,18 @@ absl::StatusOr<uint32_t> RdmaMemoryManager::GetRKey(
   return mr->rkey;
 }
 
+uint32_t RdmaMemoryManager::GetDefaultLKey(std::string_view device_name) const {
+  if (registered_regions_.empty()) {
+    return 0;
+  }
+  const auto& region = registered_regions_.begin()->second;
+  auto mr_it = region.device_mrs.find(std::string(device_name));
+  if (mr_it == region.device_mrs.end() || mr_it->second == nullptr) {
+    return 0;
+  }
+  return mr_it->second->lkey;
+}
+
 uint32_t RdmaMemoryManager::GetDefaultRKey(std::string_view device_name) const {
   if (registered_regions_.empty()) {
     return 0;

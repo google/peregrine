@@ -67,6 +67,14 @@ class RdmaMemoryManager final {
   absl::StatusOr<uint32_t> GetRKey(const void* addr, size_t length,
                                    std::string_view device_name) const;
 
+  // Returns the LKey of the first pre-registered memory region on
+  // `device_name`, or 0 if no memory regions are registered.
+  //
+  // NOTE: This function is used during RDMA channel instantiation to resolve
+  // the local LKey when no specific buffer address is known yet. It will be
+  // deprecated once dynamic per-transfer key resolution is introduced.
+  uint32_t GetDefaultLKey(std::string_view device_name) const;
+
   // Returns the RKey of the first pre-registered memory region on
   // `device_name`, or 0 if no memory regions are registered.
   //

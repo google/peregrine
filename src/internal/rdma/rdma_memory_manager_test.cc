@@ -178,11 +178,12 @@ TEST_F(RdmaMemoryManagerTest, DeregisterMemory) {
   EXPECT_TRUE(absl::IsNotFound(mem_manager.DeregisterMemory(buffer.data())));
 }
 
-TEST_F(RdmaMemoryManagerTest, GetDefaultRKey) {
+TEST_F(RdmaMemoryManagerTest, GetDefaultKeys) {
   RdmaMemoryManager mem_manager(dev_mgr_.get());
 
-  // Before registration, default RKey should be 0.
+  // Before registration, default keys should be 0.
   for (const auto& dev_ctx : dev_mgr_->Devices()) {
+    EXPECT_EQ(mem_manager.GetDefaultLKey(dev_ctx->Name()), 0);
     EXPECT_EQ(mem_manager.GetDefaultRKey(dev_ctx->Name()), 0);
   }
 
@@ -190,9 +191,13 @@ TEST_F(RdmaMemoryManagerTest, GetDefaultRKey) {
   std::vector<uint8_t> buffer(kBufferSize, 0);
   ASSERT_TRUE(mem_manager.RegisterMemory(buffer.data(), buffer.size()).ok());
 
-  // After registration, default RKey should match registered RKey.
+  // After registration, default keys should match registered keys.
   for (const auto& dev_ctx : dev_mgr_->Devices()) {
+    EXPECT_NE(mem_manager.GetDefaultLKey(dev_ctx->Name()), 0);
     EXPECT_NE(mem_manager.GetDefaultRKey(dev_ctx->Name()), 0);
+    EXPECT_EQ(
+        mem_manager.GetDefaultLKey(dev_ctx->Name()),
+        *mem_manager.GetLKey(buffer.data(), buffer.size(), dev_ctx->Name()));
     EXPECT_EQ(
         mem_manager.GetDefaultRKey(dev_ctx->Name()),
         *mem_manager.GetRKey(buffer.data(), buffer.size(), dev_ctx->Name()));
