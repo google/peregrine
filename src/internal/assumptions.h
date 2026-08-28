@@ -169,6 +169,12 @@ inline constexpr bool kReceiverSideChunkWriteContentionIsVeryLow = true;
 // accordingly.
 inline constexpr bool kUseAckChunkToSignalChunkWriteCompletion = true;
 
+// For one-sided RDMA transfers, write completion is tracked via local hardware
+// CQEs on the sender, and the receiver memory is populated directly by hardware
+// DMA without per-chunk software ACKs.
+inline constexpr bool kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe =
+    true;
+
 // Assumptions about chunk header serialization.
 // ---------------------------------------------------------------------------
 //

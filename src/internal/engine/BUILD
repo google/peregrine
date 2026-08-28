@@ -50,6 +50,7 @@ cc_library(
     hdrs = ["worker.h"],
     deps = [
         "//src/api:transport_types",
+        "//src/internal:assumptions",
         "//src/internal/base:hostinfo",
         "//src/internal/channel",
         "//src/internal/channel:channel_types",

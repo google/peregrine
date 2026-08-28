@@ -9,6 +9,7 @@
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 #include "src/api/transport_types.h"
+#include "src/internal/assumptions.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_types.h"
@@ -89,11 +90,40 @@ void Worker::SendLoop() {
       LOG(WARNING) << "send chunk failed";
       break;
     }
+
+    if (channel_->Type() == ChannelType::kReliableMessage) {
+      // TODO(mubashirq): Abstract one-sided vs two-sided transfer semantics
+      // (e.g. sender-side CQE tracking vs software ACKs) as a Channel property
+      // rather than branching on ChannelType.
+      //
+      // For one-sided RDMA channels, successful SendChunk completes the
+      // transfer at the hardware level (confirmed via CQE), with no software
+      // ACK chunk sent by the receiver.
+      static_assert(
+          assumptions::kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe);
+      outgoing_.FindOrCreate(chunk.handle, chunk.reqid, chunk.nchunks)
+          ->Set(chunk.index);
+    }
   }
 }
 
 void Worker::RecvLoop() {
   log("recv loop started");
+  if (channel_->Type() == ChannelType::kReliableMessage) {
+    // TODO(mubashirq): Abstract receiver polling requirements as a Channel
+    // property rather than branching on ChannelType.
+    //
+    // One-sided RDMA channels do not receive software chunks over the wire;
+    // remote memory is written directly by hardware DMA and completions are
+    // signaled to the sender via CQE.
+    static_assert(
+        assumptions::kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe);
+    absl::MutexLock _(mu_);
+    mu_.Await(absl::Condition(&stop_));
+    log("recv loop stopped");
+    return;
+  }
+
   while (true) {
     {
       absl::MutexLock _(mu_);
