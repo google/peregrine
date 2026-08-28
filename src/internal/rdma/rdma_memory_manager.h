@@ -67,6 +67,15 @@ class RdmaMemoryManager final {
   absl::StatusOr<uint32_t> GetRKey(const void* addr, size_t length,
                                    std::string_view device_name) const;
 
+  // Returns the RKey of the first pre-registered memory region on
+  // `device_name`, or 0 if no memory regions are registered.
+  //
+  // NOTE: This function is used during the initial RdmaConnect handshake to
+  // advertise the responder's pre-registered memory key when no specific buffer
+  // address is known yet. It will be deprecated once dynamic per-transfer key
+  // resolution (e.g. PeerRequests/PeerResponse) is introduced.
+  uint32_t GetDefaultRKey(std::string_view device_name) const;
+
  private:
   // Internal record holding per-device ibv_mr handles for a registered buffer.
   struct RegisteredRegion {

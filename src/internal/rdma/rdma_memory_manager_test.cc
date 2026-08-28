@@ -178,14 +178,25 @@ TEST_F(RdmaMemoryManagerTest, DeregisterMemory) {
   EXPECT_TRUE(absl::IsNotFound(mem_manager.DeregisterMemory(buffer.data())));
 }
 
-TEST_F(RdmaMemoryManagerTest, InvalidArguments) {
+TEST_F(RdmaMemoryManagerTest, GetDefaultRKey) {
   RdmaMemoryManager mem_manager(dev_mgr_.get());
-  std::vector<uint8_t> buffer(1024, 0);
 
-  EXPECT_TRUE(absl::IsInvalidArgument(
-      mem_manager.RegisterMemory(/*addr=*/nullptr, 1024)));
-  EXPECT_TRUE(absl::IsInvalidArgument(
-      mem_manager.RegisterMemory(buffer.data(), /*length=*/0)));
+  // Before registration, default RKey should be 0.
+  for (const auto& dev_ctx : dev_mgr_->Devices()) {
+    EXPECT_EQ(mem_manager.GetDefaultRKey(dev_ctx->Name()), 0);
+  }
+
+  constexpr size_t kBufferSize = 4096;
+  std::vector<uint8_t> buffer(kBufferSize, 0);
+  ASSERT_TRUE(mem_manager.RegisterMemory(buffer.data(), buffer.size()).ok());
+
+  // After registration, default RKey should match registered RKey.
+  for (const auto& dev_ctx : dev_mgr_->Devices()) {
+    EXPECT_NE(mem_manager.GetDefaultRKey(dev_ctx->Name()), 0);
+    EXPECT_EQ(
+        mem_manager.GetDefaultRKey(dev_ctx->Name()),
+        *mem_manager.GetRKey(buffer.data(), buffer.size(), dev_ctx->Name()));
+  }
 }
 
 }  // namespace

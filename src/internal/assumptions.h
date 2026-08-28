@@ -89,7 +89,7 @@ inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
 // Assumptions about RDMA memory registration.
 // ---------------------------------------------------------------------------
 //
-// Peregrin will have a NUMA-aware memory allocator in its buffer API.
+// Peregrine will have a NUMA-aware memory allocator in its buffer API.
 //
 // For now, Peregrine transport provides functions to register application-
 // provided memory buffers across all active RDMA devices on the host.
@@ -100,6 +100,13 @@ inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
 //  - Chunked or partial memory registration spanning across distinct slabs
 //    in a single transfer request is not supported.
 inline constexpr bool kPeregrineRegistersApplicationAllocatedMemory = true;
+//
+// Memory buffers transferred over an RDMA channel belong to a pre-registered
+// memory region whose remote key (rkey) is exchanged during the initial
+// connection handshake (RdmaConnect) and remains valid for the lifetime of the
+// channel. This assumption may change in the future to support dynamic
+// per-transfer rkey resolution.
+inline constexpr bool kRdmaChannelRkeyIsStaticForLifetime = true;
 
 // Assumptions about transport request, handle, buffer and chunks.
 // ---------------------------------------------------------------------------

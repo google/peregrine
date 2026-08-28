@@ -191,7 +191,7 @@ absl::StatusOr<HostInfo> Control::GetPeerHostInfo(const Endpoint& peer) {
 
 absl::StatusOr<proto::RdmaConnectResponse> Control::ConnectRdmaPeer(
     const Endpoint& peer, std::string_view device_name, uint32_t qpn,
-    absl::Span<const uint8_t> gid, uint32_t psn) {
+    absl::Span<const uint8_t> gid, uint32_t psn, uint32_t rkey) {
   if (!peer.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError("invalid peer endpoint");
   }
@@ -208,6 +208,9 @@ absl::StatusOr<proto::RdmaConnectResponse> Control::ConnectRdmaPeer(
   connect_req->set_gid(
       std::string_view(reinterpret_cast<const char*>(gid.data()), gid.size()));
   connect_req->set_psn(psn);
+  if (rkey != 0) {
+    connect_req->set_rkey(rkey);
+  }
 
   auto resp = SendRequest(peer, req);
   if (!resp.ok()) {

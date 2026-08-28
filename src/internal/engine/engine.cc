@@ -368,6 +368,9 @@ absl::Status Engine::handleRdmaConnect(const proto::RdmaConnectRequest& req,
 
   {
     absl::MutexLock _(mu_);
+    if (rdma_memory_manager_ != nullptr) {
+      resp->set_rkey(rdma_memory_manager_->GetDefaultRKey(dev->Name()));
+    }
     qps_.push_back(std::move(qp));
   }
 

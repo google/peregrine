@@ -42,6 +42,9 @@ message RdmaConnectRequest {
   uint32 qpn = 3;          // Initiator's local QP number
   bytes gid = 4;           // Initiator's local GID (16 bytes)
   uint32 psn = 5;          // Initiator's starting packet sequence number
+  // Initiator's memory region rkey. Assumed static for channel lifetime, but
+  // may change in the future to dynamic per-transfer resolution.
+  uint32 rkey = 6;
 }
 
 // Response to RdmaConnectRequest containing the responder's QP parameters.
@@ -49,6 +52,9 @@ message RdmaConnectResponse {
   uint32 qpn = 1;  // Responder's assigned QP number
   bytes gid = 2;   // Responder's GID on that device (16 bytes)
   uint32 psn = 3;  // Responder's starting packet sequence number
+  // Responder's memory region rkey. Assumed static for channel lifetime, but
+  // may change in the future to dynamic per-transfer resolution.
+  uint32 rkey = 4;
 }
 
 // See internal/base/hostinfo.h

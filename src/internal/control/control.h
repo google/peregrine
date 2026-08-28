@@ -66,7 +66,7 @@ class Control final {
   // Exchanges QP credentials out-of-band with a remote peer.
   absl::StatusOr<proto::RdmaConnectResponse> ConnectRdmaPeer(
       const Endpoint& peer, std::string_view device_name, uint32_t qpn,
-      absl::Span<const uint8_t> gid, uint32_t psn = 0);
+      absl::Span<const uint8_t> gid, uint32_t psn = 0, uint32_t rkey = 0);
 
  private:
   // Constructor.

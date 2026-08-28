@@ -191,18 +191,22 @@ TEST_F(ControlTest, ConnectRdmaPeer) {
         EXPECT_EQ(req.device_name(), "irdma0");
         EXPECT_EQ(req.qpn(), 100);
         EXPECT_EQ(req.psn(), 0x123456);
+        EXPECT_EQ(req.rkey(), 0xDEADBEEF);
         resp->set_qpn(200);
         resp->set_gid(req.gid());
         resp->set_psn(0x654321);
+        resp->set_rkey(0xCAFEBABE);
         return absl::OkStatus();
       });
 
   const std::vector<uint8_t> dummy_gid(16, 0xAB);
   auto resp_or = ctrl_a->ConnectRdmaPeer(host_b.control_plane_listener,
-                                         "irdma0", 100, dummy_gid, 0x123456);
+                                         "irdma0", 100, dummy_gid, 0x123456,
+                                         /*rkey=*/0xDEADBEEF);
   ASSERT_TRUE(resp_or.ok()) << resp_or.status();
   EXPECT_EQ(resp_or->qpn(), 200);
   EXPECT_EQ(resp_or->psn(), 0x654321);
+  EXPECT_EQ(resp_or->rkey(), 0xCAFEBABE);
   EXPECT_EQ(resp_or->gid(),
             std::string_view(reinterpret_cast<const char*>(dummy_gid.data()),
                              dummy_gid.size()));
