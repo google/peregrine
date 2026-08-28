@@ -23,6 +23,7 @@ cc_library(
         "//src/internal/control",
         "//src/internal/rdma:rdma_device_context",
         "//src/internal/rdma:rdma_device_manager",
+        "//src/internal/rdma:rdma_memory_manager",
         "//src/internal/rdma:rdma_queue_pair",
         "//src/internal/request:request_tracker",
         "//src/internal/socket:acceptor",

@@ -87,7 +87,21 @@ NB_MODULE(peregrine, m) {
             ThrowIfFailed(status.status());
             return status.value();
           },
-          nb::arg("handle"));
+          nb::arg("handle"))
+      .def(
+          "register_memory",
+          [](Transport& self, uintptr_t addr, size_t length) {
+            ThrowIfFailed(
+                self.RegisterMemory(reinterpret_cast<void*>(addr), length));
+          },
+          nb::arg("addr"), nb::arg("length"))
+      .def(
+          "deregister_memory",
+          [](Transport& self, uintptr_t addr) {
+            ThrowIfFailed(
+                self.DeregisterMemory(reinterpret_cast<const void*>(addr)));
+          },
+          nb::arg("addr"));
 
   // Bind `TransportType` enum
   nb::enum_<TransportType>(m, "TransportType")

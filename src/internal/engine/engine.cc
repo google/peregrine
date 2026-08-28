@@ -33,6 +33,7 @@
 #include "src/internal/engine/worker.h"
 #include "src/internal/rdma/rdma_device_context.h"
 #include "src/internal/rdma/rdma_device_manager.h"
+#include "src/internal/rdma/rdma_memory_manager.h"
 #include "src/internal/rdma/rdma_queue_pair.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
@@ -117,6 +118,11 @@ Engine::Engine(const Config& config, HostInfo& self,
       acceptor_(std::move(acceptor)),
       rdma_device_manager_(std::move(rdma_device_manager)) {
   DCHECK(config_.IsValid());
+
+  if (rdma_device_manager_ != nullptr) {
+    rdma_memory_manager_ =
+        std::make_unique<RdmaMemoryManager>(rdma_device_manager_.get());
+  }
 
   // Start an acceptor thread if TCP acceptor is present.
   if (acceptor_ != nullptr) {
@@ -213,6 +219,28 @@ absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
     }
   }
   return NotFoundError(handle);
+}
+
+absl::Status Engine::RegisterMemory(void* addr, size_t length) {
+  absl::MutexLock _(mu_);
+  if (rdma_memory_manager_ != nullptr) {
+    return rdma_memory_manager_->RegisterMemory(addr, length);
+  }
+  if (config_.transport_type == TransportType::kTcp) {
+    return absl::OkStatus();
+  }
+  return absl::FailedPreconditionError("RDMA memory manager not initialized");
+}
+
+absl::Status Engine::DeregisterMemory(const void* addr) {
+  absl::MutexLock _(mu_);
+  if (rdma_memory_manager_ != nullptr) {
+    return rdma_memory_manager_->DeregisterMemory(addr);
+  }
+  if (config_.transport_type == TransportType::kTcp) {
+    return absl::OkStatus();
+  }
+  return absl::FailedPreconditionError("RDMA memory manager not initialized");
 }
 
 bool Engine::hasWork() const { return !reqs_.empty() || stop_; }

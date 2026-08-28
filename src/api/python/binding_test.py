@@ -92,5 +92,15 @@ class BindTest(absltest.TestCase):
     else:
       self.fail("transport timed out")
 
+  def test_register_memory(self):
+    lbuf = ctypes.create_string_buffer(4096)
+    port = util.find_free_port(socket.AF_INET, tcp=True)
+    transport = pg.create_transport(f"127.0.0.1:{port}", num_conns_per_peer=1)
+    self.assertIsNotNone(transport)
+    # Registration on TCP transport is a no-op that succeeds.
+    transport.register_memory(ctypes.addressof(lbuf), len(lbuf))
+    transport.deregister_memory(ctypes.addressof(lbuf))
+
+
 if __name__ == "__main__":
   absltest.main()

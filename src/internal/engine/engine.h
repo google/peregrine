@@ -24,6 +24,7 @@
 #include "src/internal/control/control.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/rdma/rdma_device_manager.h"
+#include "src/internal/rdma/rdma_memory_manager.h"
 #include "src/internal/rdma/rdma_queue_pair.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
@@ -56,6 +57,20 @@ class Engine final {
 
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);
+
+  // Registers a contiguous memory buffer across active RDMA hardware adapters.
+  absl::Status RegisterMemory(void* addr, size_t length)
+      ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Deregisters a previously registered memory buffer from active RDMA hardware
+  // adapters.
+  absl::Status DeregisterMemory(const void* addr) ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Returns the RDMA memory manager if initialized.
+  const RdmaMemoryManager* GetMemoryManager() const ABSL_LOCKS_EXCLUDED(mu_) {
+    absl::MutexLock _(mu_);
+    return rdma_memory_manager_.get();
+  }
 
  private:
   struct Entry {
@@ -126,7 +141,7 @@ class Engine final {
   HostInfo& self_;
   Control& control_;
 
-  absl::Mutex mu_;
+  mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);
   absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
   std::deque<Entry> reqs_ ABSL_GUARDED_BY(mu_);
@@ -139,6 +154,7 @@ class Engine final {
 
   // RDMA data plane.
   std::unique_ptr<RdmaDeviceManager> rdma_device_manager_;
+  std::unique_ptr<RdmaMemoryManager> rdma_memory_manager_ ABSL_GUARDED_BY(mu_);
   std::vector<std::unique_ptr<RdmaQueuePair>> qps_ ABSL_GUARDED_BY(mu_);
 
   absl::flat_hash_map<Endpoint, Workers> send_workers_;

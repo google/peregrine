@@ -51,19 +51,15 @@ class TransportImpl final : public Transport {
   }
 
   // Registers a contiguous memory buffer of `length` bytes starting at `addr`
-  // with the transport.
+  // across active RDMA hardware adapters.
   absl::Status RegisterMemory(void* addr, size_t length) override {
-    // TODO: When RDMA classes are integrated into Engine, delegate memory
-    // registration to the engine's RdmaMemoryManager.
-    return absl::OkStatus();
+    return engine_->RegisterMemory(addr, length);
   }
 
-  // Deregisters the memory buffer starting at base `addr` previously registered
-  // via RegisterMemory().
+  // Deregisters the memory buffer starting at base `addr` across active RDMA
+  // hardware adapters.
   absl::Status DeregisterMemory(const void* addr) override {
-    // TODO: When RDMA classes are integrated into Engine, delegate memory
-    // deregistration to the engine's RdmaMemoryManager.
-    return absl::OkStatus();
+    return engine_->DeregisterMemory(addr);
   }
 
  private:
