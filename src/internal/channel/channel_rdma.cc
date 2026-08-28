@@ -29,6 +29,8 @@ RdmaChannel::RdmaChannel(std::unique_ptr<RdmaQueuePair> qp, uint32_t lkey,
   DCHECK(qp_ != nullptr);
 }
 
+RdmaChannel::~RdmaChannel() = default;
+
 void RdmaChannel::Shutdown() {
   if (is_shutdown_.exchange(true, std::memory_order_acq_rel)) {
     return;

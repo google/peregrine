@@ -12,6 +12,10 @@
 #include "absl/strings/str_format.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/channel/channel_types.h"
+#include "src/internal/rdma/rdma_device_context.h"
+#include "src/internal/rdma/rdma_device_manager.h"
+#include "src/internal/rdma/rdma_queue_pair.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
@@ -70,6 +74,19 @@ TEST_P(ChannelUtilTest, Create) {
   }
 
   acceptor_->Stop();
+}
+
+TEST(ChannelUtilNonParamTest, CreateRdmaChannel) {
+  auto dev_mgr = RdmaDeviceManager::Create();
+  if (!dev_mgr.ok() || dev_mgr.value()->Devices().empty()) {
+    GTEST_SKIP() << "No RDMA hardware devices found on this host.";
+  }
+  RdmaDeviceContext* const dev_ctx = dev_mgr.value()->Devices()[0].get();
+  auto qp_or = RdmaQueuePair::Create(dev_ctx);
+  ASSERT_TRUE(qp_or.ok());
+  auto ch = CreateRdmaChannel(std::move(*qp_or), 0x1234, 0x5678);
+  ASSERT_NE(ch, nullptr);
+  EXPECT_EQ(ch->Type(), ChannelType::kReliableMessage);
 }
 
 }  // namespace

@@ -7,8 +7,10 @@
 
 #include "src/internal/base/endpoint.h"
 #include "src/internal/channel/channel.h"
+#include "src/internal/channel/channel_rdma.h"
 #include "src/internal/channel/channel_tcp.h"
 #include "src/internal/channel/channel_udp.h"
+#include "src/internal/rdma/rdma_queue_pair.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_udp.h"
 
@@ -24,6 +26,12 @@ inline std::unique_ptr<Channel> CreateTcpChannel(
 inline std::unique_ptr<Channel> CreateUdpChannel(
     std::unique_ptr<UdpSocket> socket) {
   return std::make_unique<UdpChannel>(std::move(socket));
+}
+
+// Creates an rdma channel.
+inline std::unique_ptr<Channel> CreateRdmaChannel(
+    std::unique_ptr<RdmaQueuePair> qp, uint32_t lkey = 0, uint32_t rkey = 0) {
+  return std::make_unique<RdmaChannel>(std::move(qp), lkey, rkey);
 }
 
 using Channels = std::vector<std::unique_ptr<Channel>>;
