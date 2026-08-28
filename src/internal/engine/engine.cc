@@ -166,6 +166,17 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
   if (workers.size() >= num_conns) {
     return true;
   }
+  if (config_.transport_type == TransportType::kTcp) {
+    return connectTcp(workers, peer);
+  }
+  if (config_.transport_type == TransportType::kRdma) {
+    return connectRdma(workers, peer);
+  }
+  return false;
+}
+
+bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
+  const int num_conns = config_.num_conns_per_peer;
   auto host_info = control_.GetPeerHostInfo(peer);
   if (!host_info.ok()) {
     LOG(WARNING) << "failed to resolve peer " << peer << ": "
@@ -189,6 +200,11 @@ bool Engine::connect(Workers& workers, const Endpoint& peer) {
     if (workers.size() >= num_conns) break;
   }
   return !workers.empty();
+}
+
+bool Engine::connectRdma(Workers& /*workers*/, const Endpoint& peer) {
+  LOG(WARNING) << "RDMA connect is not implemented yet for peer " << peer;
+  return false;
 }
 
 absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,

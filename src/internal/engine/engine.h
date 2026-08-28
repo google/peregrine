@@ -96,6 +96,12 @@ class Engine final {
   // Connects to the `peer` to create a number of workers.
   bool connect(Workers& workers, const Endpoint& peer);
 
+  // Connects to a TCP `peer`.
+  bool connectTcp(Workers& workers, const Endpoint& peer);
+
+  // Connects to an RDMA `peer`.
+  bool connectRdma(Workers& workers, const Endpoint& peer);
+
   // Handles an incoming RDMA connection request from a remote peer.
   absl::Status handleRdmaConnect(const proto::RdmaConnectRequest& req,
                                  proto::RdmaConnectResponse* resp);
