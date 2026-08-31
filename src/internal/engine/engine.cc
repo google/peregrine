@@ -6,6 +6,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <thread>  // NOLINT
 #include <utility>
@@ -108,29 +109,27 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
 }
 
 Engine::Engine(const Config& config, HostInfo& self,
-               std::unique_ptr<TcpAcceptor> acceptor,
-               std::unique_ptr<RdmaDeviceManager> rdma_device_manager,
-               Control& control)
+               std::unique_ptr<TcpAcceptor> tcp_acceptor,
+               std::unique_ptr<RdmaDeviceManager> rdma_devmgr, Control& control)
     : config_(config),
       self_(self),
       control_(control),
       stop_(false),
-      acceptor_(std::move(acceptor)),
-      rdma_device_manager_(std::move(rdma_device_manager)) {
+      tcp_acceptor_(std::move(tcp_acceptor)),
+      rdma_devmgr_(std::move(rdma_devmgr)) {
   DCHECK(config_.IsValid());
 
-  if (rdma_device_manager_ != nullptr) {
-    rdma_memory_manager_ =
-        std::make_unique<RdmaMemoryManager>(rdma_device_manager_.get());
+  if (rdma_devmgr_ != nullptr) {
+    rdma_memmgr_ = std::make_unique<RdmaMemoryManager>(rdma_devmgr_.get());
   }
 
   // Start an acceptor thread if TCP acceptor is present.
-  if (acceptor_ != nullptr) {
-    acceptor_thread_ = std::jthread([this]() {
+  if (tcp_acceptor_ != nullptr) {
+    tcp_acceptor_thread_ = std::jthread([this]() {
       auto callback = [this](std::unique_ptr<TcpSocket> socket) {
         accept(std::move(socket));
       };
-      acceptor_->Start(callback);
+      tcp_acceptor_->Start(callback);
     });
   }
 
@@ -144,8 +143,8 @@ Engine::~Engine() {
   control_.SetRdmaConnectHandler(nullptr);
   {
     absl::MutexLock _(mu_);
-    if (acceptor_ != nullptr) {
-      acceptor_->Stop();
+    if (tcp_acceptor_ != nullptr) {
+      tcp_acceptor_->Stop();
     }
     stop_ = true;
   }
@@ -203,15 +202,14 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
 }
 
 bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
-  if (rdma_device_manager_ == nullptr ||
-      rdma_device_manager_->Devices().empty()) {
+  if (rdma_devmgr_ == nullptr || rdma_devmgr_->Devices().empty()) {
     LOG(WARNING) << "no local RDMA devices available";
     return false;
   }
 
   // Select local RDMA device to allocate the sender QP. For now, we select
   // the first device in the list.
-  RdmaDeviceContext* local_dev = rdma_device_manager_->Devices()[0].get();
+  RdmaDeviceContext* local_dev = rdma_devmgr_->Devices()[0].get();
 
   const int num_conns = config_.num_conns_per_peer;
   auto peer_info = control_.GetPeerHostInfo(peer);
@@ -245,10 +243,9 @@ bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
     {
       absl::MutexLock _(mu_);
       local_psn = util::Random<uint32_t>(bitgen_) & 0x00FFFFFF;
-      if (rdma_memory_manager_ != nullptr) {
-        local_lkey = rdma_memory_manager_->GetDefaultLKey(local_dev->Name());
-        initiator_rkey =
-            rdma_memory_manager_->GetDefaultRKey(local_dev->Name());
+      if (rdma_memmgr_ != nullptr) {
+        local_lkey = rdma_memmgr_->GetDefaultLKey(local_dev->Name());
+        initiator_rkey = rdma_memmgr_->GetDefaultRKey(local_dev->Name());
       }
     }
 
@@ -319,8 +316,8 @@ absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
 
 absl::Status Engine::RegisterMemory(void* addr, size_t length) {
   absl::MutexLock _(mu_);
-  if (rdma_memory_manager_ != nullptr) {
-    return rdma_memory_manager_->RegisterMemory(addr, length);
+  if (rdma_memmgr_ != nullptr) {
+    return rdma_memmgr_->RegisterMemory(addr, length);
   }
   if (config_.transport_type == TransportType::kTcp) {
     return absl::OkStatus();
@@ -330,8 +327,8 @@ absl::Status Engine::RegisterMemory(void* addr, size_t length) {
 
 absl::Status Engine::DeregisterMemory(const void* addr) {
   absl::MutexLock _(mu_);
-  if (rdma_memory_manager_ != nullptr) {
-    return rdma_memory_manager_->DeregisterMemory(addr);
+  if (rdma_memmgr_ != nullptr) {
+    return rdma_memmgr_->DeregisterMemory(addr);
   }
   if (config_.transport_type == TransportType::kTcp) {
     return absl::OkStatus();
@@ -417,14 +414,14 @@ void Engine::processRead(const Handle handle, const ReqId reqid,
 
 absl::Status Engine::handleRdmaConnect(const proto::RdmaConnectRequest& req,
                                        proto::RdmaConnectResponse* resp) {
-  if (rdma_device_manager_ == nullptr) {
+  if (rdma_devmgr_ == nullptr) {
     return absl::FailedPreconditionError("RDMA is not enabled on this engine");
   }
   if (resp == nullptr) {
     return absl::InvalidArgumentError("null response pointer");
   }
 
-  RdmaDeviceContext* dev = rdma_device_manager_->GetDevice(req.device_name());
+  RdmaDeviceContext* dev = rdma_devmgr_->GetDevice(req.device_name());
   if (dev == nullptr) {
     return absl::NotFoundError(
         absl::StrFormat("RDMA device not found: %s", req.device_name()));
@@ -437,9 +434,7 @@ absl::Status Engine::handleRdmaConnect(const proto::RdmaConnectRequest& req,
   }
 
   auto qp_or = RdmaQueuePair::Create(dev);
-  if (!qp_or.ok()) {
-    return qp_or.status();
-  }
+  if (!qp_or.ok()) return qp_or.status();
   auto qp = std::move(*qp_or);
 
   union ibv_gid remote_gid = {};
@@ -452,9 +447,7 @@ absl::Status Engine::handleRdmaConnect(const proto::RdmaConnectRequest& req,
   }
 
   auto status = qp->Connect(req.qpn(), remote_gid, req.psn(), local_psn);
-  if (!status.ok()) {
-    return status;
-  }
+  if (!status.ok()) return status;
 
   resp->set_qpn(qp->Qpn());
   resp->set_gid(
@@ -464,10 +457,10 @@ absl::Status Engine::handleRdmaConnect(const proto::RdmaConnectRequest& req,
 
   {
     absl::MutexLock _(mu_);
-    if (rdma_memory_manager_ != nullptr) {
-      resp->set_rkey(rdma_memory_manager_->GetDefaultRKey(dev->Name()));
+    if (rdma_memmgr_ != nullptr) {
+      resp->set_rkey(rdma_memmgr_->GetDefaultRKey(dev->Name()));
     }
-    qps_.push_back(std::move(qp));
+    rdma_qps_.push_back(std::move(qp));
   }
 
   return absl::OkStatus();

@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_ENGINE_ENGINE_H_
 #define PEREGRINE_SRC_INTERNAL_ENGINE_ENGINE_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -11,6 +12,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/random/random.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
@@ -69,7 +71,7 @@ class Engine final {
   // Returns the RDMA memory manager if initialized.
   const RdmaMemoryManager* GetMemoryManager() const ABSL_LOCKS_EXCLUDED(mu_) {
     absl::MutexLock _(mu_);
-    return rdma_memory_manager_.get();
+    return rdma_memmgr_.get();
   }
 
  private:
@@ -83,9 +85,8 @@ class Engine final {
  private:
   // Constructor.
   Engine(const Config& config, HostInfo& self,
-         std::unique_ptr<TcpAcceptor> acceptor,
-         std::unique_ptr<RdmaDeviceManager> rdma_device_manager,
-         Control& control);
+         std::unique_ptr<TcpAcceptor> tcp_acceptor,
+         std::unique_ptr<RdmaDeviceManager> rdma_devmgr, Control& control);
 
  private:
   using Workers = std::vector<std::unique_ptr<Worker>>;
@@ -156,16 +157,17 @@ class Engine final {
   RequestTracker incoming_;
 
   // TCP data plane.
-  std::unique_ptr<TcpAcceptor> acceptor_;
+  std::unique_ptr<TcpAcceptor> tcp_acceptor_;
 
   // RDMA data plane.
-  std::unique_ptr<RdmaDeviceManager> rdma_device_manager_;
-  std::unique_ptr<RdmaMemoryManager> rdma_memory_manager_ ABSL_GUARDED_BY(mu_);
-  std::vector<std::unique_ptr<RdmaQueuePair>> qps_ ABSL_GUARDED_BY(mu_);
+  // TODO(mubashirq): add rdma/rdma_acceptor.{h,cc}
+  std::unique_ptr<RdmaDeviceManager> rdma_devmgr_;
+  std::unique_ptr<RdmaMemoryManager> rdma_memmgr_ ABSL_GUARDED_BY(mu_);
+  std::vector<std::unique_ptr<RdmaQueuePair>> rdma_qps_ ABSL_GUARDED_BY(mu_);
 
   absl::flat_hash_map<Endpoint, Workers> send_workers_;
   Workers recv_workers_;
-  std::jthread acceptor_thread_;
+  std::jthread tcp_acceptor_thread_;
   std::jthread main_thread_;
 };
 
