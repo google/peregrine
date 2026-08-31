@@ -37,7 +37,7 @@ class GrpcClient final {
   bool invariant() const { return stub_ != nullptr; }
 
  private:
-  std::unique_ptr<rpc::PeregrineService::Stub> stub_;
+  std::unique_ptr<control::PeregrineService::Stub> stub_;
 };
 
 }  // namespace peregrine::internal

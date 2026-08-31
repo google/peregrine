@@ -28,7 +28,7 @@ absl::Status ToAbslStatus(const grpc::Status& s) {
 
 GrpcClient::GrpcClient(const Endpoint& peer,
                        std::shared_ptr<grpc::ChannelCredentials> creds)
-    : stub_(rpc::PeregrineService::NewStub(
+    : stub_(control::PeregrineService::NewStub(
           grpc::CreateChannel(peer.ToString(), std::move(creds)))) {
   DCHECK(invariant());
 }

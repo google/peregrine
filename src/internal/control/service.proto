@@ -2,7 +2,7 @@
 
 edition = "2024";
 
-package peregrine.internal.rpc;
+package peregrine.internal.control;
 
 import "src/internal/control/message.proto";
 

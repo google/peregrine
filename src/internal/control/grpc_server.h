@@ -21,7 +21,7 @@ namespace peregrine::internal {
 
 // gRPC server listening for peer requests and executing callback handlers.
 // It is thread-safe.
-class GrpcServer final : public rpc::PeregrineService::Service {
+class GrpcServer final : public control::PeregrineService::Service {
  public:
   using RequestHandler = absl::AnyInvocable<absl::Status(
       const proto::ReqMsg&, proto::RespMsg*) const>;
