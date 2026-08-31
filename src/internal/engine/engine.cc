@@ -39,7 +39,6 @@
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
 #include "src/internal/socket/socket_tcp.h"
-#include "src/util/util.h"
 
 namespace peregrine::internal {
 
@@ -237,12 +236,11 @@ bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
     }
     auto qp = std::move(*qp_or);
 
-    uint32_t local_psn = 0;
+    const uint32_t local_psn = genPsn();
     uint32_t local_lkey = 0;
     uint32_t initiator_rkey = 0;
     {
       absl::MutexLock _(mu_);
-      local_psn = util::Random<uint32_t>(bitgen_) & 0x00FFFFFF;
       if (rdma_memmgr_ != nullptr) {
         local_lkey = rdma_memmgr_->GetDefaultLKey(local_dev->Name());
         initiator_rkey = rdma_memmgr_->GetDefaultRKey(local_dev->Name());
@@ -440,12 +438,7 @@ absl::Status Engine::handleRdmaConnect(const proto::RdmaConnectRequest& req,
   union ibv_gid remote_gid = {};
   std::memcpy(remote_gid.raw, req.gid().data(), sizeof(remote_gid.raw));
 
-  uint32_t local_psn = 0;
-  {
-    absl::MutexLock _(mu_);
-    local_psn = util::Random<uint32_t>(bitgen_) & 0x00FFFFFF;
-  }
-
+  const uint32_t local_psn = genPsn();
   auto status = qp->Connect(req.qpn(), remote_gid, req.psn(), local_psn);
   if (!status.ok()) return status;
 
