@@ -6,7 +6,6 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "src/internal/base/types.h"
 
 namespace peregrine::internal {
@@ -18,6 +17,9 @@ void SetPspTcpSyscallsForTesting(void* psp_sys);
 struct PspSpiKey {
   uint32_t spi = 0;
   std::string key;
+
+  // Returns true iff the PSP SPI and key are valid.
+  bool IsValid() const { return spi != 0 && key.size() == 16; }
 };
 
 // Returns true if PSP-TCP is supported.
