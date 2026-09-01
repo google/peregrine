@@ -187,9 +187,13 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
   }
   // We only use the first data plane listener for now.
   const Endpoint& target = peer_info->data_plane_listeners[0];
+  const bool require_dataplane_encryption =
+      config_.require_dataplane_encryption;
 
   for (int i = 0; i < 2 * num_conns; ++i) {
-    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(target);
+    std::unique_ptr<TcpSocket> socket = require_dataplane_encryption
+                                            ? createTcpPsp(target)
+                                            : TcpConnector::Create(target);
     if (socket == nullptr) continue;
     std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
     auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
@@ -198,6 +202,18 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
     if (workers.size() >= num_conns) break;
   }
   return !workers.empty();
+}
+
+std::unique_ptr<TcpSocket> Engine::createTcpPsp(const Endpoint& target) {
+  std::unique_ptr<TcpSocket> socket = TcpConnector::CreateUnconnected(target);
+  if (socket == nullptr) {
+    return nullptr;
+  }
+  // TODO(yyd): add encryption, send key exchange RPC.
+  if (!TcpConnector::Connect(*socket, target)) {
+    return nullptr;
+  }
+  return socket;
 }
 
 bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {

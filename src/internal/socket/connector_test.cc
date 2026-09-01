@@ -89,5 +89,43 @@ TEST_F(TcpConnectorTestIPv6, BindConnectBeforeAccept) {
   acceptor_->Stop();
 }
 
+TEST_F(TcpConnectorTestIPv4, CreateUnconnectedAndConnect) {
+  std::jthread ta([&]() { acceptor_->Start(Accept); });
+
+  ShortSleep();
+  std::jthread tc([&]() {
+    for (const Endpoint& peer : peers_) {
+      std::unique_ptr<TcpSocket> socket =
+          TcpConnector::CreateUnconnected(peer);
+      CHECK_NE(socket, nullptr);
+      EXPECT_FALSE(socket->IsConnected());
+      EXPECT_TRUE(TcpConnector::Connect(*socket, peer));
+      EXPECT_TRUE(socket->IsConnected());
+    }
+  });
+
+  ShortSleep();
+  acceptor_->Stop();
+}
+
+TEST_F(TcpConnectorTestIPv6, CreateUnconnectedAndConnect) {
+  std::jthread ta([&]() { acceptor_->Start(Accept); });
+
+  ShortSleep();
+  std::jthread tc([&]() {
+    for (const Endpoint& peer : peers_) {
+      std::unique_ptr<TcpSocket> socket =
+          TcpConnector::CreateUnconnected(peer);
+      CHECK_NE(socket, nullptr);
+      EXPECT_FALSE(socket->IsConnected());
+      EXPECT_TRUE(TcpConnector::Connect(*socket, peer));
+      EXPECT_TRUE(socket->IsConnected());
+    }
+  });
+
+  ShortSleep();
+  acceptor_->Stop();
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

@@ -10,8 +10,8 @@
 
 namespace peregrine::internal {
 
-std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
-                                                const Endpoint& local) {
+std::unique_ptr<TcpSocket> TcpConnector::CreateUnconnected(
+    const Endpoint& peer, const Endpoint& local) {
   DCHECK(peer.HasNonzeroIpPort());
 
   const int family = peer.GetIpAddr().AddressFamily();
@@ -24,13 +24,33 @@ std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
     return nullptr;
   }
 
-  DCHECK(socket->IsBlocking());
-  if (!socket->Connect(peer)) {
+  return socket;
+}
+
+bool TcpConnector::Connect(TcpSocket& socket, const Endpoint& peer) {
+  DCHECK(peer.HasNonzeroIpPort());
+  DCHECK(!socket.IsConnected());
+  DCHECK(socket.IsBlocking());
+  if (!socket.Connect(peer)) {
+    return false;
+  }
+
+  DCHECK(socket.IsConnected());
+  LOG(INFO) << "made " << socket;
+  return true;
+}
+
+std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
+                                                const Endpoint& local) {
+  std::unique_ptr<TcpSocket> socket = CreateUnconnected(peer, local);
+  if (socket == nullptr) {
     return nullptr;
   }
 
-  DCHECK(socket->IsConnected());
-  LOG(INFO) << "made " << *socket;
+  if (!Connect(*socket, peer)) {
+    return nullptr;
+  }
+
   return socket;
 }
 
