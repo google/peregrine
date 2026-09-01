@@ -17,6 +17,7 @@ cc_library(
     hdrs = ["flags.h"],
     deps = [
         ":types",
+        "//src/api:transport_types",
         "//src/util:nic",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
@@ -79,7 +80,6 @@ cc_library(
     deps = [
         ":control_cc_proto",
         ":control_util",
-        ":flags",
         ":types",
         "//src/api:transport",
         "//src/api:transport_types",
@@ -104,5 +104,6 @@ cc_binary(
         ":types",
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",
+        "//src/api:transport_types",
     ],
 )

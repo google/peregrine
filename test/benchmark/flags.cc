@@ -1,3 +1,5 @@
+#include "test/benchmark/flags.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <string>
@@ -10,6 +12,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "src/api/transport_types.h"
 #include "src/util/nic.h"
 #include "test/benchmark/types.h"
 
@@ -20,6 +23,9 @@ ABSL_FLAG(
 
 ABSL_FLAG(std::string, role, "receiver",
           "Role to run as: 'sender|send|s' or 'receiver|recv|r'");
+
+ABSL_FLAG(std::string, transport, "tcp",
+          "Transport type to use ('tcp' or 'rdma')");
 
 ABSL_FLAG(
     uint16_t, app_control_port, 9999,
@@ -45,6 +51,18 @@ ABSL_FLAG(uint32_t, num_xfers, 100,
           "Number of transfers to perform (default = 100)");
 
 namespace peregrine::benchmark {
+
+peregrine::TransportType ParseTransportType() {
+  const std::string s = absl::GetFlag(FLAGS_transport);
+  if (absl::EqualsIgnoreCase(s, "tcp")) {
+    return peregrine::TransportType::kTcp;
+  } else if (absl::EqualsIgnoreCase(s, "rdma")) {
+    return peregrine::TransportType::kRdma;
+  } else {
+    LOG(FATAL) << "invalid transport type: " << s
+               << ". Expected 'tcp' or 'rdma'.";
+  }
+}
 
 Role ParseRole() {
   const std::string s = absl::GetFlag(FLAGS_role);

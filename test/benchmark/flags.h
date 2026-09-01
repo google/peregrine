@@ -6,10 +6,12 @@
 #include <string_view>
 
 #include "absl/flags/declare.h"
+#include "src/api/transport_types.h"
 #include "test/benchmark/types.h"
 
 ABSL_DECLARE_FLAG(std::string, role);
 ABSL_DECLARE_FLAG(std::string, ip);
+ABSL_DECLARE_FLAG(std::string, transport);
 ABSL_DECLARE_FLAG(uint16_t, app_control_port);
 ABSL_DECLARE_FLAG(uint16_t, peregrine_control_port);
 ABSL_DECLARE_FLAG(int, conn);
@@ -18,6 +20,9 @@ ABSL_DECLARE_FLAG(uint64_t, xfer_size);
 ABSL_DECLARE_FLAG(uint32_t, num_xfers);
 
 namespace peregrine::benchmark {
+
+// Parses the transport type ('tcp' or 'rdma').
+peregrine::TransportType ParseTransportType();
 
 // Parses the sender/receiver role from a string.
 // Fails if the role is not 'sender|send|s' or 'receiver|recv|r'.

@@ -16,7 +16,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/match.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
@@ -28,7 +27,6 @@
 #include "src/util/util.h"
 #include "test/benchmark/control.pb.h"
 #include "test/benchmark/control_util.h"
-#include "test/benchmark/flags.h"
 #include "test/benchmark/types.h"
 
 namespace peregrine::benchmark {
@@ -62,11 +60,12 @@ absl::Duration GetCpuTime() {
 }  // namespace
 
 void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
-             uint16_t app_control_port, int nconns, uint64_t xfer_size) {
+             uint16_t app_control_port, int nconns, uint64_t xfer_size,
+             TransportType transport_type) {
   // Create transport.
   const std::string self = GenEndpoint(ip, peregrine_control_port);
   const std::unique_ptr<Transport> transport =
-      CreateTransport(self, TransportType::kTcp, nconns);
+      CreateTransport(self, transport_type, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
 
   // Wait for sender's control connection.
@@ -75,8 +74,11 @@ void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
   CHECK_GE(sender_fd, 0) << "Failed to accept control sender connection";
 
   // Allocate buffer and fill with zeros.
-  const std::vector<Byte> buf(xfer_size, 0);
+  std::vector<Byte> buf(xfer_size, 0);
   DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b == 0; }));
+
+  // Register memory buffer for RDMA if required.
+  CHECK_OK(transport->RegisterMemory(buf.data(), buf.size()));
 
   // Show info.
   std::cout << absl::StrFormat(
@@ -91,6 +93,7 @@ void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
   const absl::Time start_time = absl::Now();
   const absl::Duration start_cpu = GetCpuTime();
 
+  proto::ControlMessage response;
   // Process transfer requests until sender disconnects.
   while (true) {
     proto::ControlMessage request;
@@ -98,14 +101,15 @@ void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
     if (!ProcessControlMessage(sender_fd, &request)) {
       break;
     }
-    if (request.has_transfer_request()) {
-      proto::ControlMessage response;
-      response.mutable_transfer_response()->set_buffer_address(
-          reinterpret_cast<uint64_t>(buf.data()));
-      if (!SendControlMessage(sender_fd, response)) {
-        break;
-      }
-    }
+    CHECK(request.has_transfer_request()) << "Expected TransferRequest";
+
+    // Send TransferResponse with buffer address.
+    response.Clear();
+    auto* transfer_response = response.mutable_transfer_response();
+    transfer_response->set_buffer_address(
+        reinterpret_cast<uint64_t>(buf.data()));
+    CHECK(SendControlMessage(sender_fd, response))
+        << "Failed to send TransferResponse";
   }
 
   const absl::Duration dur = absl::Now() - start_time;
@@ -125,7 +129,8 @@ void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
 
 void RunSndr(std::string_view ip, uint16_t peregrine_control_port,
              uint16_t app_control_port, int nconns, uint64_t xfer_size,
-             std::string_view peer_host, uint32_t num_xfers) {
+             std::string_view peer_host, uint32_t num_xfers,
+             TransportType transport_type) {
   // Connect to receiver control
   const int client_fd = ConnectControlWithRetry(peer_host, app_control_port);
 
@@ -137,8 +142,11 @@ void RunSndr(std::string_view ip, uint16_t peregrine_control_port,
   // Create transport.
   const std::string self = GenEndpoint(ip, /*port=*/0);
   const std::unique_ptr<Transport> transport =
-      CreateTransport(self, TransportType::kTcp, nconns);
+      CreateTransport(self, transport_type, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
+
+  // Register memory buffer for RDMA if required.
+  CHECK_OK(transport->RegisterMemory(buf.data(), buf.size()));
 
   const std::string peer_endpoint =
       GenEndpoint(peer_host, peregrine_control_port);
