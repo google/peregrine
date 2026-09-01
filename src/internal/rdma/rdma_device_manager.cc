@@ -1,5 +1,6 @@
 #include "src/internal/rdma/rdma_device_manager.h"
 
+#include <dirent.h>
 #include <infiniband/verbs.h>
 
 #include <memory>
@@ -13,10 +14,38 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "src/internal/rdma/rdma_device_context.h"
 
 namespace peregrine::internal {
 namespace {
+
+bool ShouldIgnoreDevice(absl::string_view dev_name) {
+  if (dev_name.empty()) return false;
+
+  const std::string net_dir =
+      absl::StrCat("/sys/class/infiniband/", dev_name, "/device/net");
+  DIR* dir = opendir(net_dir.c_str());
+  if (dir == nullptr) {
+    return false;
+  }
+
+  bool all_dontuse = true;
+  bool has_entries = false;
+  struct dirent* entry = nullptr;
+  while ((entry = readdir(dir)) != nullptr) {
+    if (entry->d_name[0] == '.') continue;
+    has_entries = true;
+    if (!absl::StrContainsIgnoreCase(entry->d_name, "dontuse")) {
+      all_dontuse = false;
+      break;
+    }
+  }
+  closedir(dir);
+
+  return has_entries && all_dontuse;
+}
 
 struct ibv_device** getDeviceList(int& num_devices) {
   num_devices = 0;
@@ -77,6 +106,20 @@ absl::StatusOr<std::unique_ptr<RdmaDeviceManager>> RdmaDeviceManager::Create() {
   for (int i = 0; i < num_devices; ++i) {
     struct ibv_device* dev = device_list[i];
     if (dev == nullptr) {
+      continue;
+    }
+
+    const char* dev_name = ibv_get_device_name(dev);
+    if (dev_name == nullptr) {
+      continue;
+    }
+
+    // TODO: This is a temporary workaround that specifically ignores interfaces
+    // tagged with 'dontuse' and nothing more. Discovering and validating usable
+    // RDMA interfaces across complex network topologies requires systematic
+    // topology discovery, which will be implemented in a follow-up change.
+    if (ShouldIgnoreDevice(dev_name)) {
+      LOG(INFO) << "Ignoring RDMA device " << dev_name << " (marked 'dontuse')";
       continue;
     }
 
