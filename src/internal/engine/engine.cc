@@ -206,9 +206,11 @@ bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
     return false;
   }
 
-  // Select local RDMA device to allocate the sender QP. For now, we select
-  // the first device in the list.
-  RdmaDeviceContext* local_dev = rdma_devmgr_->Devices()[0].get();
+  const auto& local_devices = rdma_devmgr_->Devices();
+  if (local_devices.empty()) {
+    LOG(WARNING) << "no local RDMA devices available";
+    return false;
+  }
 
   const int num_conns = config_.num_conns_per_peer;
   auto peer_info = control_.GetPeerHostInfo(peer);
@@ -217,17 +219,19 @@ bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
                  << peer_info.status();
     return false;
   }
-  if (peer_info->rdma_interfaces.empty()) {
+  const auto& remote_interfaces = peer_info->rdma_interfaces;
+  if (remote_interfaces.empty()) {
     LOG(WARNING) << "no RDMA interfaces found for peer " << peer;
     return false;
   }
 
-  // Target device name on the remote peer. For now, we select the first
-  // interface in the list.
-  const std::string_view remote_device_name =
-      peer_info->rdma_interfaces[0].name;
-
   for (int i = 0; i < 2 * num_conns; ++i) {
+    const size_t local_idx = i % local_devices.size();
+    const size_t remote_idx = i % remote_interfaces.size();
+    RdmaDeviceContext* local_dev = local_devices[local_idx].get();
+    const std::string_view remote_device_name =
+        remote_interfaces[remote_idx].name;
+
     auto qp_or = RdmaQueuePair::Create(local_dev);
     if (!qp_or.ok()) {
       LOG(WARNING) << "failed to create local RDMA queue pair: "
