@@ -27,3 +27,20 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "metric_counter",
+    hdrs = ["metric_counter.h"],
+    deps = [
+        "//src/util:macro",
+    ],
+)
+
+cc_test(
+    name = "metric_counter_test",
+    srcs = ["metric_counter_test.cc"],
+    deps = [
+        ":metric_counter",
+        "@googletest//:gtest_main",
+    ],
+)
