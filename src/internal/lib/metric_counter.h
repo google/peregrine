@@ -15,8 +15,8 @@ class MetricCounter {
   static_assert(std::is_integral_v<T>);
 
  public:
-  // Default constructor.
-  constexpr MetricCounter() : value_(0) {}
+  // Constructor.
+  explicit constexpr MetricCounter(T v = 0) : value_(v) {}
 
   // Disallow copy and move.
   DISALLOW_COPY(MetricCounter);
@@ -25,15 +25,15 @@ class MetricCounter {
   // Destructor.
   ~MetricCounter() = default;
 
-  // Return the current value of the counter.
+  // Returns the current value of the counter.
   T Value() const { return get(); }
+
+  // Adds `n` to the metric counter in a lossy manner.
+  // Counts may be lost if this function is called concurrently.
+  void Add(T n) { set(get() + n); }
 
   // Sets the counter to zero.
   void Clear() { set(0); }
-
-  // Add `n` to the metric counter in a lossy manner.
-  // Counts may be lost if this function is called concurrently.
-  void Add(T n) { set(get() + n); }
 
  private:
   // Returns the current value of the counter.

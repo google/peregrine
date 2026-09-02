@@ -10,14 +10,14 @@ namespace peregrine::internal::testing {
 namespace {
 
 TEST(MetricCounterTest, Basic) {
-  MetricCounter<int32_t> c;
-  EXPECT_EQ(c.Value(), 0);
+  MetricCounter<int32_t> c(5);
+  EXPECT_EQ(c.Value(), 5);
 
   c.Add(1);
-  EXPECT_EQ(c.Value(), 1);
+  EXPECT_EQ(c.Value(), 6);
 
   c.Add(2);
-  EXPECT_EQ(c.Value(), 3);
+  EXPECT_EQ(c.Value(), 8);
 
   c.Clear();
   EXPECT_EQ(c.Value(), 0);
