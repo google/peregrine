@@ -104,7 +104,8 @@ class Engine final {
   bool connectRdma(Workers& workers, const Endpoint& peer);
 
   // Creates a TCP socket with PSP encryption for `target`.
-  std::unique_ptr<TcpSocket> createTcpPsp(const Endpoint& target);
+  std::unique_ptr<TcpSocket> createTcpPsp(const Endpoint& peer_control,
+                                          const Endpoint& target);
 
   // Handles an incoming RDMA connection request from a remote peer.
   absl::Status handleRdmaConnect(const proto::RdmaConnectRequest& req,

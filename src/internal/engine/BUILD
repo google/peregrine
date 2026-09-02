@@ -29,6 +29,7 @@ cc_library(
         "//src/internal/socket:acceptor",
         "//src/internal/socket:connector",
         "//src/internal/socket:socket_tcp",
+        "//src/internal/socket/psp:tcp_psp_helper",
         "//src/util",
         "//third_party/gloop/util/random:shared_bit_gen",
         "@abseil-cpp//absl/base:core_headers",

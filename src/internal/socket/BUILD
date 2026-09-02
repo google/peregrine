@@ -47,9 +47,11 @@ cc_library(
     deps = [
         ":socket_tcp",
         "//src/internal/base:endpoint",
+        "//src/internal/socket/psp:tcp_psp_helper",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -62,6 +64,8 @@ cc_test(
         ":socket_tcp",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
+        "//src/internal/socket/psp:psp_syscall_mock",
+        "//src/internal/socket/psp:tcp_psp_helper",
         "//src/internal/util:test_util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

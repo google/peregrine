@@ -38,6 +38,7 @@
 #include "src/internal/rdma/rdma_queue_pair.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
@@ -192,7 +193,7 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
 
   for (int i = 0; i < 2 * num_conns; ++i) {
     std::unique_ptr<TcpSocket> socket = require_dataplane_encryption
-                                            ? createTcpPsp(target)
+                                            ? createTcpPsp(peer, target)
                                             : TcpConnector::Create(target);
     if (socket == nullptr) continue;
     std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
@@ -204,15 +205,29 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
   return !workers.empty();
 }
 
-std::unique_ptr<TcpSocket> Engine::createTcpPsp(const Endpoint& target) {
+std::unique_ptr<TcpSocket> Engine::createTcpPsp(const Endpoint& peer_control,
+                                                const Endpoint& target) {
   std::unique_ptr<TcpSocket> socket = TcpConnector::CreateUnconnected(target);
   if (socket == nullptr) {
     return nullptr;
   }
-  // TODO(yyd): add encryption, send key exchange RPC.
-  if (!TcpConnector::Connect(*socket, target)) {
+
+  auto client_key = TcpConnector::AcquireRxSpiAndKey(*socket);
+  if (!client_key.ok()) {
+    LOG(WARNING) << "failed to acquire client Rx SPI and key: "
+                 << client_key.status();
     return nullptr;
   }
+
+  // TODO(yyd): send key exchange RPC when control_->ExchangePspKey
+  // is available.
+  // server_key = control_->ExchangePspKey(peer_control, *client_key);
+  const PspSpiKey server_key = {};
+
+  if (!TcpConnector::PspConnect(*socket, target, server_key, *client_key)) {
+    return nullptr;
+  }
+
   return socket;
 }
 
