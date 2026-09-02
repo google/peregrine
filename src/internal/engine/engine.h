@@ -24,6 +24,7 @@
 #include "src/internal/base/types.h"
 #include "src/internal/coding_style.h"
 #include "src/internal/control/control.h"
+#include "src/internal/control/message.pb.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/rdma/rdma_device_manager.h"
 #include "src/internal/rdma/rdma_memory_manager.h"
@@ -106,6 +107,10 @@ class Engine final {
   // Creates a TCP socket with PSP encryption for `target`.
   std::unique_ptr<TcpSocket> createTcpPsp(const Endpoint& peer_control,
                                           const Endpoint& target);
+
+  // Handles an incoming PSP key exchange request from a remote peer.
+  absl::Status handlePspKeyExchange(const proto::PspKeyExchangeRequest& req,
+                                    proto::PspKeyExchangeResponse* resp);
 
   // Handles an incoming RDMA connection request from a remote peer.
   absl::Status handleRdmaConnect(const proto::RdmaConnectRequest& req,

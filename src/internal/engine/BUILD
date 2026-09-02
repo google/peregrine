@@ -21,6 +21,7 @@ cc_library(
         "//src/internal/channel:channel_util",
         "//src/internal/chunk",
         "//src/internal/control",
+        "//src/internal/control:message_cc_proto",
         "//src/internal/rdma:rdma_device_context",
         "//src/internal/rdma:rdma_device_manager",
         "//src/internal/rdma:rdma_memory_manager",

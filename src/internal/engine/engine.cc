@@ -105,6 +105,15 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
         return engine->handleRdmaConnect(req, resp);
       });
 
+  if (config.require_dataplane_encryption) {
+    // Register PSP key exchange handler into Control.
+    control.SetPspKeyHandler(
+        [engine = e.get()](const proto::PspKeyExchangeRequest& req,
+                           proto::PspKeyExchangeResponse* resp) {
+          return engine->handlePspKeyExchange(req, resp);
+        });
+  }
+
   return e;
 }
 
@@ -141,6 +150,7 @@ Engine::Engine(const Config& config, HostInfo& self,
 
 Engine::~Engine() {
   control_.SetRdmaConnectHandler(nullptr);
+  control_.SetPspKeyHandler(nullptr);
   {
     absl::MutexLock _(mu_);
     if (tcp_acceptor_ != nullptr) {
@@ -233,6 +243,13 @@ std::unique_ptr<TcpSocket> Engine::createTcpPsp(const Endpoint& peer_control,
   }
 
   return socket;
+}
+
+absl::Status Engine::handlePspKeyExchange(
+    const proto::PspKeyExchangeRequest& req,
+    proto::PspKeyExchangeResponse* resp) {
+  // TODO(yyd): Delegate to acceptor_->HandlePspKeyExchange(req, resp).
+  return absl::UnimplementedError("PSP key exchange is not implemented yet");
 }
 
 bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
