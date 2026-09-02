@@ -214,8 +214,28 @@ std::unique_ptr<TcpSocket> Engine::createTcpPsp(const Endpoint& peer_control,
 absl::Status Engine::handlePspKeyExchange(
     const proto::PspKeyExchangeRequest& req,
     proto::PspKeyExchangeResponse* resp) {
-  // TODO(yyd): Delegate to acceptor_->HandlePspKeyExchange(req, resp).
-  return absl::UnimplementedError("PSP key exchange is not implemented yet");
+  DCHECK_NE(tcp_acceptor_, nullptr);
+  DCHECK_NE(resp, nullptr);
+
+  const PspSpiKey client_key = {
+      .spi = req.psp().spi(),
+      .key = std::string(req.psp().key()),
+  };
+
+  const Endpoint target = req.has_endpoint()
+                              ? Endpoint::Create(req.endpoint().ip_port())
+                              : Endpoint();
+
+  absl::StatusOr<PspSpiKey> server_key =
+      tcp_acceptor_->HandlePspKeyExchange(target, client_key);
+  if (!server_key.ok()) {
+    return server_key.status();
+  }
+  DCHECK(server_key->IsValid());
+
+  resp->mutable_psp()->set_spi(server_key->spi);
+  resp->mutable_psp()->set_key(server_key->key);
+  return absl::OkStatus();
 }
 
 bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {

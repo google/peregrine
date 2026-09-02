@@ -13,6 +13,9 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
+#include "absl/strings/str_format.h"
+#include "absl/synchronization/mutex.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -20,6 +23,7 @@
 #include "src/internal/event/poller.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_util.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/util/nic.h"
 
 namespace peregrine::internal {
@@ -89,7 +93,8 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(HostInfo& self) {
     }
     DCHECK(e.HasNonzeroIpPort());
     const fd_t fd = socket->fd();
-    listeners.emplace(fd, Listener(std::move(socket)));
+    listeners.emplace(
+        fd, Listener{.socket = std::move(socket), .endpoint = e});
   }
   DCHECK(self.IsValid());
 
@@ -140,6 +145,45 @@ void TcpAcceptor::Start(AcceptCallback accept) {
       }
     }
   }
+}
+
+absl::StatusOr<PspSpiKey> TcpAcceptor::HandlePspKeyExchange(
+    const Endpoint& target, const PspSpiKey& client_key) {
+  if (!client_key.IsValid()) {
+    return absl::InvalidArgumentError("invalid client PSP key");
+  }
+
+  const Listener* target_listener = nullptr;
+  if (!target.HasNonzeroIpPort()) {
+    if (listeners_.size() != 1) {
+      return absl::FailedPreconditionError(
+          "Ambiguous listening socket: multiple listeners exist but no "
+          "target endpoint specified");
+    }
+    target_listener = &listeners_.begin()->second;
+  } else {
+    for (const auto& [fd, listener] : listeners_) {
+      if (listener.endpoint == target) {
+        target_listener = &listener;
+        break;
+      }
+    }
+  }
+  if (target_listener == nullptr) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Listener not found for endpoint %s", target.ToString()));
+  }
+
+  absl::MutexLock lock(*target_listener->socket_mu);
+  auto server_key =
+      RegisterPspPeerKey(target_listener->socket->fd(), client_key);
+  if (!server_key.ok()) {
+    return server_key.status();
+  }
+  if (!server_key->IsValid()) {
+    return absl::InternalError("invalid server PSP key");
+  }
+  return server_key;
 }
 
 void TcpAcceptor::Stop() {

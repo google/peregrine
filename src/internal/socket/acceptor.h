@@ -8,11 +8,15 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
 #include "src/internal/event/poller.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
@@ -37,12 +41,20 @@ class TcpAcceptor {
   // Starts running the acceptor.
   void Start(AcceptCallback accept);
 
+  // Handles incoming peer PSP key exchange requests on the server side.
+  absl::StatusOr<PspSpiKey> HandlePspKeyExchange(
+      const Endpoint& target, const PspSpiKey& client_key);
+
   // Stops the acceptor.
   void Stop();
 
  private:
   struct Listener {
     std::unique_ptr<TcpSocket> socket;
+    Endpoint endpoint;
+    // Serializes concurrent socket operations (e.g., PSP key registrations)
+    // on this listening socket fd.
+    std::unique_ptr<absl::Mutex> socket_mu = std::make_unique<absl::Mutex>();
   };
 
  private:
