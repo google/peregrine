@@ -76,6 +76,7 @@ cc_library(
         "//src/internal/base:config",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
+        "//src/internal/socket/psp:tcp_psp_helper",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",

@@ -22,6 +22,7 @@
 #include "src/internal/control/grpc_client.h"
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -67,6 +68,11 @@ class Control final {
   absl::StatusOr<proto::RdmaConnectResponse> ConnectRdmaPeer(
       const Endpoint& peer, std::string_view device_name, uint32_t qpn,
       absl::Span<const uint8_t> gid, uint32_t psn = 0, uint32_t rkey = 0);
+
+  // Exchanges PSP encryption keys out-of-band with a remote peer.
+  absl::StatusOr<PspSpiKey> ExchangePspKey(const Endpoint& peer,
+                                           const PspSpiKey& client_key,
+                                           const Endpoint& target);
 
  private:
   // Constructor.

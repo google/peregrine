@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -23,6 +24,7 @@
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 
 namespace peregrine::internal {
 
@@ -220,6 +222,46 @@ absl::StatusOr<proto::RdmaConnectResponse> Control::ConnectRdmaPeer(
     return absl::InternalError("missing RdmaConnectResponse in response");
   }
   return resp->rdma_connect_resp();
+}
+
+absl::StatusOr<PspSpiKey> Control::ExchangePspKey(
+    const Endpoint& peer, const PspSpiKey& client_key,
+    const Endpoint& target) {
+  if (!peer.HasNonzeroIpPort()) {
+    return absl::InvalidArgumentError("invalid peer endpoint");
+  }
+  if (!target.HasNonzeroIpPort()) {
+    return absl::InvalidArgumentError("invalid target endpoint");
+  }
+  if (!client_key.IsValid()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("invalid client PSP key (spi: %u, key length: %d)",
+                        client_key.spi, client_key.key.size()));
+  }
+
+  proto::PspKeyExchangeRequest req;
+  req.mutable_psp()->set_spi(client_key.spi);
+  req.mutable_psp()->set_key(client_key.key);
+  req.mutable_endpoint()->set_ip_port(target.ToString());
+
+  const GrpcClient& client = getOrCreateClient(peer);
+  absl::StatusOr<proto::PspKeyExchangeResponse> resp =
+      client.ExchangePspKey(req);
+  if (!resp.ok()) {
+    return resp.status();
+  }
+
+  const PspSpiKey server_key = {
+      .spi = resp->psp().spi(),
+      .key = std::string(resp->psp().key()),
+  };
+  if (!server_key.IsValid()) {
+    return absl::InternalError(absl::StrFormat(
+        "peer returned invalid server PSP key (spi: %u, key length: %d)",
+        server_key.spi, server_key.key.size()));
+  }
+
+  return server_key;
 }
 
 }  // namespace peregrine::internal

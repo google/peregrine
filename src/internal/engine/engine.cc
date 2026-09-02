@@ -188,6 +188,7 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
   }
   // We only use the first data plane listener for now.
   const Endpoint& target = peer_info->data_plane_listeners[0];
+  DCHECK(target.HasNonzeroIpPort());
   const bool require_dataplane_encryption =
       config_.require_dataplane_encryption;
 
@@ -219,12 +220,15 @@ std::unique_ptr<TcpSocket> Engine::createTcpPsp(const Endpoint& peer_control,
     return nullptr;
   }
 
-  // TODO(yyd): send key exchange RPC when control_->ExchangePspKey
-  // is available.
-  // server_key = control_->ExchangePspKey(peer_control, *client_key);
-  const PspSpiKey server_key = {};
+  auto server_key =
+      control_.ExchangePspKey(peer_control, *client_key, target);
+  if (!server_key.ok()) {
+    LOG(WARNING) << "failed to exchange PSP key with peer: "
+                 << server_key.status();
+    return nullptr;
+  }
 
-  if (!TcpConnector::PspConnect(*socket, target, server_key, *client_key)) {
+  if (!TcpConnector::PspConnect(*socket, target, *server_key, *client_key)) {
     return nullptr;
   }
 

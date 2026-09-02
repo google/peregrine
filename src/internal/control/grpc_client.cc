@@ -44,4 +44,15 @@ absl::StatusOr<proto::RespMsg> GrpcClient::SendUnary(
   return response;
 }
 
+absl::StatusOr<proto::PspKeyExchangeResponse> GrpcClient::ExchangePspKey(
+    const proto::PspKeyExchangeRequest& request) const {
+  DCHECK(invariant());
+
+  grpc::ClientContext context;
+  proto::PspKeyExchangeResponse response;
+  const grpc::Status s = stub_->ExchangePspKey(&context, request, &response);
+  if ABSL_PREDICT_FALSE (!s.ok()) return ToAbslStatus(s);
+  return response;
+}
+
 }  // namespace peregrine::internal

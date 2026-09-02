@@ -219,5 +219,60 @@ TEST_F(ControlTest, ConnectRdmaPeer) {
                    .ok());
 }
 
+TEST_F(ControlTest, ExchangePspKeyArgumentValidation) {
+  const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
+  ASSERT_GT(port, 0);
+  HostInfo self = {
+      .control_plane_listener =
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port)),
+      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
+  };
+  auto ctrl = Control::Create(config_, self, creds_a_);
+  ASSERT_NE(ctrl, nullptr);
+
+  const Endpoint valid_peer = Endpoint::Create("127.0.0.1:12345");
+  const Endpoint invalid_peer;
+  const Endpoint target = Endpoint::Create("127.0.0.1:20002");
+
+  // Invalid peer endpoint.
+  EXPECT_EQ(ctrl->ExchangePspKey(invalid_peer,
+                                 {.spi = 1, .key = std::string(16, 'a')},
+                                 target)
+                .status()
+                .code(),
+            absl::StatusCode::kInvalidArgument);
+
+  // Invalid target endpoint.
+  const Endpoint invalid_target;
+  EXPECT_EQ(ctrl->ExchangePspKey(valid_peer,
+                                 {.spi = 1, .key = std::string(16, 'a')},
+                                 invalid_target)
+                .status()
+                .code(),
+            absl::StatusCode::kInvalidArgument);
+
+  // Invalid SPI (0).
+  EXPECT_EQ(ctrl->ExchangePspKey(valid_peer,
+                                 {.spi = 0, .key = std::string(16, 'a')},
+                                 target)
+                .status()
+                .code(),
+            absl::StatusCode::kInvalidArgument);
+
+  // Invalid key size (short).
+  EXPECT_EQ(ctrl->ExchangePspKey(valid_peer, {.spi = 1, .key = "short"}, target)
+                .status()
+                .code(),
+            absl::StatusCode::kInvalidArgument);
+
+  // Invalid key size (long).
+  EXPECT_EQ(ctrl->ExchangePspKey(valid_peer,
+                                 {.spi = 1, .key = std::string(32, 'a')},
+                                 target)
+                .status()
+                .code(),
+            absl::StatusCode::kInvalidArgument);
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing
