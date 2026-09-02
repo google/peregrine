@@ -15,6 +15,7 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/service.grpc.pb.h"
+#include "src/internal/control/service.pb.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -25,12 +26,15 @@ class GrpcServer final : public control::PeregrineService::Service {
  public:
   using RequestHandler = absl::AnyInvocable<absl::Status(
       const proto::ReqMsg&, proto::RespMsg*) const>;
+  using PspKeyHandler =
+      absl::AnyInvocable<absl::Status(const proto::PspKeyExchangeRequest&,
+                                      proto::PspKeyExchangeResponse*) const>;
 
   // Creates an asynchronous gRPC server using explicit server credentials and
   // request handler.
   static absl::StatusOr<std::unique_ptr<GrpcServer>> Create(
       const Endpoint& self, std::shared_ptr<grpc::ServerCredentials> creds,
-      RequestHandler&& handler);
+      RequestHandler&& handler, PspKeyHandler&& psp_handler);
 
   // Disallows copy/move operations.
   DISALLOW_COPY(GrpcServer);
@@ -48,25 +52,36 @@ class GrpcServer final : public control::PeregrineService::Service {
                             const proto::ReqMsg* request,
                             proto::RespMsg* response) override;
 
+  // Processes out-of-band PSP key exchange.
+  grpc::Status ExchangePspKey(grpc::ServerContext* context,
+                              const proto::PspKeyExchangeRequest* request,
+                              proto::PspKeyExchangeResponse* response) override;
+
   // Gracefully terminates the gRPC server.
   void Shutdown();
 
  private:
   // Constructor.
-  explicit GrpcServer(RequestHandler&& handler)
-      : port_(0), server_(nullptr), handler_(std::move(handler)) {
+  explicit GrpcServer(RequestHandler&& handler, PspKeyHandler&& psp_handler)
+      : port_(0),
+        server_(nullptr),
+        handler_(std::move(handler)),
+        psp_handler_(std::move(psp_handler)) {
     DCHECK_NE(handler_, nullptr);
+    DCHECK_NE(psp_handler_, nullptr);
   }
 
   // Returns true if the gRPC server is in a valid state.
   bool invariant() const {
-    return port_ > 0 && server_ != nullptr && handler_ != nullptr;
+    return port_ > 0 && server_ != nullptr && handler_ != nullptr &&
+           psp_handler_ != nullptr;
   }
 
  private:
   int port_;
   std::unique_ptr<grpc::Server> server_;
   const RequestHandler handler_;
+  const PspKeyHandler psp_handler_;
 };
 
 }  // namespace peregrine::internal

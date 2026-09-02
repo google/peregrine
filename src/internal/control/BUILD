@@ -71,6 +71,7 @@ cc_library(
         ":grpc_server",
         ":message",
         ":message_cc_proto",
+        ":service_cc_proto",
         "//:libibverbs",  # buildcleaner: keep
         "//src/internal:assumptions",
         "//src/internal/base:config",
@@ -86,7 +87,9 @@ cc_library(
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
         "@grpc//:grpc++",
@@ -108,6 +111,7 @@ cc_test(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest_main",
         "@grpc//:grpc++",
     ],
@@ -120,6 +124,7 @@ cc_library(
     deps = [
         ":message_cc_proto",
         ":service_cc_grpc_proto",
+        ":service_cc_proto",
         "//src/internal/base:endpoint",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
@@ -138,6 +143,7 @@ cc_library(
     deps = [
         ":message_cc_proto",
         ":service_cc_grpc_proto",
+        ":service_cc_proto",
         "//src/internal/base:endpoint",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
@@ -147,6 +153,7 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:string_view",
         "@grpc//:grpc++",
     ],
 )

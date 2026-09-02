@@ -14,6 +14,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/internal/assumptions.h"
@@ -54,8 +55,14 @@ bool Control::Start() {
   auto req_handler = [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
     return handleIncomingRequest(req, resp);
   };
-  auto grpc_server = GrpcServer::Create(endpoint, std::move(server_creds_),
-                                        std::move(req_handler));
+  auto psp_handler = [this](const proto::PspKeyExchangeRequest& req,
+                            proto::PspKeyExchangeResponse* resp) {
+    return handleExchangePspKey(req, resp);
+  };
+
+  auto grpc_server =
+      GrpcServer::Create(endpoint, std::move(server_creds_),
+                         std::move(req_handler), std::move(psp_handler));
   if ABSL_PREDICT_FALSE (!grpc_server.ok()) {
     LOG(WARNING) << "failed to create grpc server on " << endpoint << ": "
                  << grpc_server.status();
@@ -71,6 +78,13 @@ bool Control::Start() {
 void Control::SetRdmaConnectHandler(RdmaConnectHandler handler) {
   absl::MutexLock _(rdma_handler_mu_);
   rdma_connect_handler_ = std::move(handler);
+}
+
+void Control::SetPspKeyHandler(PspKeyHandler handler) {
+  if ABSL_PREDICT_FALSE (!config_.require_dataplane_encryption) {
+    return;
+  }
+  psp_key_handler_ = std::move(handler);
 }
 
 Control::~Control() {
@@ -133,6 +147,15 @@ absl::Status Control::handleRdmaConnect(const proto::ReqMsg& req,
   }
   *resp->mutable_rdma_connect_resp() = std::move(rdma_resp);
   return absl::OkStatus();
+}
+
+absl::Status Control::handleExchangePspKey(
+    const proto::PspKeyExchangeRequest& req,
+    proto::PspKeyExchangeResponse* resp) {
+  if ABSL_PREDICT_FALSE (psp_key_handler_ == nullptr) {
+    return absl::UnimplementedError("PspKeyHandler not configured");
+  }
+  return psp_key_handler_(req, resp);
 }
 
 absl::StatusOr<proto::RespMsg> Control::SendRequest(const Endpoint& peer,

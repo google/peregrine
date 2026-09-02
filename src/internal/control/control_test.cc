@@ -10,6 +10,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
 #include "src/internal/base/config.h"
@@ -32,7 +33,7 @@ class ControlTest : public ::testing::Test {
                   .client_creds = grpc::InsecureChannelCredentials()}) {}
 
  protected:
-  const Config config_;
+  Config config_;
   const SecurityCredentials creds_a_;
   const SecurityCredentials creds_b_;
 };
@@ -219,60 +220,150 @@ TEST_F(ControlTest, ConnectRdmaPeer) {
                    .ok());
 }
 
-TEST_F(ControlTest, ExchangePspKeyArgumentValidation) {
-  const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
-  ASSERT_GT(port, 0);
-  HostInfo self = {
+TEST_F(ControlTest, ExchangePspKeyBetweenNodes) {
+  config_.require_dataplane_encryption = true;
+  const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
+  const uint16_t port_b = util::FindFreePort(AF_INET, /*tcp=*/true);
+  ASSERT_GT(port_a, 0);
+  ASSERT_GT(port_b, 0);
+
+  const HostInfo host_a = {
       .control_plane_listener =
-          Endpoint::Create(absl::StrCat("127.0.0.1:", port)),
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
   };
-  auto ctrl = Control::Create(config_, self, creds_a_);
-  ASSERT_NE(ctrl, nullptr);
+  const HostInfo host_b = {
+      .control_plane_listener =
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
+      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
+  };
 
-  const Endpoint valid_peer = Endpoint::Create("127.0.0.1:12345");
-  const Endpoint invalid_peer;
+  auto ctrl_a = Control::Create(config_, host_a, creds_a_);
+  ASSERT_NE(ctrl_a, nullptr);
+  ASSERT_TRUE(ctrl_a->Start());
+
+  auto ctrl_b = Control::Create(config_, host_b, creds_b_);
+  ASSERT_NE(ctrl_b, nullptr);
+
+  const PspSpiKey client_key = {.spi = 0x11223344,
+                                .key = "1234567890abcdef"};
+  const PspSpiKey expected_server_key = {.spi = 0x55667788,
+                                         .key = "fedcba0987654321"};
   const Endpoint target = Endpoint::Create("127.0.0.1:20002");
 
+  ctrl_b->SetPspKeyHandler([&](const proto::PspKeyExchangeRequest& req,
+                               proto::PspKeyExchangeResponse* resp) {
+    EXPECT_EQ(req.psp().spi(), client_key.spi);
+    EXPECT_EQ(req.psp().key(), client_key.key);
+    EXPECT_TRUE(req.has_endpoint());
+    EXPECT_EQ(req.endpoint().ip_port(), target.ToString());
+    resp->mutable_psp()->set_spi(expected_server_key.spi);
+    resp->mutable_psp()->set_key(expected_server_key.key);
+    return absl::OkStatus();
+  });
+  ASSERT_TRUE(ctrl_b->Start());
+
+  auto server_key_or = ctrl_a->ExchangePspKey(
+      host_b.control_plane_listener, client_key, target);
+  ASSERT_TRUE(server_key_or.ok()) << server_key_or.status();
+  EXPECT_EQ(server_key_or->spi, expected_server_key.spi);
+  EXPECT_EQ(server_key_or->key, expected_server_key.key);
+}
+
+TEST_F(ControlTest, ExchangePspKeyErrors) {
+  const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
+  const uint16_t port_b = util::FindFreePort(AF_INET, /*tcp=*/true);
+  ASSERT_GT(port_a, 0);
+  ASSERT_GT(port_b, 0);
+
+  const HostInfo host_a = {
+      .control_plane_listener =
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
+      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
+  };
+  const HostInfo host_b = {
+      .control_plane_listener =
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
+      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
+  };
+
+  const PspSpiKey valid_client_key = {.spi = 1, .key = std::string(16, 'a')};
+  const Endpoint target = Endpoint::Create("127.0.0.1:20002");
+
+  // 1. Client-side argument validation.
+  auto ctrl_a = Control::Create(config_, host_a, creds_a_);
+  ASSERT_NE(ctrl_a, nullptr);
+  ASSERT_TRUE(ctrl_a->Start());
+
   // Invalid peer endpoint.
-  EXPECT_EQ(ctrl->ExchangePspKey(invalid_peer,
-                                 {.spi = 1, .key = std::string(16, 'a')},
-                                 target)
+  EXPECT_EQ(ctrl_a->ExchangePspKey(Endpoint(), valid_client_key, target)
                 .status()
                 .code(),
             absl::StatusCode::kInvalidArgument);
 
   // Invalid target endpoint.
   const Endpoint invalid_target;
-  EXPECT_EQ(ctrl->ExchangePspKey(valid_peer,
-                                 {.spi = 1, .key = std::string(16, 'a')},
-                                 invalid_target)
+  EXPECT_EQ(ctrl_a->ExchangePspKey(host_b.control_plane_listener,
+                                   valid_client_key, invalid_target)
                 .status()
                 .code(),
             absl::StatusCode::kInvalidArgument);
 
   // Invalid SPI (0).
-  EXPECT_EQ(ctrl->ExchangePspKey(valid_peer,
-                                 {.spi = 0, .key = std::string(16, 'a')},
-                                 target)
+  EXPECT_EQ(ctrl_a->ExchangePspKey(host_b.control_plane_listener,
+                                   {.spi = 0, .key = std::string(16, 'a')},
+                                   target)
                 .status()
                 .code(),
             absl::StatusCode::kInvalidArgument);
 
   // Invalid key size (short).
-  EXPECT_EQ(ctrl->ExchangePspKey(valid_peer, {.spi = 1, .key = "short"}, target)
+  EXPECT_EQ(ctrl_a->ExchangePspKey(host_b.control_plane_listener,
+                                   {.spi = 1, .key = "short"}, target)
                 .status()
                 .code(),
             absl::StatusCode::kInvalidArgument);
 
   // Invalid key size (long).
-  EXPECT_EQ(ctrl->ExchangePspKey(valid_peer,
-                                 {.spi = 1, .key = std::string(32, 'a')},
-                                 target)
+  EXPECT_EQ(ctrl_a->ExchangePspKey(host_b.control_plane_listener,
+                                   {.spi = 1, .key = std::string(32, 'a')},
+                                   target)
                 .status()
                 .code(),
             absl::StatusCode::kInvalidArgument);
-}
 
+  // 2. Encryption disabled in server config (SetPspKeyHandler is no-op).
+  config_.require_dataplane_encryption = false;
+  auto ctrl_disabled = Control::Create(config_, host_b, creds_b_);
+  ASSERT_NE(ctrl_disabled, nullptr);
+  ctrl_disabled->SetPspKeyHandler(
+      [](const proto::PspKeyExchangeRequest&, proto::PspKeyExchangeResponse*) {
+        return absl::OkStatus();
+      });
+  ASSERT_TRUE(ctrl_disabled->Start());
+
+  auto resp_disabled = ctrl_a->ExchangePspKey(
+      host_b.control_plane_listener, valid_client_key, target);
+  EXPECT_FALSE(resp_disabled.ok());
+  EXPECT_EQ(resp_disabled.status().code(), absl::StatusCode::kUnimplemented);
+
+  // 3. Encryption enabled but server handler is unconfigured.
+  config_.require_dataplane_encryption = true;
+  const uint16_t port_c = util::FindFreePort(AF_INET, /*tcp=*/true);
+  ASSERT_GT(port_c, 0);
+  const HostInfo host_c = {
+      .control_plane_listener =
+          Endpoint::Create(absl::StrCat("127.0.0.1:", port_c)),
+      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20003")},
+  };
+  auto ctrl_missing = Control::Create(config_, host_c, creds_b_);
+  ASSERT_NE(ctrl_missing, nullptr);
+  ASSERT_TRUE(ctrl_missing->Start());
+
+  auto resp_missing = ctrl_a->ExchangePspKey(
+      host_c.control_plane_listener, valid_client_key, target);
+  EXPECT_FALSE(resp_missing.ok());
+  EXPECT_EQ(resp_missing.status().code(), absl::StatusCode::kUnimplemented);
+}
 }  // namespace
 }  // namespace peregrine::internal::testing
