@@ -22,7 +22,8 @@ using internal::TransportImpl;
 
 std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
                                            TransportType transport_type,
-                                           int num_conns_per_peer) {
+                                           int num_conns_per_peer,
+                                           bool require_dataplane_encryption) {
   const Endpoint e = Endpoint::Create(endpoint);
   if ABSL_PREDICT_FALSE (!e.HasNonzeroIpPort()) {
     return nullptr;
@@ -37,6 +38,7 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
   const Config config = {
       .transport_type = transport_type,
       .num_conns_per_peer = n,
+      .require_dataplane_encryption = require_dataplane_encryption,
   };
   return TransportImpl::Create(config, e, std::move(creds));
 }

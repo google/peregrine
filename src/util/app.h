@@ -28,11 +28,13 @@ constexpr std::string_view kLocalhost = "127.0.0.1";
 class App final {
  public:
   // Constructor.
-  App(size_t size, int num_conns_per_peer)
+  App(size_t size, int num_conns_per_peer,
+      bool require_dataplane_encryption = false)
       : data_(size),
         control_plane_listener_(createEndpoint(AF_INET)),
         transport_(CreateTransport(control_plane_listener_, TransportType::kTcp,
-                                   num_conns_per_peer)) {
+                                   num_conns_per_peer,
+                                   require_dataplane_encryption)) {
     DCHECK_GT(size, 0);
     CHECK_NE(transport_, nullptr);  // Crash OK
   }

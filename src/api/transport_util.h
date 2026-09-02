@@ -19,7 +19,8 @@ namespace peregrine {
 std::unique_ptr<Transport> CreateTransport(
     std::string_view endpoint,
     TransportType transport_type = TransportType::kTcp,
-    int num_conns_per_peer = 8);
+    int num_conns_per_peer = 8,
+    bool require_dataplane_encryption = false);
 
 }  // namespace peregrine
 

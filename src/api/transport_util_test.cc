@@ -57,5 +57,13 @@ TEST(TransportUtilTest, TransportTypeSelection) {
               IsNull());
 }
 
+TEST(TransportUtilTest, RequireDataplaneEncryption) {
+  const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
+  const std::string ep = absl::StrFormat("127.0.0.1:%d", port);
+  EXPECT_THAT(CreateTransport(ep, TransportType::kTcp, kNumConnsPerPeer,
+                              /*require_dataplane_encryption=*/true),
+              NotNull());
+}
+
 }  // namespace
 }  // namespace peregrine::testing

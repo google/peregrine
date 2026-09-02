@@ -15,6 +15,8 @@
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
+#include "src/internal/socket/psp/psp_syscall_mock.h"  // NOLINT
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/util/util.h"
 #include "src/util/app.h"
 
@@ -28,12 +30,15 @@ using ::testing::Pointwise;
 using ::testing::TestParamInfo;
 using ::testing::Values;
 
-using Param = std::tuple</*buf_size=*/size_t, /*num_conns_per_peer=*/int>;
+using Param = std::tuple</*buf_size=*/size_t, /*num_conns_per_peer=*/int,
+                         /*enable_psp=*/bool>;
 
 std::string ToString(const TestParamInfo<Param>& info) {
   const size_t size = std::get<0>(info.param);
   const int nconns = std::get<1>(info.param);
-  return absl::StrFormat("BufSize_%zu_NumConnsPerPeer_%d", size, nconns);
+  const bool psp = std::get<2>(info.param);
+  return absl::StrFormat("BufSize_%zu_NumConnsPerPeer_%d_Psp_%s", size, nconns,
+                         psp ? "enabled" : "disabled");
 }
 
 class TransportImplTest : public ::testing::TestWithParam<Param> {
@@ -43,9 +48,16 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
         size1_(std::max(1UL, size_ / 2)),
         size2_(size_ - size1_),
         nconns_(std::get<1>(GetParam())),
-        a_(size_, nconns_),
-        b_(size_, nconns_) {
+        enable_psp_(std::get<2>(GetParam())),
+        a_(size_, nconns_, enable_psp_),
+        b_(size_, nconns_, enable_psp_) {
     DCHECK_EQ(a_.DataSize(), b_.DataSize());
+  }
+
+  void SetUp() override {
+    if (enable_psp_ && !IsPspSupported()) {
+      GTEST_SKIP() << "PSP is not supported";
+    }
   }
 
   std::vector<Request> MakeRequests(const Op op) {
@@ -84,13 +96,15 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
   const size_t size1_;
   const size_t size2_;
   const int nconns_;
+  const bool enable_psp_;
   util::App a_;
   util::App b_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, TransportImplTest,
                          Combine(/*buf_size=*/Values(1, 65536, 1048575),
-                                 /*num_conns_per_peer=*/Values(1, 8, 16)),
+                                 /*num_conns_per_peer=*/Values(1, 8, 16),
+                                 /*enable_psp=*/Values(false, true)),
                          ToString);
 
 TEST_P(TransportImplTest, Read) {
