@@ -6,12 +6,9 @@
 #include <cstring>
 #include <limits>
 #include <memory>
-#include <string>
-#include <string_view>
 #include <thread>  // NOLINT
 #include <utility>
 
-#include "infiniband/verbs.h"
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -32,13 +29,9 @@
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/worker.h"
-#include "src/internal/rdma/rdma_device_context.h"
-#include "src/internal/rdma/rdma_device_manager.h"
-#include "src/internal/rdma/rdma_memory_manager.h"
-#include "src/internal/rdma/rdma_queue_pair.h"
+#include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
@@ -57,33 +50,19 @@ absl::Status NotFoundError(const Handle h) {
 std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
                                        Control& control) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
-  std::unique_ptr<TcpAcceptor> acceptor = nullptr;
-  std::unique_ptr<RdmaDeviceManager> rdma_device_manager = nullptr;
+  std::unique_ptr<TcpAcceptor> tcp_acceptor = nullptr;
+  std::unique_ptr<RdmaAcceptor> rdma_acceptor = nullptr;
 
   if (config.transport_type == TransportType::kTcp) {
-    acceptor = TcpAcceptor::Create(self);
-    if ABSL_PREDICT_FALSE (acceptor == nullptr) {
+    tcp_acceptor = TcpAcceptor::Create(self);
+    if ABSL_PREDICT_FALSE (tcp_acceptor == nullptr) {
       LOG(WARNING) << "failed to create acceptor: " << self;
       return nullptr;
     }
   } else if (config.transport_type == TransportType::kRdma) {
-    auto rdma_mgr_or = RdmaDeviceManager::Create();
-    if ABSL_PREDICT_FALSE (!rdma_mgr_or.ok()) {
-      LOG(WARNING) << "failed to create rdma device manager: "
-                   << rdma_mgr_or.status();
-      return nullptr;
-    }
-    rdma_device_manager = std::move(*rdma_mgr_or);
-    for (const auto& dev : rdma_device_manager->Devices()) {
-      self.rdma_interfaces.push_back({
-          .name = std::string(dev->Name()),
-          .gid = std::string(reinterpret_cast<const char*>(dev->LocalGid().raw),
-                             sizeof(dev->LocalGid().raw)),
-          .port_num = RdmaDeviceContext::kDefaultPortNum,
-      });
-    }
-    if ABSL_PREDICT_FALSE (self.rdma_interfaces.empty()) {
-      LOG(WARNING) << "no active RDMA devices found: " << self;
+    rdma_acceptor = RdmaAcceptor::Create(config, self, control);
+    if ABSL_PREDICT_FALSE (rdma_acceptor == nullptr) {
+      LOG(WARNING) << "failed to create rdma acceptor: " << self;
       return nullptr;
     }
   } else {
@@ -94,16 +73,8 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
     LOG(WARNING) << "invalid self host info: " << self;
     return nullptr;
   }
-  auto e =
-      absl::WrapUnique(new Engine(config, self, std::move(acceptor),
-                                  std::move(rdma_device_manager), control));
-
-  // Register RDMA connection handler into Control.
-  control.SetRdmaConnectHandler(
-      [engine = e.get()](const proto::RdmaConnectRequest& req,
-                         proto::RdmaConnectResponse* resp) {
-        return engine->handleRdmaConnect(req, resp);
-      });
+  auto e = absl::WrapUnique(new Engine(config, self, std::move(tcp_acceptor),
+                                       std::move(rdma_acceptor), control));
 
   if (config.require_dataplane_encryption) {
     // Register PSP key exchange handler into Control.
@@ -119,18 +90,14 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
 
 Engine::Engine(const Config& config, HostInfo& self,
                std::unique_ptr<TcpAcceptor> tcp_acceptor,
-               std::unique_ptr<RdmaDeviceManager> rdma_devmgr, Control& control)
+               std::unique_ptr<RdmaAcceptor> rdma_acceptor, Control& control)
     : config_(config),
       self_(self),
       control_(control),
       stop_(false),
       tcp_acceptor_(std::move(tcp_acceptor)),
-      rdma_devmgr_(std::move(rdma_devmgr)) {
+      rdma_acceptor_(std::move(rdma_acceptor)) {
   DCHECK(config_.IsValid());
-
-  if (rdma_devmgr_ != nullptr) {
-    rdma_memmgr_ = std::make_unique<RdmaMemoryManager>(rdma_devmgr_.get());
-  }
 
   // Start an acceptor thread if TCP acceptor is present.
   if (tcp_acceptor_ != nullptr) {
@@ -149,7 +116,6 @@ Engine::Engine(const Config& config, HostInfo& self,
 }
 
 Engine::~Engine() {
-  control_.SetRdmaConnectHandler(nullptr);
   control_.SetPspKeyHandler(nullptr);
   {
     absl::MutexLock _(mu_);
@@ -253,88 +219,18 @@ absl::Status Engine::handlePspKeyExchange(
 }
 
 bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
-  if (rdma_devmgr_ == nullptr || rdma_devmgr_->Devices().empty()) {
-    LOG(WARNING) << "no local RDMA devices available";
+  if (rdma_acceptor_ == nullptr) {
+    LOG(WARNING) << "no local RDMA acceptor available";
     return false;
   }
-
-  const auto& local_devices = rdma_devmgr_->Devices();
-  if (local_devices.empty()) {
-    LOG(WARNING) << "no local RDMA devices available";
-    return false;
-  }
-
   const int num_conns = config_.num_conns_per_peer;
-  auto peer_info = control_.GetPeerHostInfo(peer);
-  if (!peer_info.ok()) {
-    LOG(WARNING) << "failed to resolve peer " << peer << ": "
-                 << peer_info.status();
-    return false;
-  }
-  const auto& remote_interfaces = peer_info->rdma_interfaces;
-  if (remote_interfaces.empty()) {
-    LOG(WARNING) << "no RDMA interfaces found for peer " << peer;
-    return false;
-  }
-
-  for (int i = 0; i < 2 * num_conns; ++i) {
-    const size_t local_idx = i % local_devices.size();
-    const size_t remote_idx = i % remote_interfaces.size();
-    RdmaDeviceContext* local_dev = local_devices[local_idx].get();
-    const std::string_view remote_device_name =
-        remote_interfaces[remote_idx].name;
-
-    auto qp_or = RdmaQueuePair::Create(local_dev);
-    if (!qp_or.ok()) {
-      LOG(WARNING) << "failed to create local RDMA queue pair: "
-                   << qp_or.status();
-      continue;
-    }
-    auto qp = std::move(*qp_or);
-
-    const uint32_t local_psn = genPsn();
-    uint32_t local_lkey = 0;
-    uint32_t initiator_rkey = 0;
-    {
-      absl::MutexLock _(mu_);
-      if (rdma_memmgr_ != nullptr) {
-        local_lkey = rdma_memmgr_->GetDefaultLKey(local_dev->Name());
-        initiator_rkey = rdma_memmgr_->GetDefaultRKey(local_dev->Name());
-      }
-    }
-
-    auto resp_or = control_.ConnectRdmaPeer(peer, remote_device_name, qp->Qpn(),
-                                            local_dev->LocalGid().raw,
-                                            local_psn, initiator_rkey);
-    if (!resp_or.ok()) {
-      LOG(WARNING) << "ConnectRdmaPeer RPC failed for peer " << peer << ": "
-                   << resp_or.status();
-      continue;
-    }
-    const auto& resp = *resp_or;
-
-    if (resp.gid().size() != sizeof(union ibv_gid)) {
-      LOG(WARNING) << "invalid GID size in RdmaConnectResponse from peer "
-                   << peer;
-      continue;
-    }
-
-    union ibv_gid remote_gid = {};
-    std::memcpy(remote_gid.raw, resp.gid().data(), sizeof(remote_gid.raw));
-
-    auto status = qp->Connect(resp.qpn(), remote_gid, resp.psn(), local_psn);
-    if (!status.ok()) {
-      LOG(WARNING) << "failed to connect local QP to RTS: " << status;
-      continue;
-    }
-
-    auto channel = CreateRdmaChannel(std::move(qp), local_lkey, resp.rkey());
+  auto channels = rdma_acceptor_->Connect(peer, num_conns);
+  for (auto& ch : channels) {
     auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
-                                       incoming_, std::move(channel));
+                                       incoming_, std::move(ch));
     workers.push_back(std::move(sw));
     if (workers.size() >= num_conns) break;
   }
-
   return !workers.empty();
 }
 
@@ -369,25 +265,23 @@ absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
 }
 
 absl::Status Engine::RegisterMemory(void* addr, size_t length) {
-  absl::MutexLock _(mu_);
-  if (rdma_memmgr_ != nullptr) {
-    return rdma_memmgr_->RegisterMemory(addr, length);
+  if (rdma_acceptor_ != nullptr) {
+    return rdma_acceptor_->RegisterMemory(addr, length);
   }
   if (config_.transport_type == TransportType::kTcp) {
     return absl::OkStatus();
   }
-  return absl::FailedPreconditionError("RDMA memory manager not initialized");
+  return absl::FailedPreconditionError("RDMA acceptor not initialized");
 }
 
 absl::Status Engine::DeregisterMemory(const void* addr) {
-  absl::MutexLock _(mu_);
-  if (rdma_memmgr_ != nullptr) {
-    return rdma_memmgr_->DeregisterMemory(addr);
+  if (rdma_acceptor_ != nullptr) {
+    return rdma_acceptor_->DeregisterMemory(addr);
   }
   if (config_.transport_type == TransportType::kTcp) {
     return absl::OkStatus();
   }
-  return absl::FailedPreconditionError("RDMA memory manager not initialized");
+  return absl::FailedPreconditionError("RDMA acceptor not initialized");
 }
 
 bool Engine::hasWork() const { return !reqs_.empty() || stop_; }
@@ -464,55 +358,6 @@ void Engine::processRead(const Handle handle, const ReqId reqid,
   auto tracker = incoming_.FindOrCreate(handle, reqid, /*num_channels=*/1);
   std::memcpy(request.laddr, request.raddr, request.len);
   tracker->Set(chunk_t(0));
-}
-
-absl::Status Engine::handleRdmaConnect(const proto::RdmaConnectRequest& req,
-                                       proto::RdmaConnectResponse* resp) {
-  if (rdma_devmgr_ == nullptr) {
-    return absl::FailedPreconditionError("RDMA is not enabled on this engine");
-  }
-  if (resp == nullptr) {
-    return absl::InvalidArgumentError("null response pointer");
-  }
-
-  RdmaDeviceContext* dev = rdma_devmgr_->GetDevice(req.device_name());
-  if (dev == nullptr) {
-    return absl::NotFoundError(
-        absl::StrFormat("RDMA device not found: %s", req.device_name()));
-  }
-
-  if (req.gid().size() != sizeof(union ibv_gid)) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("invalid GID size: expected %d, got %d",
-                        sizeof(union ibv_gid), req.gid().size()));
-  }
-
-  auto qp_or = RdmaQueuePair::Create(dev);
-  if (!qp_or.ok()) return qp_or.status();
-  auto qp = std::move(*qp_or);
-
-  union ibv_gid remote_gid = {};
-  std::memcpy(remote_gid.raw, req.gid().data(), sizeof(remote_gid.raw));
-
-  const uint32_t local_psn = genPsn();
-  auto status = qp->Connect(req.qpn(), remote_gid, req.psn(), local_psn);
-  if (!status.ok()) return status;
-
-  resp->set_qpn(qp->Qpn());
-  resp->set_gid(
-      std::string_view(reinterpret_cast<const char*>(dev->LocalGid().raw),
-                       sizeof(dev->LocalGid().raw)));
-  resp->set_psn(local_psn);
-
-  {
-    absl::MutexLock _(mu_);
-    if (rdma_memmgr_ != nullptr) {
-      resp->set_rkey(rdma_memmgr_->GetDefaultRKey(dev->Name()));
-    }
-    rdma_qps_.push_back(std::move(qp));
-  }
-
-  return absl::OkStatus();
 }
 
 }  // namespace peregrine::internal

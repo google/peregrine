@@ -122,3 +122,49 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "rdma_acceptor",
+    srcs = ["rdma_acceptor.cc"],
+    hdrs = ["rdma_acceptor.h"],
+    deps = [
+        ":rdma_device_context",
+        ":rdma_device_manager",
+        ":rdma_memory_manager",
+        ":rdma_queue_pair",
+        "//:libibverbs",  # buildcleaner: keep
+        "//src/api:transport_types",
+        "//src/internal/base:config",
+        "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
+        "//src/internal/channel",
+        "//src/internal/channel:channel_util",
+        "//src/internal/control",
+        "//src/internal/control:message_cc_proto",
+        "//src/util",
+        "//third_party/gloop/util/random:shared_bit_gen",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "rdma_acceptor_test",
+    srcs = ["rdma_acceptor_test.cc"],
+    deps = [
+        ":rdma_acceptor",
+        ":rdma_device_manager",
+        "//src/api:transport_types",
+        "//src/internal/base:config",
+        "//src/internal/base:endpoint",
+        "//src/internal/base:hostinfo",
+        "//src/internal/control",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)

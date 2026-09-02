@@ -26,9 +26,7 @@
 #include "src/internal/control/control.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/engine/worker.h"
-#include "src/internal/rdma/rdma_device_manager.h"
-#include "src/internal/rdma/rdma_memory_manager.h"
-#include "src/internal/rdma/rdma_queue_pair.h"
+#include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
@@ -61,6 +59,11 @@ class Engine final {
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);
 
+  // TODO(mubashirq): Decouple memory registration from Engine. Engine should be
+  // a pure scheduler; RdmaAcceptor and TcpAcceptor should be managed at the
+  // outer Transport layer, with memory registration handled directly by
+  // Transport.
+  //
   // Registers a contiguous memory buffer across active RDMA hardware adapters.
   absl::Status RegisterMemory(void* addr, size_t length)
       ABSL_LOCKS_EXCLUDED(mu_);
@@ -68,12 +71,6 @@ class Engine final {
   // Deregisters a previously registered memory buffer from active RDMA hardware
   // adapters.
   absl::Status DeregisterMemory(const void* addr) ABSL_LOCKS_EXCLUDED(mu_);
-
-  // Returns the RDMA memory manager if initialized.
-  const RdmaMemoryManager* GetMemoryManager() const ABSL_LOCKS_EXCLUDED(mu_) {
-    absl::MutexLock _(mu_);
-    return rdma_memmgr_.get();
-  }
 
  private:
   struct Entry {
@@ -87,7 +84,7 @@ class Engine final {
   // Constructor.
   Engine(const Config& config, HostInfo& self,
          std::unique_ptr<TcpAcceptor> tcp_acceptor,
-         std::unique_ptr<RdmaDeviceManager> rdma_devmgr, Control& control);
+         std::unique_ptr<RdmaAcceptor> rdma_acceptor, Control& control);
 
  private:
   using Workers = std::vector<std::unique_ptr<Worker>>;
@@ -112,10 +109,6 @@ class Engine final {
   absl::Status handlePspKeyExchange(const proto::PspKeyExchangeRequest& req,
                                     proto::PspKeyExchangeResponse* resp);
 
-  // Handles an incoming RDMA connection request from a remote peer.
-  absl::Status handleRdmaConnect(const proto::RdmaConnectRequest& req,
-                                 proto::RdmaConnectResponse* resp);
-
  private:
   // Generates a random handle.
   Handle genHandle() {
@@ -128,9 +121,6 @@ class Engine final {
     static_assert(std::is_same_v<ReqId::ValueType, uint32_t>);
     return ReqId(util::Random<ReqId::ValueType>(bitgen_));
   }
-
-  // Generates a random packet sequence number.
-  uint32_t genPsn() { return util::Random<uint32_t>(bitgen_) & 0x00FF'FFFF; }
 
   // Returns the tracker for the request.
   RequestTracker& getRequestTracker(const Request& request) {
@@ -173,10 +163,7 @@ class Engine final {
   std::unique_ptr<TcpAcceptor> tcp_acceptor_;
 
   // RDMA data plane.
-  // TODO(mubashirq): add rdma/rdma_acceptor.{h,cc}
-  std::unique_ptr<RdmaDeviceManager> rdma_devmgr_;
-  std::unique_ptr<RdmaMemoryManager> rdma_memmgr_ ABSL_GUARDED_BY(mu_);
-  std::vector<std::unique_ptr<RdmaQueuePair>> rdma_qps_ ABSL_GUARDED_BY(mu_);
+  std::unique_ptr<RdmaAcceptor> rdma_acceptor_;
 
   absl::flat_hash_map<Endpoint, Workers> send_workers_;
   Workers recv_workers_;
