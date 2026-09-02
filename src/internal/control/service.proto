@@ -12,4 +12,10 @@ service PeregrineService {
       returns (peregrine.internal.proto.RespMsg) {
     option deadline = 10.0;
   }
+
+  // Client sends its local RX SPI and key; server returns its RX SPI and key.
+  rpc ExchangePspKey(peregrine.internal.proto.PspKeyExchangeRequest)
+      returns (peregrine.internal.proto.PspKeyExchangeResponse) {
+    option deadline = 10.0;
+  }
 }
