@@ -6,8 +6,10 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "src/api/transport.h"
@@ -26,9 +28,10 @@ class DatapathHost final {
   ~DatapathHost() = default;
 
   // Posts requests using this host's transport.
-  absl::StatusOr<Handle> Post(std::string_view peer,
-                              absl::Span<const Request> requests) {
-    return transport_->Post(peer, requests);
+  absl::StatusOr<Handle> Post(
+      std::string_view peer, absl::Span<const Request> requests,
+      absl::AnyInvocable<void(Status)> on_complete = nullptr) {
+    return transport_->Post(peer, requests, std::move(on_complete));
   }
 
   // Polls the request handle.

@@ -38,8 +38,9 @@ class TransportImpl final : public Transport {
   //
   // The caller must maintain the validity of the local/remote memory buffers
   // specified by the `request` until processing is complete.
-  absl::StatusOr<Handle> Post(std::string_view peer,
-                              absl::Span<const Request> requests) override;
+  absl::StatusOr<Handle> Post(
+      std::string_view peer, absl::Span<const Request> requests,
+      absl::AnyInvocable<void(Status)> on_complete = nullptr) override;
 
   // Polls the status of the transport request identified by the `handle`.
   //

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <string_view>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
@@ -22,10 +23,14 @@ class Transport {
   // On success, returns a process-level unique `handle`, which can be used to
   // poll the request batch status. Returns an error on failure.
   //
+  // If `on_complete` is provided, it is invoked once when the batch of requests
+  // completes (either successfully or with an error).
+  //
   // The caller must maintain the validity of the local/remote memory buffers
   // specified by the `request` until processing is complete.
-  virtual absl::StatusOr<Handle> Post(std::string_view peer,
-                                      absl::Span<const Request> requests) = 0;
+  virtual absl::StatusOr<Handle> Post(
+      std::string_view peer, absl::Span<const Request> requests,
+      absl::AnyInvocable<void(Status)> on_complete = nullptr) = 0;
 
   // Polls the status of the transport request identified by the `handle`.
   //

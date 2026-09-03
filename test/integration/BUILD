@@ -56,6 +56,7 @@ cc_library(
         "//src/api:transport_types",
         "//src/api:transport_util",
         "//src/util",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",

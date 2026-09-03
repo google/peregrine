@@ -11,6 +11,7 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
@@ -53,8 +54,9 @@ class Engine final {
   ~Engine();
 
   // Enqueues a number of valid transport request.
-  absl::StatusOr<Handle> Enqueue(const Endpoint& peer,
-                                 absl::Span<const Request> requests);
+  absl::StatusOr<Handle> Enqueue(
+      const Endpoint& peer, absl::Span<const Request> requests,
+      absl::AnyInvocable<void(Status)> on_complete = nullptr);
 
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);

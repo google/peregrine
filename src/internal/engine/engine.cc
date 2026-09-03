@@ -254,8 +254,9 @@ bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
   return !workers.empty();
 }
 
-absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer,
-                                       absl::Span<const Request> requests) {
+absl::StatusOr<Handle> Engine::Enqueue(
+    const Endpoint& peer, absl::Span<const Request> requests,
+    absl::AnyInvocable<void(Status)> on_complete) {
   DCHECK(peer.HasNonzeroIpPort());
   DCHECK(IsValid(requests));
 

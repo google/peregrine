@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string_view>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_set.h"
@@ -11,6 +12,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
+#include "src/api/transport.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
@@ -64,8 +66,9 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(
   return t;
 }
 
-absl::StatusOr<Handle> TransportImpl::Post(std::string_view peer,
-                                           absl::Span<const Request> requests) {
+absl::StatusOr<Handle> TransportImpl::Post(
+    std::string_view peer, absl::Span<const Request> requests,
+    absl::AnyInvocable<void(Status)> on_complete) {
   const Endpoint endpoint = Endpoint::Create(peer);
   if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError(
@@ -91,7 +94,7 @@ absl::StatusOr<Handle> TransportImpl::Post(std::string_view peer,
         "All requests must have the same op type");
   }
 
-  return engine_->Enqueue(endpoint, requests);
+  return engine_->Enqueue(endpoint, requests, std::move(on_complete));
 }
 
 }  // namespace peregrine::internal
