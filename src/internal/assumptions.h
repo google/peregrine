@@ -73,11 +73,13 @@ inline constexpr bool kOnlyTcpListeningSocketsAreNonBlocking = true;
 // ---------------------------------------------------------------------------
 //
 // There are multiple types of messages in the control plane, such as transport
-// request, host info, software info, etc. All of them are wrapped in a single
-// control message using protobuf's `oneof` feature. All the control message
+// request, host info, psp key, rdma, etc. All of them are wrapped in one pair
+// of {Req|Resp}Msg using protobuf's `oneof` feature. All the control message
 // exchanges are done over gRPC. (The data plane, due to efficiency reasons,
 // runs over TCP/RDMA/..., to minimize the middle layers as much as possible.)
-inline constexpr bool kThereIsOnlyOneWrapperControlMessage = true;
+// With a single pair of control messages, gRPC service has only one general
+// ProcessUnary() function and one general request callback handler.
+inline constexpr bool kThereIsOnlyOnePairOfWrapperControlMessages = true;
 
 // Assumptions about network MTU.
 // ---------------------------------------------------------------------------

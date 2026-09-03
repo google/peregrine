@@ -4,13 +4,15 @@ edition = "2024";
 
 package peregrine.internal.proto;
 
-// static_assert(assumptions::kTcpListenersOfControlAndDataPlanesAreSeparate);
-// static_assert(assumptions::kThereIsOnlyOneWrapperControlMessageAtMost1KiB);
+import "src/internal/control/message_internal.proto";
+
+// static_assert(assumptions::kThereIsOnlyOnePairOfWrapperControlMessages);
 message ReqMsg {
   oneof msg {
     PeerRequests peer_requests = 1;
     HostInfo host_info = 2;
     RdmaConnectRequest rdma_connect_req = 3;
+    // Append new request types here.
   }
 }
 
@@ -19,79 +21,12 @@ message RespMsg {
     HostInfo host_info = 1;
     PeerResponse peer_response = 2;
     RdmaConnectResponse rdma_connect_resp = 3;
+    // Append new request types here.
   }
 }
 
-// Below are inner messages.
-// ------------------------
-
-message PeerRequests {
-  HostInfo peer = 1;
-  repeated Request requests = 2;
-}
-
-// Response to PeerRequests containing resolved remote memory keys.
-message PeerResponse {
-  repeated uint32 rkeys = 1;
-}
-
-// Request to establish an RDMA Queue Pair connection with a remote peer.
-message RdmaConnectRequest {
-  HostInfo peer = 1;       // Initiator's host information
-  string device_name = 2;  // Target device on remote host, e.g. "irdma0"
-  uint32 qpn = 3;          // Initiator's local QP number
-  bytes gid = 4;           // Initiator's local GID (16 bytes)
-  uint32 psn = 5;          // Initiator's starting packet sequence number
-  // Initiator's memory region rkey. Assumed static for channel lifetime, but
-  // may change in the future to dynamic per-transfer resolution.
-  uint32 rkey = 6;
-}
-
-// Response to RdmaConnectRequest containing the responder's QP parameters.
-message RdmaConnectResponse {
-  uint32 qpn = 1;  // Responder's assigned QP number
-  bytes gid = 2;   // Responder's GID on that device (16 bytes)
-  uint32 psn = 3;  // Responder's starting packet sequence number
-  // Responder's memory region rkey. Assumed static for channel lifetime, but
-  // may change in the future to dynamic per-transfer resolution.
-  uint32 rkey = 4;
-}
-
-// See internal/base/hostinfo.h
-// TODO: Consider unifying TCP data_plane_listeners and rdma_interfaces into a
-// polymorphic DataPlaneEndpoint message.
-message HostInfo {
-  Endpoint control_plane_listener = 1;
-  repeated Endpoint data_plane_listeners = 2;
-  repeated RdmaInterface rdma_interfaces = 3;
-}
-
-// Represents a local RDMA hardware interface on the host.
-message RdmaInterface {
-  string name = 1;      // Device name, e.g. "irdma0"
-  bytes gid = 2;        // 16-byte raw RoCEv2 GID
-  uint32 port_num = 3;  // Physical port number on HCA (typically 1)
-}
-
-// See internal/base/endpoint.h
-message Endpoint {
-  bytes ip_port = 1;  // e.g. "127.0.0.1:56789" or "[::1]:56789"
-}
-
-// See api/transport_types.h
-message Request {
-  enum Op {
-    INVALID = 0;
-    READ = 1;   // Read from peer
-    WRITE = 2;  // Write to peer
-  }
-  Op op = 1;         // operation type
-  uint64 laddr = 2;  // address in this local process
-  uint64 raddr = 3;  // address in the remote peer process
-  uint64 len = 4;    // buffer length in bytes
-  uint32 rkey = 5;   // remote memory region key (for RDMA one-sided operations)
-}
-
+// ---------------------------------------------------------
+// TODO: move the messages below to a message_internal.proto
 // Out-of-band key exchange messages for TCP-over-PSP.
 message PspKey {
   uint32 spi = 1;

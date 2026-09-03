@@ -8,6 +8,7 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/control/message_internal.pb.h"
 
 namespace peregrine::internal::testing {
 namespace {

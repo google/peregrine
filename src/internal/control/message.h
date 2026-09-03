@@ -11,6 +11,7 @@
 #include "src/internal/assumptions.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/control/message_internal.pb.h"
 
 namespace peregrine::internal {
 
@@ -18,7 +19,7 @@ namespace peregrine::internal {
 // their proto representations.
 class Message final {
   static_assert(assumptions::kTcpListenersOfControlAndDataPlanesAreSeparate);
-  static_assert(assumptions::kThereIsOnlyOneWrapperControlMessage);
+  static_assert(assumptions::kThereIsOnlyOnePairOfWrapperControlMessages);
 
  public:
   // Serializes the control message to a string.

@@ -7,8 +7,19 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//src/internal:internal_impl"])
 
 proto_library(
+    name = "message_internal_proto",
+    srcs = ["message_internal.proto"],
+)
+
+cc_proto_library(
+    name = "message_internal_cc_proto",
+    deps = [":message_internal_proto"],
+)
+
+proto_library(
     name = "message_proto",
     srcs = ["message.proto"],
+    deps = [":message_internal_proto"],
 )
 
 cc_proto_library(
@@ -19,7 +30,7 @@ cc_proto_library(
 proto_library(
     name = "service_proto",
     srcs = ["service.proto"],
-    deps = [":message_proto"],
+    deps = [":message_proto"],  # Do NOT add any new dependencies here!
 )
 
 cc_proto_library(
@@ -40,6 +51,7 @@ cc_library(
     hdrs = ["message.h"],
     deps = [
         ":message_cc_proto",
+        ":message_internal_cc_proto",
         "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal/base:endpoint",
@@ -55,6 +67,7 @@ cc_test(
     deps = [
         ":message",
         ":message_cc_proto",
+        ":message_internal_cc_proto",
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
@@ -124,7 +137,7 @@ cc_library(
     deps = [
         ":message_cc_proto",
         ":service_cc_grpc_proto",
-        ":service_cc_proto",
+        "//src/internal:assumptions",
         "//src/internal/base:endpoint",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
@@ -144,6 +157,7 @@ cc_library(
         ":message_cc_proto",
         ":service_cc_grpc_proto",
         ":service_cc_proto",
+        "//src/internal:assumptions",
         "//src/internal/base:endpoint",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
@@ -153,7 +167,6 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:string_view",
         "@grpc//:grpc++",
     ],
 )

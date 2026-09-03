@@ -6,13 +6,17 @@ package peregrine.internal.control;
 
 import "src/internal/control/message.proto";
 
+// static_assert(assumptions::kThereIsOnlyOnePairOfWrapperControlMessages);
 service PeregrineService {
   // A generic unary rpc function to process Peregrine control messages.
   rpc ProcessUnary(peregrine.internal.proto.ReqMsg)
       returns (peregrine.internal.proto.RespMsg) {
     option deadline = 10.0;
   }
+  // Do NOT add any other rpc functions!
 
+  // -------------------------------------------------------------------------
+  // TODO: remove the following function.
   // Client sends its local RX SPI and key; server returns its RX SPI and key.
   rpc ExchangePspKey(peregrine.internal.proto.PspKeyExchangeRequest)
       returns (peregrine.internal.proto.PspKeyExchangeResponse) {

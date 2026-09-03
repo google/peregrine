@@ -5,6 +5,7 @@
 
 #include "absl/status/statusor.h"
 #include "grpcpp/security/credentials.h"
+#include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/service.grpc.pb.h"
@@ -15,6 +16,8 @@ namespace peregrine::internal {
 // gRPC client wrapper for sending control requests to a peer gRPC server.
 // It is thread-safe.
 class GrpcClient final {
+  static_assert(assumptions::kThereIsOnlyOnePairOfWrapperControlMessages);
+
  public:
   // Constructor binding to a peer endpoint (e.g. "127.0.0.1:50051")
   // using explicit gRPC channel credentials.

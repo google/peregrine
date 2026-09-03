@@ -12,6 +12,7 @@
 #include "grpcpp/server.h"
 #include "grpcpp/server_context.h"
 #include "grpcpp/support/status.h"
+#include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/service.grpc.pb.h"
@@ -23,6 +24,8 @@ namespace peregrine::internal {
 // gRPC server listening for peer requests and executing callback handlers.
 // It is thread-safe.
 class GrpcServer final : public control::PeregrineService::Service {
+  static_assert(assumptions::kThereIsOnlyOnePairOfWrapperControlMessages);
+
  public:
   using RequestHandler = absl::AnyInvocable<absl::Status(
       const proto::ReqMsg&, proto::RespMsg*) const>;
