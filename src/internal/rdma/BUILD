@@ -141,6 +141,7 @@ cc_library(
         "//src/internal/channel:channel_util",
         "//src/internal/control",
         "//src/internal/control:message_cc_proto",
+        "//src/internal/control:message_internal_cc_proto",
         "//src/util",
         "//third_party/gloop/util/random:shared_bit_gen",
         "@abseil-cpp//absl/base:core_headers",

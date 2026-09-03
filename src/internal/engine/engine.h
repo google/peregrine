@@ -26,6 +26,7 @@
 #include "src/internal/coding_style.h"
 #include "src/internal/control/control.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/control/message_internal.pb.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/request/request_tracker.h"
@@ -108,8 +109,8 @@ class Engine final {
                                           const Endpoint& target);
 
   // Handles an incoming PSP key exchange request from a remote peer.
-  absl::Status handlePspKeyExchange(const proto::PspKeyExchangeRequest& req,
-                                    proto::PspKeyExchangeResponse* resp);
+  absl::Status handlePspKeyExchange(const proto::PspKeyRequest& req,
+                                    proto::PspKeyResponse* resp);
 
  private:
   // Generates a random handle.

@@ -22,6 +22,7 @@
 #include "src/internal/control/grpc_client.h"
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/control/message_internal.pb.h"
 #include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/util/macro.h"
 
@@ -35,7 +36,9 @@ class Control final {
   using RdmaConnectHandler =
       absl::AnyInvocable<absl::Status(const proto::RdmaConnectRequest& req,
                                       proto::RdmaConnectResponse* resp) const>;
-  using PspKeyHandler = GrpcServer::PspKeyHandler;
+  using PspKeyHandler = absl::AnyInvocable<absl::Status(
+      const proto::PspKeyRequest& req, proto::PspKeyResponse* resp) const>;
+
   // Creates a control plane instance.
   static std::unique_ptr<Control> Create(const Config& config,
                                          const HostInfo& self,
@@ -74,7 +77,7 @@ class Control final {
 
   // Exchanges PSP encryption keys out-of-band with a remote peer.
   absl::StatusOr<PspSpiKey> ExchangePspKey(const Endpoint& peer,
-                                           const PspSpiKey& client_key,
+                                           const PspSpiKey& psp,
                                            const Endpoint& target);
 
  private:
@@ -90,23 +93,6 @@ class Control final {
     DCHECK_NE(client_creds_, nullptr);
   }
 
-  // Handles incoming RPC requests by dispatching to dedicated message handlers.
-  absl::Status handleIncomingRequest(const proto::ReqMsg& req,
-                                     proto::RespMsg* resp)
-      ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
-
-  // Handles out-of-band HostInfo exchange requests.
-  absl::Status handleHostInfo(const proto::ReqMsg& req, proto::RespMsg* resp)
-      ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
-
-  // Handles incoming RDMA connection requests.
-  absl::Status handleRdmaConnect(const proto::ReqMsg& req,
-                                 proto::RespMsg* resp);
-
-  // Handles incoming out-of-band PSP key exchange requests.
-  absl::Status handleExchangePspKey(const proto::PspKeyExchangeRequest& req,
-                                    proto::PspKeyExchangeResponse* resp);
-
   // Retrieves an active client stub for peer_addr or instantiates a new one.
   const GrpcClient& getOrCreateClient(const Endpoint& peer)
       ABSL_LOCKS_EXCLUDED(peer_clients_mu_);
@@ -119,12 +105,30 @@ class Control final {
   }
 
  private:
+  // Handles incoming RPC requests by dispatching to dedicated message handlers.
+  absl::Status handleIncomingRequest(const proto::ReqMsg& req,
+                                     proto::RespMsg* resp)
+      ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
+
+  // Handles out-of-band HostInfo exchange requests.
+  absl::Status handleHostInfo(const proto::ReqMsg& req, proto::RespMsg* resp)
+      ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
+
+  // Handles incoming RDMA connection requests.
+  absl::Status handleRdmaConnect(const proto::ReqMsg& req, proto::RespMsg* resp)
+      ABSL_LOCKS_EXCLUDED(rdma_handler_mu_);
+
+  // Handles incoming PSP key exchange requests.
+  absl::Status handlePspKeyExchange(const proto::ReqMsg& req,
+                                    proto::RespMsg* resp)
+      ABSL_LOCKS_EXCLUDED(psp_key_handler_mu_);
+
+ private:
   const Config& config_;
   const HostInfo& self_;
   std::shared_ptr<grpc::ServerCredentials> server_creds_;
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;
   std::unique_ptr<GrpcServer> grpc_server_;
-  PspKeyHandler psp_key_handler_;
 
   absl::Mutex peer_clients_mu_;
   absl::flat_hash_map<Endpoint, std::unique_ptr<GrpcClient>> peer_clients_
@@ -136,6 +140,9 @@ class Control final {
 
   absl::Mutex rdma_handler_mu_;
   RdmaConnectHandler rdma_connect_handler_ ABSL_GUARDED_BY(rdma_handler_mu_);
+
+  absl::Mutex psp_key_handler_mu_;
+  PspKeyHandler psp_key_handler_ ABSL_GUARDED_BY(psp_key_handler_mu_);
 };
 
 }  // namespace peregrine::internal

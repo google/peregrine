@@ -9,9 +9,10 @@ import "src/internal/control/message_internal.proto";
 // static_assert(assumptions::kThereIsOnlyOnePairOfWrapperControlMessages);
 message ReqMsg {
   oneof msg {
-    PeerRequests peer_requests = 1;
-    HostInfo host_info = 2;
+    HostInfo host_info = 1;
+    PeerRequests peer_requests = 2;
     RdmaConnectRequest rdma_connect_req = 3;
+    PspKeyRequest psp_key_req = 4;
     // Append new request types here.
   }
 }
@@ -21,26 +22,7 @@ message RespMsg {
     HostInfo host_info = 1;
     PeerResponse peer_response = 2;
     RdmaConnectResponse rdma_connect_resp = 3;
+    PspKeyResponse psp_key_resp = 4;
     // Append new request types here.
   }
-}
-
-// ---------------------------------------------------------
-// TODO: move the messages below to a message_internal.proto
-// Out-of-band key exchange messages for TCP-over-PSP.
-message PspKey {
-  uint32 spi = 1;
-  bytes key = 2;  // 16-byte raw AES session key
-}
-
-message PspKeyExchangeRequest {
-  PspKey psp = 1;
-
-  // Specifies the endpoint of the data plane listener.
-  // Only required when server has multiple data plane listeners.
-  Endpoint endpoint = 2;
-}
-
-message PspKeyExchangeResponse {
-  PspKey psp = 1;
 }

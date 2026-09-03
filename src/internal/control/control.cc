@@ -25,6 +25,7 @@
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/control/message_internal.pb.h"
 #include "src/internal/socket/psp/tcp_psp_helper.h"
 
 namespace peregrine::internal {
@@ -55,14 +56,9 @@ bool Control::Start() {
   auto req_handler = [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
     return handleIncomingRequest(req, resp);
   };
-  auto psp_handler = [this](const proto::PspKeyExchangeRequest& req,
-                            proto::PspKeyExchangeResponse* resp) {
-    return handleExchangePspKey(req, resp);
-  };
 
-  auto grpc_server =
-      GrpcServer::Create(endpoint, std::move(server_creds_),
-                         std::move(req_handler), std::move(psp_handler));
+  auto grpc_server = GrpcServer::Create(endpoint, std::move(server_creds_),
+                                        std::move(req_handler));
   if ABSL_PREDICT_FALSE (!grpc_server.ok()) {
     LOG(WARNING) << "failed to create grpc server on " << endpoint << ": "
                  << grpc_server.status();
@@ -81,9 +77,7 @@ void Control::SetRdmaConnectHandler(RdmaConnectHandler handler) {
 }
 
 void Control::SetPspKeyHandler(PspKeyHandler handler) {
-  if ABSL_PREDICT_FALSE (!config_.require_dataplane_encryption) {
-    return;
-  }
+  absl::MutexLock _(psp_key_handler_mu_);
   psp_key_handler_ = std::move(handler);
 }
 
@@ -102,6 +96,9 @@ absl::Status Control::handleIncomingRequest(const proto::ReqMsg& req,
   }
   if (req.has_rdma_connect_req()) {
     return handleRdmaConnect(req, resp);
+  }
+  if (req.has_psp_key_req()) {
+    return handlePspKeyExchange(req, resp);
   }
   return absl::UnimplementedError("unsupported request type");
 }
@@ -129,33 +126,48 @@ absl::Status Control::handleHostInfo(const proto::ReqMsg& req,
 
 absl::Status Control::handleRdmaConnect(const proto::ReqMsg& req,
                                         proto::RespMsg* resp) {
-  if (resp == nullptr) {
+  if ABSL_PREDICT_FALSE (resp == nullptr) {
     return absl::InternalError("null response message");
   }
+
   proto::RdmaConnectResponse rdma_resp;
   absl::Status status;
   {
     absl::MutexLock _(rdma_handler_mu_);
-    if (!rdma_connect_handler_) {
-      return absl::FailedPreconditionError(
-          "no RDMA connect handler registered");
+    if ABSL_PREDICT_FALSE (rdma_connect_handler_ == nullptr) {
+      return absl::UnimplementedError("missing RDMA connect handler");
     }
-    status = rdma_connect_handler_(req.rdma_connect_req(), &rdma_resp);
+    const proto::RdmaConnectRequest& rdma_req = req.rdma_connect_req();
+    status = rdma_connect_handler_(rdma_req, &rdma_resp);
   }
-  if (!status.ok()) {
+  if ABSL_PREDICT_FALSE (!status.ok()) {
     return status;
   }
   *resp->mutable_rdma_connect_resp() = std::move(rdma_resp);
   return absl::OkStatus();
 }
 
-absl::Status Control::handleExchangePspKey(
-    const proto::PspKeyExchangeRequest& req,
-    proto::PspKeyExchangeResponse* resp) {
-  if ABSL_PREDICT_FALSE (psp_key_handler_ == nullptr) {
-    return absl::UnimplementedError("PspKeyHandler not configured");
+absl::Status Control::handlePspKeyExchange(const proto::ReqMsg& req,
+                                           proto::RespMsg* resp) {
+  if ABSL_PREDICT_FALSE (resp == nullptr) {
+    return absl::InternalError("null response message");
   }
-  return psp_key_handler_(req, resp);
+
+  proto::PspKeyResponse psp_resp;
+  absl::Status status;
+  {
+    absl::MutexLock _(psp_key_handler_mu_);
+    if ABSL_PREDICT_FALSE (psp_key_handler_ == nullptr) {
+      return absl::UnimplementedError("missing PSP key handler");
+    }
+    const proto::PspKeyRequest& psp_req = req.psp_key_req();
+    status = psp_key_handler_(psp_req, &psp_resp);
+  }
+  if ABSL_PREDICT_FALSE (!status.ok()) {
+    return status;
+  }
+  *resp->mutable_psp_key_resp() = std::move(psp_resp);
+  return absl::OkStatus();
 }
 
 absl::StatusOr<proto::RespMsg> Control::SendRequest(const Endpoint& peer,
@@ -247,43 +259,44 @@ absl::StatusOr<proto::RdmaConnectResponse> Control::ConnectRdmaPeer(
   return resp->rdma_connect_resp();
 }
 
-absl::StatusOr<PspSpiKey> Control::ExchangePspKey(
-    const Endpoint& peer, const PspSpiKey& client_key,
-    const Endpoint& target) {
+absl::StatusOr<PspSpiKey> Control::ExchangePspKey(const Endpoint& peer,
+                                                  const PspSpiKey& psp,
+                                                  const Endpoint& target) {
   if (!peer.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError("invalid peer endpoint");
   }
   if (!target.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError("invalid target endpoint");
   }
-  if (!client_key.IsValid()) {
+  if (!psp.IsValid()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("invalid client PSP key (spi: %u, key length: %d)",
-                        client_key.spi, client_key.key.size()));
+                        psp.spi, psp.key.size()));
   }
 
-  proto::PspKeyExchangeRequest req;
-  req.mutable_psp()->set_spi(client_key.spi);
-  req.mutable_psp()->set_key(client_key.key);
-  req.mutable_endpoint()->set_ip_port(target.ToString());
+  proto::ReqMsg req;
+  proto::PspKeyRequest* psp_req = req.mutable_psp_key_req();
+  psp_req->mutable_psp()->set_spi(psp.spi);
+  psp_req->mutable_psp()->set_key(psp.key);
+  psp_req->mutable_endpoint()->set_ip_port(target.ToString());
 
-  const GrpcClient& client = getOrCreateClient(peer);
-  absl::StatusOr<proto::PspKeyExchangeResponse> resp =
-      client.ExchangePspKey(req);
+  auto resp = SendRequest(peer, req);
   if (!resp.ok()) {
     return resp.status();
   }
+  if (!resp->has_psp_key_resp()) {
+    return absl::InternalError("missing PspKeyResponse in response");
+  }
 
   const PspSpiKey server_key = {
-      .spi = resp->psp().spi(),
-      .key = std::string(resp->psp().key()),
+      .spi = resp->psp_key_resp().psp().spi(),
+      .key = std::string(resp->psp_key_resp().psp().key()),
   };
   if (!server_key.IsValid()) {
     return absl::InternalError(absl::StrFormat(
         "peer returned invalid server PSP key (spi: %u, key length: %d)",
         server_key.spi, server_key.key.size()));
   }
-
   return server_key;
 }
 

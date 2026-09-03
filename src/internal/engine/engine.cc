@@ -6,10 +6,12 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <string>
 #include <thread>  // NOLINT
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
@@ -32,6 +34,7 @@
 #include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
@@ -78,11 +81,10 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
 
   if (config.require_dataplane_encryption) {
     // Register PSP key exchange handler into Control.
-    control.SetPspKeyHandler(
-        [engine = e.get()](const proto::PspKeyExchangeRequest& req,
-                           proto::PspKeyExchangeResponse* resp) {
-          return engine->handlePspKeyExchange(req, resp);
-        });
+    control.SetPspKeyHandler([engine = e.get()](const proto::PspKeyRequest& req,
+                                                proto::PspKeyResponse* resp) {
+      return engine->handlePspKeyExchange(req, resp);
+    });
   }
 
   return e;
@@ -211,9 +213,8 @@ std::unique_ptr<TcpSocket> Engine::createTcpPsp(const Endpoint& peer_control,
   return socket;
 }
 
-absl::Status Engine::handlePspKeyExchange(
-    const proto::PspKeyExchangeRequest& req,
-    proto::PspKeyExchangeResponse* resp) {
+absl::Status Engine::handlePspKeyExchange(const proto::PspKeyRequest& req,
+                                          proto::PspKeyResponse* resp) {
   DCHECK_NE(tcp_acceptor_, nullptr);
   DCHECK_NE(resp, nullptr);
 

@@ -4,13 +4,13 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
 #include "src/internal/base/config.h"
@@ -18,10 +18,17 @@
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/message.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/control/message_internal.pb.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
 namespace {
+
+using ::absl::StatusCode::kInternal;
+using ::absl::StatusCode::kInvalidArgument;
+using ::absl::StatusCode::kUnavailable;
+using ::absl::StatusCode::kUnimplemented;
 
 class ControlTest : public ::testing::Test {
  protected:
@@ -105,7 +112,7 @@ TEST_F(ControlTest, GetPeerHostInfoErrors) {
   const Endpoint invalid_peer;
   auto fail_or = ctrl->GetPeerHostInfo(invalid_peer);
   EXPECT_FALSE(fail_or.ok());
-  EXPECT_EQ(fail_or.status().code(), absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(fail_or.status().code(), kInvalidArgument);
 
   // Non-existent peer endpoint triggers an unavailable error over gRPC.
   const uint16_t unused_port = util::FindFreePort(AF_INET, /*tcp=*/true);
@@ -114,7 +121,7 @@ TEST_F(ControlTest, GetPeerHostInfoErrors) {
       Endpoint::Create(absl::StrCat("127.0.0.1:", unused_port));
   auto unreachable_or = ctrl->GetPeerHostInfo(unreachable_peer);
   EXPECT_FALSE(unreachable_or.ok());
-  EXPECT_EQ(unreachable_or.status().code(), absl::StatusCode::kUnavailable);
+  EXPECT_EQ(unreachable_or.status().code(), kUnavailable);
 }
 
 TEST_F(ControlTest, HandleIncomingHostInfoRequest) {
@@ -251,16 +258,16 @@ TEST_F(ControlTest, ExchangePspKeyBetweenNodes) {
                                          .key = "fedcba0987654321"};
   const Endpoint target = Endpoint::Create("127.0.0.1:20002");
 
-  ctrl_b->SetPspKeyHandler([&](const proto::PspKeyExchangeRequest& req,
-                               proto::PspKeyExchangeResponse* resp) {
-    EXPECT_EQ(req.psp().spi(), client_key.spi);
-    EXPECT_EQ(req.psp().key(), client_key.key);
-    EXPECT_TRUE(req.has_endpoint());
-    EXPECT_EQ(req.endpoint().ip_port(), target.ToString());
-    resp->mutable_psp()->set_spi(expected_server_key.spi);
-    resp->mutable_psp()->set_key(expected_server_key.key);
-    return absl::OkStatus();
-  });
+  ctrl_b->SetPspKeyHandler(
+      [&](const proto::PspKeyRequest& req, proto::PspKeyResponse* resp) {
+        EXPECT_EQ(req.psp().spi(), client_key.spi);
+        EXPECT_EQ(req.psp().key(), client_key.key);
+        EXPECT_TRUE(req.has_endpoint());
+        EXPECT_EQ(req.endpoint().ip_port(), target.ToString());
+        resp->mutable_psp()->set_spi(expected_server_key.spi);
+        resp->mutable_psp()->set_key(expected_server_key.key);
+        return absl::OkStatus();
+      });
   ASSERT_TRUE(ctrl_b->Start());
 
   auto server_key_or = ctrl_a->ExchangePspKey(
@@ -299,45 +306,49 @@ TEST_F(ControlTest, ExchangePspKeyErrors) {
   EXPECT_EQ(ctrl_a->ExchangePspKey(Endpoint(), valid_client_key, target)
                 .status()
                 .code(),
-            absl::StatusCode::kInvalidArgument);
+            kInvalidArgument);
 
   // Invalid target endpoint.
   const Endpoint invalid_target;
-  EXPECT_EQ(ctrl_a->ExchangePspKey(host_b.control_plane_listener,
-                                   valid_client_key, invalid_target)
+  EXPECT_EQ(ctrl_a
+                ->ExchangePspKey(host_b.control_plane_listener,
+                                 valid_client_key, invalid_target)
                 .status()
                 .code(),
-            absl::StatusCode::kInvalidArgument);
+            kInvalidArgument);
 
   // Invalid SPI (0).
-  EXPECT_EQ(ctrl_a->ExchangePspKey(host_b.control_plane_listener,
-                                   {.spi = 0, .key = std::string(16, 'a')},
-                                   target)
-                .status()
-                .code(),
-            absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(
+      ctrl_a
+          ->ExchangePspKey(host_b.control_plane_listener,
+                           {.spi = 0, .key = std::string(16, 'a')}, target)
+          .status()
+          .code(),
+      kInvalidArgument);
 
   // Invalid key size (short).
-  EXPECT_EQ(ctrl_a->ExchangePspKey(host_b.control_plane_listener,
-                                   {.spi = 1, .key = "short"}, target)
+  EXPECT_EQ(ctrl_a
+                ->ExchangePspKey(host_b.control_plane_listener,
+                                 {.spi = 1, .key = "short"}, target)
                 .status()
                 .code(),
-            absl::StatusCode::kInvalidArgument);
+            kInvalidArgument);
 
   // Invalid key size (long).
-  EXPECT_EQ(ctrl_a->ExchangePspKey(host_b.control_plane_listener,
-                                   {.spi = 1, .key = std::string(32, 'a')},
-                                   target)
-                .status()
-                .code(),
-            absl::StatusCode::kInvalidArgument);
+  EXPECT_EQ(
+      ctrl_a
+          ->ExchangePspKey(host_b.control_plane_listener,
+                           {.spi = 1, .key = std::string(32, 'a')}, target)
+          .status()
+          .code(),
+      kInvalidArgument);
 
   // 2. Encryption disabled in server config (SetPspKeyHandler is no-op).
   config_.require_dataplane_encryption = false;
   auto ctrl_disabled = Control::Create(config_, host_b, creds_b_);
   ASSERT_NE(ctrl_disabled, nullptr);
   ctrl_disabled->SetPspKeyHandler(
-      [](const proto::PspKeyExchangeRequest&, proto::PspKeyExchangeResponse*) {
+      [](const proto::PspKeyRequest&, proto::PspKeyResponse*) {
         return absl::OkStatus();
       });
   ASSERT_TRUE(ctrl_disabled->Start());
@@ -345,7 +356,7 @@ TEST_F(ControlTest, ExchangePspKeyErrors) {
   auto resp_disabled = ctrl_a->ExchangePspKey(
       host_b.control_plane_listener, valid_client_key, target);
   EXPECT_FALSE(resp_disabled.ok());
-  EXPECT_EQ(resp_disabled.status().code(), absl::StatusCode::kUnimplemented);
+  EXPECT_EQ(resp_disabled.status().code(), kInternal);
 
   // 3. Encryption enabled but server handler is unconfigured.
   config_.require_dataplane_encryption = true;
@@ -363,7 +374,7 @@ TEST_F(ControlTest, ExchangePspKeyErrors) {
   auto resp_missing = ctrl_a->ExchangePspKey(
       host_c.control_plane_listener, valid_client_key, target);
   EXPECT_FALSE(resp_missing.ok());
-  EXPECT_EQ(resp_missing.status().code(), absl::StatusCode::kUnimplemented);
+  EXPECT_EQ(resp_missing.status().code(), kUnimplemented);
 }
 }  // namespace
 }  // namespace peregrine::internal::testing

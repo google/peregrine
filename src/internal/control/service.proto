@@ -14,12 +14,4 @@ service PeregrineService {
     option deadline = 10.0;
   }
   // Do NOT add any other rpc functions!
-
-  // -------------------------------------------------------------------------
-  // TODO: remove the following function.
-  // Client sends its local RX SPI and key; server returns its RX SPI and key.
-  rpc ExchangePspKey(peregrine.internal.proto.PspKeyExchangeRequest)
-      returns (peregrine.internal.proto.PspKeyExchangeResponse) {
-    option deadline = 10.0;
-  }
 }

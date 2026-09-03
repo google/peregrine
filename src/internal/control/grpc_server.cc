@@ -41,19 +41,13 @@ void GrpcServer::Shutdown() {
 
 absl::StatusOr<std::unique_ptr<GrpcServer>> GrpcServer::Create(
     const Endpoint& self, std::shared_ptr<grpc::ServerCredentials> creds,
-    RequestHandler&& handler, PspKeyHandler&& psp_handler) {
-  if ABSL_PREDICT_FALSE (creds == nullptr) {
+    RequestHandler&& handler) {
+  if ABSL_PREDICT_FALSE (creds == nullptr)
     return absl::InvalidArgumentError("server credentials must not be null");
-  }
-  if ABSL_PREDICT_FALSE (handler == nullptr) {
+  if ABSL_PREDICT_FALSE (handler == nullptr)
     return absl::InvalidArgumentError("request handler must not be null");
-  }
-  if ABSL_PREDICT_FALSE (psp_handler == nullptr) {
-    return absl::InvalidArgumentError("psp handler must not be null");
-  }
 
-  std::unique_ptr<GrpcServer> server(
-      new GrpcServer(std::move(handler), std::move(psp_handler)));
+  std::unique_ptr<GrpcServer> server(new GrpcServer(std::move(handler)));
 
   int port = 0;
   const std::string addr = self.ToString();
@@ -86,25 +80,6 @@ grpc::Status GrpcServer::ProcessUnary(grpc::ServerContext* context,
 
   DCHECK(invariant());
   const absl::Status s = handler_(*request, response);
-  if ABSL_PREDICT_FALSE (!s.ok()) return ToGrpcStatus(s);
-  return grpc::Status::OK;
-}
-
-grpc::Status GrpcServer::ExchangePspKey(
-    grpc::ServerContext* context, const proto::PspKeyExchangeRequest* request,
-    proto::PspKeyExchangeResponse* response) {
-  if ABSL_PREDICT_FALSE (context == nullptr) {
-    return InvalidArgumentError("null context");
-  }
-  if ABSL_PREDICT_FALSE (request == nullptr) {
-    return InvalidArgumentError("null request");
-  }
-  if ABSL_PREDICT_FALSE (response == nullptr) {
-    return InvalidArgumentError("null response");
-  }
-  DCHECK(invariant());
-
-  const absl::Status s = psp_handler_(*request, response);
   if ABSL_PREDICT_FALSE (!s.ok()) return ToGrpcStatus(s);
   return grpc::Status::OK;
 }

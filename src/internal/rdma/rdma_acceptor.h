@@ -16,6 +16,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/control/control.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/control/message_internal.pb.h"
 #include "src/internal/rdma/rdma_device_manager.h"
 #include "src/internal/rdma/rdma_memory_manager.h"
 #include "src/internal/rdma/rdma_queue_pair.h"

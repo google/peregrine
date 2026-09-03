@@ -71,3 +71,21 @@ message Request {
   uint64 len = 4;    // buffer length in bytes
   uint32 rkey = 5;   // remote memory region key (for RDMA one-sided operations)
 }
+
+// PSP key exchange messages for TCP-over-PSP.
+message PspKey {
+  uint32 spi = 1;
+  bytes key = 2;  // 16-byte raw AES session key
+}
+
+message PspKeyRequest {
+  PspKey psp = 1;
+
+  // Specifies the endpoint of the data plane listener.
+  // Only required when server has multiple data plane listeners.
+  Endpoint endpoint = 2;
+}
+
+message PspKeyResponse {
+  PspKey psp = 1;
+}

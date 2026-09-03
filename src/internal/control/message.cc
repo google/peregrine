@@ -1,6 +1,7 @@
 #include "src/internal/control/message.h"
 
 #include <cstdint>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -10,6 +11,7 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/message.pb.h"
+#include "src/internal/control/message_internal.pb.h"
 
 namespace peregrine::internal {
 

@@ -35,10 +35,6 @@ class GrpcClient final {
   // Returns the response on success, or an error status on failure.
   absl::StatusOr<proto::RespMsg> SendUnary(const proto::ReqMsg& request) const;
 
-  // Synchronously executes out-of-band PSP key exchange with the peer.
-  absl::StatusOr<proto::PspKeyExchangeResponse> ExchangePspKey(
-      const proto::PspKeyExchangeRequest& request) const;
-
  private:
   // Returns true if the invariant holds.
   bool invariant() const { return stub_ != nullptr; }
