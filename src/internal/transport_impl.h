@@ -36,6 +36,9 @@ class TransportImpl final : public Transport {
   // On success, returns a process-level unique `handle`, which can be used to
   // poll the request batch status. Returns an error on failure.
   //
+  // If `on_complete` is provided, it is invoked once when the batch of requests
+  // complete (either successfully or with an error).
+  //
   // The caller must maintain the validity of the local/remote memory buffers
   // specified by the `request` until processing is complete.
   absl::StatusOr<Handle> Post(
