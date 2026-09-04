@@ -131,6 +131,12 @@ std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
   }
 
   for (int i = 0; i < 2 * num_conns; ++i) {
+    // TODO: Assumes interface indices are rail-aligned (i.e. local interface at
+    // index 0 connects to remote interface at index 0 on the same rail). In
+    // environments with physical rail isolation, cross-rail communication is
+    // physically unsupported or blocked, causing connections to fail. In the
+    // future, support dynamic topology discovery or explicit rail matching
+    // rather than relying on positional index alignment.
     const size_t local_idx = i % local_devices.size();
     const size_t remote_idx = i % remote_interfaces.size();
     RdmaDeviceContext* local_dev = local_devices[local_idx].get();
