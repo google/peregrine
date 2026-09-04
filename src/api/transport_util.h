@@ -9,6 +9,10 @@
 
 namespace peregrine {
 
+// Returns true if the requested `transport_type` is supported on the current
+// host.
+bool IsTransportSupported(TransportType transport_type);
+
 // Creates a new transport instance that listens for control messages on
 // the control `endpoint` (e.g., "10.0.0.1:10000"). The `num_conns_per_peer`
 // parameter guides the transport to make this number (in the range [1, 100]) of

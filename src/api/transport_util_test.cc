@@ -45,16 +45,33 @@ TEST(TransportUtilTest, WildcardAndZeroPort) {
   EXPECT_THAT(CreateTransport("[::1]:0"), IsNull());
 }
 
-TEST(TransportUtilTest, TransportTypeSelection) {
+TEST(TransportUtilTest, IsTransportSupported) {
+  EXPECT_TRUE(IsTransportSupported(TransportType::kTcp));
+  EXPECT_FALSE(IsTransportSupported(static_cast<TransportType>(0)));
+  EXPECT_FALSE(IsTransportSupported(static_cast<TransportType>(99)));
+}
+
+TEST(TransportUtilTest, TransportTypeTcp) {
   const uint16_t port_tcp = util::FindFreePort(AF_INET, /*tcp=*/true);
   const std::string ep_tcp = absl::StrFormat("127.0.0.1:%d", port_tcp);
   EXPECT_THAT(CreateTransport(ep_tcp, TransportType::kTcp, kNumConnsPerPeer),
               NotNull());
+}
 
+TEST(TransportUtilTest, TransportTypeRdma) {
   const uint16_t port_rdma = util::FindFreePort(AF_INET, /*tcp=*/true);
   const std::string ep_rdma = absl::StrFormat("127.0.0.1:%d", port_rdma);
-  EXPECT_THAT(CreateTransport(ep_rdma, TransportType::kRdma, kNumConnsPerPeer),
-              IsNull());
+  if (IsTransportSupported(TransportType::kRdma)) {
+    EXPECT_THAT(
+        CreateTransport(ep_rdma, TransportType::kRdma, kNumConnsPerPeer),
+        NotNull());
+  } else {
+    // In hermetic unit test environments without RDMA NICs, RDMA transport
+    // creation fails gracefully and returns nullptr.
+    EXPECT_THAT(
+        CreateTransport(ep_rdma, TransportType::kRdma, kNumConnsPerPeer),
+        IsNull());
+  }
 }
 
 TEST(TransportUtilTest, RequireDataplaneEncryption) {

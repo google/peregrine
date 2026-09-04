@@ -72,6 +72,7 @@ cc_library(
         "//src/internal:transport_impl",
         "//src/internal/base:config",
         "//src/internal/base:endpoint",
+        "//src/internal/rdma:rdma_device_manager",
         "@abseil-cpp//absl/base:core_headers",
         "@grpc//:grpc++",
     ],
