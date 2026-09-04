@@ -10,7 +10,6 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -52,9 +51,6 @@ class TcpAcceptor {
   struct Listener {
     std::unique_ptr<TcpSocket> socket;
     Endpoint endpoint;
-    // Serializes concurrent socket operations (e.g., PSP key registrations)
-    // on this listening socket fd.
-    std::unique_ptr<absl::Mutex> socket_mu = std::make_unique<absl::Mutex>();
   };
 
  private:

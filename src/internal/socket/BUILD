@@ -26,7 +26,6 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -131,12 +130,14 @@ cc_library(
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/base:types",
+        "//src/internal/socket/psp:tcp_psp_helper",
         "//src/internal/util",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
     ],
 )

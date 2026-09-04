@@ -19,10 +19,12 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/socket/socket_base.h"
 #include "src/internal/socket/socket_util.h"
 #include "src/internal/util/util.h"
@@ -150,6 +152,18 @@ bool TcpSocket::Connect(const Endpoint& peer) {
     connected_ = true;
     return true;
   }
+}
+
+PspSpiKey TcpSocket::RegisterPeerPspKey(const PspSpiKey& peer_psp) {
+  DCHECK(invariant());
+
+  absl::MutexLock _(psp_mu_);
+  const auto psp = RegisterPspPeerKey(fd_, peer_psp);
+  if ABSL_PREDICT_FALSE (!psp.ok()) {
+    LOG(WARNING) << "psp: " << psp.status();
+    return PspSpiKey();
+  }
+  return psp.value();
 }
 
 ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {

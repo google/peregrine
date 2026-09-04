@@ -11,11 +11,14 @@
 #include <string>
 #include <string_view>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/socket/socket_base.h"
 #include "src/internal/socket/socket_util.h"
 
@@ -51,6 +54,11 @@ class TcpSocket final : public SocketBase {
 
   // Connects to the `peer` endpoint.
   bool Connect(const Endpoint& peer);
+
+  // Registers the given peer PSP key. Returns this socket's PSP rx key if
+  // successful. Otherwise, returns an invalid PSP key.
+  PspSpiKey RegisterPeerPspKey(const PspSpiKey& peer_psp)
+      ABSL_LOCKS_EXCLUDED(psp_mu_);
 
   // Sends exactly `len` bytes of data from the `buf`.
   // Returns the number of bytes sent if successful. Zero byte means no data
@@ -105,6 +113,9 @@ class TcpSocket final : public SocketBase {
   }
 
   static constexpr std::string_view kTcp = "tcp";
+
+ private:
+  absl::Mutex psp_mu_;  // For PSP functions only.
 };
 
 inline std::ostream& operator<<(std::ostream& os, const TcpSocket& s) {

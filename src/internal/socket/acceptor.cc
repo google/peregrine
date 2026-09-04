@@ -15,7 +15,6 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
-#include "absl/synchronization/mutex.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -174,13 +173,9 @@ absl::StatusOr<PspSpiKey> TcpAcceptor::HandlePspKeyExchange(
         "Listener not found for endpoint %s", target.ToString()));
   }
 
-  absl::MutexLock lock(*target_listener->socket_mu);
-  auto server_key =
-      RegisterPspPeerKey(target_listener->socket->fd(), client_key);
-  if (!server_key.ok()) {
-    return server_key.status();
-  }
-  if (!server_key->IsValid()) {
+  const PspSpiKey server_key =
+      target_listener->socket->RegisterPeerPspKey(client_key);
+  if (!server_key.IsValid()) {
     return absl::InternalError("invalid server PSP key");
   }
   return server_key;
