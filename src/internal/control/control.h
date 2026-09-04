@@ -106,20 +106,20 @@ class Control final {
 
  private:
   // Handles incoming RPC requests by dispatching to dedicated message handlers.
-  absl::Status handleIncomingRequest(const proto::ReqMsg& req,
-                                     proto::RespMsg* resp);
+  absl::Status handleRequest(const proto::ReqMsg& req, proto::RespMsg* resp);
 
   // Handles out-of-band HostInfo exchange requests.
-  absl::Status handleHostInfo(const proto::ReqMsg& req, proto::RespMsg* resp)
+  absl::Status handleHostInfo(const proto::HostInfo& req, proto::HostInfo* resp)
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
   // Handles incoming PSP key exchange requests.
-  absl::Status handlePspKeyExchange(const proto::ReqMsg& req,
-                                    proto::RespMsg* resp)
-      ABSL_LOCKS_EXCLUDED(psp_key_handler_mu_);
+  absl::Status handlePspKeyExchange(const proto::PspKeyRequest& req,
+                                    proto::PspKeyResponse* resp)
+      ABSL_LOCKS_EXCLUDED(psp_handler_mu_);
 
   // Handles incoming RDMA connection requests.
-  absl::Status handleRdmaConnect(const proto::ReqMsg& req, proto::RespMsg* resp)
+  absl::Status handleRdmaConnect(const proto::RdmaConnectRequest& req,
+                                 proto::RdmaConnectResponse* resp)
       ABSL_LOCKS_EXCLUDED(rdma_handler_mu_);
 
  private:
@@ -137,8 +137,8 @@ class Control final {
   absl::flat_hash_map<Endpoint, HostInfo> peer_hosts_
       ABSL_GUARDED_BY(peer_hosts_mu_);
 
-  absl::Mutex psp_key_handler_mu_;
-  PspKeyHandler psp_key_handler_ ABSL_GUARDED_BY(psp_key_handler_mu_);
+  absl::Mutex psp_handler_mu_;
+  PspKeyHandler psp_key_handler_ ABSL_GUARDED_BY(psp_handler_mu_);
 
   absl::Mutex rdma_handler_mu_;
   RdmaConnectHandler rdma_connect_handler_ ABSL_GUARDED_BY(rdma_handler_mu_);

@@ -25,7 +25,7 @@ bool Message::Convert(const HostInfo& host, absl::Span<const Request> requests,
   proto::PeerRequests* pr = msg.mutable_peer_requests();
   auto* peer = pr->mutable_peer();
   if (peer == nullptr) return false;
-  if (!convert(host, *peer)) return false;
+  if (!Convert(host, *peer)) return false;
 
   proto::Request proto;
   for (const auto& r : requests) {
@@ -44,7 +44,7 @@ std::pair<HostInfo, std::vector<Request>> Message::Convert(
 
   HostInfo host;
   const proto::PeerRequests& pr = msg.peer_requests();
-  if (!convert(pr.peer(), host)) return invalid;
+  if (!Convert(pr.peer(), host)) return invalid;
 
   std::vector<Request> requests;
   requests.reserve(pr.requests_size());
@@ -62,25 +62,25 @@ std::pair<HostInfo, std::vector<Request>> Message::Convert(
 
 bool Message::Convert(const HostInfo& host, proto::ReqMsg& msg) {
   msg.Clear();
-  return convert(host, *msg.mutable_host_info());
+  return Convert(host, *msg.mutable_host_info());
 }
 
 bool Message::Convert(const proto::ReqMsg& msg, HostInfo& host) {
   if (!msg.has_host_info()) return false;
-  return convert(msg.host_info(), host);
+  return Convert(msg.host_info(), host);
 }
 
 bool Message::Convert(const HostInfo& host, proto::RespMsg& msg) {
   msg.Clear();
-  return convert(host, *msg.mutable_host_info());
+  return Convert(host, *msg.mutable_host_info());
 }
 
 bool Message::Convert(const proto::RespMsg& msg, HostInfo& host) {
   if (!msg.has_host_info()) return false;
-  return convert(msg.host_info(), host);
+  return Convert(msg.host_info(), host);
 }
 
-bool Message::convert(const HostInfo& host, proto::HostInfo& proto) {
+bool Message::Convert(const HostInfo& host, proto::HostInfo& proto) {
   if (!host.IsValid()) return false;
 
   proto.mutable_control_plane_listener()->set_ip_port(
@@ -102,7 +102,7 @@ bool Message::convert(const HostInfo& host, proto::HostInfo& proto) {
   return true;
 }
 
-bool Message::convert(const proto::HostInfo& proto, HostInfo& host) {
+bool Message::Convert(const proto::HostInfo& proto, HostInfo& host) {
   const auto ip_port = proto.control_plane_listener().ip_port();
   const Endpoint c = Endpoint::Create(ip_port);
   if (!c.HasNonzeroIpPort()) {

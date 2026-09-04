@@ -54,7 +54,7 @@ bool Control::Start() {
 
   const Endpoint& endpoint = self_.control_plane_listener;
   auto req_handler = [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
-    return handleIncomingRequest(req, resp);
+    return handleRequest(req, resp);
   };
 
   auto grpc_server = GrpcServer::Create(endpoint, std::move(server_creds_),
@@ -71,16 +71,6 @@ bool Control::Start() {
   return true;
 }
 
-void Control::SetRdmaConnectHandler(RdmaConnectHandler handler) {
-  absl::MutexLock _(rdma_handler_mu_);
-  rdma_connect_handler_ = std::move(handler);
-}
-
-void Control::SetPspKeyHandler(PspKeyHandler handler) {
-  absl::MutexLock _(psp_key_handler_mu_);
-  psp_key_handler_ = std::move(handler);
-}
-
 Control::~Control() {
   if (grpc_server_ != nullptr) {
     grpc_server_->Shutdown();
@@ -89,22 +79,46 @@ Control::~Control() {
   }
 }
 
-absl::Status Control::handleIncomingRequest(const proto::ReqMsg& req,
-                                            proto::RespMsg* resp) {
-  if (req.has_host_info()) {
-    return handleHostInfo(req, resp);
-  }
-  if (req.has_psp_key_req()) {
-    return handlePspKeyExchange(req, resp);
-  }
-  if (req.has_rdma_connect_req()) {
-    return handleRdmaConnect(req, resp);
-  }
-  return absl::UnimplementedError("unsupported request type");
+void Control::SetRdmaConnectHandler(RdmaConnectHandler handler) {
+  absl::MutexLock _(rdma_handler_mu_);
+  rdma_connect_handler_ = std::move(handler);
 }
 
-absl::Status Control::handleHostInfo(const proto::ReqMsg& req,
-                                     proto::RespMsg* resp) {
+void Control::SetPspKeyHandler(PspKeyHandler handler) {
+  absl::MutexLock _(psp_handler_mu_);
+  psp_key_handler_ = std::move(handler);
+}
+
+absl::Status Control::handleRequest(const proto::ReqMsg& req,
+                                    proto::RespMsg* resp) {
+  if ABSL_PREDICT_FALSE (resp == nullptr) {
+    return absl::InvalidArgumentError("null response message");
+  }
+  switch (req.msg_case()) {
+    case proto::ReqMsg::kHostInfo:
+      return handleHostInfo(req.host_info(), resp->mutable_host_info());
+
+    case proto::ReqMsg::kPspKeyReq:
+      return handlePspKeyExchange(req.psp_key_req(),
+                                  resp->mutable_psp_key_resp());
+
+    case proto::ReqMsg::kRdmaConnectReq:
+      return handleRdmaConnect(req.rdma_connect_req(),
+                               resp->mutable_rdma_connect_resp());
+
+    case proto::ReqMsg::MSG_NOT_SET:
+      return absl::InvalidArgumentError("request type not set");
+
+    default:
+      return absl::UnimplementedError("unsupported request type");
+  }
+}
+
+absl::Status Control::handleHostInfo(const proto::HostInfo& req,
+                                     proto::HostInfo* resp) {
+  if ABSL_PREDICT_FALSE (resp == nullptr) {
+    return absl::InternalError("null host info response message");
+  }
   HostInfo peer_info;
   if ABSL_PREDICT_FALSE (!Message::Convert(req, peer_info)) {
     return absl::InternalError("failed to deserialize peer host info");
@@ -115,59 +129,34 @@ absl::Status Control::handleHostInfo(const proto::ReqMsg& req,
     const Endpoint& peer = peer_info.control_plane_listener;
     peer_hosts_.insert_or_assign(peer, std::move(peer_info));
   }
-  if ABSL_PREDICT_FALSE (resp == nullptr) {
-    return absl::InternalError("null response message");
-  }
   if ABSL_PREDICT_FALSE (!Message::Convert(self_, *resp)) {
     return absl::InternalError("failed to serialize self host info");
   }
   return absl::OkStatus();
 }
 
-absl::Status Control::handlePspKeyExchange(const proto::ReqMsg& req,
-                                           proto::RespMsg* resp) {
+absl::Status Control::handlePspKeyExchange(const proto::PspKeyRequest& req,
+                                           proto::PspKeyResponse* resp) {
   if ABSL_PREDICT_FALSE (resp == nullptr) {
-    return absl::InternalError("null response message");
+    return absl::InternalError("null psp key response message");
   }
-
-  proto::PspKeyResponse psp_resp;
-  absl::Status status;
-  {
-    absl::MutexLock _(psp_key_handler_mu_);
-    if ABSL_PREDICT_FALSE (psp_key_handler_ == nullptr) {
-      return absl::UnimplementedError("missing PSP key handler");
-    }
-    const proto::PspKeyRequest& psp_req = req.psp_key_req();
-    status = psp_key_handler_(psp_req, &psp_resp);
+  absl::MutexLock _(psp_handler_mu_);
+  if ABSL_PREDICT_FALSE (psp_key_handler_ == nullptr) {
+    return absl::UnimplementedError("missing PSP key handler");
   }
-  if ABSL_PREDICT_FALSE (!status.ok()) {
-    return status;
-  }
-  *resp->mutable_psp_key_resp() = std::move(psp_resp);
-  return absl::OkStatus();
+  return psp_key_handler_(req, resp);
 }
 
-absl::Status Control::handleRdmaConnect(const proto::ReqMsg& req,
-                                        proto::RespMsg* resp) {
+absl::Status Control::handleRdmaConnect(const proto::RdmaConnectRequest& req,
+                                        proto::RdmaConnectResponse* resp) {
   if ABSL_PREDICT_FALSE (resp == nullptr) {
-    return absl::InternalError("null response message");
+    return absl::InternalError("null rdma connect response message");
   }
-
-  proto::RdmaConnectResponse rdma_resp;
-  absl::Status status;
-  {
-    absl::MutexLock _(rdma_handler_mu_);
-    if ABSL_PREDICT_FALSE (rdma_connect_handler_ == nullptr) {
-      return absl::UnimplementedError("missing RDMA connect handler");
-    }
-    const proto::RdmaConnectRequest& rdma_req = req.rdma_connect_req();
-    status = rdma_connect_handler_(rdma_req, &rdma_resp);
+  absl::MutexLock _(rdma_handler_mu_);
+  if ABSL_PREDICT_FALSE (rdma_connect_handler_ == nullptr) {
+    return absl::UnimplementedError("missing RDMA connect handler");
   }
-  if ABSL_PREDICT_FALSE (!status.ok()) {
-    return status;
-  }
-  *resp->mutable_rdma_connect_resp() = std::move(rdma_resp);
-  return absl::OkStatus();
+  return rdma_connect_handler_(req, resp);
 }
 
 const GrpcClient& Control::getOrCreateClient(const Endpoint& peer) {
