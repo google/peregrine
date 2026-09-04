@@ -8,8 +8,7 @@
 
 namespace peregrine::internal {
 
-// A metric counter that does not have to be precise.
-// Lock-free concurrent updates are supported in a lossy manner.
+// A metric counter supporting both lock-free atomic and lossy updates.
 template <typename T>
 class MetricCounter {
   static_assert(std::is_integral_v<T>);
@@ -28,9 +27,12 @@ class MetricCounter {
   // Returns the current value of the counter.
   T Value() const { return get(); }
 
+  // Adds `n` to the metric counter atomically.
+  void Add(T n) { value_.fetch_add(n, std::memory_order_relaxed); }
+
   // Adds `n` to the metric counter in a lossy manner.
   // Counts may be lost if this function is called concurrently.
-  void Add(T n) { set(get() + n); }
+  void LossyAdd(T n) { set(get() + n); }
 
   // Sets the counter to zero.
   void Clear() { set(0); }

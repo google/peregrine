@@ -19,6 +19,9 @@ TEST(MetricCounterTest, Basic) {
   c.Add(2);
   EXPECT_EQ(c.Value(), 8);
 
+  c.LossyAdd(3);
+  EXPECT_EQ(c.Value(), 11);
+
   c.Clear();
   EXPECT_EQ(c.Value(), 0);
 }
@@ -44,7 +47,7 @@ TEST(MetricCounterTest, ConcurrentUpdates) {
     t.join();
   }
 
-  EXPECT_NEAR(c.Value(), kExpected, kInc);
+  EXPECT_EQ(c.Value(), kExpected);
 }
 
 }  // namespace
