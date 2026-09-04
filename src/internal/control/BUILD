@@ -85,8 +85,6 @@ cc_library(
         ":message",
         ":message_cc_proto",
         ":message_internal_cc_proto",
-        ":service_cc_proto",
-        "//:libibverbs",  # buildcleaner: keep
         "//src/internal:assumptions",
         "//src/internal/base:config",
         "//src/internal/base:endpoint",
@@ -101,7 +99,6 @@ cc_library(
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
         "@abseil-cpp//absl/synchronization",

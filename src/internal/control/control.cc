@@ -1,12 +1,12 @@
 #include "src/internal/control/control.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 
-#include "infiniband/verbs.h"
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -54,7 +54,7 @@ bool Control::Start() {
 
   const Endpoint& endpoint = self_.control_plane_listener;
   auto req_handler = [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
-    return handleRequest(req, resp);
+    return this->handleRequest(req, resp);
   };
 
   auto grpc_server = GrpcServer::Create(endpoint, std::move(server_creds_),
@@ -262,10 +262,10 @@ absl::StatusOr<proto::RdmaConnectResponse> Control::ConnectRdmaPeer(
   if (!peer.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError("invalid peer endpoint");
   }
-  if (gid.size() != sizeof(union ibv_gid)) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("invalid GID size: expected %d bytes, got %d",
-                        sizeof(union ibv_gid), gid.size()));
+  constexpr size_t kGidSize = 16;
+  if (gid.size() != kGidSize) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "invalid GID size: expected %d bytes, got %d", kGidSize, gid.size()));
   }
 
   proto::ReqMsg req;
