@@ -80,7 +80,6 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
                                        std::move(rdma_acceptor), control));
 
   if (config.require_dataplane_encryption) {
-    // Register PSP key exchange handler into Control.
     control.SetPspKeyHandler([engine = e.get()](const proto::PspKeyRequest& req,
                                                 proto::PspKeyResponse* resp) {
       return engine->handlePspKeyExchange(req, resp);

@@ -66,7 +66,6 @@ std::unique_ptr<RdmaAcceptor> RdmaAcceptor::Create(const Config& config,
   auto acceptor = absl::WrapUnique(
       new RdmaAcceptor(config, self, control, std::move(devmgr)));
 
-  // Register RDMA connection handler into Control.
   control.SetRdmaConnectHandler(
       [a = acceptor.get()](const proto::RdmaConnectRequest& req,
                            proto::RdmaConnectResponse* resp) {
