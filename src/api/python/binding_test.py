@@ -101,6 +101,24 @@ class BindTest(absltest.TestCase):
     transport.register_memory(ctypes.addressof(lbuf), len(lbuf))
     transport.deregister_memory(ctypes.addressof(lbuf))
 
+  def test_get_transport_metrics(self):
+    port = util.find_free_port(socket.AF_INET, tcp=True)
+    transport = pg.create_transport(f"127.0.0.1:{port}", num_conns_per_peer=1)
+    self.assertIsNotNone(transport)
+
+    metrics = transport.get_transport_metrics()
+    self.assertIsInstance(metrics, pg.TransportMetrics)
+
+    metric_fields = [
+        attr for attr in dir(metrics) if not attr.startswith("_")
+    ]
+    self.assertNotEmpty(metric_fields)
+    for field in metric_fields:
+      val = getattr(metrics, field)
+      if not callable(val):
+        self.assertIsInstance(val, int)
+        self.assertGreaterEqual(val, 0)
+
 
 if __name__ == "__main__":
   absltest.main()

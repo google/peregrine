@@ -11,11 +11,13 @@
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
+#include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine.h"
+#include "src/internal/metrics/engine_metrics.h"
 
 namespace peregrine::internal {
 
@@ -64,6 +66,15 @@ class TransportImpl final : public Transport {
   // hardware adapters.
   absl::Status DeregisterMemory(const void* addr) override {
     return engine_->DeregisterMemory(addr);
+  }
+
+  // Returns a snapshot of metrics.
+  TransportMetrics GetTransportMetrics() const override {
+    static_assert(assumptions::kAddingNewMetricRules);
+    static_assert(sizeof(TransportMetrics) == sizeof(EngineMetrics));
+    TransportMetrics m;
+    engine_->GetMetricsSnapshot(m);
+    return m;
   }
 
  private:

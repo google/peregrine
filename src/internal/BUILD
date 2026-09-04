@@ -38,6 +38,7 @@ cc_library(
     srcs = ["transport_impl.cc"],
     hdrs = ["transport_impl.h"],
     deps = [
+        ":assumptions",
         "//src/api:transport",
         "//src/api:transport_types",
         "//src/internal/base:config",
@@ -45,6 +46,7 @@ cc_library(
         "//src/internal/base:hostinfo",
         "//src/internal/control",
         "//src/internal/engine",
+        "//src/internal/metrics:engine_metrics",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log",

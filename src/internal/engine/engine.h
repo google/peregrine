@@ -76,6 +76,9 @@ class Engine final {
   // adapters.
   absl::Status DeregisterMemory(const void* addr) ABSL_LOCKS_EXCLUDED(mu_);
 
+  // Takes a snapshot of engine metrics.
+  void GetMetricsSnapshot(TransportMetrics& m) const { metrics_.Snapshot(m); }
+
  private:
   struct Entry {
     Endpoint peer;

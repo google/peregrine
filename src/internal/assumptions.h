@@ -243,6 +243,29 @@ inline constexpr bool kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf = true;
 // optional. This question has been discussed in protobuf world. The solution
 // is, when in doubt, make the field OPTIONAL.
 inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
+
+// Assumptions about metrics.
+// ---------------------------------------------------------------------------
+//
+// Metrics use lock-free, lossy atomic counters (`MetricCounter`) to minimize
+// data-plane overhead. Snapshots are retrieved via
+// `Transport::GetTransportMetrics()`, returning a `TransportMetrics` struct.
+//
+// Counter updates in tight loops are batched into local variables and added to
+// the atomic counter once upon completion, avoiding unnecessary cache-line
+// bouncing on hot datapaths.
+//
+// When adding a new metric, updates are needed in the following places:
+//  - Public struct: Add the field in `TransportMetrics`
+//    (`src/api/transport_types.h`).
+//  - Internal struct: Add the `MetricCounter` member in component metrics
+//    struct (e.g., `EngineMetrics` in `src/internal/metrics/engine_metrics.h`).
+//  - Snapshot mapping: Copy the counter in `Snapshot()`
+//    (`src/internal/metrics/engine_metrics.h`).
+//  - Python binding: Bind the property via `.def_ro` in
+//    `src/api/python/binding.cc`.
+inline constexpr bool kAddingNewMetricRules = true;
+
 }  // namespace peregrine::assumptions
 
 #endif  // PEREGRINE_SRC_INTERNAL_ASSUMPTIONS_H_

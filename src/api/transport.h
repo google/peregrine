@@ -52,6 +52,9 @@ class Transport {
   // Unpins pages and releases hardware memory regions. Returns an error status
   // if deregistration fails.
   virtual absl::Status DeregisterMemory(const void* addr) = 0;
+
+  // Returns a snapshot of the transport metrics.
+  virtual TransportMetrics GetTransportMetrics() const = 0;
 };
 
 }  // namespace peregrine

@@ -101,7 +101,13 @@ NB_MODULE(peregrine, m) {
             ThrowIfFailed(
                 self.DeregisterMemory(reinterpret_cast<const void*>(addr)));
           },
-          nb::arg("addr"));
+          nb::arg("addr"))
+      .def("get_transport_metrics", &Transport::GetTransportMetrics,
+           "Returns transport metrics.");
+
+  // Bind `TransportMetrics`
+  nb::class_<TransportMetrics>(m, "TransportMetrics")
+      .def_ro("tcp_connect_failures", &TransportMetrics::tcp_connect_failures);
 
   // Bind `TransportType` enum
   nb::enum_<TransportType>(m, "TransportType")

@@ -6,6 +6,8 @@ cc_library(
     name = "engine_metrics",
     hdrs = ["engine_metrics.h"],
     deps = [
+        "//src/api:transport_types",
+        "//src/internal:assumptions",
         "//src/internal/lib:metric_counter",
     ],
 )
