@@ -22,6 +22,7 @@ cc_library(
         "//src/internal/control",
         "//src/internal/control:message_cc_proto",
         "//src/internal/control:message_internal_cc_proto",
+        "//src/internal/metrics:engine_metrics",
         "//src/internal/rdma:rdma_acceptor",
         "//src/internal/request:request_tracker",
         "//src/internal/socket:acceptor",

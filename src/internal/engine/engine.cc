@@ -169,16 +169,23 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
   const bool require_dataplane_encryption =
       config_.require_dataplane_encryption;
 
+  uint64_t connect_failures = 0;
   for (int i = 0; i < 2 * num_conns; ++i) {
     std::unique_ptr<TcpSocket> socket = require_dataplane_encryption
                                             ? createTcpPsp(peer, target)
                                             : TcpConnector::Create(target);
-    if (socket == nullptr) continue;
+    if (socket == nullptr) {
+      connect_failures++;
+      continue;
+    }
     std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
     auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
                                        incoming_, std::move(ch));
     workers.push_back(std::move(sw));
     if (workers.size() >= num_conns) break;
+  }
+  if (connect_failures > 0) {
+    metrics_.tcp_connect_failures.Add(connect_failures);
   }
   return !workers.empty();
 }

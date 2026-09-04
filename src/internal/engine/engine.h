@@ -28,6 +28,7 @@
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
 #include "src/internal/engine/worker.h"
+#include "src/internal/metrics/engine_metrics.h"
 #include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
@@ -152,6 +153,8 @@ class Engine final {
   const Config& config_;
   HostInfo& self_;
   Control& control_;
+
+  EngineMetrics metrics_;
 
   util_random::SharedBitGen bitgen_;
 
