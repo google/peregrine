@@ -21,8 +21,7 @@ ABSL_FLAG(
     "Local non-zero, non-loopback network interface IP address to bind to "
     "(e.g. 10.0.0.1)");
 
-ABSL_FLAG(std::string, role, "receiver",
-          "Role to run as: 'sender|send|s' or 'receiver|recv|r'");
+ABSL_FLAG(std::string, role, "server", "Role to run as: 'client' or 'server'");
 
 ABSL_FLAG(std::string, transport, "tcp",
           "Transport type to use ('tcp' or 'rdma')");
@@ -30,19 +29,19 @@ ABSL_FLAG(std::string, transport, "tcp",
 ABSL_FLAG(
     uint16_t, app_control_port, 9999,
     "TCP port for the application control message exchange (listen port for "
-    "receiver; target destination port for sender)");
+    "server; target destination port for client)");
 
 ABSL_FLAG(
     uint16_t, peregrine_control_port, 9998,
-    "TCP port for Peregrine's gRPC control plane (listen port for receiver; "
-    "target destination port for sender; sender's local listener uses an "
+    "TCP port for Peregrine's gRPC control plane (listen port for server; "
+    "target destination port for client; client's local listener uses an "
     "ephemeral port)");
 
 ABSL_FLAG(int, conn, 8,
           "#Connections to make between this process and each peer");
 
 ABSL_FLAG(std::string, peer, "",
-          "Receiver IP address or host name (required for sender)");
+          "Server IP address or host name (required for client)");
 
 ABSL_FLAG(uint64_t, xfer_size, 1024 * 1024 * 1024ULL,
           "Buffer transfer size in bytes (default = 1 GiB)");
@@ -66,17 +65,12 @@ peregrine::TransportType ParseTransportType() {
 
 Role ParseRole() {
   const std::string s = absl::GetFlag(FLAGS_role);
-  if (absl::EqualsIgnoreCase(s, "sender") ||
-      absl::EqualsIgnoreCase(s, "send") || absl::EqualsIgnoreCase(s, "s")) {
-    return Role::kSndr;
-
-  } else if (absl::EqualsIgnoreCase(s, "receiver") ||
-             absl::EqualsIgnoreCase(s, "recv") ||
-             absl::EqualsIgnoreCase(s, "r")) {
-    return Role::kRcvr;
-
+  if (absl::EqualsIgnoreCase(s, "client")) {
+    return Role::kClient;
+  } else if (absl::EqualsIgnoreCase(s, "server")) {
+    return Role::kServer;
   } else {
-    LOG(FATAL) << "invalid role: " << s;
+    LOG(FATAL) << "invalid role: " << s << ". Expected 'client' or 'server'.";
   }
 }
 

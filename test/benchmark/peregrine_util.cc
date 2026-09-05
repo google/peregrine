@@ -59,19 +59,19 @@ absl::Duration GetCpuTime() {
 }
 }  // namespace
 
-void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
-             uint16_t app_control_port, int nconns, uint64_t xfer_size,
-             TransportType transport_type) {
+void RunServer(std::string_view ip, uint16_t peregrine_control_port,
+               uint16_t app_control_port, int nconns, uint64_t xfer_size,
+               TransportType transport_type) {
   // Create transport.
   const std::string self = GenEndpoint(ip, peregrine_control_port);
   const std::unique_ptr<Transport> transport =
       CreateTransport(self, transport_type, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
 
-  // Wait for sender's control connection.
+  // Wait for client's control connection.
   const int control_fd = CreateControlListener(ip, app_control_port);
-  const int sender_fd = accept(control_fd, nullptr, nullptr);
-  CHECK_GE(sender_fd, 0) << "Failed to accept control sender connection";
+  const int client_fd = accept(control_fd, nullptr, nullptr);
+  CHECK_GE(client_fd, 0) << "Failed to accept control client connection";
 
   // Allocate buffer and fill with zeros.
   std::vector<Byte> buf(xfer_size, 0);
@@ -82,7 +82,7 @@ void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
 
   // Show info.
   std::cout << absl::StrFormat(
-      "Role: receiver\n"
+      "Role: server\n"
       "Buffer addr : %p\n"
       "Buffer size : %s\n"
       "Listening at: %s\n"
@@ -94,11 +94,11 @@ void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
   const absl::Duration start_cpu = GetCpuTime();
 
   proto::ControlMessage response;
-  // Process transfer requests until sender disconnects.
+  // Process transfer requests until client disconnects.
   while (true) {
     proto::ControlMessage request;
-    // Wait for sender to send TransferRequest.
-    if (!ProcessControlMessage(sender_fd, &request)) {
+    // Wait for client to send TransferRequest.
+    if (!ProcessControlMessage(client_fd, &request)) {
       break;
     }
     CHECK(request.has_transfer_request()) << "Expected TransferRequest";
@@ -108,7 +108,7 @@ void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
     auto* transfer_response = response.mutable_transfer_response();
     transfer_response->set_buffer_address(
         reinterpret_cast<uint64_t>(buf.data()));
-    CHECK(SendControlMessage(sender_fd, response))
+    CHECK(SendControlMessage(client_fd, response))
         << "Failed to send TransferResponse";
   }
 
@@ -116,25 +116,25 @@ void RunRcvr(std::string_view ip, uint16_t peregrine_control_port,
   const absl::Duration cpu_dur = GetCpuTime() - start_cpu;
 
   std::cout << absl::StrFormat(
-      "\nReceiver completed resolving all transfers.\n"
+      "\nServer completed resolving all transfers.\n"
       "Total time    : %s\n"
       "Total CPU time: %s\n"
       "CPU usage     : %.2f cores\n",
       absl::FormatDuration(dur), absl::FormatDuration(cpu_dur),
       dur > absl::ZeroDuration() ? absl::FDivDuration(cpu_dur, dur) : 0.0);
 
-  close(sender_fd);
+  close(client_fd);
   close(control_fd);
 }
 
-void RunSndr(std::string_view ip, uint16_t peregrine_control_port,
-             uint16_t app_control_port, int nconns, uint64_t xfer_size,
-             std::string_view peer_host, uint32_t num_xfers,
-             TransportType transport_type) {
-  // Connect to receiver control
-  const int client_fd = ConnectControlWithRetry(peer_host, app_control_port);
+void RunClient(std::string_view ip, uint16_t peregrine_control_port,
+               uint16_t app_control_port, int nconns, uint64_t xfer_size,
+               std::string_view peer_host, uint32_t num_xfers,
+               TransportType transport_type) {
+  // Connect to server control.
+  const int server_fd = ConnectControlWithRetry(peer_host, app_control_port);
 
-  // Pre-allocate source buffer
+  // Pre-allocate source buffer.
   std::vector<Byte> buf(xfer_size);
   RandomNonZero(absl::MakeSpan(buf));
   DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b != 0; }));
@@ -153,7 +153,7 @@ void RunSndr(std::string_view ip, uint16_t peregrine_control_port,
 
   // Show info.
   std::cout << absl::StrFormat(
-      "Role: sender\n"
+      "Role: client\n"
       "Connections : %d\n"
       "Buffer addr : %p\n"
       "Buffer size : %s\n"
@@ -167,19 +167,19 @@ void RunSndr(std::string_view ip, uint16_t peregrine_control_port,
   absl::Duration total_dur = absl::ZeroDuration();
   absl::Duration total_cpu_dur = absl::ZeroDuration();
   for (uint32_t i = 1; i <= num_xfers; ++i) {
-    // Request remote destination address
+    // Request remote destination address.
     proto::ControlMessage request;
     request.mutable_transfer_request();
-    CHECK(SendControlMessage(client_fd, request))
+    CHECK(SendControlMessage(server_fd, request))
         << "Failed to send TransferRequest at transfer " << i;
 
-    // Receive destination address
+    // Receive destination address.
     proto::ControlMessage response;
-    CHECK(ProcessControlMessage(client_fd, &response))
+    CHECK(ProcessControlMessage(server_fd, &response))
         << "Failed to receive TransferResponse at transfer " << i;
     CHECK(response.has_transfer_response());
 
-    // Post standard write request using dynamically resolved buffer address
+    // Post standard write request using dynamically resolved buffer address.
     const Request req = {
         .op = Op::kWrite,
         .laddr = buf.data(),
@@ -238,7 +238,7 @@ void RunSndr(std::string_view ip, uint16_t peregrine_control_port,
           ? absl::FDivDuration(total_cpu_dur, total_dur)
           : 0.0);
 
-  close(client_fd);
+  close(server_fd);
 }
 
 }  // namespace peregrine::benchmark

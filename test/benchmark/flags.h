@@ -24,8 +24,8 @@ namespace peregrine::benchmark {
 // Parses the transport type ('tcp' or 'rdma').
 peregrine::TransportType ParseTransportType();
 
-// Parses the sender/receiver role from a string.
-// Fails if the role is not 'sender|send|s' or 'receiver|recv|r'.
+// Parses the client/server role from a string.
+// Accepts 'client' or 'server'.
 Role ParseRole();
 
 // Parses and validates the local network interface IP address from --ip.
@@ -39,11 +39,11 @@ std::string ParseIp();
 std::string ParseIp(std::string_view ip);
 
 // Parses the benchmark application rendezvous control port (listen port for
-// receiver; target destination port for sender).
+// server; target destination port for client).
 uint16_t ParseAppControlPort();
 
-// Parses the Peregrine gRPC control plane port (listen port for receiver;
-// target destination port for sender; sender's local listener is ephemeral).
+// Parses the Peregrine gRPC control plane port (listen port for server;
+// target destination port for client; client's local listener is ephemeral).
 uint16_t ParsePeregrineControlPort();
 
 // Parses the #connections per peer.

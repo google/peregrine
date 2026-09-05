@@ -10,10 +10,10 @@
 
 namespace peregrine::benchmark {
 
-// Sender/receiver role.
+// Client/server role.
 enum class Role {
-  kSndr,
-  kRcvr,
+  kClient,
+  kServer,
 };
 
 // NIC bandwidth in Mbps.
