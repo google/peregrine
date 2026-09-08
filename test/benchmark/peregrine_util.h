@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "src/api/transport_types.h"
+#include "test/benchmark/types.h"
 
 namespace peregrine::benchmark {
 
@@ -16,9 +17,9 @@ void RunServer(std::string_view ip, uint16_t peregrine_control_port,
 
 // Runs peregrine as client.
 void RunClient(std::string_view ip, uint16_t peregrine_control_port,
-               uint16_t app_control_port, int nconns, uint64_t xfer_size,
-               std::string_view peer, uint32_t num_xfers,
-               TransportType transport_type = TransportType::kTcp);
+               uint16_t app_control_port, int nconns, std::string_view peer,
+               TransportType transport_type = TransportType::kTcp,
+               WorkloadType workload = WorkloadType::kSerialFixedWrite);
 
 }  // namespace peregrine::benchmark
 

@@ -18,6 +18,7 @@ ABSL_DECLARE_FLAG(int, conn);
 ABSL_DECLARE_FLAG(std::string, peer);
 ABSL_DECLARE_FLAG(uint64_t, xfer_size);
 ABSL_DECLARE_FLAG(uint32_t, num_xfers);
+ABSL_DECLARE_FLAG(peregrine::benchmark::WorkloadType, workload);
 
 namespace peregrine::benchmark {
 
@@ -57,6 +58,9 @@ uint64_t ParseXferSize();
 
 // Parses the number of transfers.
 uint32_t ParseNumXfers();
+
+// Parses the workload type.
+WorkloadType ParseWorkloadType();
 
 }  // namespace peregrine::benchmark
 

@@ -5,7 +5,10 @@
 
 #include "absl/log/check.h"
 #include "absl/numeric/bits.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "absl/time/time.h"
 
 namespace peregrine::benchmark {
@@ -59,6 +62,29 @@ Mbps CalcRate(uint64_t bytes, absl::Duration interval) {
   const int64_t us = absl::ToInt64Microseconds(interval);
   DCHECK_GE(us, 1);
   return Mbps((bits + us / 2) / us);
+}
+
+std::string ToString(const WorkloadType workload) {
+  switch (workload) {
+    case WorkloadType::kSerialFixedWrite:
+      return "serial_fixed_write";
+  }
+  return absl::StrFormat("Unknown(%d)", static_cast<int>(workload));
+}
+
+bool AbslParseFlag(absl::string_view text, WorkloadType* workload,
+                   std::string* error) {
+  if (absl::EqualsIgnoreCase(text, "serial_fixed_write")) {
+    *workload = WorkloadType::kSerialFixedWrite;
+    return true;
+  }
+  *error = absl::StrCat("unknown workload '", text,
+                        "'. Supported workloads: [serial_fixed_write]");
+  return false;
+}
+
+std::string AbslUnparseFlag(WorkloadType workload) {
+  return ToString(workload);
 }
 
 }  // namespace peregrine::benchmark

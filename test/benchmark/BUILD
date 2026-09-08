@@ -8,7 +8,7 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
 package(
     default_testonly = True,
-    default_visibility = ["//visibility:private"],
+    default_visibility = ["//test/benchmark:__subpackages__"],
 )
 
 cc_library(
@@ -35,6 +35,7 @@ cc_library(
         "//src/api:strong_int",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/numeric:bits",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
     ],
@@ -45,6 +46,7 @@ cc_test(
     srcs = ["types_test.cc"],
     deps = [
         ":types",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
@@ -85,6 +87,8 @@ cc_library(
         "//src/api:transport_types",
         "//src/api:transport_util",
         "//src/util",
+        "//test/benchmark/workloads:workload_generator",
+        "//test/benchmark/workloads:workload_util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",

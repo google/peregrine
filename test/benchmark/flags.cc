@@ -49,6 +49,10 @@ ABSL_FLAG(uint64_t, xfer_size, 1024 * 1024 * 1024ULL,
 ABSL_FLAG(uint32_t, num_xfers, 100,
           "Number of transfers to perform (default = 100)");
 
+ABSL_FLAG(peregrine::benchmark::WorkloadType, workload,
+          peregrine::benchmark::WorkloadType::kSerialFixedWrite,
+          "Workload type to run: 'serial_fixed_write'");
+
 namespace peregrine::benchmark {
 
 peregrine::TransportType ParseTransportType() {
@@ -137,5 +141,7 @@ uint32_t ParseNumXfers() {
   const uint32_t v = absl::GetFlag(FLAGS_num_xfers);
   return std::max(1U, v);
 }
+
+WorkloadType ParseWorkloadType() { return absl::GetFlag(FLAGS_workload); }
 
 }  // namespace peregrine::benchmark

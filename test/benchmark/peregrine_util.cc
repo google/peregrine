@@ -28,6 +28,8 @@
 #include "test/benchmark/control.pb.h"
 #include "test/benchmark/control_util.h"
 #include "test/benchmark/types.h"
+#include "test/benchmark/workloads/workload_generator.h"
+#include "test/benchmark/workloads/workload_util.h"
 
 namespace peregrine::benchmark {
 
@@ -128,16 +130,12 @@ void RunServer(std::string_view ip, uint16_t peregrine_control_port,
 }
 
 void RunClient(std::string_view ip, uint16_t peregrine_control_port,
-               uint16_t app_control_port, int nconns, uint64_t xfer_size,
-               std::string_view peer_host, uint32_t num_xfers,
-               TransportType transport_type) {
+               uint16_t app_control_port, int nconns,
+               std::string_view peer_host, TransportType transport_type,
+               WorkloadType workload) {
   // Connect to server control.
-  const int server_fd = ConnectControlWithRetry(peer_host, app_control_port);
-
-  // Pre-allocate source buffer.
-  std::vector<Byte> buf(xfer_size);
-  RandomNonZero(absl::MakeSpan(buf));
-  DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b != 0; }));
+  const int app_control_fd =
+      ConnectControlWithRetry(peer_host, app_control_port);
 
   // Create transport.
   const std::string self = GenEndpoint(ip, /*port=*/0);
@@ -145,100 +143,26 @@ void RunClient(std::string_view ip, uint16_t peregrine_control_port,
       CreateTransport(self, transport_type, nconns);
   CHECK(transport != nullptr) << "Failed to create transport";
 
-  // Register memory buffer for RDMA if required.
-  CHECK_OK(transport->RegisterMemory(buf.data(), buf.size()));
-
-  const std::string peer_endpoint =
+  const std::string server_endpoint =
       GenEndpoint(peer_host, peregrine_control_port);
 
   // Show info.
   std::cout << absl::StrFormat(
       "Role: client\n"
       "Connections : %d\n"
-      "Buffer addr : %p\n"
-      "Buffer size : %s\n"
-      "Buffer hash : 0x%x\n"
       "Listening at: %s\n"
       "Sending to  : %s\n",
-      nconns, buf.data(), ToString(buf.size()), util::Xx3Hash(buf), self,
-      peer_endpoint);
+      nconns, self, server_endpoint);
 
-  uint64_t total_bytes = 0;
-  absl::Duration total_dur = absl::ZeroDuration();
-  absl::Duration total_cpu_dur = absl::ZeroDuration();
-  for (uint32_t i = 1; i <= num_xfers; ++i) {
-    // Request remote destination address.
-    proto::ControlMessage request;
-    request.mutable_transfer_request();
-    CHECK(SendControlMessage(server_fd, request))
-        << "Failed to send TransferRequest at transfer " << i;
+  // Create and run the workload generator.
+  std::unique_ptr<WorkloadGenerator> generator = CreateWorkload(
+      workload, transport.get(), app_control_fd, server_endpoint);
+  CHECK(generator != nullptr)
+      << "Failed to create workload generator for workload: "
+      << ToString(workload);
+  CHECK_OK(generator->Run());
 
-    // Receive destination address.
-    proto::ControlMessage response;
-    CHECK(ProcessControlMessage(server_fd, &response))
-        << "Failed to receive TransferResponse at transfer " << i;
-    CHECK(response.has_transfer_response());
-
-    // Post standard write request using dynamically resolved buffer address.
-    const Request req = {
-        .op = Op::kWrite,
-        .laddr = buf.data(),
-        .raddr = reinterpret_cast<Byte*>(
-            response.transfer_response().buffer_address()),
-        .len = static_cast<size_t>(xfer_size),
-    };
-    const absl::Time start_time = absl::Now();
-    const absl::Duration start_cpu = GetCpuTime();
-    const absl::StatusOr<Handle> handle_or =
-        transport->Post(peer_endpoint, {req});
-    if (!handle_or.ok()) {
-      LOG(FATAL) << "Failed to post request: " << handle_or.status().message();
-    }
-
-    // Poll for status.
-    const Handle handle = handle_or.value();
-    while (true) {
-      const absl::StatusOr<Status> s = transport->Poll(handle);
-      if (!s.ok()) {
-        LOG(FATAL) << "Failed to poll status: " << s.status().message();
-      } else if (const Status status = s.value(); !IsCompleted(status)) {
-        absl::SleepFor(absl::Microseconds(100));
-      } else {
-        CHECK_EQ(status, Status::kSuccess) << "Transfer failed";
-        break;
-      }
-    }
-
-    // Measure the transfer.
-    const absl::Duration dur = absl::Now() - start_time;
-    const absl::Duration cpu_dur = GetCpuTime() - start_cpu;
-    total_bytes += xfer_size;
-    total_dur += dur;
-    total_cpu_dur += cpu_dur;
-    std::cout << absl::StrFormat(
-        "Transfer %d/%d size: %s, latency: %s, thruput: %s, CPU time: %s\n", i,
-        num_xfers, ToString(xfer_size), absl::FormatDuration(dur),
-        ToString(CalcRate(xfer_size, dur)), absl::FormatDuration(cpu_dur));
-  }
-
-  // Show summary.
-  std::cout << absl::StrFormat(
-      "--- Summary ---\n"
-      "Total bytes   : %s\n"
-      "Total time    : %s\n"
-      "Total CPU time: %s\n"
-      "Avg latency   : %s\n"
-      "Avg thruput   : %s\n"
-      "CPU usage     : %.2f cores\n",
-      ToString(total_bytes), absl::FormatDuration(total_dur),
-      absl::FormatDuration(total_cpu_dur),
-      absl::FormatDuration(total_dur / num_xfers),
-      ToString(CalcRate(total_bytes, total_dur)),
-      total_dur > absl::ZeroDuration()
-          ? absl::FDivDuration(total_cpu_dur, total_dur)
-          : 0.0);
-
-  close(server_fd);
+  close(app_control_fd);
 }
 
 }  // namespace peregrine::benchmark

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <string_view>
 
 #include "absl/time/time.h"
 #include "src/api/strong_int.h"
@@ -14,6 +15,11 @@ namespace peregrine::benchmark {
 enum class Role {
   kClient,
   kServer,
+};
+
+// Traffic workload type.
+enum class WorkloadType {
+  kSerialFixedWrite,
 };
 
 // NIC bandwidth in Mbps.
@@ -42,6 +48,18 @@ inline std::ostream& operator<<(std::ostream& os, const Mbps mbps) {
 
 // Returns a string representation for the number of bytes.
 std::string ToString(uint64_t bytes);
+
+// Returns a string representation for the workload type.
+std::string ToString(WorkloadType workload);
+
+inline std::ostream& operator<<(std::ostream& os, const WorkloadType workload) {
+  return os << ToString(workload);
+}
+
+// Abseil flag parsing and unparsing hooks for WorkloadType.
+bool AbslParseFlag(absl::string_view text, WorkloadType* workload,
+                   std::string* error);
+std::string AbslUnparseFlag(WorkloadType workload);
 
 // Calculates the rate in Mbps for the #bytes and interval.
 Mbps CalcRate(uint64_t bytes, absl::Duration interval);
