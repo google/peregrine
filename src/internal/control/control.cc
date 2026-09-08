@@ -13,7 +13,6 @@
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/internal/assumptions.h"
@@ -42,7 +41,6 @@ std::unique_ptr<Control> Control::Create(const Config& config,
     LOG(WARNING) << "failed to create control: invalid security credentials";
     return nullptr;
   }
-
   return absl::WrapUnique(new Control(config, self, creds));
 }
 
@@ -58,7 +56,7 @@ bool Control::Start() {
 
   auto grpc_server = GrpcServer::Create(endpoint, std::move(server_creds_),
                                         std::move(req_handler));
-  if ABSL_PREDICT_FALSE (!grpc_server.ok()) {
+  if (!grpc_server.ok()) {
     LOG(WARNING) << "failed to create grpc server on " << endpoint << ": "
                  << grpc_server.status();
     return false;
@@ -78,37 +76,31 @@ Control::~Control() {
   }
 }
 
-void Control::SetRdmaConnectHandler(RdmaConnectHandler handler) {
+void Control::SetRdmaConnHandler(RdmaConnHandler handler) {
   absl::MutexLock _(rdma_handler_mu_);
-  rdma_connect_handler_ = std::move(handler);
+  rdma_conn_handler_ = std::move(handler);
 }
 
 void Control::SetPspTcpHandler(PspTcpHandler handler) {
-  absl::MutexLock _(psp_tcp_handler_mu_);
+  absl::MutexLock _(psp_handler_mu_);
   psp_tcp_handler_ = std::move(handler);
 }
 
-absl::Status Control::handleRequest(const proto::ReqMsg& req,
-                                    proto::RespMsg* resp) {
-  if ABSL_PREDICT_FALSE (resp == nullptr) {
+absl::Status Control::handleRequest(const proto::ReqMsg& req_msg,
+                                    proto::RespMsg* resp_msg) {
+  if (resp_msg == nullptr) {
     return absl::InvalidArgumentError("null response message");
   }
-  switch (req.msg_case()) {
-    case proto::ReqMsg::kHostInfo: {
-      const proto::HostInfo& peer = req.host_info();
-      proto::HostInfo* const self = resp->mutable_host_info();
-      return handleHostInfoExchange(peer, self);
-    }
-    case proto::ReqMsg::kPspReq: {
-      const proto::PspRequest& peer_token = req.psp_req();
-      proto::PspResponse* const self_token = resp->mutable_psp_resp();
-      return handlePspTokenExchange(peer_token, self_token);
-    }
-    case proto::ReqMsg::kRdmaConnectReq: {
-      const proto::RdmaConnectRequest& conn_req = req.rdma_connect_req();
-      proto::RdmaConnectResponse* conn_resp = resp->mutable_rdma_connect_resp();
-      return handleRdmaConnect(conn_req, conn_resp);
-    }
+  switch (req_msg.msg_case()) {
+    case proto::ReqMsg::kHostInfo:
+      return handleHostInfoExchange(req_msg.host_info(),
+                                    resp_msg->mutable_host_info());
+    case proto::ReqMsg::kPspTcpReq:
+      return handlePspTokenExchange(req_msg.psp_tcp_req(),
+                                    resp_msg->mutable_psp_tcp_resp());
+    case proto::ReqMsg::kRdmaConnReq:
+      return handleRdmaConnect(req_msg.rdma_conn_req(),
+                               resp_msg->mutable_rdma_conn_resp());
     case proto::ReqMsg::MSG_NOT_SET:
       return absl::InvalidArgumentError("request type not set");
     default:
@@ -116,78 +108,76 @@ absl::Status Control::handleRequest(const proto::ReqMsg& req,
   }
 }
 
-absl::Status Control::handleHostInfoExchange(const proto::HostInfo& peer,
-                                             proto::HostInfo* const self) {
-  if ABSL_PREDICT_FALSE (self == nullptr)
-    return absl::InternalError("null host info response message");
+absl::Status Control::handleHostInfoExchange(
+    const proto::HostInfo& req_proto, proto::HostInfo* const resp_proto) {
+  if (resp_proto == nullptr) {
+    return absl::InternalError("null host info resp proto");
+  }
 
   HostInfo peer_info;
-  if ABSL_PREDICT_FALSE (!Message::Convert(peer, peer_info))
+  if (!Message::Deserialize(req_proto, peer_info)) {
     return absl::InternalError("deserialize peer host info");
+  }
   DCHECK(peer_info.IsValid());
+
   {
     absl::MutexLock _(peer_hosts_mu_);
     const Endpoint peer = peer_info.control_plane_listener;
+    DCHECK(peer.HasNonzeroIpPort());
     peer_hosts_.insert_or_assign(peer, std::move(peer_info));
   }
-  if ABSL_PREDICT_FALSE (!Message::Convert(self_, *self))
+
+  DCHECK(self_.IsValid());
+  if (!Message::Serialize(self_, *resp_proto)) {
     return absl::InternalError("serialize self host info");
+  }
   return absl::OkStatus();
 }
 
-absl::Status Control::handlePspTokenExchange(const proto::PspRequest& req,
-                                             proto::PspResponse* resp) {
-  if ABSL_PREDICT_FALSE (resp == nullptr) {
-    return absl::InternalError("null psp response message");
-  }
-
-  absl::MutexLock _(psp_tcp_handler_mu_);
-  if ABSL_PREDICT_FALSE (psp_tcp_handler_ == nullptr) {
-    return absl::UnimplementedError("missing psp handler");
+absl::Status Control::handlePspTokenExchange(const proto::PspTcpReq& req_proto,
+                                             proto::PspTcpResp* resp_proto) {
+  if (resp_proto == nullptr) {
+    return absl::InternalError("null psp tcp resp proto");
   }
 
   PspToken peer_token;
-  if ABSL_PREDICT_FALSE (req.psp().key().size() != peer_token.key.size()) {
-    return absl::InvalidArgumentError("invalid peer psp key size");
+  Endpoint self_target;
+  if (!Message::Deserialize(req_proto, peer_token, self_target)) {
+    return absl::InvalidArgumentError("deserialize peer psp tcp req proto");
   }
-  peer_token.spi = Spi(req.psp().spi());
-  peer_token.gen = Gen(req.psp().gen());
-  std::memcpy(peer_token.key.data(), req.psp().key().data(),
-              peer_token.key.size());
-  if (!peer_token.IsValid()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("invalid peer psp token %s", peer_token.ToString()));
+  DCHECK(peer_token.IsValid());
+  DCHECK(self_target.HasNonzeroIpPort());
+
+  absl::StatusOr<PspToken> self_token;
+  {
+    absl::MutexLock _(psp_handler_mu_);
+    if (psp_tcp_handler_ == nullptr)
+      return absl::UnimplementedError("missing psp tcp handler");
+    self_token = psp_tcp_handler_(peer_token, self_target);
   }
-
-  const Endpoint self_target =
-      req.has_peer_target() ? Endpoint::Create(req.peer_target().ip_port())
-                            : Endpoint();
-
-  absl::StatusOr<PspToken> self_token =
-      psp_tcp_handler_(peer_token, self_target);
   if (!self_token.ok()) {
     return self_token.status();
+  } else if (!self_token->IsValid()) {
+    return absl::InternalError("invalid self psp token");
+  } else if (!Message::Serialize(*self_token, *resp_proto)) {
+    return absl::InternalError("serialize self psp token");
+  } else {
+    return absl::OkStatus();
   }
-  proto::PspToken* psp_token = resp->mutable_psp();
-  psp_token->set_spi(self_token->spi.value());
-  psp_token->set_gen(self_token->gen.value());
-  psp_token->set_key(
-      std::string_view(reinterpret_cast<const char*>(self_token->key.data()),
-                       self_token->key.size()));
-  return absl::OkStatus();
 }
 
-absl::Status Control::handleRdmaConnect(const proto::RdmaConnectRequest& req,
-                                        proto::RdmaConnectResponse* resp) {
-  if ABSL_PREDICT_FALSE (resp == nullptr) {
-    return absl::InternalError("null rdma connect response message");
+absl::Status Control::handleRdmaConnect(const proto::RdmaConnReq& req_proto,
+                                        proto::RdmaConnResp* resp_proto) {
+  if (resp_proto == nullptr) {
+    return absl::InternalError("null rdma conn resp proto");
   }
-
   absl::MutexLock _(rdma_handler_mu_);
-  if ABSL_PREDICT_FALSE (rdma_connect_handler_ == nullptr) {
-    return absl::UnimplementedError("missing RDMA connect handler");
+  if (rdma_conn_handler_ == nullptr) {
+    return absl::UnimplementedError("missing rdma conn handler");
   }
-  return rdma_connect_handler_(req, resp);
+  // TODO(mubashirq): revise this code following psp tcp above.
+  // Limit the use of proto only in control/ folder.
+  return rdma_conn_handler_(req_proto, resp_proto);
 }
 
 const GrpcClient& Control::getOrCreateClient(const Endpoint& peer) {
@@ -195,23 +185,23 @@ const GrpcClient& Control::getOrCreateClient(const Endpoint& peer) {
 
   absl::MutexLock _(peer_clients_mu_);
   std::unique_ptr<GrpcClient>& client = peer_clients_[peer];
-  if ABSL_PREDICT_FALSE (client == nullptr) {
+  if (client == nullptr) {
     client = std::make_unique<GrpcClient>(peer, client_creds_);
   }
   DCHECK_NE(client, nullptr);
   return *client;
 }
 
-absl::StatusOr<proto::RespMsg> Control::SendRequest(const Endpoint& peer,
-                                                    const proto::ReqMsg& req) {
+absl::StatusOr<proto::RespMsg> Control::SendRequest(
+    const Endpoint& peer, const proto::ReqMsg& req_msg) {
   DCHECK(invariant());
 
   const GrpcClient& client = getOrCreateClient(peer);
-  return client.SendUnary(req);
+  return client.SendUnary(req_msg);
 }
 
 absl::StatusOr<HostInfo> Control::GetPeerHostInfo(const Endpoint& peer) {
-  if ABSL_PREDICT_FALSE (!peer.HasNonzeroIpPort()) {
+  if (!peer.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError("invalid peer endpoint");
   }
 
@@ -219,109 +209,95 @@ absl::StatusOr<HostInfo> Control::GetPeerHostInfo(const Endpoint& peer) {
   {
     absl::MutexLock _(peer_hosts_mu_);
     const auto it = peer_hosts_.find(peer);
-    if ABSL_PREDICT_TRUE (it != peer_hosts_.end()) return it->second;
+    if (it != peer_hosts_.end()) return it->second;
   }
 
   // Slow-path: fetch peer host info using grpc.
-  proto::ReqMsg req;
-  if ABSL_PREDICT_FALSE (!Message::Convert(self_, req)) {
+  proto::ReqMsg req_msg;
+  if (auto* self = req_msg.mutable_host_info(); self == nullptr) {
+    return absl::InternalError("no host info in req proto");
+  } else if (!Message::Serialize(self_, *self)) {
     return absl::InternalError("serialize self host info");
   }
-  absl::StatusOr<proto::RespMsg> resp = SendRequest(peer, req);
-  if ABSL_PREDICT_FALSE (!resp.ok()) {
-    return resp.status();
-  }
+
   HostInfo peer_info;
-  if ABSL_PREDICT_FALSE (!Message::Convert(*resp, peer_info)) {
-    return absl::InternalError("deserialize peer host info");
+  if (const auto resp_msg = SendRequest(peer, req_msg); !resp_msg.ok()) {
+    return resp_msg.status();
+  } else if (!resp_msg->has_host_info()) {
+    return absl::InternalError("no host info in resp proto");
+  } else if (!Message::Deserialize(resp_msg->host_info(), peer_info)) {
+    return absl::InternalError("deserialize peer host info proto");
+  } else {
+    DCHECK(peer_info.IsValid());
+    DCHECK_EQ(peer_info.control_plane_listener, peer);
+    {
+      absl::MutexLock _(peer_hosts_mu_);
+      peer_hosts_.insert_or_assign(peer, peer_info);
+    }
+    return peer_info;
   }
-  DCHECK(peer_info.IsValid());
-  DCHECK_EQ(peer_info.control_plane_listener, peer);
-  {
-    absl::MutexLock _(peer_hosts_mu_);
-    peer_hosts_.insert_or_assign(peer, peer_info);
-  }
-  return peer_info;
 }
 
 absl::StatusOr<PspToken> Control::ExchangePspTokens(const PspToken& self_token,
                                                     const Endpoint& peer_target,
                                                     const Endpoint& peer) {
-  if (!peer.HasNonzeroIpPort()) {
-    return absl::InvalidArgumentError("invalid peer endpoint");
-  }
-  if (!peer_target.HasNonzeroIpPort()) {
-    return absl::InvalidArgumentError("invalid peer target endpoint");
-  }
-  if (!self_token.IsValid()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("invalid self psp token %s", self_token.ToString()));
-  }
+  if (!peer.HasNonzeroIpPort())
+    return absl::InvalidArgumentError("invalid peer");
+  if (!peer_target.HasNonzeroIpPort())
+    return absl::InvalidArgumentError("invalid peer target");
+  if (!self_token.IsValid())
+    return absl::InvalidArgumentError("invalid self psp token");
 
-  proto::ReqMsg req;
-  proto::PspRequest* psp_req = req.mutable_psp_req();
-  proto::PspToken* psp_token = psp_req->mutable_psp();
-  psp_token->set_spi(self_token.spi.value());
-  psp_token->set_gen(self_token.gen.value());
-  psp_token->set_key(
-      std::string_view(reinterpret_cast<const char*>(self_token.key.data()),
-                       self_token.key.size()));
-  psp_req->mutable_peer_target()->set_ip_port(peer_target.ToString());
-
-  auto resp = SendRequest(peer, req);
-  if (!resp.ok()) {
-    return resp.status();
-  }
-  if (!resp->has_psp_resp()) {
-    return absl::InternalError("missing PspResponse in response");
+  proto::ReqMsg req_msg;
+  if (proto::PspTcpReq* req = req_msg.mutable_psp_tcp_req(); req == nullptr) {
+    return absl::InternalError("null psp tcp proto in req msg");
+  } else if (!Message::Serialize(self_token, peer_target, *req)) {
+    return absl::InternalError("serialize self psp token");
   }
 
   PspToken peer_token;
-  if (resp->psp_resp().psp().key().size() != peer_token.key.size()) {
-    return absl::InternalError("invalid proto psp key size");
+  if (const auto resp_msg = SendRequest(peer, req_msg); !resp_msg.ok()) {
+    return resp_msg.status();
+  } else if (!resp_msg->has_psp_tcp_resp()) {
+    return absl::InternalError("null psp tcp proto in resp msg");
+  } else if (!Message::Deserialize(resp_msg->psp_tcp_resp(), peer_token)) {
+    return absl::InternalError("deserialize peer psp token");
+  } else {
+    DCHECK(peer_token.IsValid());
+    return peer_token;
   }
-  peer_token.spi = Spi(resp->psp_resp().psp().spi());
-  peer_token.gen = Gen(resp->psp_resp().psp().gen());
-  std::memcpy(peer_token.key.data(), resp->psp_resp().psp().key().data(),
-              peer_token.key.size());
-  if (!peer_token.IsValid()) {
-    return absl::InternalError(absl::StrFormat(
-        "peer returned invalid psp token %s", peer_token.ToString()));
-  }
-  return peer_token;
 }
 
-absl::StatusOr<proto::RdmaConnectResponse> Control::ConnectRdmaPeer(
+absl::StatusOr<proto::RdmaConnResp> Control::ConnectRdmaPeer(
     const Endpoint& peer, std::string_view device_name, uint32_t qpn,
     absl::Span<const uint8_t> gid, uint32_t psn, uint32_t rkey) {
-  if (!peer.HasNonzeroIpPort()) {
+  if (!peer.HasNonzeroIpPort())
     return absl::InvalidArgumentError("invalid peer endpoint");
-  }
   constexpr size_t kGidSize = 16;
-  if (gid.size() != kGidSize) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "invalid GID size: expected %d bytes, got %d", kGidSize, gid.size()));
+  if (gid.size() != kGidSize)
+    return absl::InvalidArgumentError("invalid GID size");
+
+  proto::ReqMsg req_msg;
+  if (auto* rdma = req_msg.mutable_rdma_conn_req(); rdma == nullptr) {
+    return absl::InternalError("null rdma conn proto in req msg");
+  } else {
+    // TOOD(mubashirq): revise this code following psp tcp above.
+    rdma->set_device_name(device_name);
+    rdma->set_qpn(qpn);
+    const char* gid_data = reinterpret_cast<const char*>(gid.data());
+    rdma->set_gid(std::string_view(gid_data, gid.size()));
+    rdma->set_psn(psn);
+    if (rkey != 0) rdma->set_rkey(rkey);
   }
 
-  proto::ReqMsg req;
-  proto::RdmaConnectRequest* connect_req = req.mutable_rdma_connect_req();
-  connect_req->set_device_name(device_name);
-  connect_req->set_qpn(qpn);
-  connect_req->set_gid(
-      std::string_view(reinterpret_cast<const char*>(gid.data()), gid.size()));
-  connect_req->set_psn(psn);
-  if (rkey != 0) {
-    connect_req->set_rkey(rkey);
-  }
-
-  auto resp = SendRequest(peer, req);
-  if (!resp.ok()) {
+  if (const auto resp = SendRequest(peer, req_msg); !resp.ok()) {
     return resp.status();
+  } else if (!resp->has_rdma_conn_resp()) {
+    return absl::InternalError("null rdma conn proto in resp msg");
+  } else {
+    // TOOD(mubashirq): use Deserialize(...), do not return proto.
+    return resp->rdma_conn_resp();
   }
-  if (!resp->has_rdma_connect_resp()) {
-    return absl::InternalError("missing RdmaConnectResponse in response");
-  }
-  return resp->rdma_connect_resp();
 }
 
 }  // namespace peregrine::internal

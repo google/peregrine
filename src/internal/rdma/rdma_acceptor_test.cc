@@ -52,7 +52,7 @@ TEST(RdmaAcceptorTest, CreateAndRegisterMemoryWithRdmaTransport) {
 
   auto acceptor = RdmaAcceptor::Create(config, self, *control);
   ASSERT_THAT(acceptor, NotNull());
-  EXPECT_FALSE(self.rdma_interfaces.empty());
+  EXPECT_FALSE(self.rdma_nics.empty());
 
   constexpr size_t kBufferSize = 4096;
   std::vector<uint8_t> buffer(kBufferSize, 0xAB);

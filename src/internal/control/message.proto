@@ -10,9 +10,9 @@ import "src/internal/control/message_internal.proto";
 message ReqMsg {
   oneof msg {
     HostInfo host_info = 1;
-    PeerRequests peer_requests = 2;
-    RdmaConnectRequest rdma_connect_req = 3;
-    PspRequest psp_req = 4;
+    PeerReq peer_req = 2;
+    PspTcpReq psp_tcp_req = 3;
+    RdmaConnReq rdma_conn_req = 4;
     // Append new request types here.
   }
 }
@@ -20,9 +20,9 @@ message ReqMsg {
 message RespMsg {
   oneof msg {
     HostInfo host_info = 1;
-    PeerResponse peer_response = 2;
-    RdmaConnectResponse rdma_connect_resp = 3;
-    PspResponse psp_resp = 4;
+    PeerResp peer_resp = 2;
+    PspTcpResp psp_tcp_resp = 3;
+    RdmaConnResp rdma_conn_resp = 4;
     // Append new request types here.
   }
 }

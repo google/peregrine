@@ -149,15 +149,10 @@ void TcpAcceptor::Start(AcceptCallback accept) {
 }
 
 const TcpAcceptor::Listener* TcpAcceptor::findListener(
-    const Endpoint& self_target) const {
-  if (self_target.HasNonzeroIpPort()) {
-    for (const auto& [fd, listener] : listeners_) {
-      if (listener.endpoint == self_target) {
-        return &listener;
-      }
-    }
-  } else if (listeners_.size() == 1) {
-    return &(listeners_.begin()->second);
+    const Endpoint& target) const {
+  DCHECK(target.HasNonzeroIpPort());
+  for (const auto& [fd, listener] : listeners_) {
+    if (target == listener.endpoint) return &listener;
   }
   return nullptr;
 }
@@ -165,8 +160,9 @@ const TcpAcceptor::Listener* TcpAcceptor::findListener(
 absl::StatusOr<PspToken> TcpAcceptor::ExchangePspTokens(
     const PspToken& peer_token, const Endpoint& self_target) {
   DCHECK(peer_token.IsValid());
+  DCHECK(self_target.HasNonzeroIpPort());
 
-  const Listener* l = findListener(self_target);
+  const Listener* const l = findListener(self_target);
   if (l == nullptr) {
     return absl::NotFoundError(
         absl::StrCat("no listener found for ", self_target.ToString()));
@@ -174,12 +170,11 @@ absl::StatusOr<PspToken> TcpAcceptor::ExchangePspTokens(
 
   const fd_t fd = l->socket->fd();
   absl::MutexLock lock(*l->mu);
-  const absl::StatusOr<PspToken> self_token =
-      psp::AddSecureListener(fd, peer_token);
+  absl::StatusOr<PspToken> self_token = psp::AddSecureListener(fd, peer_token);
   if (!self_token.ok() || !self_token->IsValid()) {
     return absl::InternalError("invalid self psp token");
   }
-  return self_token;  // TODO(yyd): RemoveSecureListener?
+  return self_token;  // TODO(yyd): RemoveSecureListener when `fd` is closed?
 }
 
 void TcpAcceptor::Stop() {

@@ -202,12 +202,12 @@ std::unique_ptr<RdmaDeviceContext> RdmaDeviceContext::Create(
     return nullptr;
   }
 
-  const int gid_index = findRoutableGid(context, kDefaultPortNum);
+  const int gid_index = findRoutableGid(context, kDefaultPort);
   union ibv_gid local_gid = {};
-  if (ibv_query_gid(context, kDefaultPortNum, gid_index, &local_gid) != 0) {
+  if (ibv_query_gid(context, kDefaultPort, gid_index, &local_gid) != 0) {
     LOG(WARNING) << ErrorMsg(
         absl::StrFormat("ibv_query_gid failed for %s on port %d, gid_index %d",
-                        getDeviceName(context), kDefaultPortNum, gid_index),
+                        getDeviceName(context), kDefaultPort, gid_index),
         errno);
     ibv_destroy_cq(cq);
     ibv_dealloc_pd(pd);

@@ -97,7 +97,7 @@ absl::Status RdmaQueuePair::Init() {
   struct ibv_qp_attr attr = {};
   attr.qp_state = IBV_QPS_INIT;
   attr.pkey_index = 0;
-  attr.port_num = RdmaDeviceContext::kDefaultPortNum;
+  attr.port_num = RdmaDeviceContext::kDefaultPort;
   attr.qp_access_flags = options_.access_flags;
 
   const int flags =
@@ -134,7 +134,7 @@ absl::Status RdmaQueuePair::Rtr(uint32_t remote_qpn,
 
   // Address Vector (AV) configuration for RoCEv2 GRH
   attr.ah_attr.is_global = 1;
-  attr.ah_attr.port_num = RdmaDeviceContext::kDefaultPortNum;
+  attr.ah_attr.port_num = RdmaDeviceContext::kDefaultPort;
   attr.ah_attr.sl = options_.sl;
   attr.ah_attr.src_path_bits = 0;
   attr.ah_attr.grh.dgid = remote_gid;

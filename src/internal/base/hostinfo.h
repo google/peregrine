@@ -13,25 +13,21 @@
 namespace peregrine::internal {
 
 // This struct represents a RDMA interface.
-struct RdmaInterface {
+struct RdmaNic {
   std::string name;
-  std::string gid;  // 16-byte raw GID
-  uint32_t port_num = 1;
+  std::string gid;  // 16-byte
+  uint32_t port = 1;
 
   // Returns true iff the interface is valid.
-  bool IsValid() const {
-    return !name.empty() && gid.size() == 16 && port_num > 0;
-  }
+  bool IsValid() const { return !name.empty() && gid.size() == 16 && port > 0; }
 
   // Returns a string representation of the interface.
-  std::string ToString() const {
-    return absl::StrCat(name, "-port:", port_num);
-  }
+  std::string ToString() const { return absl::StrCat(name, "-port:", port); }
 
-  bool operator==(const RdmaInterface& other) const = default;
+  bool operator==(const RdmaNic& other) const = default;
 };
 
-inline std::ostream& operator<<(std::ostream& os, const RdmaInterface& r) {
+inline std::ostream& operator<<(std::ostream& os, const RdmaNic& r) {
   return os << r.ToString();
 }
 
@@ -43,7 +39,7 @@ inline std::ostream& operator<<(std::ostream& os, const RdmaInterface& r) {
 struct HostInfo {
   Endpoint control_plane_listener;
   std::vector<Endpoint> data_plane_listeners;
-  std::vector<RdmaInterface> rdma_interfaces;
+  std::vector<RdmaNic> rdma_nics;
 
   // Parses and creates host info from a string, e.g.,
   // "10.0.0.1:10000, 10.0.0.1:35247, 10.0.0.2:51691".

@@ -35,8 +35,8 @@ class Control final {
  public:
   using PspTcpHandler = absl::AnyInvocable<absl::StatusOr<PspToken>(
       const PspToken& peer_token, const Endpoint& self_target) const>;
-  using RdmaConnectHandler = absl::AnyInvocable<absl::Status(
-      const proto::RdmaConnectRequest&, proto::RdmaConnectResponse*) const>;
+  using RdmaConnHandler = absl::AnyInvocable<absl::Status(
+      const proto::RdmaConnReq&, proto::RdmaConnResp*) const>;
 
   // Creates a control plane instance.
   static std::unique_ptr<Control> Create(const Config& config,
@@ -58,12 +58,12 @@ class Control final {
   void SetPspTcpHandler(PspTcpHandler handler);
 
   // Registers a callback handler for incoming RDMA connect requests.
-  void SetRdmaConnectHandler(RdmaConnectHandler handler);
+  void SetRdmaConnHandler(RdmaConnHandler handler);
 
   // Synchronously sends a request message to a remote peer endpoint.
   // Returns the response message or an error status.
   absl::StatusOr<proto::RespMsg> SendRequest(const Endpoint& peer,
-                                             const proto::ReqMsg& req);
+                                             const proto::ReqMsg& req_msg);
 
   // Returns the HostInfo of a remote peer.
   absl::StatusOr<HostInfo> GetPeerHostInfo(const Endpoint& peer)
@@ -75,7 +75,7 @@ class Control final {
                                              const Endpoint& peer);
 
   // Exchanges QP credentials out-of-band with a remote peer.
-  absl::StatusOr<proto::RdmaConnectResponse> ConnectRdmaPeer(
+  absl::StatusOr<proto::RdmaConnResp> ConnectRdmaPeer(
       const Endpoint& peer, std::string_view device_name, uint32_t qpn,
       absl::Span<const uint8_t> gid, uint32_t psn = 0, uint32_t rkey = 0);
 
@@ -106,21 +106,22 @@ class Control final {
 
  private:
   // Handles all incoming RPC requests.
-  absl::Status handleRequest(const proto::ReqMsg& req, proto::RespMsg* resp);
+  absl::Status handleRequest(const proto::ReqMsg& req_msg,
+                             proto::RespMsg* resp_msg);
 
   // Handles host info exchange.
-  absl::Status handleHostInfoExchange(const proto::HostInfo& peer,
-                                      proto::HostInfo* self)
+  absl::Status handleHostInfoExchange(const proto::HostInfo& req_proto,
+                                      proto::HostInfo* resp_proto)
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
   // Handles psp token exchange.
-  absl::Status handlePspTokenExchange(const proto::PspRequest& req,
-                                      proto::PspResponse* resp)
-      ABSL_LOCKS_EXCLUDED(psp_tcp_handler_mu_);
+  absl::Status handlePspTokenExchange(const proto::PspTcpReq& req_proto,
+                                      proto::PspTcpResp* resp_proto)
+      ABSL_LOCKS_EXCLUDED(psp_handler_mu_);
 
   // Handles rdma connection.
-  absl::Status handleRdmaConnect(const proto::RdmaConnectRequest& req,
-                                 proto::RdmaConnectResponse* resp)
+  absl::Status handleRdmaConnect(const proto::RdmaConnReq& req_proto,
+                                 proto::RdmaConnResp* resp_proto)
       ABSL_LOCKS_EXCLUDED(rdma_handler_mu_);
 
  private:
@@ -138,11 +139,11 @@ class Control final {
   absl::flat_hash_map<Endpoint, HostInfo> peer_hosts_
       ABSL_GUARDED_BY(peer_hosts_mu_);
 
-  absl::Mutex psp_tcp_handler_mu_;
-  PspTcpHandler psp_tcp_handler_ ABSL_GUARDED_BY(psp_tcp_handler_mu_);
+  absl::Mutex psp_handler_mu_;
+  PspTcpHandler psp_tcp_handler_ ABSL_GUARDED_BY(psp_handler_mu_);
 
   absl::Mutex rdma_handler_mu_;
-  RdmaConnectHandler rdma_connect_handler_ ABSL_GUARDED_BY(rdma_handler_mu_);
+  RdmaConnHandler rdma_conn_handler_ ABSL_GUARDED_BY(rdma_handler_mu_);
 };
 
 }  // namespace peregrine::internal

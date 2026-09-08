@@ -5,18 +5,36 @@ edition = "2024";
 
 package peregrine.internal.proto;
 
-message PeerRequests {
+// See internal/base/hostinfo.h
+// TODO: Consider unifying TCP data_plane_listeners and rdma_interfaces into a
+// polymorphic DataPlaneEndpoint message.
+message HostInfo {
+  Endpoint control_plane_listener = 1;
+  repeated Endpoint data_plane_listeners = 2;
+  repeated RdmaNic rdma_nics = 3;
+}
+
+message PeerReq {
   HostInfo peer = 1;
-  repeated Request requests = 2;
+  repeated Request reqs = 2;
 }
 
 // Response to PeerRequests containing resolved remote memory keys.
-message PeerResponse {
+message PeerResp {
   repeated uint32 rkeys = 1;
 }
 
+message PspTcpReq {
+  PspToken psp = 1;
+  Endpoint peer_target = 2;
+}
+
+message PspTcpResp {
+  PspToken psp = 1;
+}
+
 // Request to establish an RDMA Queue Pair connection with a remote peer.
-message RdmaConnectRequest {
+message RdmaConnReq {
   HostInfo peer = 1;       // Initiator's host information
   string device_name = 2;  // Target device on remote host, e.g. "irdma0"
   uint32 qpn = 3;          // Initiator's local QP number
@@ -28,7 +46,7 @@ message RdmaConnectRequest {
 }
 
 // Response to RdmaConnectRequest containing the responder's QP parameters.
-message RdmaConnectResponse {
+message RdmaConnResp {
   uint32 qpn = 1;  // Responder's assigned QP number
   bytes gid = 2;   // Responder's GID on that device (16 bytes)
   uint32 psn = 3;  // Responder's starting packet sequence number
@@ -37,28 +55,10 @@ message RdmaConnectResponse {
   uint32 rkey = 4;
 }
 
-// See internal/base/hostinfo.h
-// TODO: Consider unifying TCP data_plane_listeners and rdma_interfaces into a
-// polymorphic DataPlaneEndpoint message.
-message HostInfo {
-  Endpoint control_plane_listener = 1;
-  repeated Endpoint data_plane_listeners = 2;
-  repeated RdmaInterface rdma_interfaces = 3;
-}
+// -------------------------
+// Common message components
+// -------------------------
 
-// Represents a local RDMA hardware interface on the host.
-message RdmaInterface {
-  string name = 1;      // Device name, e.g. "irdma0"
-  bytes gid = 2;        // 16-byte raw RoCEv2 GID
-  uint32 port_num = 3;  // Physical port number on HCA (typically 1)
-}
-
-// See internal/base/endpoint.h
-message Endpoint {
-  bytes ip_port = 1;  // e.g. "127.0.0.1:56789" or "[::1]:56789"
-}
-
-// See api/transport_types.h
 message Request {
   enum Op {
     INVALID = 0;
@@ -69,21 +69,21 @@ message Request {
   uint64 laddr = 2;  // address in this local process
   uint64 raddr = 3;  // address in the remote peer process
   uint64 len = 4;    // buffer length in bytes
-  uint32 rkey = 5;   // remote memory region key (for RDMA one-sided operations)
+  uint32 rkey = 5;   // remote memory region key (for RDMA)
 }
 
-// PSP token exchange messages for TCP-over-PSP.
+message Endpoint {
+  bytes ip_port = 1;  // e.g. "127.0.0.1:56789" or "[::1]:56789"
+}
+
 message PspToken {
-  uint32 spi = 1;
-  uint32 gen = 2;
-  bytes key = 3;  // 16 bytes
+  uint32 spi = 1;  // security parameter index
+  uint32 gen = 2;  // generation
+  bytes key = 3;   // 16 bytes
 }
 
-message PspRequest {
-  PspToken psp = 1;
-  Endpoint peer_target = 2;
-}
-
-message PspResponse {
-  PspToken psp = 1;
+message RdmaNic {
+  string name = 1;  // device name, e.g. "irdma0"
+  bytes gid = 2;    // 16-byte RoCEv2 GID
+  uint32 port = 3;  // physical port number on HCA (typically 1)
 }

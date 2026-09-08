@@ -41,13 +41,13 @@ TEST(HostInfoTest, RdmaInterface) {
   const Endpoint c = Endpoint::Create("127.0.0.1:12345");
   const Endpoint d = Endpoint::Create("127.0.0.1:54321");
   const std::string gid(16, '\x01');
-  const RdmaInterface rdma0 = {.name = "irdma0", .gid = gid, .port_num = 1};
-  const RdmaInterface rdma1 = {.name = "irdma1", .gid = gid, .port_num = 1};
-  const RdmaInterface rdma2 = {.name = "irdma0", .gid = "none", .port_num = 1};
+  const RdmaNic rdma0 = {.name = "irdma0", .gid = gid, .port = 1};
+  const RdmaNic rdma1 = {.name = "irdma1", .gid = gid, .port = 1};
+  const RdmaNic rdma2 = {.name = "irdma0", .gid = "none", .port = 1};
   const HostInfo host = {
       .control_plane_listener = c,
       .data_plane_listeners = {d},
-      .rdma_interfaces = {rdma0, rdma1},
+      .rdma_nics = {rdma0, rdma1},
   };
   EXPECT_TRUE(host.IsValid());
   LOG(INFO) << host;
@@ -55,7 +55,7 @@ TEST(HostInfoTest, RdmaInterface) {
   const HostInfo rdma_only = {
       .control_plane_listener = c,
       .data_plane_listeners = {},
-      .rdma_interfaces = {rdma0, rdma1},
+      .rdma_nics = {rdma0, rdma1},
   };
   EXPECT_TRUE(rdma_only.IsValid());
   LOG(INFO) << rdma_only;
@@ -63,14 +63,14 @@ TEST(HostInfoTest, RdmaInterface) {
   const HostInfo duplicate_rdma = {
       .control_plane_listener = c,
       .data_plane_listeners = {},
-      .rdma_interfaces = {rdma0, rdma0},
+      .rdma_nics = {rdma0, rdma0},
   };
   EXPECT_FALSE(duplicate_rdma.IsValid());
 
   const HostInfo invalid_gid = {
       .control_plane_listener = c,
       .data_plane_listeners = {},
-      .rdma_interfaces = {rdma2},
+      .rdma_nics = {rdma2},
   };
   EXPECT_FALSE(invalid_gid.IsValid());
 }

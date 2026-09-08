@@ -27,7 +27,7 @@ TEST(GrpcTest, SuccessfulRequest) {
   bool callback_invoked = false;
   auto handler = [&](const proto::ReqMsg& req, proto::RespMsg* resp) {
     callback_invoked = true;
-    EXPECT_TRUE(req.has_peer_requests());
+    EXPECT_TRUE(req.has_peer_req());
     return absl::OkStatus();
   };
 
@@ -44,7 +44,7 @@ TEST(GrpcTest, SuccessfulRequest) {
   const GrpcClient client(peer, grpc::InsecureChannelCredentials());
 
   proto::ReqMsg req;
-  req.mutable_peer_requests();
+  req.mutable_peer_req();
   const absl::StatusOr<proto::RespMsg> resp_or = client.SendUnary(req);
   EXPECT_TRUE(resp_or.ok());
   EXPECT_TRUE(callback_invoked);

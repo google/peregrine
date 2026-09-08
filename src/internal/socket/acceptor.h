@@ -60,8 +60,8 @@ class TcpAcceptor {
           mu(std::make_unique<absl::Mutex>()) {}
   };
 
-  // Finds the listener matching the `self_target` endpoint.
-  const Listener* findListener(const Endpoint& self_target) const;
+  // Finds the listener matching the `target` endpoint.
+  const Listener* findListener(const Endpoint& target) const;
 
  private:
   // Constructor with a set of non-blocking tcp listening sockets.

@@ -57,8 +57,8 @@ class RdmaAcceptor final {
                std::unique_ptr<RdmaDeviceManager> rdma_devmgr);
 
   // Handles an incoming RDMA connection request from a remote peer.
-  absl::Status handleConnect(const proto::RdmaConnectRequest& req,
-                             proto::RdmaConnectResponse* resp);
+  absl::Status handleConnect(const proto::RdmaConnReq& req,
+                             proto::RdmaConnResp* resp);
 
   // Generates a random packet sequence number.
   uint32_t genPsn();

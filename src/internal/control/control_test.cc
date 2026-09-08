@@ -146,18 +146,18 @@ TEST_F(ControlTest, HandleIncomingHostInfoRequest) {
   };
 
   proto::ReqMsg req;
-  ASSERT_TRUE(Message::Convert(client_host, req));
+  ASSERT_TRUE(Message::Serialize(client_host, *req.mutable_host_info()));
 
-  const absl::StatusOr<proto::RespMsg> resp_or =
+  const absl::StatusOr<proto::RespMsg> resp =
       ctrl->SendRequest(server_host.control_plane_listener, req);
-  ASSERT_TRUE(resp_or.ok()) << resp_or.status();
+  ASSERT_TRUE(resp.ok()) << resp.status();
 
-  HostInfo returned_server_host;
-  ASSERT_TRUE(Message::Convert(*resp_or, returned_server_host));
-  EXPECT_EQ(returned_server_host.control_plane_listener,
+  HostInfo peer_host;
+  ASSERT_TRUE(Message::Deserialize(resp->host_info(), peer_host));
+  EXPECT_EQ(peer_host.control_plane_listener,
             server_host.control_plane_listener);
-  ASSERT_EQ(returned_server_host.data_plane_listeners.size(), 1);
-  EXPECT_EQ(returned_server_host.data_plane_listeners[0],
+  ASSERT_EQ(peer_host.data_plane_listeners.size(), 1);
+  EXPECT_EQ(peer_host.data_plane_listeners[0],
             server_host.data_plane_listeners[0]);
 
   // Verify that the server cached the client's HostInfo in peer_hosts_.
@@ -295,12 +295,12 @@ TEST_F(ControlTest, ConnectRdmaPeer) {
   const HostInfo host_a = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
-      .rdma_interfaces = {{.name = "irdma0", .gid = std::string(16, '\0')}},
+      .rdma_nics = {{.name = "irdma0", .gid = std::string(16, '\0')}},
   };
   const HostInfo host_b = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
-      .rdma_interfaces = {{.name = "irdma0", .gid = std::string(16, '\0')}},
+      .rdma_nics = {{.name = "irdma0", .gid = std::string(16, '\0')}},
   };
 
   auto ctrl_a = Control::Create(config_, host_a, creds_a_);
@@ -312,19 +312,18 @@ TEST_F(ControlTest, ConnectRdmaPeer) {
   ASSERT_TRUE(ctrl_b->Start());
 
   // Register an RDMA connect handler on Node B.
-  ctrl_b->SetRdmaConnectHandler(
-      [](const proto::RdmaConnectRequest& req,
-         proto::RdmaConnectResponse* resp) -> absl::Status {
-        EXPECT_EQ(req.device_name(), "irdma0");
-        EXPECT_EQ(req.qpn(), 100);
-        EXPECT_EQ(req.psn(), 0x123456);
-        EXPECT_EQ(req.rkey(), 0xDEADBEEF);
-        resp->set_qpn(200);
-        resp->set_gid(req.gid());
-        resp->set_psn(0x654321);
-        resp->set_rkey(0xCAFEBABE);
-        return absl::OkStatus();
-      });
+  ctrl_b->SetRdmaConnHandler([](const proto::RdmaConnReq& req,
+                                proto::RdmaConnResp* resp) -> absl::Status {
+    EXPECT_EQ(req.device_name(), "irdma0");
+    EXPECT_EQ(req.qpn(), 100);
+    EXPECT_EQ(req.psn(), 0x123456);
+    EXPECT_EQ(req.rkey(), 0xDEADBEEF);
+    resp->set_qpn(200);
+    resp->set_gid(req.gid());
+    resp->set_psn(0x654321);
+    resp->set_rkey(0xCAFEBABE);
+    return absl::OkStatus();
+  });
 
   const std::vector<uint8_t> dummy_gid(16, 0xAB);
   auto resp_or = ctrl_a->ConnectRdmaPeer(host_b.control_plane_listener,

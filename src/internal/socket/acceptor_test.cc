@@ -92,25 +92,15 @@ TEST_F(PspTcpAcceptorTestIPv6, HandlePspTokenExchange) {
   }
 
   ASSERT_FALSE(local_.data_plane_listeners.empty());
-  const Endpoint self_target = local_.data_plane_listeners[0];
-
-  // 1. Successful key exchange with explicit target endpoint.
   const PspToken peer_token(Spi(1), Gen(9), {0xbe, 0xef});
-  auto self_token = acceptor_->ExchangePspTokens(peer_token, self_target);
-  ASSERT_TRUE(self_token.ok()) << self_token.status();
+  const Endpoint self_target = local_.data_plane_listeners[0];
+  const auto self_token = acceptor_->ExchangePspTokens(peer_token, self_target);
+  ASSERT_TRUE(self_token.ok());
   EXPECT_TRUE(self_token->IsValid());
 
-  // 2. Successful key exchange without target (for single listener).
-  if (local_.data_plane_listeners.size() == 1) {
-    auto self_token = acceptor_->ExchangePspTokens(peer_token, Endpoint());
-    ASSERT_TRUE(self_token.ok()) << self_token.status();
-    EXPECT_TRUE(self_token->IsValid());
-  }
-
-  // 3. Unknown target endpoint.
   const Endpoint unknown_target = Endpoint::Create("127.0.0.1:9999");
-  EXPECT_THAT(acceptor_->ExchangePspTokens(peer_token, unknown_target),
-              ::absl_testing::StatusIs(::absl::StatusCode::kNotFound));
+  const auto status = acceptor_->ExchangePspTokens(peer_token, unknown_target);
+  EXPECT_THAT(status, ::absl_testing::StatusIs(::absl::StatusCode::kNotFound));
 }
 
 }  // namespace

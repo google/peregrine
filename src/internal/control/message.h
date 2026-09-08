@@ -9,9 +9,11 @@
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
+#include "src/internal/socket/psp/psp.h"
 
 namespace peregrine::internal {
 
@@ -34,11 +36,11 @@ class Message final {
   }
 
   // Converts peer requests to its proto.
-  static bool Convert(const HostInfo& host, absl::Span<const Request> requests,
-                      proto::ReqMsg& msg);
+  static bool Serialize(const HostInfo& host, absl::Span<const Request> reqs,
+                        proto::ReqMsg& msg);
 
   // Converts a proto to its peer requests.
-  static std::pair<HostInfo, std::vector<Request>> Convert(
+  static std::pair<HostInfo, std::vector<Request>> Deserialize(
       const proto::ReqMsg& msg);
 
   // Returns true iff the proto requests are equal.
@@ -47,30 +49,44 @@ class Message final {
            a.raddr() == b.raddr() && a.len() == b.len() && a.rkey() == b.rkey();
   }
 
-  // Converts a HostInfo to its proto.
-  static bool Convert(const HostInfo& host, proto::HostInfo& proto);
+  // Serializes the host info to its proto.
+  // Returns true iff serialization is successful.
+  static bool Serialize(const HostInfo& host, proto::HostInfo& proto);
 
-  // Converts a proto to its HostInfo.
-  static bool Convert(const proto::HostInfo& proto, HostInfo& host);
+  // Deserializes the host info from its proto.
+  // Returns true iff deserialization is successful.
+  static bool Deserialize(const proto::HostInfo& proto, HostInfo& host);
 
-  // Converts HostInfo to its proto ReqMsg.
-  static bool Convert(const HostInfo& host, proto::ReqMsg& msg);
+  // Serializes the PSP token and peer target to its proto.
+  // Returns true iff serialization is successful.
+  static bool Serialize(const PspToken& token, const Endpoint& peer_target,
+                        proto::PspTcpReq& proto);
 
-  // Converts a proto ReqMsg to HostInfo.
-  static bool Convert(const proto::ReqMsg& msg, HostInfo& host);
+  // Deserializes the PSP token and peer target from its proto.
+  // Returns true iff deserialization is successful.
+  static bool Deserialize(const proto::PspTcpReq& proto, PspToken& token,
+                          Endpoint& peer_target);
 
-  // Converts HostInfo to its proto RespMsg.
-  static bool Convert(const HostInfo& host, proto::RespMsg& msg);
+  // Serializes the PSP token to its proto.
+  // Returns true iff serialization is successful.
+  static bool Serialize(const PspToken& token, proto::PspTcpResp& proto);
 
-  // Converts a proto RespMsg to HostInfo.
-  static bool Convert(const proto::RespMsg& msg, HostInfo& host);
+  // Deserializes the PSP token from its proto.
+  // Returns true iff deserialization is successful.
+  static bool Deserialize(const proto::PspTcpResp& proto, PspToken& token);
 
- private:
-  // Converts a request to its proto.
-  static bool convert(const Request& r, proto::Request& proto);
+ private:  // common message components
+  static bool serialize(const Request& r, proto::Request& proto);
+  static bool deserialize(const proto::Request& proto, Request& r);
 
-  // Converts a proto to its request.
-  static bool convert(const proto::Request& proto, Request& r);
+  static bool serialize(const Endpoint& endpoint, proto::Endpoint& proto);
+  static bool deserialize(const proto::Endpoint& proto, Endpoint& endpoint);
+
+  static bool serialize(const PspToken& token, proto::PspToken& proto);
+  static bool deserialize(const proto::PspToken& proto, PspToken& token);
+
+  static bool serialize(const RdmaNic& rdma, proto::RdmaNic& proto);
+  static bool deserialize(const proto::RdmaNic& proto, RdmaNic& rdma);
 };
 
 }  // namespace peregrine::internal

@@ -51,14 +51,14 @@ std::unique_ptr<RdmaAcceptor> RdmaAcceptor::Create(const Config& config,
   auto devmgr = std::move(*devmgr_or);
 
   for (const auto& dev : devmgr->Devices()) {
-    self.rdma_interfaces.push_back({
+    self.rdma_nics.push_back({
         .name = std::string(dev->Name()),
         .gid = std::string(reinterpret_cast<const char*>(dev->LocalGid().raw),
                            sizeof(dev->LocalGid().raw)),
-        .port_num = RdmaDeviceContext::kDefaultPortNum,
+        .port = RdmaDeviceContext::kDefaultPort,
     });
   }
-  if ABSL_PREDICT_FALSE (self.rdma_interfaces.empty()) {
+  if ABSL_PREDICT_FALSE (self.rdma_nics.empty()) {
     LOG(WARNING) << "no active RDMA devices found: " << self;
     return nullptr;
   }
@@ -66,11 +66,10 @@ std::unique_ptr<RdmaAcceptor> RdmaAcceptor::Create(const Config& config,
   auto acceptor = absl::WrapUnique(
       new RdmaAcceptor(config, self, control, std::move(devmgr)));
 
-  control.SetRdmaConnectHandler(
-      [a = acceptor.get()](const proto::RdmaConnectRequest& req,
-                           proto::RdmaConnectResponse* resp) {
-        return a->handleConnect(req, resp);
-      });
+  control.SetRdmaConnHandler([a = acceptor.get()](const proto::RdmaConnReq& req,
+                                                  proto::RdmaConnResp* resp) {
+    return a->handleConnect(req, resp);
+  });
 
   return acceptor;
 }
@@ -86,7 +85,7 @@ RdmaAcceptor::RdmaAcceptor(const Config& config, const HostInfo& self,
   rdma_memmgr_ = std::make_unique<RdmaMemoryManager>(rdma_devmgr_.get());
 }
 
-RdmaAcceptor::~RdmaAcceptor() { control_.SetRdmaConnectHandler(nullptr); }
+RdmaAcceptor::~RdmaAcceptor() { control_.SetRdmaConnHandler(nullptr); }
 
 uint32_t RdmaAcceptor::genPsn() {
   return util::Random<uint32_t>(bitgen_) & 0x00FF'FFFF;
@@ -123,7 +122,7 @@ std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
                  << peer_info.status();
     return channels;
   }
-  const auto& remote_interfaces = peer_info->rdma_interfaces;
+  const auto& remote_interfaces = peer_info->rdma_nics;
   if (remote_interfaces.empty()) {
     LOG(WARNING) << "no RDMA interfaces found for peer " << peer;
     return channels;
@@ -194,8 +193,8 @@ std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
   return channels;
 }
 
-absl::Status RdmaAcceptor::handleConnect(const proto::RdmaConnectRequest& req,
-                                         proto::RdmaConnectResponse* resp) {
+absl::Status RdmaAcceptor::handleConnect(const proto::RdmaConnReq& req,
+                                         proto::RdmaConnResp* resp) {
   if (rdma_devmgr_ == nullptr) {
     return absl::FailedPreconditionError("RDMA is not enabled on this host");
   }

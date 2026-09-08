@@ -21,7 +21,7 @@ class RdmaDeviceContext final {
   // Default physical port number for single-port RDMA adapters.
   // TODO: Support multi-port HCAs if physical adapters expose multiple active
   // ports.
-  static constexpr uint8_t kDefaultPortNum = 1;
+  static constexpr uint8_t kDefaultPort = 1;
 
   // Creates an RdmaDeviceContext by opening the given verbs device.
   // Returns nullptr on failure.
