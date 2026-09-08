@@ -10,9 +10,11 @@ cc_library(
     deps = [
         "//src/internal/base:types",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/strings:string_view",
     ],
 )
@@ -22,9 +24,9 @@ cc_library(
     testonly = True,
     hdrs = ["psp_syscall_mock.h"],
     deps = [
-        ":tcp_psp_helper",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/synchronization",
@@ -38,6 +40,7 @@ cc_test(
         ":psp_syscall_mock",
         ":tcp_psp_helper",
         "//src/internal/base:types",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings:string_view",

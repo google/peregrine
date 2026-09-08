@@ -146,39 +146,38 @@ void TcpAcceptor::Start(AcceptCallback accept) {
   }
 }
 
-absl::StatusOr<PspSpiKey> TcpAcceptor::HandlePspKeyExchange(
-    const Endpoint& target, const PspSpiKey& client_key) {
-  if (!client_key.IsValid()) {
-    return absl::InvalidArgumentError("invalid client PSP key");
+absl::StatusOr<PspToken> TcpAcceptor::ExchangePspTokens(
+    const PspToken& peer_token, const Endpoint& self_target) {
+  if (!peer_token.IsValid()) {
+    return absl::InvalidArgumentError("invalid peer psp token");
   }
 
-  const Listener* target_listener = nullptr;
-  if (!target.HasNonzeroIpPort()) {
+  const Listener* l = nullptr;
+  if (!self_target.HasNonzeroIpPort()) {
     if (listeners_.size() != 1) {
       return absl::FailedPreconditionError(
           "Ambiguous listening socket: multiple listeners exist but no "
           "target endpoint specified");
     }
-    target_listener = &listeners_.begin()->second;
+    l = &listeners_.begin()->second;
   } else {
     for (const auto& [fd, listener] : listeners_) {
-      if (listener.endpoint == target) {
-        target_listener = &listener;
+      if (listener.endpoint == self_target) {
+        l = &listener;
         break;
       }
     }
   }
-  if (target_listener == nullptr) {
+  if (l == nullptr) {
     return absl::NotFoundError(absl::StrFormat(
-        "Listener not found for endpoint %s", target.ToString()));
+        "Listener not found for target %s", self_target.ToString()));
   }
 
-  const PspSpiKey server_key =
-      target_listener->socket->RegisterPeerPspKey(client_key);
-  if (!server_key.IsValid()) {
-    return absl::InternalError("invalid server PSP key");
+  const PspToken self_token = l->socket->RegisterPeerPspToken(peer_token);
+  if (!self_token.IsValid()) {
+    return absl::InternalError("invalid self psp token");
   }
-  return server_key;
+  return self_token;
 }
 
 void TcpAcceptor::Stop() {

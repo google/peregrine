@@ -108,13 +108,13 @@ class Engine final {
   // Connects to an RDMA `peer`.
   bool connectRdma(Workers& workers, const Endpoint& peer);
 
-  // Creates a TCP socket with PSP encryption for `target`.
+  // Creates a TCP socket with PSP encryption for the `peer_target`.
   std::unique_ptr<TcpSocket> createTcpPsp(const Endpoint& peer_control,
-                                          const Endpoint& target);
+                                          const Endpoint& peer_target);
 
-  // Handles an incoming PSP key exchange request from a remote peer.
-  absl::Status handlePspKeyExchange(const proto::PspKeyRequest& req,
-                                    proto::PspKeyResponse* resp);
+  // Handles an incoming PSP token exchange request from a peer.
+  absl::Status handlePspTokenExchange(const proto::PspRequest& req,
+                                      proto::PspResponse* resp);
 
  private:
   // Generates a random handle.

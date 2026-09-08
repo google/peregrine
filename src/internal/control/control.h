@@ -33,8 +33,8 @@ namespace peregrine::internal {
 // It is thread-safe.
 class Control final {
  public:
-  using PspKeyHandler = absl::AnyInvocable<absl::Status(
-      const proto::PspKeyRequest&, proto::PspKeyResponse*) const>;
+  using PspHandler = absl::AnyInvocable<absl::Status(
+      const proto::PspRequest&, proto::PspResponse*) const>;
   using RdmaConnectHandler = absl::AnyInvocable<absl::Status(
       const proto::RdmaConnectRequest&, proto::RdmaConnectResponse*) const>;
 
@@ -54,8 +54,8 @@ class Control final {
   // Must be called only after host info is ready to be served.
   bool Start();
 
-  // Registers a callback handler for incoming PSP key exchange requests.
-  void SetPspKeyHandler(PspKeyHandler handler);
+  // Registers a callback handler for incoming PSP token exchange requests.
+  void SetPspHandler(PspHandler handler);
 
   // Registers a callback handler for incoming RDMA connect requests.
   void SetRdmaConnectHandler(RdmaConnectHandler handler);
@@ -70,9 +70,9 @@ class Control final {
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
   // Exchanges PSP encryption keys out-of-band with a remote peer.
-  absl::StatusOr<PspSpiKey> ExchangePspKey(const Endpoint& peer,
-                                           const PspSpiKey& psp,
-                                           const Endpoint& target);
+  absl::StatusOr<PspToken> ExchangePspToken(const PspToken& self_token,
+                                            const Endpoint& peer_target,
+                                            const Endpoint& peer);
 
   // Exchanges QP credentials out-of-band with a remote peer.
   absl::StatusOr<proto::RdmaConnectResponse> ConnectRdmaPeer(
@@ -112,9 +112,9 @@ class Control final {
   absl::Status handleHostInfo(const proto::HostInfo& req, proto::HostInfo* resp)
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
-  // Handles incoming PSP key exchange requests.
-  absl::Status handlePspKeyExchange(const proto::PspKeyRequest& req,
-                                    proto::PspKeyResponse* resp)
+  // Handles incoming PSP token exchange requests.
+  absl::Status handlePspTokenExchange(const proto::PspRequest& req,
+                                      proto::PspResponse* resp)
       ABSL_LOCKS_EXCLUDED(psp_handler_mu_);
 
   // Handles incoming RDMA connection requests.
@@ -138,7 +138,7 @@ class Control final {
       ABSL_GUARDED_BY(peer_hosts_mu_);
 
   absl::Mutex psp_handler_mu_;
-  PspKeyHandler psp_key_handler_ ABSL_GUARDED_BY(psp_handler_mu_);
+  PspHandler psp_handler_ ABSL_GUARDED_BY(psp_handler_mu_);
 
   absl::Mutex rdma_handler_mu_;
   RdmaConnectHandler rdma_connect_handler_ ABSL_GUARDED_BY(rdma_handler_mu_);

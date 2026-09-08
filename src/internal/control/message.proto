@@ -12,7 +12,7 @@ message ReqMsg {
     HostInfo host_info = 1;
     PeerRequests peer_requests = 2;
     RdmaConnectRequest rdma_connect_req = 3;
-    PspKeyRequest psp_key_req = 4;
+    PspRequest psp_req = 4;
     // Append new request types here.
   }
 }
@@ -22,7 +22,7 @@ message RespMsg {
     HostInfo host_info = 1;
     PeerResponse peer_response = 2;
     RdmaConnectResponse rdma_connect_resp = 3;
-    PspKeyResponse psp_key_resp = 4;
+    PspResponse psp_resp = 4;
     // Append new request types here.
   }
 }

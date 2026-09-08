@@ -73,7 +73,7 @@ inline constexpr bool kOnlyTcpListeningSocketsAreNonBlocking = true;
 // ---------------------------------------------------------------------------
 //
 // There are multiple types of messages in the control plane, such as transport
-// request, host info, psp key, rdma, etc. All of them are wrapped in one pair
+// request, host info, psp token, rdma, etc. All of them are wrapped in one pair
 // of {Req|Resp}Msg using protobuf's `oneof` feature. All the control message
 // exchanges are done over gRPC. (The data plane, due to efficiency reasons,
 // runs over TCP/RDMA/..., to minimize the middle layers as much as possible.)

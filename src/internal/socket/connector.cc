@@ -1,5 +1,6 @@
 #include "src/internal/socket/connector.h"
 
+#include <cstdint>
 #include <memory>
 
 #include "absl/base/optimization.h"
@@ -29,7 +30,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreateUnconnected(
   return socket;
 }
 
-absl::StatusOr<PspSpiKey> TcpConnector::AcquireRxSpiAndKey(
+absl::StatusOr<PspToken> TcpConnector::AcquireRxSpiAndKey(
     const TcpSocket& socket) {
   return peregrine::internal::AcquireRxSpiAndKey(socket.fd());
 }
@@ -48,15 +49,15 @@ bool TcpConnector::Connect(TcpSocket& socket, const Endpoint& peer) {
 }
 
 bool TcpConnector::PspConnect(TcpSocket& socket, const Endpoint& peer,
-                              const PspSpiKey& server_key,
-                              const PspSpiKey& client_key) {
+                              const PspToken& peer_token,
+                              const PspToken& self_token) {
   DCHECK(peer.HasNonzeroIpPort());
-  DCHECK(!socket.IsConnected());
   DCHECK(socket.IsBlocking());
+  DCHECK(!socket.IsConnected());
 
-  auto set_tx_status = SetTxSpiAndKey(socket.fd(), server_key);
-  if (!set_tx_status.ok()) {
-    LOG(WARNING) << "failed to set Tx SPI and key: " << set_tx_status;
+  const absl::Status status = SetTxSpiAndKey(socket.fd(), peer_token);
+  if (!status.ok()) {
+    LOG(WARNING) << "failed to set Tx SPI and key: " << status;
     return false;
   }
 
@@ -64,8 +65,8 @@ bool TcpConnector::PspConnect(TcpSocket& socket, const Endpoint& peer,
     return false;
   }
 
-  auto initial_rx_spi = GetInitialRxSpi(socket.fd());
-  if (!initial_rx_spi.ok() || *initial_rx_spi != client_key.spi) {
+  const absl::StatusOr<uint32_t> spi = GetInitialRxSpi(socket.fd());
+  if (!spi.ok() || *spi != self_token.spi) {
     LOG(WARNING) << "failed to verify negotiated Rx SPI on socket: "
                  << socket.fd();
     return false;

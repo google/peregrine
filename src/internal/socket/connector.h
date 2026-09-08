@@ -22,17 +22,17 @@ class TcpConnector {
       const Endpoint& peer, const Endpoint& local = {});
 
   // Allocates a fresh RX SPI and key on the given `socket` for PSP encryption.
-  static absl::StatusOr<PspSpiKey> AcquireRxSpiAndKey(const TcpSocket& socket);
+  static absl::StatusOr<PspToken> AcquireRxSpiAndKey(const TcpSocket& socket);
 
   // Connects the `socket` to the `peer` endpoint. Returns true if successful.
   static bool Connect(TcpSocket& socket, const Endpoint& peer);
 
   // Connects the `socket` to the `peer` endpoint with PSP encryption.
-  // Configures PSP encryption using `server_key` and verifies negotiated SPI
-  // against `client_key` on connection. Returns true if successful.
+  // Configures PSP encryption using `peer_token` and verifies negotiated SPI
+  // against `self_token` on connection. Returns true if successful.
   static bool PspConnect(TcpSocket& socket, const Endpoint& peer,
-                         const PspSpiKey& server_key,
-                         const PspSpiKey& client_key);
+                         const PspToken& peer_token,
+                         const PspToken& self_token);
 
   // Connects to the `peer` endpoint. If `local` has nonzero ip address,
   // binds to it before connecting. Returns a connected tcp socket if

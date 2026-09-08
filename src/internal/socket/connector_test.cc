@@ -16,7 +16,7 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/socket/acceptor.h"
-#include "src/internal/socket/psp/psp_syscall_mock.h"  // NOLINT
+#include "src/internal/socket/psp/psp_syscall_mock.h"
 #include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
@@ -26,15 +26,21 @@ namespace {
 
 constexpr bool kTcp = true;
 
+const PspToken kPspTokenInvalidKey{.spi = 1, .key = "short"};
+const PspToken kPspTokenValid{.spi = 2, .key = std::string(16, 'a')};
+
 template <int kFamily>
 class TcpConnectorTest : public ::testing::Test {
  protected:
   TcpConnectorTest()
       : self_(TestOnly_LocalHostInfo(kFamily, kTcp)),
+        psp_syscalls_(FakePspTcpSyscalls::Create()),
         acceptor_(TcpAcceptor::Create(self_)),
         peers_(self_.data_plane_listeners) {
     CHECK(self_.IsValid());
+    CHECK_NE(psp_syscalls_, nullptr);
     CHECK_NE(acceptor_, nullptr);
+    TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
   }
 
   static void Accept(std::unique_ptr<TcpSocket> socket) {
@@ -47,6 +53,7 @@ class TcpConnectorTest : public ::testing::Test {
  protected:
   HostInfo self_;
   const Endpoint local_;
+  std::unique_ptr<FakePspTcpSyscalls> psp_syscalls_;
   std::unique_ptr<TcpAcceptor> acceptor_;
   const std::vector<Endpoint> peers_;
 };
@@ -139,11 +146,11 @@ TEST_F(TcpConnectorTestIPv4, AcquireRxSpiAndKey) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::CreateUnconnected(peer);
     ASSERT_NE(socket, nullptr);
 
-    auto rx_key = TcpConnector::AcquireRxSpiAndKey(*socket);
-    ASSERT_TRUE(rx_key.ok()) << rx_key.status();
-    EXPECT_TRUE(rx_key->IsValid());
-    EXPECT_NE(rx_key->spi, 0);
-    EXPECT_EQ(rx_key->key.size(), 16);
+    const auto rx = TcpConnector::AcquireRxSpiAndKey(*socket);
+    ASSERT_TRUE(rx.ok()) << rx.status();
+    EXPECT_TRUE(rx->IsValid());
+    EXPECT_NE(rx->spi, 0);
+    EXPECT_EQ(rx->key.size(), 16);
   }
 }
 
@@ -161,16 +168,12 @@ TEST_F(TcpConnectorTestIPv4, PspConnectSuccess) {
           TcpConnector::CreateUnconnected(peer);
       ASSERT_NE(socket, nullptr);
 
-      auto client_key = TcpConnector::AcquireRxSpiAndKey(*socket);
-      ASSERT_TRUE(client_key.ok()) << client_key.status();
+      auto self_token = TcpConnector::AcquireRxSpiAndKey(*socket);
+      ASSERT_TRUE(self_token.ok()) << self_token.status();
 
-      const PspSpiKey server_key = {
-          .spi = 0x55667788,
-          .key = std::string(16, 's'),
-      };
-
+      const PspToken peer_token = kPspTokenValid;
       EXPECT_TRUE(
-          TcpConnector::PspConnect(*socket, peer, server_key, *client_key));
+          TcpConnector::PspConnect(*socket, peer, peer_token, *self_token));
       EXPECT_TRUE(socket->IsConnected());
     }
   });
@@ -193,16 +196,12 @@ TEST_F(TcpConnectorTestIPv6, PspConnectSuccess) {
           TcpConnector::CreateUnconnected(peer);
       ASSERT_NE(socket, nullptr);
 
-      auto client_key = TcpConnector::AcquireRxSpiAndKey(*socket);
-      ASSERT_TRUE(client_key.ok()) << client_key.status();
+      auto self_token = TcpConnector::AcquireRxSpiAndKey(*socket);
+      ASSERT_TRUE(self_token.ok()) << self_token.status();
 
-      const PspSpiKey server_key = {
-          .spi = 0x55667788,
-          .key = std::string(16, 's'),
-      };
-
+      const PspToken peer_token = kPspTokenValid;
       EXPECT_TRUE(
-          TcpConnector::PspConnect(*socket, peer, server_key, *client_key));
+          TcpConnector::PspConnect(*socket, peer, peer_token, *self_token));
       EXPECT_TRUE(socket->IsConnected());
     }
   });
@@ -225,17 +224,12 @@ TEST_F(TcpConnectorTestIPv4, PspConnectInvalidServerKey) {
           TcpConnector::CreateUnconnected(peer);
       ASSERT_NE(socket, nullptr);
 
-      auto client_key = TcpConnector::AcquireRxSpiAndKey(*socket);
-      ASSERT_TRUE(client_key.ok()) << client_key.status();
+      auto self_token = TcpConnector::AcquireRxSpiAndKey(*socket);
+      ASSERT_TRUE(self_token.ok()) << self_token.status();
 
-      // Server key size is not 16 bytes.
-      const PspSpiKey invalid_server_key = {
-          .spi = 0x55667788,
-          .key = "invalid_len",
-      };
-
-      EXPECT_FALSE(TcpConnector::PspConnect(*socket, peer, invalid_server_key,
-                                            *client_key));
+      const PspToken invalid_peer_token = kPspTokenInvalidKey;
+      EXPECT_FALSE(TcpConnector::PspConnect(*socket, peer, invalid_peer_token,
+                                            *self_token));
       EXPECT_FALSE(socket->IsConnected());
     }
   });
@@ -258,20 +252,17 @@ TEST_F(TcpConnectorTestIPv4, PspConnectRxSpiMismatch) {
           TcpConnector::CreateUnconnected(peer);
       ASSERT_NE(socket, nullptr);
 
-      auto client_key = TcpConnector::AcquireRxSpiAndKey(*socket);
-      ASSERT_TRUE(client_key.ok()) << client_key.status();
+      auto self_token = TcpConnector::AcquireRxSpiAndKey(*socket);
+      ASSERT_TRUE(self_token.ok()) << self_token.status();
 
-      const PspSpiKey server_key = {
-          .spi = 0x55667788,
-          .key = std::string(16, 's'),
-      };
+      const PspToken peer_token = kPspTokenValid;
 
-      // Corrupt client_key SPI to induce mismatch.
-      PspSpiKey mismatched_client_key = *client_key;
-      mismatched_client_key.spi ^= 0xFFFFFFFF;
+      // Corrupt self token SPI to induce mismatch.
+      PspToken mismatched_self_token = *self_token;
+      mismatched_self_token.spi ^= 0xFFFFFFFF;
 
-      EXPECT_FALSE(TcpConnector::PspConnect(*socket, peer, server_key,
-                                            mismatched_client_key));
+      EXPECT_FALSE(TcpConnector::PspConnect(*socket, peer, peer_token,
+                                            mismatched_self_token));
     }
   });
 

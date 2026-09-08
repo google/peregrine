@@ -154,16 +154,16 @@ bool TcpSocket::Connect(const Endpoint& peer) {
   }
 }
 
-PspSpiKey TcpSocket::RegisterPeerPspKey(const PspSpiKey& peer_psp) {
+PspToken TcpSocket::RegisterPeerPspToken(const PspToken& peer_token) {
   DCHECK(invariant());
 
   absl::MutexLock _(psp_mu_);
-  const auto psp = RegisterPspPeerKey(fd_, peer_psp);
-  if ABSL_PREDICT_FALSE (!psp.ok()) {
-    LOG(WARNING) << "psp: " << psp.status();
-    return PspSpiKey();
+  const auto self_token = RegisterPeerPsp(fd_, peer_token);
+  if ABSL_PREDICT_FALSE (!self_token.ok()) {
+    LOG(WARNING) << "psp: " << self_token.status();
+    return PspToken();
   }
-  return psp.value();
+  return self_token.value();
 }
 
 ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {

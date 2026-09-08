@@ -84,9 +84,9 @@ void Control::SetRdmaConnectHandler(RdmaConnectHandler handler) {
   rdma_connect_handler_ = std::move(handler);
 }
 
-void Control::SetPspKeyHandler(PspKeyHandler handler) {
+void Control::SetPspHandler(PspHandler handler) {
   absl::MutexLock _(psp_handler_mu_);
-  psp_key_handler_ = std::move(handler);
+  psp_handler_ = std::move(handler);
 }
 
 absl::Status Control::handleRequest(const proto::ReqMsg& req,
@@ -98,9 +98,8 @@ absl::Status Control::handleRequest(const proto::ReqMsg& req,
     case proto::ReqMsg::kHostInfo:
       return handleHostInfo(req.host_info(), resp->mutable_host_info());
 
-    case proto::ReqMsg::kPspKeyReq:
-      return handlePspKeyExchange(req.psp_key_req(),
-                                  resp->mutable_psp_key_resp());
+    case proto::ReqMsg::kPspReq:
+      return handlePspTokenExchange(req.psp_req(), resp->mutable_psp_resp());
 
     case proto::ReqMsg::kRdmaConnectReq:
       return handleRdmaConnect(req.rdma_connect_req(),
@@ -135,16 +134,16 @@ absl::Status Control::handleHostInfo(const proto::HostInfo& req,
   return absl::OkStatus();
 }
 
-absl::Status Control::handlePspKeyExchange(const proto::PspKeyRequest& req,
-                                           proto::PspKeyResponse* resp) {
+absl::Status Control::handlePspTokenExchange(const proto::PspRequest& req,
+                                             proto::PspResponse* resp) {
   if ABSL_PREDICT_FALSE (resp == nullptr) {
-    return absl::InternalError("null psp key response message");
+    return absl::InternalError("null psp response message");
   }
   absl::MutexLock _(psp_handler_mu_);
-  if ABSL_PREDICT_FALSE (psp_key_handler_ == nullptr) {
-    return absl::UnimplementedError("missing PSP key handler");
+  if ABSL_PREDICT_FALSE (psp_handler_ == nullptr) {
+    return absl::UnimplementedError("missing psp handler");
   }
-  return psp_key_handler_(req, resp);
+  return psp_handler_(req, resp);
 }
 
 absl::Status Control::handleRdmaConnect(const proto::RdmaConnectRequest& req,
@@ -215,45 +214,43 @@ absl::StatusOr<HostInfo> Control::GetPeerHostInfo(const Endpoint& peer) {
   return peer_info;
 }
 
-absl::StatusOr<PspSpiKey> Control::ExchangePspKey(const Endpoint& peer,
-                                                  const PspSpiKey& psp,
-                                                  const Endpoint& target) {
+absl::StatusOr<PspToken> Control::ExchangePspToken(const PspToken& self_token,
+                                                   const Endpoint& peer_target,
+                                                   const Endpoint& peer) {
   if (!peer.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError("invalid peer endpoint");
   }
-  if (!target.HasNonzeroIpPort()) {
-    return absl::InvalidArgumentError("invalid target endpoint");
+  if (!peer_target.HasNonzeroIpPort()) {
+    return absl::InvalidArgumentError("invalid peer target endpoint");
   }
-  if (!psp.IsValid()) {
+  if (!self_token.IsValid()) {
     return absl::InvalidArgumentError(
-        absl::StrFormat("invalid client PSP key (spi: %u, key length: %d)",
-                        psp.spi, psp.key.size()));
+        absl::StrFormat("invalid self psp token %s", self_token.ToString()));
   }
 
   proto::ReqMsg req;
-  proto::PspKeyRequest* psp_req = req.mutable_psp_key_req();
-  psp_req->mutable_psp()->set_spi(psp.spi);
-  psp_req->mutable_psp()->set_key(psp.key);
-  psp_req->mutable_endpoint()->set_ip_port(target.ToString());
+  proto::PspRequest* psp_req = req.mutable_psp_req();
+  psp_req->mutable_psp()->set_spi(self_token.spi);
+  psp_req->mutable_psp()->set_key(self_token.key);
+  psp_req->mutable_peer_target()->set_ip_port(peer_target.ToString());
 
   auto resp = SendRequest(peer, req);
   if (!resp.ok()) {
     return resp.status();
   }
-  if (!resp->has_psp_key_resp()) {
-    return absl::InternalError("missing PspKeyResponse in response");
+  if (!resp->has_psp_resp()) {
+    return absl::InternalError("missing PspResponse in response");
   }
 
-  const PspSpiKey server_key = {
-      .spi = resp->psp_key_resp().psp().spi(),
-      .key = std::string(resp->psp_key_resp().psp().key()),
+  const PspToken peer_token = {
+      .spi = resp->psp_resp().psp().spi(),
+      .key = std::string(resp->psp_resp().psp().key()),
   };
-  if (!server_key.IsValid()) {
+  if (!peer_token.IsValid()) {
     return absl::InternalError(absl::StrFormat(
-        "peer returned invalid server PSP key (spi: %u, key length: %d)",
-        server_key.spi, server_key.key.size()));
+        "peer returned invalid psp token %s", peer_token.ToString()));
   }
-  return server_key;
+  return peer_token;
 }
 
 absl::StatusOr<proto::RdmaConnectResponse> Control::ConnectRdmaPeer(

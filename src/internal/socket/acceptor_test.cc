@@ -3,9 +3,11 @@
 #include <sys/socket.h>
 
 #include <memory>
+#include <string>
 #include <thread>  // NOLINT
 #include <utility>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
@@ -13,7 +15,7 @@
 #include "absl/time/time.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
-#include "src/internal/socket/psp/psp_syscall_mock.h"  // NOLINT
+#include "src/internal/socket/psp/psp_syscall_mock.h"
 #include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
@@ -21,16 +23,27 @@
 namespace peregrine::internal::testing {
 namespace {
 
+using ::absl::StatusCode::kInvalidArgument;
+using ::absl::StatusCode::kNotFound;
+using ::absl_testing::StatusIs;
+
 constexpr bool kTcp = true;
+
+const PspToken kPspTokenInvalidSpi{.spi = 0, .key = std::string(16, 'a')};
+const PspToken kPspTokenInvalidKey{.spi = 1, .key = "short"};
+const PspToken kPspTokenValid{.spi = 2, .key = std::string(16, 'a')};
 
 template <int kFamily>
 class TcpAcceptorTest : public ::testing::Test {
  protected:
   TcpAcceptorTest()
       : local_(TestOnly_LocalHostInfo(kFamily, kTcp)),
+        psp_syscalls_(FakePspTcpSyscalls::Create()),
         acceptor_(TcpAcceptor::Create(local_)) {
     CHECK(local_.IsValid());
+    CHECK_NE(psp_syscalls_, nullptr);
     CHECK_NE(acceptor_, nullptr);
+    TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
   }
 
   static void Accept(std::unique_ptr<TcpSocket> socket) {
@@ -42,6 +55,7 @@ class TcpAcceptorTest : public ::testing::Test {
 
  protected:
   HostInfo local_;
+  std::unique_ptr<FakePspTcpSyscalls> psp_syscalls_;
   std::unique_ptr<TcpAcceptor> acceptor_;
 };
 
@@ -65,51 +79,39 @@ TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
   });
 }
 
-TEST_F(TcpAcceptorTestIPv4, HandlePspKeyExchange) {
+TEST_F(TcpAcceptorTestIPv4, HandlePspTokenExchange) {
   if (!IsPspSupported()) {
     GTEST_SKIP() << "PSP is not supported";
   }
+
   ASSERT_FALSE(local_.data_plane_listeners.empty());
-  const Endpoint target = local_.data_plane_listeners[0];
-  const PspSpiKey valid_client_key = {
-      .spi = 0x12345678,
-      .key = std::string(16, 'a'),
-  };
+  const Endpoint self_target = local_.data_plane_listeners[0];
+  const PspToken peer_token = kPspTokenValid;
 
   // 1. Successful key exchange with explicit target endpoint.
-  auto server_key_or =
-      acceptor_->HandlePspKeyExchange(target, valid_client_key);
-  ASSERT_TRUE(server_key_or.ok()) << server_key_or.status();
-  EXPECT_TRUE(server_key_or->IsValid());
+  auto self_token = acceptor_->ExchangePspTokens(peer_token, self_target);
+  ASSERT_TRUE(self_token.ok()) << self_token.status();
+  EXPECT_TRUE(self_token->IsValid());
 
   // 2. Successful key exchange without endpoint (when single listener).
   if (local_.data_plane_listeners.size() == 1) {
-    auto default_key_or =
-        acceptor_->HandlePspKeyExchange(Endpoint(), valid_client_key);
-    ASSERT_TRUE(default_key_or.ok()) << default_key_or.status();
-    EXPECT_TRUE(default_key_or->IsValid());
+    auto self_token = acceptor_->ExchangePspTokens(peer_token, Endpoint());
+    ASSERT_TRUE(self_token.ok()) << self_token.status();
+    EXPECT_TRUE(self_token->IsValid());
   }
 
-  // 3. Invalid client key (zero SPI).
-  EXPECT_EQ(acceptor_->HandlePspKeyExchange(
-                target, {.spi = 0, .key = std::string(16, 'a')})
-                .status()
-                .code(),
-            absl::StatusCode::kInvalidArgument);
+  // 3. Invalid psp token (zero SPI).
+  EXPECT_THAT(acceptor_->ExchangePspTokens(kPspTokenInvalidSpi, self_target),
+              StatusIs(kInvalidArgument));
 
-  // 4. Invalid client key (invalid size).
-  EXPECT_EQ(acceptor_->HandlePspKeyExchange(
-                target, {.spi = 0x12345678, .key = "short"})
-                .status()
-                .code(),
-            absl::StatusCode::kInvalidArgument);
+  // 4. Invalid psp token (invalid size).
+  EXPECT_THAT(acceptor_->ExchangePspTokens(kPspTokenInvalidKey, self_target),
+              StatusIs(kInvalidArgument));
 
   // 5. Unknown target endpoint.
   const Endpoint unknown_target = Endpoint::Create("127.0.0.1:9999");
-  EXPECT_EQ(acceptor_->HandlePspKeyExchange(unknown_target, valid_client_key)
-                .status()
-                .code(),
-            absl::StatusCode::kNotFound);
+  EXPECT_THAT(acceptor_->ExchangePspTokens(peer_token, unknown_target),
+              StatusIs(kNotFound));
 }
 
 }  // namespace

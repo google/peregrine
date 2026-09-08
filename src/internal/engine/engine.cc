@@ -80,9 +80,9 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
                                        std::move(rdma_acceptor), control));
 
   if (config.require_dataplane_encryption) {
-    control.SetPspKeyHandler([engine = e.get()](const proto::PspKeyRequest& req,
-                                                proto::PspKeyResponse* resp) {
-      return engine->handlePspKeyExchange(req, resp);
+    control.SetPspHandler([engine = e.get()](const proto::PspRequest& req,
+                                             proto::PspResponse* resp) {
+      return engine->handlePspTokenExchange(req, resp);
     });
   }
 
@@ -117,7 +117,7 @@ Engine::Engine(const Config& config, HostInfo& self,
 }
 
 Engine::~Engine() {
-  control_.SetPspKeyHandler(nullptr);
+  control_.SetPspHandler(nullptr);
   {
     absl::MutexLock _(mu_);
     if (tcp_acceptor_ != nullptr) {
@@ -164,16 +164,16 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
     return false;
   }
   // We only use the first data plane listener for now.
-  const Endpoint& target = peer_info->data_plane_listeners[0];
-  DCHECK(target.HasNonzeroIpPort());
+  const Endpoint& peer_target = peer_info->data_plane_listeners[0];
+  DCHECK(peer_target.HasNonzeroIpPort());
   const bool require_dataplane_encryption =
       config_.require_dataplane_encryption;
 
   uint64_t connect_failures = 0;
   for (int i = 0; i < 2 * num_conns; ++i) {
     std::unique_ptr<TcpSocket> socket = require_dataplane_encryption
-                                            ? createTcpPsp(peer, target)
-                                            : TcpConnector::Create(target);
+                                            ? createTcpPsp(peer, peer_target)
+                                            : TcpConnector::Create(peer_target);
     if (socket == nullptr) {
       connect_failures++;
       continue;
@@ -191,57 +191,62 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
 }
 
 std::unique_ptr<TcpSocket> Engine::createTcpPsp(const Endpoint& peer_control,
-                                                const Endpoint& target) {
-  std::unique_ptr<TcpSocket> socket = TcpConnector::CreateUnconnected(target);
+                                                const Endpoint& peer_target) {
+  std::unique_ptr<TcpSocket> socket =
+      TcpConnector::CreateUnconnected(peer_target);
   if (socket == nullptr) {
     return nullptr;
   }
 
-  auto client_key = TcpConnector::AcquireRxSpiAndKey(*socket);
-  if (!client_key.ok()) {
-    LOG(WARNING) << "failed to acquire client Rx SPI and key: "
-                 << client_key.status();
+  const absl::StatusOr<PspToken> self_token =
+      TcpConnector::AcquireRxSpiAndKey(*socket);
+  if (!self_token.ok()) {
+    LOG(WARNING) << "failed to acquire self Rx SPI and key: "
+                 << self_token.status();
     return nullptr;
   }
 
-  auto server_key =
-      control_.ExchangePspKey(peer_control, *client_key, target);
-  if (!server_key.ok()) {
-    LOG(WARNING) << "failed to exchange PSP key with peer: "
-                 << server_key.status();
+  const absl::StatusOr<PspToken> peer_token =
+      control_.ExchangePspToken(*self_token, peer_target, peer_control);
+  if (!peer_token.ok()) {
+    LOG(WARNING) << "failed to exchange psp token with peer: "
+                 << peer_token.status();
     return nullptr;
   }
 
-  if (!TcpConnector::PspConnect(*socket, target, *server_key, *client_key)) {
+  if (!TcpConnector::PspConnect(*socket, peer_target, *peer_token,
+                                *self_token)) {
     return nullptr;
   }
 
   return socket;
 }
 
-absl::Status Engine::handlePspKeyExchange(const proto::PspKeyRequest& req,
-                                          proto::PspKeyResponse* resp) {
+absl::Status Engine::handlePspTokenExchange(const proto::PspRequest& req,
+                                            proto::PspResponse* resp) {
   DCHECK_NE(tcp_acceptor_, nullptr);
   DCHECK_NE(resp, nullptr);
 
-  const PspSpiKey client_key = {
+  const PspToken peer_token = {
       .spi = req.psp().spi(),
       .key = std::string(req.psp().key()),
   };
+  const Endpoint self_target =
+      req.has_peer_target() ? Endpoint::Create(req.peer_target().ip_port())
+                            : Endpoint();
 
-  const Endpoint target = req.has_endpoint()
-                              ? Endpoint::Create(req.endpoint().ip_port())
-                              : Endpoint();
-
-  absl::StatusOr<PspSpiKey> server_key =
-      tcp_acceptor_->HandlePspKeyExchange(target, client_key);
-  if (!server_key.ok()) {
-    return server_key.status();
+  absl::StatusOr<PspToken> self_token =
+      tcp_acceptor_->ExchangePspTokens(peer_token, self_target);
+  if (!self_token.ok()) {
+    return self_token.status();
   }
-  DCHECK(server_key->IsValid());
+  if (!self_token->IsValid()) {
+    return absl::InternalError("invalid self psp token");
+  }
 
-  resp->mutable_psp()->set_spi(server_key->spi);
-  resp->mutable_psp()->set_key(server_key->key);
+  DCHECK(self_token->IsValid());
+  resp->mutable_psp()->set_spi(self_token->spi);
+  resp->mutable_psp()->set_key(self_token->key);
   return absl::OkStatus();
 }
 

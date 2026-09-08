@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <thread>  // NOLINT
 #include <tuple>
@@ -15,7 +16,7 @@
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
-#include "src/internal/socket/psp/psp_syscall_mock.h"  // NOLINT
+#include "src/internal/socket/psp/psp_syscall_mock.h"
 #include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/util/util.h"
 #include "src/util/app.h"
@@ -58,6 +59,8 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
     if (enable_psp_ && !IsPspSupported()) {
       GTEST_SKIP() << "PSP is not supported";
     }
+    psp_syscalls_ = FakePspTcpSyscalls::Create();
+    TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
   }
 
   std::vector<Request> MakeRequests(const Op op) {
@@ -97,6 +100,7 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
   const size_t size2_;
   const int nconns_;
   const bool enable_psp_;
+  std::unique_ptr<FakePspTcpSyscalls> psp_syscalls_;
   util::App a_;
   util::App b_;
 };

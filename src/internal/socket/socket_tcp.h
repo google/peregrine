@@ -55,9 +55,9 @@ class TcpSocket final : public SocketBase {
   // Connects to the `peer` endpoint.
   bool Connect(const Endpoint& peer);
 
-  // Registers the given peer PSP key. Returns this socket's PSP rx key if
-  // successful. Otherwise, returns an invalid PSP key.
-  PspSpiKey RegisterPeerPspKey(const PspSpiKey& peer_psp)
+  // Registers the given peer psp token. Returns this socket's rx psp token if
+  // successful. Otherwise, returns an invalid psp token.
+  PspToken RegisterPeerPspToken(const PspToken& peer_token)
       ABSL_LOCKS_EXCLUDED(psp_mu_);
 
   // Sends exactly `len` bytes of data from the `buf`.

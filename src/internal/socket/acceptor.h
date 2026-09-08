@@ -40,9 +40,9 @@ class TcpAcceptor {
   // Starts running the acceptor.
   void Start(AcceptCallback accept);
 
-  // Handles incoming peer PSP key exchange requests on the server side.
-  absl::StatusOr<PspSpiKey> HandlePspKeyExchange(
-      const Endpoint& target, const PspSpiKey& client_key);
+  // Handles peer psp token exchange request for the `self_target` endpoint.
+  absl::StatusOr<PspToken> ExchangePspTokens(const PspToken& peer_token,
+                                             const Endpoint& self_target);
 
   // Stops the acceptor.
   void Stop();
