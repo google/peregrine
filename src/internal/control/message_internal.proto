@@ -75,7 +75,8 @@ message Request {
 // PSP token exchange messages for TCP-over-PSP.
 message PspToken {
   uint32 spi = 1;
-  bytes key = 2;  // 16-byte raw AES session key
+  uint32 gen = 2;
+  bytes key = 3;  // 16 bytes
 }
 
 message PspRequest {

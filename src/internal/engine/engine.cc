@@ -33,7 +33,7 @@
 #include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
@@ -80,9 +80,10 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
       absl::WrapUnique(new Engine(config, self, std::move(tcp_acceptor),
                                   std::move(rdma_acceptor), control));
   if (config.require_dataplane_encryption) {
-    control.SetPspHandler([e = engine.get()](const PspToken& peer_token,
-                                             const Endpoint& self_target) {
-      return e->tcp_acceptor_->ExchangePspTokens(peer_token, self_target);
+    control.SetPspTcpHandler([e = engine.get()](const PspToken& peer_token,
+                                                const Endpoint& self_target) {
+      TcpAcceptor* const tcp_acceptor = e->tcp_acceptor_.get();
+      return tcp_acceptor->ExchangePspTokens(peer_token, self_target);
     });
   }
   return engine;
@@ -122,7 +123,7 @@ Engine::Engine(const Config& config, HostInfo& self,
 }
 
 Engine::~Engine() {
-  control_.SetPspHandler(nullptr);
+  control_.SetPspTcpHandler(nullptr);
   {
     absl::MutexLock _(mu_);
     if (tcp_acceptor_ != nullptr) {

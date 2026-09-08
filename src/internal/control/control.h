@@ -23,7 +23,7 @@
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -33,7 +33,7 @@ namespace peregrine::internal {
 // It is thread-safe.
 class Control final {
  public:
-  using PspHandler = absl::AnyInvocable<absl::StatusOr<PspToken>(
+  using PspTcpHandler = absl::AnyInvocable<absl::StatusOr<PspToken>(
       const PspToken& peer_token, const Endpoint& self_target) const>;
   using RdmaConnectHandler = absl::AnyInvocable<absl::Status(
       const proto::RdmaConnectRequest&, proto::RdmaConnectResponse*) const>;
@@ -55,7 +55,7 @@ class Control final {
   bool Start();
 
   // Registers a callback handler for incoming PSP token exchange requests.
-  void SetPspHandler(PspHandler handler);
+  void SetPspTcpHandler(PspTcpHandler handler);
 
   // Registers a callback handler for incoming RDMA connect requests.
   void SetRdmaConnectHandler(RdmaConnectHandler handler);
@@ -105,19 +105,20 @@ class Control final {
       ABSL_LOCKS_EXCLUDED(peer_clients_mu_);
 
  private:
-  // Handles incoming RPC requests by dispatching to dedicated message handlers.
+  // Handles all incoming RPC requests.
   absl::Status handleRequest(const proto::ReqMsg& req, proto::RespMsg* resp);
 
-  // Handles out-of-band HostInfo exchange requests.
-  absl::Status handleHostInfo(const proto::HostInfo& req, proto::HostInfo* resp)
+  // Handles host info exchange.
+  absl::Status handleHostInfoExchange(const proto::HostInfo& peer,
+                                      proto::HostInfo* self)
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
-  // Handles incoming PSP token exchange requests.
+  // Handles psp token exchange.
   absl::Status handlePspTokenExchange(const proto::PspRequest& req,
                                       proto::PspResponse* resp)
-      ABSL_LOCKS_EXCLUDED(psp_handler_mu_);
+      ABSL_LOCKS_EXCLUDED(psp_tcp_handler_mu_);
 
-  // Handles incoming RDMA connection requests.
+  // Handles rdma connection.
   absl::Status handleRdmaConnect(const proto::RdmaConnectRequest& req,
                                  proto::RdmaConnectResponse* resp)
       ABSL_LOCKS_EXCLUDED(rdma_handler_mu_);
@@ -137,8 +138,8 @@ class Control final {
   absl::flat_hash_map<Endpoint, HostInfo> peer_hosts_
       ABSL_GUARDED_BY(peer_hosts_mu_);
 
-  absl::Mutex psp_handler_mu_;
-  PspHandler psp_handler_ ABSL_GUARDED_BY(psp_handler_mu_);
+  absl::Mutex psp_tcp_handler_mu_;
+  PspTcpHandler psp_tcp_handler_ ABSL_GUARDED_BY(psp_tcp_handler_mu_);
 
   absl::Mutex rdma_handler_mu_;
   RdmaConnectHandler rdma_connect_handler_ ABSL_GUARDED_BY(rdma_handler_mu_);

@@ -15,17 +15,14 @@
 #include "absl/time/time.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
-#include "src/internal/socket/psp/psp_syscall_mock.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp.h"
+#include "src/internal/socket/psp/psp_mock.h"
+#include "src/internal/socket/psp/psp_util.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
 
 namespace peregrine::internal::testing {
 namespace {
-
-using ::absl::StatusCode::kInvalidArgument;
-using ::absl::StatusCode::kNotFound;
-using ::absl_testing::StatusIs;
 
 constexpr bool kTcp = true;
 
@@ -74,22 +71,23 @@ TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
 template <int kFamily>
 class PspTcpAcceptorTest : public TcpAcceptorTest<kFamily> {
  protected:
-  PspTcpAcceptorTest() : psp_syscalls_(FakePspTcpSyscalls::Create()) {
+  PspTcpAcceptorTest()
+      : psp_syscalls_(psp::testing::FakePspTcpSyscalls::Create()) {
     CHECK_NE(psp_syscalls_, nullptr);
-    TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
+    psp::TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
   }
 
-  ~PspTcpAcceptorTest() override { TestOnly_SetPspTcpSyscalls(nullptr); }
+  ~PspTcpAcceptorTest() override { psp::TestOnly_SetPspTcpSyscalls(nullptr); }
 
  protected:
-  std::unique_ptr<FakePspTcpSyscalls> psp_syscalls_;
+  std::unique_ptr<psp::testing::FakePspTcpSyscalls> psp_syscalls_;
 };
 
 using PspTcpAcceptorTestIPv4 = PspTcpAcceptorTest<AF_INET>;
 using PspTcpAcceptorTestIPv6 = PspTcpAcceptorTest<AF_INET6>;
 
 TEST_F(PspTcpAcceptorTestIPv6, HandlePspTokenExchange) {
-  if (!IsPspSupported()) {
+  if (!psp::IsPspSupported()) {
     GTEST_SKIP() << "psp not supported";
   }
 
@@ -97,7 +95,7 @@ TEST_F(PspTcpAcceptorTestIPv6, HandlePspTokenExchange) {
   const Endpoint self_target = local_.data_plane_listeners[0];
 
   // 1. Successful key exchange with explicit target endpoint.
-  const PspToken peer_token = {.spi = 2, .key = std::string(16, 'a')};
+  const PspToken peer_token(Spi(1), Gen(9), {0xbe, 0xef});
   auto self_token = acceptor_->ExchangePspTokens(peer_token, self_target);
   ASSERT_TRUE(self_token.ok()) << self_token.status();
   EXPECT_TRUE(self_token->IsValid());
@@ -109,20 +107,10 @@ TEST_F(PspTcpAcceptorTestIPv6, HandlePspTokenExchange) {
     EXPECT_TRUE(self_token->IsValid());
   }
 
-  // 3. Invalid psp token (zero spi).
-  const PspToken invalid_spi_token{.spi = 0, .key = std::string(16, 'a')};
-  EXPECT_THAT(acceptor_->ExchangePspTokens(invalid_spi_token, self_target),
-              StatusIs(kInvalidArgument));
-
-  // 4. Invalid psp token (invalid size).
-  const PspToken invalid_key_token{.spi = 1, .key = "short"};
-  EXPECT_THAT(acceptor_->ExchangePspTokens(invalid_key_token, self_target),
-              StatusIs(kInvalidArgument));
-
-  // 5. Unknown target endpoint.
+  // 3. Unknown target endpoint.
   const Endpoint unknown_target = Endpoint::Create("127.0.0.1:9999");
   EXPECT_THAT(acceptor_->ExchangePspTokens(peer_token, unknown_target),
-              StatusIs(kNotFound));
+              ::absl_testing::StatusIs(::absl::StatusCode::kNotFound));
 }
 
 }  // namespace

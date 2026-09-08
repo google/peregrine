@@ -16,7 +16,7 @@
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
 #include "src/internal/event/poller.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {

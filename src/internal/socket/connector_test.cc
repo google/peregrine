@@ -15,8 +15,9 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/socket/acceptor.h"
-#include "src/internal/socket/psp/psp_syscall_mock.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp.h"
+#include "src/internal/socket/psp/psp_mock.h"
+#include "src/internal/socket/psp/psp_util.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
 
@@ -95,20 +96,20 @@ template <int kFamily>
 class PspTcpConnectorTest : public TcpConnectorTest<kFamily> {
  protected:
   PspTcpConnectorTest()
-      : psp_syscalls_(FakePspTcpSyscalls::Create()),
+      : psp_syscalls_(psp::testing::FakePspTcpSyscalls::Create()),
         psp_xchg_func_([this](const PspToken& self_token,
                               const Endpoint& peer_target,
                               const Endpoint& peer_control) {
           return this->acceptor_->ExchangePspTokens(self_token, peer_target);
         }) {
     CHECK_NE(psp_syscalls_, nullptr);
-    TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
+    psp::TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
   }
 
-  ~PspTcpConnectorTest() override { TestOnly_SetPspTcpSyscalls(nullptr); }
+  ~PspTcpConnectorTest() override { psp::TestOnly_SetPspTcpSyscalls(nullptr); }
 
  protected:
-  std::unique_ptr<FakePspTcpSyscalls> psp_syscalls_;
+  std::unique_ptr<psp::testing::FakePspTcpSyscalls> psp_syscalls_;
   TcpConnector::PspTokenExchangeFunc psp_xchg_func_;
 };
 
@@ -116,7 +117,7 @@ using PspTcpConnectorTestIPv4 = PspTcpConnectorTest<AF_INET>;
 using PspTcpConnectorTestIPv6 = PspTcpConnectorTest<AF_INET6>;
 
 TEST_F(PspTcpConnectorTestIPv4, AcceptBeforeConnect) {
-  if (!IsPspSupported()) {
+  if (!psp::IsPspSupported()) {
     GTEST_SKIP() << "psp not supported";
   }
 
@@ -131,7 +132,7 @@ TEST_F(PspTcpConnectorTestIPv4, AcceptBeforeConnect) {
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());
-      DCHECK(IsPspEnabled(socket->fd()));
+      DCHECK(psp::IsPspEnabled(socket->fd()));
     }
   });
 
@@ -140,7 +141,7 @@ TEST_F(PspTcpConnectorTestIPv4, AcceptBeforeConnect) {
 }
 
 TEST_F(PspTcpConnectorTestIPv6, ConnectBeforeAccept) {
-  if (!IsPspSupported()) {
+  if (!psp::IsPspSupported()) {
     GTEST_SKIP() << "psp not supported";
   }
 
@@ -152,7 +153,7 @@ TEST_F(PspTcpConnectorTestIPv6, ConnectBeforeAccept) {
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());
-      DCHECK(IsPspEnabled(socket->fd()));
+      DCHECK(psp::IsPspEnabled(socket->fd()));
     }
   });
 

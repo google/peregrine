@@ -1,6 +1,5 @@
 #include "src/internal/socket/connector.h"
 
-#include <cstdint>
 #include <memory>
 
 #include "absl/base/optimization.h"
@@ -10,7 +9,8 @@
 #include "absl/status/statusor.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp.h"
+#include "src/internal/socket/psp/psp_util.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
@@ -57,7 +57,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
   }
 
   const fd_t fd = socket->fd();
-  const absl::StatusOr<PspToken> self_token = AcquireRxSpiAndKey(fd);
+  const absl::StatusOr<PspToken> self_token = psp::AcquireRxSpiAndKey(fd);
   if (!self_token.ok() || !self_token->IsValid()) {
     LOG(WARNING) << "failed to acquire self rx psp token";
     return nullptr;
@@ -70,7 +70,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
     return nullptr;
   }
 
-  const absl::Status status = SetTxSpiAndKey(fd, peer_token.value());
+  const absl::Status status = psp::SetTxSpiAndKey(fd, peer_token.value());
   if (!status.ok()) {
     LOG(WARNING) << "failed to set tx psp token: " << status;
     return nullptr;
@@ -81,8 +81,8 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
     return nullptr;
   }
 
-  const absl::StatusOr<uint32_t> spi = GetInitialRxSpi(fd);
-  if (!spi.ok() || *spi == 0 || *spi != self_token->spi) {
+  const absl::StatusOr<Spi> spi = psp::GetInitialRxSpi(fd);
+  if (!spi.ok() || (*spi).value() == 0 || *spi != self_token->spi) {
     LOG(WARNING) << "failed to verify negotiated rx psp spi";
     return nullptr;
   }

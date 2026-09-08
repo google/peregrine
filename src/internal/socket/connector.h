@@ -6,7 +6,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/statusor.h"
 #include "src/internal/base/endpoint.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {

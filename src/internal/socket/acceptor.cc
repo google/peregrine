@@ -21,7 +21,8 @@
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
 #include "src/internal/event/poller.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp.h"
+#include "src/internal/socket/psp/psp_util.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_util.h"
 #include "src/util/nic.h"
@@ -163,23 +164,22 @@ const TcpAcceptor::Listener* TcpAcceptor::findListener(
 
 absl::StatusOr<PspToken> TcpAcceptor::ExchangePspTokens(
     const PspToken& peer_token, const Endpoint& self_target) {
-  if (!peer_token.IsValid()) {
-    return absl::InvalidArgumentError("invalid peer psp token");
-  }
+  DCHECK(peer_token.IsValid());
 
   const Listener* l = findListener(self_target);
   if (l == nullptr) {
     return absl::NotFoundError(
-        absl::StrCat("Listener not found for target ", self_target.ToString()));
+        absl::StrCat("no listener found for ", self_target.ToString()));
   }
 
   const fd_t fd = l->socket->fd();
   absl::MutexLock lock(*l->mu);
-  const absl::StatusOr<PspToken> self_token = RegisterPeerPsp(fd, peer_token);
+  const absl::StatusOr<PspToken> self_token =
+      psp::AddSecureListener(fd, peer_token);
   if (!self_token.ok() || !self_token->IsValid()) {
     return absl::InternalError("invalid self psp token");
   }
-  return self_token;
+  return self_token;  // TODO(yyd): RemoveSecureListener?
 }
 
 void TcpAcceptor::Stop() {

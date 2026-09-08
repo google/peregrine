@@ -20,7 +20,7 @@
 #include "src/internal/control/message.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -194,12 +194,11 @@ TEST_F(ControlTest, ExchangePspTokens) {
   auto ctrl_b = Control::Create(config_, host_b, creds_b_);
   ASSERT_NE(ctrl_b, nullptr);
 
-  const PspToken self_token = {.spi = 0x11223344, .key = "1234567890abcdef"};
-  const PspToken expected_peer_token = {.spi = 0x55667788,
-                                        .key = "fedcba0987654321"};
+  const PspToken self_token(Spi(1), Gen(9), {0xbe, 0xef});
+  const PspToken expected_peer_token(Spi(2), Gen(9), {0xfe, 0xef});
   const Endpoint peer_target = Endpoint::Create("127.0.0.1:20002");
 
-  ctrl_b->SetPspHandler(
+  ctrl_b->SetPspTcpHandler(
       [&](const PspToken& peer_token, const Endpoint& self_target) {
         return expected_peer_token;
       });
@@ -229,7 +228,7 @@ TEST_F(ControlTest, ExchangePspTokenErrors) {
       .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
   };
 
-  const PspToken self_token = {.spi = 1, .key = std::string(16, 'a')};
+  const PspToken self_token{Spi(1), Gen(9), {0xbe, 0xef}};
   const Endpoint peer_target = Endpoint::Create("127.0.0.1:20002");
 
   // 1. Client-side argument validation.
@@ -249,28 +248,17 @@ TEST_F(ControlTest, ExchangePspTokenErrors) {
 
   // Invalid SPI (0).
   EXPECT_THAT(
-      ctrl_a->ExchangePspTokens({.spi = 0, .key = std::string(16, 'a')},
+      ctrl_a->ExchangePspTokens(PspToken(Spi(0), Gen(9), {0xbe, 0xef}),
                                 peer_target, host_b.control_plane_listener),
       StatusIs(kInvalidArgument));
 
-  // Invalid key size (short).
-  EXPECT_THAT(ctrl_a->ExchangePspTokens({.spi = 1, .key = "short"}, peer_target,
-                                        host_b.control_plane_listener),
-              StatusIs(kInvalidArgument));
-
-  // Invalid key size (long).
-  EXPECT_THAT(
-      ctrl_a->ExchangePspTokens({.spi = 1, .key = std::string(32, 'a')},
-                                peer_target, host_b.control_plane_listener),
-      StatusIs(kInvalidArgument));
-
-  // 2. Encryption disabled in server config (SetPspHandler is no-op).
+  // 2. Encryption disabled in server config (SetPspTcpHandler is no-op).
   config_.require_dataplane_encryption = false;
   auto ctrl_disabled = Control::Create(config_, host_b, creds_b_);
   ASSERT_NE(ctrl_disabled, nullptr);
-  ctrl_disabled->SetPspHandler(
+  ctrl_disabled->SetPspTcpHandler(
       [](const PspToken& peer_token, const Endpoint& self_target) {
-        return PspToken{.spi = 0, .key = ""};
+        return PspToken{Spi(0), Gen(9), {0xbe, 0xef}};
       });
   ASSERT_TRUE(ctrl_disabled->Start());
 

@@ -1,11 +1,9 @@
-#include "src/internal/socket/psp/tcp_psp_helper.h"
+#include "src/internal/socket/psp/psp_util.h"
 
 #include <atomic>
-#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <optional>
-#include <string>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -13,8 +11,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "src/internal/base/types.h"
+#include "src/internal/socket/psp/psp.h"
 
-namespace peregrine::internal {
+namespace peregrine::internal::psp {
 
 void TestOnly_SetPspTcpSyscalls(void* psp_sys) {}
 
@@ -22,7 +21,7 @@ bool IsPspSupported() { return false; }
 
 bool IsPspEnabled(fd_t fd) { return false; }
 
-absl::StatusOr<uint32_t> GetInitialRxSpi(fd_t fd) {
+absl::StatusOr<Spi> GetInitialRxSpi(fd_t fd) {
   return absl::UnimplementedError("psp not supported");
 }
 
@@ -34,8 +33,11 @@ absl::Status SetTxSpiAndKey(fd_t fd, const PspToken& token) {
   return absl::UnimplementedError("psp not supported");
 }
 
-absl::StatusOr<PspToken> RegisterPeerPsp(fd_t fd, const PspToken& token) {
+absl::StatusOr<PspToken> AddSecureListener(fd_t fd, const PspToken& token) {
   return absl::UnimplementedError("psp not supported");
 }
 
-}  // namespace peregrine::internal
+absl::Status RemoveSecureListener(const fd_t fd, const PspToken& token) {
+  return absl::UnimplementedError("psp not supported");
+}
+}  // namespace peregrine::internal::psp
