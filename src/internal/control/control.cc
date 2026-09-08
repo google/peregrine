@@ -139,11 +139,27 @@ absl::Status Control::handlePspTokenExchange(const proto::PspRequest& req,
   if ABSL_PREDICT_FALSE (resp == nullptr) {
     return absl::InternalError("null psp response message");
   }
+
   absl::MutexLock _(psp_handler_mu_);
   if ABSL_PREDICT_FALSE (psp_handler_ == nullptr) {
     return absl::UnimplementedError("missing psp handler");
   }
-  return psp_handler_(req, resp);
+
+  const PspToken peer_token = {
+      .spi = req.psp().spi(),
+      .key = std::string(req.psp().key()),
+  };
+  const Endpoint self_target =
+      req.has_peer_target() ? Endpoint::Create(req.peer_target().ip_port())
+                            : Endpoint();
+
+  absl::StatusOr<PspToken> self_token = psp_handler_(peer_token, self_target);
+  if (!self_token.ok()) {
+    return self_token.status();
+  }
+  resp->mutable_psp()->set_spi(self_token->spi);
+  resp->mutable_psp()->set_key(self_token->key);
+  return absl::OkStatus();
 }
 
 absl::Status Control::handleRdmaConnect(const proto::RdmaConnectRequest& req,
@@ -214,9 +230,9 @@ absl::StatusOr<HostInfo> Control::GetPeerHostInfo(const Endpoint& peer) {
   return peer_info;
 }
 
-absl::StatusOr<PspToken> Control::ExchangePspToken(const PspToken& self_token,
-                                                   const Endpoint& peer_target,
-                                                   const Endpoint& peer) {
+absl::StatusOr<PspToken> Control::ExchangePspTokens(const PspToken& self_token,
+                                                    const Endpoint& peer_target,
+                                                    const Endpoint& peer) {
   if (!peer.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError("invalid peer endpoint");
   }

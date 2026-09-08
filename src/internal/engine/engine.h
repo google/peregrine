@@ -32,6 +32,7 @@
 #include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
+#include "src/internal/socket/connector.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/util/util.h"
 
@@ -108,14 +109,6 @@ class Engine final {
   // Connects to an RDMA `peer`.
   bool connectRdma(Workers& workers, const Endpoint& peer);
 
-  // Creates a TCP socket with PSP encryption for the `peer_target`.
-  std::unique_ptr<TcpSocket> createTcpPsp(const Endpoint& peer_control,
-                                          const Endpoint& peer_target);
-
-  // Handles an incoming PSP token exchange request from a peer.
-  absl::Status handlePspTokenExchange(const proto::PspRequest& req,
-                                      proto::PspResponse* resp);
-
  private:
   // Generates a random handle.
   Handle genHandle() {
@@ -156,6 +149,7 @@ class Engine final {
   const Config& config_;
   HostInfo& self_;
   Control& control_;
+  TcpConnector::PspTokenExchangeFunc psp_xchg_rpc_;
 
   EngineMetrics metrics_;
 

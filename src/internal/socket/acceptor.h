@@ -10,6 +10,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -50,8 +51,17 @@ class TcpAcceptor {
  private:
   struct Listener {
     std::unique_ptr<TcpSocket> socket;
-    Endpoint endpoint;
+    Endpoint endpoint;  // cache for SelfAddrPort(socket->fd())
+    mutable std::unique_ptr<absl::Mutex> mu;  // for psp token exchange
+
+    Listener(std::unique_ptr<TcpSocket> s, const Endpoint& e)
+        : socket(std::move(s)),
+          endpoint(e),
+          mu(std::make_unique<absl::Mutex>()) {}
   };
+
+  // Finds the listener matching the `self_target` endpoint.
+  const Listener* findListener(const Endpoint& self_target) const;
 
  private:
   // Constructor with a set of non-blocking tcp listening sockets.

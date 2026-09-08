@@ -33,8 +33,8 @@ namespace peregrine::internal {
 // It is thread-safe.
 class Control final {
  public:
-  using PspHandler = absl::AnyInvocable<absl::Status(
-      const proto::PspRequest&, proto::PspResponse*) const>;
+  using PspHandler = absl::AnyInvocable<absl::StatusOr<PspToken>(
+      const PspToken& peer_token, const Endpoint& self_target) const>;
   using RdmaConnectHandler = absl::AnyInvocable<absl::Status(
       const proto::RdmaConnectRequest&, proto::RdmaConnectResponse*) const>;
 
@@ -70,9 +70,9 @@ class Control final {
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
   // Exchanges PSP encryption keys out-of-band with a remote peer.
-  absl::StatusOr<PspToken> ExchangePspToken(const PspToken& self_token,
-                                            const Endpoint& peer_target,
-                                            const Endpoint& peer);
+  absl::StatusOr<PspToken> ExchangePspTokens(const PspToken& self_token,
+                                             const Endpoint& peer_target,
+                                             const Endpoint& peer);
 
   // Exchanges QP credentials out-of-band with a remote peer.
   absl::StatusOr<proto::RdmaConnectResponse> ConnectRdmaPeer(

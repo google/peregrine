@@ -3,7 +3,6 @@
 #include <sys/socket.h>
 
 #include <memory>
-#include <string>
 #include <thread>  // NOLINT
 #include <utility>
 #include <vector>
@@ -26,21 +25,15 @@ namespace {
 
 constexpr bool kTcp = true;
 
-const PspToken kPspTokenInvalidKey{.spi = 1, .key = "short"};
-const PspToken kPspTokenValid{.spi = 2, .key = std::string(16, 'a')};
-
 template <int kFamily>
 class TcpConnectorTest : public ::testing::Test {
  protected:
   TcpConnectorTest()
       : self_(TestOnly_LocalHostInfo(kFamily, kTcp)),
-        psp_syscalls_(FakePspTcpSyscalls::Create()),
         acceptor_(TcpAcceptor::Create(self_)),
         peers_(self_.data_plane_listeners) {
     CHECK(self_.IsValid());
-    CHECK_NE(psp_syscalls_, nullptr);
     CHECK_NE(acceptor_, nullptr);
-    TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
   }
 
   static void Accept(std::unique_ptr<TcpSocket> socket) {
@@ -53,7 +46,6 @@ class TcpConnectorTest : public ::testing::Test {
  protected:
   HostInfo self_;
   const Endpoint local_;
-  std::unique_ptr<FakePspTcpSyscalls> psp_syscalls_;
   std::unique_ptr<TcpAcceptor> acceptor_;
   const std::vector<Endpoint> peers_;
 };
@@ -80,7 +72,7 @@ TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
   acceptor_->Stop();
 }
 
-TEST_F(TcpConnectorTestIPv6, BindConnectBeforeAccept) {
+TEST_F(TcpConnectorTestIPv6, ConnectBeforeAccept) {
   std::jthread tc([&]() {
     for (const Endpoint& peer : peers_) {
       std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
@@ -99,18 +91,47 @@ TEST_F(TcpConnectorTestIPv6, BindConnectBeforeAccept) {
   acceptor_->Stop();
 }
 
-TEST_F(TcpConnectorTestIPv4, CreateUnconnectedAndConnect) {
+template <int kFamily>
+class PspTcpConnectorTest : public TcpConnectorTest<kFamily> {
+ protected:
+  PspTcpConnectorTest()
+      : psp_syscalls_(FakePspTcpSyscalls::Create()),
+        psp_xchg_func_([this](const PspToken& self_token,
+                              const Endpoint& peer_target,
+                              const Endpoint& peer_control) {
+          return this->acceptor_->ExchangePspTokens(self_token, peer_target);
+        }) {
+    CHECK_NE(psp_syscalls_, nullptr);
+    TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
+  }
+
+  ~PspTcpConnectorTest() override { TestOnly_SetPspTcpSyscalls(nullptr); }
+
+ protected:
+  std::unique_ptr<FakePspTcpSyscalls> psp_syscalls_;
+  TcpConnector::PspTokenExchangeFunc psp_xchg_func_;
+};
+
+using PspTcpConnectorTestIPv4 = PspTcpConnectorTest<AF_INET>;
+using PspTcpConnectorTestIPv6 = PspTcpConnectorTest<AF_INET6>;
+
+TEST_F(PspTcpConnectorTestIPv4, AcceptBeforeConnect) {
+  if (!IsPspSupported()) {
+    GTEST_SKIP() << "psp not supported";
+  }
+
   std::jthread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
   std::jthread tc([&]() {
-    for (const Endpoint& peer : peers_) {
+    const Endpoint& peer_control = self_.control_plane_listener;
+    for (const Endpoint& peer_target : peers_) {
       std::unique_ptr<TcpSocket> socket =
-          TcpConnector::CreateUnconnected(peer);
+          TcpConnector::CreatePsp(peer_target, peer_control, psp_xchg_func_);
       CHECK_NE(socket, nullptr);
-      EXPECT_FALSE(socket->IsConnected());
-      EXPECT_TRUE(TcpConnector::Connect(*socket, peer));
-      EXPECT_TRUE(socket->IsConnected());
+      DCHECK(socket->IsBlocking());
+      DCHECK(socket->IsConnected());
+      DCHECK(IsPspEnabled(socket->fd()));
     }
   });
 
@@ -118,153 +139,25 @@ TEST_F(TcpConnectorTestIPv4, CreateUnconnectedAndConnect) {
   acceptor_->Stop();
 }
 
-TEST_F(TcpConnectorTestIPv6, CreateUnconnectedAndConnect) {
-  std::jthread ta([&]() { acceptor_->Start(Accept); });
+TEST_F(PspTcpConnectorTestIPv6, ConnectBeforeAccept) {
+  if (!IsPspSupported()) {
+    GTEST_SKIP() << "psp not supported";
+  }
 
-  ShortSleep();
   std::jthread tc([&]() {
-    for (const Endpoint& peer : peers_) {
+    const Endpoint& peer_control = self_.control_plane_listener;
+    for (const Endpoint& peer_target : peers_) {
       std::unique_ptr<TcpSocket> socket =
-          TcpConnector::CreateUnconnected(peer);
+          TcpConnector::CreatePsp(peer_target, peer_control, psp_xchg_func_);
       CHECK_NE(socket, nullptr);
-      EXPECT_FALSE(socket->IsConnected());
-      EXPECT_TRUE(TcpConnector::Connect(*socket, peer));
-      EXPECT_TRUE(socket->IsConnected());
+      DCHECK(socket->IsBlocking());
+      DCHECK(socket->IsConnected());
+      DCHECK(IsPspEnabled(socket->fd()));
     }
   });
 
   ShortSleep();
-  acceptor_->Stop();
-}
-
-TEST_F(TcpConnectorTestIPv4, AcquireRxSpiAndKey) {
-  if (!IsPspSupported()) {
-    GTEST_SKIP() << "PSP is not supported";
-  }
-
-  for (const Endpoint& peer : peers_) {
-    std::unique_ptr<TcpSocket> socket = TcpConnector::CreateUnconnected(peer);
-    ASSERT_NE(socket, nullptr);
-
-    const auto rx = TcpConnector::AcquireRxSpiAndKey(*socket);
-    ASSERT_TRUE(rx.ok()) << rx.status();
-    EXPECT_TRUE(rx->IsValid());
-    EXPECT_NE(rx->spi, 0);
-    EXPECT_EQ(rx->key.size(), 16);
-  }
-}
-
-TEST_F(TcpConnectorTestIPv4, PspConnectSuccess) {
-  if (!IsPspSupported()) {
-    GTEST_SKIP() << "PSP is not supported";
-  }
-
   std::jthread ta([&]() { acceptor_->Start(Accept); });
-  ShortSleep();
-
-  std::jthread tc([&]() {
-    for (const Endpoint& peer : peers_) {
-      std::unique_ptr<TcpSocket> socket =
-          TcpConnector::CreateUnconnected(peer);
-      ASSERT_NE(socket, nullptr);
-
-      auto self_token = TcpConnector::AcquireRxSpiAndKey(*socket);
-      ASSERT_TRUE(self_token.ok()) << self_token.status();
-
-      const PspToken peer_token = kPspTokenValid;
-      EXPECT_TRUE(
-          TcpConnector::PspConnect(*socket, peer, peer_token, *self_token));
-      EXPECT_TRUE(socket->IsConnected());
-    }
-  });
-
-  ShortSleep();
-  acceptor_->Stop();
-}
-
-TEST_F(TcpConnectorTestIPv6, PspConnectSuccess) {
-  if (!IsPspSupported()) {
-    GTEST_SKIP() << "PSP is not supported";
-  }
-
-  std::jthread ta([&]() { acceptor_->Start(Accept); });
-  ShortSleep();
-
-  std::jthread tc([&]() {
-    for (const Endpoint& peer : peers_) {
-      std::unique_ptr<TcpSocket> socket =
-          TcpConnector::CreateUnconnected(peer);
-      ASSERT_NE(socket, nullptr);
-
-      auto self_token = TcpConnector::AcquireRxSpiAndKey(*socket);
-      ASSERT_TRUE(self_token.ok()) << self_token.status();
-
-      const PspToken peer_token = kPspTokenValid;
-      EXPECT_TRUE(
-          TcpConnector::PspConnect(*socket, peer, peer_token, *self_token));
-      EXPECT_TRUE(socket->IsConnected());
-    }
-  });
-
-  ShortSleep();
-  acceptor_->Stop();
-}
-
-TEST_F(TcpConnectorTestIPv4, PspConnectInvalidServerKey) {
-  if (!IsPspSupported()) {
-    GTEST_SKIP() << "PSP is not supported";
-  }
-
-  std::jthread ta([&]() { acceptor_->Start(Accept); });
-  ShortSleep();
-
-  std::jthread tc([&]() {
-    for (const Endpoint& peer : peers_) {
-      std::unique_ptr<TcpSocket> socket =
-          TcpConnector::CreateUnconnected(peer);
-      ASSERT_NE(socket, nullptr);
-
-      auto self_token = TcpConnector::AcquireRxSpiAndKey(*socket);
-      ASSERT_TRUE(self_token.ok()) << self_token.status();
-
-      const PspToken invalid_peer_token = kPspTokenInvalidKey;
-      EXPECT_FALSE(TcpConnector::PspConnect(*socket, peer, invalid_peer_token,
-                                            *self_token));
-      EXPECT_FALSE(socket->IsConnected());
-    }
-  });
-
-  ShortSleep();
-  acceptor_->Stop();
-}
-
-TEST_F(TcpConnectorTestIPv4, PspConnectRxSpiMismatch) {
-  if (!IsPspSupported()) {
-    GTEST_SKIP() << "PSP is not supported";
-  }
-
-  std::jthread ta([&]() { acceptor_->Start(Accept); });
-  ShortSleep();
-
-  std::jthread tc([&]() {
-    for (const Endpoint& peer : peers_) {
-      std::unique_ptr<TcpSocket> socket =
-          TcpConnector::CreateUnconnected(peer);
-      ASSERT_NE(socket, nullptr);
-
-      auto self_token = TcpConnector::AcquireRxSpiAndKey(*socket);
-      ASSERT_TRUE(self_token.ok()) << self_token.status();
-
-      const PspToken peer_token = kPspTokenValid;
-
-      // Corrupt self token SPI to induce mismatch.
-      PspToken mismatched_self_token = *self_token;
-      mismatched_self_token.spi ^= 0xFFFFFFFF;
-
-      EXPECT_FALSE(TcpConnector::PspConnect(*socket, peer, peer_token,
-                                            mismatched_self_token));
-    }
-  });
 
   ShortSleep();
   acceptor_->Stop();

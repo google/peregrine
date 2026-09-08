@@ -29,21 +29,14 @@ using ::absl_testing::StatusIs;
 
 constexpr bool kTcp = true;
 
-const PspToken kPspTokenInvalidSpi{.spi = 0, .key = std::string(16, 'a')};
-const PspToken kPspTokenInvalidKey{.spi = 1, .key = "short"};
-const PspToken kPspTokenValid{.spi = 2, .key = std::string(16, 'a')};
-
 template <int kFamily>
 class TcpAcceptorTest : public ::testing::Test {
  protected:
   TcpAcceptorTest()
       : local_(TestOnly_LocalHostInfo(kFamily, kTcp)),
-        psp_syscalls_(FakePspTcpSyscalls::Create()),
         acceptor_(TcpAcceptor::Create(local_)) {
     CHECK(local_.IsValid());
-    CHECK_NE(psp_syscalls_, nullptr);
     CHECK_NE(acceptor_, nullptr);
-    TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
   }
 
   static void Accept(std::unique_ptr<TcpSocket> socket) {
@@ -55,7 +48,6 @@ class TcpAcceptorTest : public ::testing::Test {
 
  protected:
   HostInfo local_;
-  std::unique_ptr<FakePspTcpSyscalls> psp_syscalls_;
   std::unique_ptr<TcpAcceptor> acceptor_;
 };
 
@@ -79,33 +71,52 @@ TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
   });
 }
 
-TEST_F(TcpAcceptorTestIPv4, HandlePspTokenExchange) {
+template <int kFamily>
+class PspTcpAcceptorTest : public TcpAcceptorTest<kFamily> {
+ protected:
+  PspTcpAcceptorTest() : psp_syscalls_(FakePspTcpSyscalls::Create()) {
+    CHECK_NE(psp_syscalls_, nullptr);
+    TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
+  }
+
+  ~PspTcpAcceptorTest() override { TestOnly_SetPspTcpSyscalls(nullptr); }
+
+ protected:
+  std::unique_ptr<FakePspTcpSyscalls> psp_syscalls_;
+};
+
+using PspTcpAcceptorTestIPv4 = PspTcpAcceptorTest<AF_INET>;
+using PspTcpAcceptorTestIPv6 = PspTcpAcceptorTest<AF_INET6>;
+
+TEST_F(PspTcpAcceptorTestIPv6, HandlePspTokenExchange) {
   if (!IsPspSupported()) {
-    GTEST_SKIP() << "PSP is not supported";
+    GTEST_SKIP() << "psp not supported";
   }
 
   ASSERT_FALSE(local_.data_plane_listeners.empty());
   const Endpoint self_target = local_.data_plane_listeners[0];
-  const PspToken peer_token = kPspTokenValid;
 
   // 1. Successful key exchange with explicit target endpoint.
+  const PspToken peer_token = {.spi = 2, .key = std::string(16, 'a')};
   auto self_token = acceptor_->ExchangePspTokens(peer_token, self_target);
   ASSERT_TRUE(self_token.ok()) << self_token.status();
   EXPECT_TRUE(self_token->IsValid());
 
-  // 2. Successful key exchange without endpoint (when single listener).
+  // 2. Successful key exchange without target (for single listener).
   if (local_.data_plane_listeners.size() == 1) {
     auto self_token = acceptor_->ExchangePspTokens(peer_token, Endpoint());
     ASSERT_TRUE(self_token.ok()) << self_token.status();
     EXPECT_TRUE(self_token->IsValid());
   }
 
-  // 3. Invalid psp token (zero SPI).
-  EXPECT_THAT(acceptor_->ExchangePspTokens(kPspTokenInvalidSpi, self_target),
+  // 3. Invalid psp token (zero spi).
+  const PspToken invalid_spi_token{.spi = 0, .key = std::string(16, 'a')};
+  EXPECT_THAT(acceptor_->ExchangePspTokens(invalid_spi_token, self_target),
               StatusIs(kInvalidArgument));
 
   // 4. Invalid psp token (invalid size).
-  EXPECT_THAT(acceptor_->ExchangePspTokens(kPspTokenInvalidKey, self_target),
+  const PspToken invalid_key_token{.spi = 1, .key = "short"};
+  EXPECT_THAT(acceptor_->ExchangePspTokens(invalid_key_token, self_target),
               StatusIs(kInvalidArgument));
 
   // 5. Unknown target endpoint.

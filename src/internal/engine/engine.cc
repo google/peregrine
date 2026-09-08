@@ -6,7 +6,6 @@
 #include <cstring>
 #include <limits>
 #include <memory>
-#include <string>
 #include <thread>  // NOLINT
 #include <utility>
 
@@ -76,17 +75,17 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
     LOG(WARNING) << "invalid self host info: " << self;
     return nullptr;
   }
-  auto e = absl::WrapUnique(new Engine(config, self, std::move(tcp_acceptor),
-                                       std::move(rdma_acceptor), control));
 
+  auto engine =
+      absl::WrapUnique(new Engine(config, self, std::move(tcp_acceptor),
+                                  std::move(rdma_acceptor), control));
   if (config.require_dataplane_encryption) {
-    control.SetPspHandler([engine = e.get()](const proto::PspRequest& req,
-                                             proto::PspResponse* resp) {
-      return engine->handlePspTokenExchange(req, resp);
+    control.SetPspHandler([e = engine.get()](const PspToken& peer_token,
+                                             const Endpoint& self_target) {
+      return e->tcp_acceptor_->ExchangePspTokens(peer_token, self_target);
     });
   }
-
-  return e;
+  return engine;
 }
 
 Engine::Engine(const Config& config, HostInfo& self,
@@ -95,6 +94,12 @@ Engine::Engine(const Config& config, HostInfo& self,
     : config_(config),
       self_(self),
       control_(control),
+      psp_xchg_rpc_([this](const PspToken& self_token,
+                           const Endpoint& peer_target,
+                           const Endpoint& peer_control) {
+        return control_.ExchangePspTokens(self_token, peer_target,
+                                          peer_control);
+      }),
       stop_(false),
       tcp_acceptor_(std::move(tcp_acceptor)),
       rdma_acceptor_(std::move(rdma_acceptor)) {
@@ -164,16 +169,14 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
     return false;
   }
   // We only use the first data plane listener for now.
+  const Endpoint& peer_control = peer_info->control_plane_listener;
   const Endpoint& peer_target = peer_info->data_plane_listeners[0];
-  DCHECK(peer_target.HasNonzeroIpPort());
-  const bool require_dataplane_encryption =
-      config_.require_dataplane_encryption;
-
+  const bool psp = config_.require_dataplane_encryption;
   uint64_t connect_failures = 0;
   for (int i = 0; i < 2 * num_conns; ++i) {
-    std::unique_ptr<TcpSocket> socket = require_dataplane_encryption
-                                            ? createTcpPsp(peer, peer_target)
-                                            : TcpConnector::Create(peer_target);
+    std::unique_ptr<TcpSocket> socket =
+        psp ? TcpConnector::CreatePsp(peer_target, peer_control, psp_xchg_rpc_)
+            : TcpConnector::Create(peer_target);
     if (socket == nullptr) {
       connect_failures++;
       continue;
@@ -188,66 +191,6 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
     metrics_.tcp_connect_failures.Add(connect_failures);
   }
   return !workers.empty();
-}
-
-std::unique_ptr<TcpSocket> Engine::createTcpPsp(const Endpoint& peer_control,
-                                                const Endpoint& peer_target) {
-  std::unique_ptr<TcpSocket> socket =
-      TcpConnector::CreateUnconnected(peer_target);
-  if (socket == nullptr) {
-    return nullptr;
-  }
-
-  const absl::StatusOr<PspToken> self_token =
-      TcpConnector::AcquireRxSpiAndKey(*socket);
-  if (!self_token.ok()) {
-    LOG(WARNING) << "failed to acquire self Rx SPI and key: "
-                 << self_token.status();
-    return nullptr;
-  }
-
-  const absl::StatusOr<PspToken> peer_token =
-      control_.ExchangePspToken(*self_token, peer_target, peer_control);
-  if (!peer_token.ok()) {
-    LOG(WARNING) << "failed to exchange psp token with peer: "
-                 << peer_token.status();
-    return nullptr;
-  }
-
-  if (!TcpConnector::PspConnect(*socket, peer_target, *peer_token,
-                                *self_token)) {
-    return nullptr;
-  }
-
-  return socket;
-}
-
-absl::Status Engine::handlePspTokenExchange(const proto::PspRequest& req,
-                                            proto::PspResponse* resp) {
-  DCHECK_NE(tcp_acceptor_, nullptr);
-  DCHECK_NE(resp, nullptr);
-
-  const PspToken peer_token = {
-      .spi = req.psp().spi(),
-      .key = std::string(req.psp().key()),
-  };
-  const Endpoint self_target =
-      req.has_peer_target() ? Endpoint::Create(req.peer_target().ip_port())
-                            : Endpoint();
-
-  absl::StatusOr<PspToken> self_token =
-      tcp_acceptor_->ExchangePspTokens(peer_token, self_target);
-  if (!self_token.ok()) {
-    return self_token.status();
-  }
-  if (!self_token->IsValid()) {
-    return absl::InternalError("invalid self psp token");
-  }
-
-  DCHECK(self_token->IsValid());
-  resp->mutable_psp()->set_spi(self_token->spi);
-  resp->mutable_psp()->set_key(self_token->key);
-  return absl::OkStatus();
 }
 
 bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {

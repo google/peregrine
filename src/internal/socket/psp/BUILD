@@ -19,20 +19,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "psp_syscall_mock",
-    testonly = True,
-    hdrs = ["psp_syscall_mock.h"],
-    deps = [
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/container:flat_hash_map",
-        "@abseil-cpp//absl/memory",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/synchronization",
-    ],
-)
-
 cc_test(
     name = "tcp_psp_helper_test",
     srcs = ["tcp_psp_helper_test.cc"],
@@ -45,5 +31,19 @@ cc_test(
         "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings:string_view",
         "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "psp_syscall_mock",
+    testonly = True,
+    hdrs = ["psp_syscall_mock.h"],
+    deps = [
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
     ],
 )

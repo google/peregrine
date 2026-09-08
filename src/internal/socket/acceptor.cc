@@ -14,15 +14,16 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_format.h"
+#include "absl/strings/str_cat.h"
+#include "absl/synchronization/mutex.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
 #include "src/internal/event/poller.h"
+#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_util.h"
-#include "src/internal/socket/psp/tcp_psp_helper.h"
 #include "src/util/nic.h"
 
 namespace peregrine::internal {
@@ -92,8 +93,8 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(HostInfo& self) {
     }
     DCHECK(e.HasNonzeroIpPort());
     const fd_t fd = socket->fd();
-    listeners.emplace(
-        fd, Listener{.socket = std::move(socket), .endpoint = e});
+    DCHECK_EQ(e.ToString(), SelfAddrPort(fd));
+    listeners.emplace(fd, Listener{std::move(socket), e});
   }
   DCHECK(self.IsValid());
 
@@ -146,35 +147,36 @@ void TcpAcceptor::Start(AcceptCallback accept) {
   }
 }
 
+const TcpAcceptor::Listener* TcpAcceptor::findListener(
+    const Endpoint& self_target) const {
+  if (self_target.HasNonzeroIpPort()) {
+    for (const auto& [fd, listener] : listeners_) {
+      if (listener.endpoint == self_target) {
+        return &listener;
+      }
+    }
+  } else if (listeners_.size() == 1) {
+    return &(listeners_.begin()->second);
+  }
+  return nullptr;
+}
+
 absl::StatusOr<PspToken> TcpAcceptor::ExchangePspTokens(
     const PspToken& peer_token, const Endpoint& self_target) {
   if (!peer_token.IsValid()) {
     return absl::InvalidArgumentError("invalid peer psp token");
   }
 
-  const Listener* l = nullptr;
-  if (!self_target.HasNonzeroIpPort()) {
-    if (listeners_.size() != 1) {
-      return absl::FailedPreconditionError(
-          "Ambiguous listening socket: multiple listeners exist but no "
-          "target endpoint specified");
-    }
-    l = &listeners_.begin()->second;
-  } else {
-    for (const auto& [fd, listener] : listeners_) {
-      if (listener.endpoint == self_target) {
-        l = &listener;
-        break;
-      }
-    }
-  }
+  const Listener* l = findListener(self_target);
   if (l == nullptr) {
-    return absl::NotFoundError(absl::StrFormat(
-        "Listener not found for target %s", self_target.ToString()));
+    return absl::NotFoundError(
+        absl::StrCat("Listener not found for target ", self_target.ToString()));
   }
 
-  const PspToken self_token = l->socket->RegisterPeerPspToken(peer_token);
-  if (!self_token.IsValid()) {
+  const fd_t fd = l->socket->fd();
+  absl::MutexLock lock(*l->mu);
+  const absl::StatusOr<PspToken> self_token = RegisterPeerPsp(fd, peer_token);
+  if (!self_token.ok() || !self_token->IsValid()) {
     return absl::InternalError("invalid self psp token");
   }
   return self_token;

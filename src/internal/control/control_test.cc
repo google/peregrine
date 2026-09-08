@@ -200,19 +200,13 @@ TEST_F(ControlTest, ExchangePspTokens) {
   const Endpoint peer_target = Endpoint::Create("127.0.0.1:20002");
 
   ctrl_b->SetPspHandler(
-      [&](const proto::PspRequest& req, proto::PspResponse* resp) {
-        EXPECT_EQ(req.psp().spi(), self_token.spi);
-        EXPECT_EQ(req.psp().key(), self_token.key);
-        EXPECT_TRUE(req.has_peer_target());
-        EXPECT_EQ(req.peer_target().ip_port(), peer_target.ToString());
-        resp->mutable_psp()->set_spi(expected_peer_token.spi);
-        resp->mutable_psp()->set_key(expected_peer_token.key);
-        return absl::OkStatus();
+      [&](const PspToken& peer_token, const Endpoint& self_target) {
+        return expected_peer_token;
       });
   ASSERT_TRUE(ctrl_b->Start());
 
-  auto server_token = ctrl_a->ExchangePspToken(self_token, peer_target,
-                                               host_b.control_plane_listener);
+  auto server_token = ctrl_a->ExchangePspTokens(self_token, peer_target,
+                                                host_b.control_plane_listener);
   ASSERT_TRUE(server_token.ok()) << server_token.status();
   EXPECT_EQ(server_token->spi, expected_peer_token.spi);
   EXPECT_EQ(server_token->key, expected_peer_token.key);
@@ -244,30 +238,30 @@ TEST_F(ControlTest, ExchangePspTokenErrors) {
   ASSERT_TRUE(ctrl_a->Start());
 
   // Invalid peer endpoint.
-  EXPECT_THAT(ctrl_a->ExchangePspToken(self_token, peer_target, Endpoint()),
+  EXPECT_THAT(ctrl_a->ExchangePspTokens(self_token, peer_target, Endpoint()),
               StatusIs(kInvalidArgument));
 
   // Invalid peer target endpoint.
   const Endpoint invalid_peer_target;
-  EXPECT_THAT(ctrl_a->ExchangePspToken(self_token, invalid_peer_target,
-                                       host_b.control_plane_listener),
+  EXPECT_THAT(ctrl_a->ExchangePspTokens(self_token, invalid_peer_target,
+                                        host_b.control_plane_listener),
               StatusIs(kInvalidArgument));
 
   // Invalid SPI (0).
   EXPECT_THAT(
-      ctrl_a->ExchangePspToken({.spi = 0, .key = std::string(16, 'a')},
-                               peer_target, host_b.control_plane_listener),
+      ctrl_a->ExchangePspTokens({.spi = 0, .key = std::string(16, 'a')},
+                                peer_target, host_b.control_plane_listener),
       StatusIs(kInvalidArgument));
 
   // Invalid key size (short).
-  EXPECT_THAT(ctrl_a->ExchangePspToken({.spi = 1, .key = "short"}, peer_target,
-                                       host_b.control_plane_listener),
+  EXPECT_THAT(ctrl_a->ExchangePspTokens({.spi = 1, .key = "short"}, peer_target,
+                                        host_b.control_plane_listener),
               StatusIs(kInvalidArgument));
 
   // Invalid key size (long).
   EXPECT_THAT(
-      ctrl_a->ExchangePspToken({.spi = 1, .key = std::string(32, 'a')},
-                               peer_target, host_b.control_plane_listener),
+      ctrl_a->ExchangePspTokens({.spi = 1, .key = std::string(32, 'a')},
+                                peer_target, host_b.control_plane_listener),
       StatusIs(kInvalidArgument));
 
   // 2. Encryption disabled in server config (SetPspHandler is no-op).
@@ -275,13 +269,13 @@ TEST_F(ControlTest, ExchangePspTokenErrors) {
   auto ctrl_disabled = Control::Create(config_, host_b, creds_b_);
   ASSERT_NE(ctrl_disabled, nullptr);
   ctrl_disabled->SetPspHandler(
-      [](const proto::PspRequest&, proto::PspResponse*) {
-        return absl::OkStatus();
+      [](const PspToken& peer_token, const Endpoint& self_target) {
+        return PspToken{.spi = 0, .key = ""};
       });
   ASSERT_TRUE(ctrl_disabled->Start());
 
-  auto resp_disabled = ctrl_a->ExchangePspToken(self_token, peer_target,
-                                                host_b.control_plane_listener);
+  auto resp_disabled = ctrl_a->ExchangePspTokens(self_token, peer_target,
+                                                 host_b.control_plane_listener);
   EXPECT_FALSE(resp_disabled.ok());
   EXPECT_EQ(resp_disabled.status().code(), kInternal);
 
@@ -298,8 +292,8 @@ TEST_F(ControlTest, ExchangePspTokenErrors) {
   ASSERT_NE(ctrl_missing, nullptr);
   ASSERT_TRUE(ctrl_missing->Start());
 
-  auto resp_missing = ctrl_a->ExchangePspToken(self_token, peer_target,
-                                               host_c.control_plane_listener);
+  auto resp_missing = ctrl_a->ExchangePspTokens(self_token, peer_target,
+                                                host_c.control_plane_listener);
   EXPECT_FALSE(resp_missing.ok());
   EXPECT_EQ(resp_missing.status().code(), kUnimplemented);
 }
