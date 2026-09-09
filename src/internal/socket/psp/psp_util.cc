@@ -1,5 +1,6 @@
 #include "src/internal/socket/psp/psp_util.h"
 
+#include <array>
 #include <atomic>
 #include <cstring>
 #include <memory>
