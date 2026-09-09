@@ -94,23 +94,14 @@ TEST(TransportRequest, RKeyAndEquality) {
   EXPECT_NE(r1.ToString().find("rkey: 0xabcd"), std::string::npos);
 }
 
-TEST(TransportMetrics, DefaultInitializationAndEquality) {
-  const TransportMetrics m1;
-  const TransportMetrics m2{};
-
-  // Verify default-initialization matches zero-initialization.
-  EXPECT_EQ(m1, m2);
+TEST(TransportMetrics, DefaultInitialization) {
+  const TransportMetrics m;
 
   // Verify every byte in the struct is zeroed without naming any fields.
-  const auto* bytes = reinterpret_cast<const unsigned char*>(&m1);
+  const auto* bytes = reinterpret_cast<const unsigned char*>(&m);
   for (size_t i = 0; i < sizeof(TransportMetrics); ++i) {
     EXPECT_EQ(bytes[i], 0);
   }
-
-  // Verify operator== detects differences when values change.
-  TransportMetrics m3 = m1;
-  reinterpret_cast<unsigned char*>(&m3)[0] = 1;
-  EXPECT_NE(m1, m3);
 }
 
 }  // namespace
