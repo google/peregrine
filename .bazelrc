@@ -1,0 +1,2 @@
+# Build with C++20 for std::jthread and modern C++ features.
+build --cxxopt=-std=c++20 --host_cxxopt=-std=c++20
