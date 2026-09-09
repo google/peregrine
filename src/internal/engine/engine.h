@@ -32,7 +32,6 @@
 #include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
-#include "src/internal/socket/connector.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/util/util.h"
 
@@ -149,7 +148,6 @@ class Engine final {
   const Config& config_;
   HostInfo& self_;
   Control& control_;
-  TcpConnector::PspTokenExchangeFunc psp_xchg_rpc_;
 
   EngineMetrics metrics_;
 

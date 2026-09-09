@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <thread>  // NOLINT
 #include <tuple>
@@ -16,8 +15,6 @@
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
-#include "src/internal/socket/psp/psp_mock.h"
-#include "src/internal/socket/psp/psp_util.h"
 #include "src/internal/util/util.h"
 #include "src/util/app.h"
 
@@ -31,15 +28,12 @@ using ::testing::Pointwise;
 using ::testing::TestParamInfo;
 using ::testing::Values;
 
-using Param = std::tuple</*buf_size=*/size_t, /*num_conns_per_peer=*/int,
-                         /*enable_psp=*/bool>;
+using Param = std::tuple</*buf_size=*/size_t, /*num_conns_per_peer=*/int>;
 
 std::string ToString(const TestParamInfo<Param>& info) {
   const size_t size = std::get<0>(info.param);
   const int nconns = std::get<1>(info.param);
-  const bool psp = std::get<2>(info.param);
-  return absl::StrFormat("BufSize_%zu_NumConnsPerPeer_%d_Psp_%s", size, nconns,
-                         psp ? "enabled" : "disabled");
+  return absl::StrFormat("BufSize_%zu_NumConnsPerPeer_%d", size, nconns);
 }
 
 class TransportImplTest : public ::testing::TestWithParam<Param> {
@@ -49,21 +43,10 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
         size1_(std::max(1UL, size_ / 2)),
         size2_(size_ - size1_),
         nconns_(std::get<1>(GetParam())),
-        enable_psp_(std::get<2>(GetParam())),
-        a_(size_, nconns_, enable_psp_),
-        b_(size_, nconns_, enable_psp_) {
+        a_(size_, nconns_),
+        b_(size_, nconns_) {
     DCHECK_EQ(a_.DataSize(), b_.DataSize());
   }
-
-  void SetUp() override {
-    if (enable_psp_ && !psp::IsPspSupported()) {
-      GTEST_SKIP() << "PSP is not supported";
-    }
-    psp_syscalls_ = psp::testing::FakePspTcpSyscalls::Create();
-    psp::TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
-  }
-
-  void TearDown() override { psp::TestOnly_SetPspTcpSyscalls(nullptr); }
 
   std::vector<Request> MakeRequests(const Op op) {
     const auto pa = a_.DataPtr();
@@ -101,16 +84,13 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
   const size_t size1_;
   const size_t size2_;
   const int nconns_;
-  const bool enable_psp_;
-  std::unique_ptr<psp::testing::FakePspTcpSyscalls> psp_syscalls_;
   util::App a_;
   util::App b_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, TransportImplTest,
                          Combine(/*buf_size=*/Values(1, 65536, 1048575),
-                                 /*num_conns_per_peer=*/Values(1, 8, 16),
-                                 /*enable_psp=*/Values(false, true)),
+                                 /*num_conns_per_peer=*/Values(1, 8, 16)),
                          ToString);
 
 TEST_P(TransportImplTest, Read) {

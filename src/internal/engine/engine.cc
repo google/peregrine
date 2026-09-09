@@ -33,7 +33,6 @@
 #include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
-#include "src/internal/socket/psp/psp.h"
 #include "src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
@@ -76,17 +75,9 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
     return nullptr;
   }
 
-  auto engine =
-      absl::WrapUnique(new Engine(config, self, std::move(tcp_acceptor),
-                                  std::move(rdma_acceptor), control));
-  if (config.require_dataplane_encryption) {
-    control.SetPspTcpHandler([e = engine.get()](const PspToken& peer_token,
-                                                const Endpoint& self_target) {
-      TcpAcceptor* const tcp_acceptor = e->tcp_acceptor_.get();
-      return tcp_acceptor->ExchangePspTokens(peer_token, self_target);
-    });
-  }
-  return engine;
+  DCHECK(!config.require_dataplane_encryption);
+  return absl::WrapUnique(new Engine(config, self, std::move(tcp_acceptor),
+                                     std::move(rdma_acceptor), control));
 }
 
 Engine::Engine(const Config& config, HostInfo& self,
@@ -95,12 +86,6 @@ Engine::Engine(const Config& config, HostInfo& self,
     : config_(config),
       self_(self),
       control_(control),
-      psp_xchg_rpc_([this](const PspToken& self_token,
-                           const Endpoint& peer_target,
-                           const Endpoint& peer_control) {
-        return control_.ExchangePspTokens(self_token, peer_target,
-                                          peer_control);
-      }),
       stop_(false),
       tcp_acceptor_(std::move(tcp_acceptor)),
       rdma_acceptor_(std::move(rdma_acceptor)) {
@@ -123,7 +108,6 @@ Engine::Engine(const Config& config, HostInfo& self,
 }
 
 Engine::~Engine() {
-  control_.SetPspTcpHandler(nullptr);
   {
     absl::MutexLock _(mu_);
     if (tcp_acceptor_ != nullptr) {
@@ -170,14 +154,11 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
     return false;
   }
   // We only use the first data plane listener for now.
-  const Endpoint& peer_control = peer_info->control_plane_listener;
   const Endpoint& peer_target = peer_info->data_plane_listeners[0];
-  const bool psp = config_.require_dataplane_encryption;
+  DCHECK(!config_.require_dataplane_encryption);
   uint64_t connect_failures = 0;
   for (int i = 0; i < 2 * num_conns; ++i) {
-    std::unique_ptr<TcpSocket> socket =
-        psp ? TcpConnector::CreatePsp(peer_target, peer_control, psp_xchg_rpc_)
-            : TcpConnector::Create(peer_target);
+    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_target);
     if (socket == nullptr) {
       connect_failures++;
       continue;

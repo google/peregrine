@@ -9,9 +9,8 @@
 
 namespace peregrine {
 
-// Returns true if the requested `transport_type` is supported on the current
-// host.
-bool IsTransportSupported(TransportType transport_type);
+// Returns true if the transport type is supported on the current host.
+bool IsTransportSupported(TransportType t);
 
 // Creates a new transport instance that listens for control messages on
 // the control `endpoint` (e.g., "10.0.0.1:10000"). The `num_conns_per_peer`
@@ -23,8 +22,7 @@ bool IsTransportSupported(TransportType transport_type);
 std::unique_ptr<Transport> CreateTransport(
     std::string_view endpoint,
     TransportType transport_type = TransportType::kTcp,
-    int num_conns_per_peer = 8,
-    bool require_dataplane_encryption = false);
+    int num_conns_per_peer = 8);
 
 }  // namespace peregrine
 

@@ -68,8 +68,6 @@ cc_test(
     deps = [
         "//src/api:transport",
         "//src/api:transport_types",
-        "//src/internal/socket/psp:psp_mock",
-        "//src/internal/socket/psp:psp_util",
         "//src/internal/util",
         "//src/util:app",
         "@abseil-cpp//absl/log",

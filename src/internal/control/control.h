@@ -93,7 +93,9 @@ class Control final {
       : config_(config),
         self_(self),
         server_creds_(creds.server_creds),
-        client_creds_(creds.client_creds) {
+        client_creds_(creds.client_creds),
+        psp_tcp_handler_(nullptr),
+        rdma_conn_handler_(nullptr) {
     DCHECK(config_.IsValid());
     DCHECK(self_.control_plane_listener.HasNonzeroIpPort());
     DCHECK_NE(server_creds_, nullptr);

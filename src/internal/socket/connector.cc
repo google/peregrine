@@ -82,7 +82,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
   }
 
   const absl::StatusOr<Spi> spi = psp::GetInitialRxSpi(fd);
-  if (!spi.ok() || (*spi).value() == 0 || *spi != self_token->spi) {
+  if (!spi.ok() || spi.value() != self_token->spi) {
     LOG(WARNING) << "failed to verify negotiated rx psp spi";
     return nullptr;
   }

@@ -28,7 +28,6 @@ cc_library(
         "//src/internal/socket:acceptor",
         "//src/internal/socket:connector",
         "//src/internal/socket:socket_tcp",
-        "//src/internal/socket/psp",
         "//src/util",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",

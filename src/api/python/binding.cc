@@ -24,16 +24,14 @@ void ThrowIfFailed(const absl::Status& status) {
   }
 }
 
-// Universal type that can implicitly convert to any type to probe aggregate
-// initialization.
+// Universal type that can implicitly convert to any type.
 struct AnyType {
   template <typename T>
   operator T();
 };
 
-// Counts the number of fields in an aggregate struct at compile time using
-// C++20 concepts and direct list initialization.
-template <typename T, typename... Args>
+// Counts the number of fields in a struct at compile time.
+template <typename T>
 consteval size_t CountFields(auto... args) {
   if constexpr (requires { T{args...}; }) {
     return CountFields<T>(args..., AnyType{});
@@ -41,7 +39,6 @@ consteval size_t CountFields(auto... args) {
     return sizeof...(args) - 1;
   }
 }
-
 }  // namespace
 
 NB_MODULE(peregrine, m) {
@@ -125,14 +122,14 @@ NB_MODULE(peregrine, m) {
            "Returns transport metrics.");
 
   // Bind `TransportMetrics`
+  // When adding new metrics, increment the count and update the binding.
+  constexpr size_t kTransportMetricsFieldsCount = 2;
   nb::class_<TransportMetrics>(m, "TransportMetrics")
       .def_ro("tcp_connect_failures", &TransportMetrics::tcp_connect_failures)
       .def_ro("rpc_requests_received",
               &TransportMetrics::rpc_requests_received);
-  // When adding a new metric, update the binding above and the count below.
-  constexpr size_t kTransportMetricsNumFields = 2;
   static_assert(CountFields<peregrine::TransportMetrics>() ==
-                kTransportMetricsNumFields);
+                kTransportMetricsFieldsCount);
 
   // Bind `TransportType` enum
   nb::enum_<TransportType>(m, "TransportType")
@@ -141,8 +138,7 @@ NB_MODULE(peregrine, m) {
 
   m.def("create_transport", &CreateTransport, nb::arg("control_endpoint"),
         nb::arg("transport_type") = TransportType::kTcp,
-        nb::arg("num_conns_per_peer") = 8,
-        nb::arg("require_dataplane_encryption") = false);
+        nb::arg("num_conns_per_peer") = 8);
 
   // Bind `Status` enum and helper functions
   nb::enum_<Status>(m, "Status")

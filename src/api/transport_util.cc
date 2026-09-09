@@ -22,8 +22,8 @@ using internal::Endpoint;
 using internal::RdmaDeviceManager;
 using internal::TransportImpl;
 
-bool IsTransportSupported(TransportType transport_type) {
-  switch (transport_type) {
+bool IsTransportSupported(TransportType t) {
+  switch (t) {
     case TransportType::kTcp:
       return true;
     case TransportType::kRdma: {
@@ -39,8 +39,7 @@ bool IsTransportSupported(TransportType transport_type) {
 
 std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
                                            TransportType transport_type,
-                                           int num_conns_per_peer,
-                                           bool require_dataplane_encryption) {
+                                           int num_conns_per_peer) {
   const Endpoint e = Endpoint::Create(endpoint);
   if ABSL_PREDICT_FALSE (!e.HasNonzeroIpPort()) {
     return nullptr;
@@ -55,7 +54,7 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
   const Config config = {
       .transport_type = transport_type,
       .num_conns_per_peer = n,
-      .require_dataplane_encryption = require_dataplane_encryption,
+      .require_dataplane_encryption = false,
   };
   return TransportImpl::Create(config, e, std::move(creds));
 }
