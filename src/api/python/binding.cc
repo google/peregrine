@@ -23,6 +23,25 @@ void ThrowIfFailed(const absl::Status& status) {
     throw std::runtime_error(status.ToString());
   }
 }
+
+// Universal type that can implicitly convert to any type to probe aggregate
+// initialization.
+struct AnyType {
+  template <typename T>
+  operator T();
+};
+
+// Counts the number of fields in an aggregate struct at compile time using
+// C++20 concepts and direct list initialization.
+template <typename T, typename... Args>
+consteval size_t CountFields(auto... args) {
+  if constexpr (requires { T{args...}; }) {
+    return CountFields<T>(args..., AnyType{});
+  } else {
+    return sizeof...(args) - 1;
+  }
+}
+
 }  // namespace
 
 NB_MODULE(peregrine, m) {
@@ -108,6 +127,10 @@ NB_MODULE(peregrine, m) {
   // Bind `TransportMetrics`
   nb::class_<TransportMetrics>(m, "TransportMetrics")
       .def_ro("tcp_connect_failures", &TransportMetrics::tcp_connect_failures);
+  // When adding a new metric, update the binding above and the count below.
+  constexpr size_t kTransportMetricsNumFields = 1;
+  static_assert(CountFields<peregrine::TransportMetrics>() ==
+                kTransportMetricsNumFields);
 
   // Bind `TransportType` enum
   nb::enum_<TransportType>(m, "TransportType")
