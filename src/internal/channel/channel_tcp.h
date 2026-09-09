@@ -40,7 +40,8 @@ class TcpChannel final : public Channel {
   ssize_t Write(const Byte* buf, size_t len) override {
     DCHECK_NE(buf, nullptr);
     DCHECK_GE(len, 1);
-    return socket_->Send(buf, len);
+    return socket_->IsIoUringEnabled() ? socket_->SendUring(buf, len)
+                                       : socket_->Send(buf, len);
   }
 
   // Writes a number of buffers described by the `iovecs` to the channel.
@@ -54,7 +55,8 @@ class TcpChannel final : public Channel {
   ssize_t Read(Byte* buf, size_t len) override {
     DCHECK_NE(buf, nullptr);
     DCHECK_GE(len, 1);
-    return socket_->Recv(buf, len);
+    return socket_->IsIoUringEnabled() ? socket_->RecvUring(buf, len)
+                                       : socket_->Recv(buf, len);
   }
 
   // Reads exactly `length(iovecs)` bytes of data from the channel into the

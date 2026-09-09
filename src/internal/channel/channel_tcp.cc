@@ -19,10 +19,12 @@ ssize_t TcpChannel::WriteV(const absl::Span<const IoVec> iovecs) {
 
   if ABSL_PREDICT_FALSE (iovecs.size() == 1) {
     const auto [buf, len] = BufLen(iovecs[0]);
-    return socket_->Send(buf, len);
+    return socket_->IsIoUringEnabled() ? socket_->SendUring(buf, len)
+                                       : socket_->Send(buf, len);
   } else {
     DCHECK_GE(iovecs.size(), 2);
-    return socket_->SendV(iovecs);
+    return socket_->IsIoUringEnabled() ? socket_->SendVUring(iovecs)
+                                       : socket_->SendV(iovecs);
   }
 }
 
@@ -34,10 +36,12 @@ ssize_t TcpChannel::ReadV(absl::Span<IoVec> iovecs) {
 
   if ABSL_PREDICT_FALSE (iovecs.size() == 1) {
     const auto [buf, len] = BufLen(iovecs[0]);
-    return socket_->Recv(buf, len);
+    return socket_->IsIoUringEnabled() ? socket_->RecvUring(buf, len)
+                                       : socket_->Recv(buf, len);
   } else {
     DCHECK_GE(iovecs.size(), 2);
-    return socket_->RecvV(iovecs);
+    return socket_->IsIoUringEnabled() ? socket_->RecvVUring(iovecs)
+                                       : socket_->RecvV(iovecs);
   }
 }
 

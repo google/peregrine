@@ -72,6 +72,8 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
     CHECK_EQ(new_socket->Recv(recv_buf.data(), kMsgSize), kMsgSize);
+    if (new_socket->IsIoUringEnabled())
+      CHECK_EQ(new_socket->RecvUring(recv_buf.data(), kMsgSize), kMsgSize);
   });
 
   // Second, create a client thread.
@@ -81,6 +83,8 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
     CHECK_EQ(connector_->Send(message.data(), kMsgSize), kMsgSize);
+    if (connector_->IsIoUringEnabled())
+      CHECK_EQ(connector_->SendUring(message.data(), kMsgSize), kMsgSize);
   });
 
   // Wait for both threads to finish.
@@ -119,6 +123,8 @@ TEST_F(TcpIPv6SocketTest, BigData) {
          .iov_len = kDataSize - kPartial},
     };
     CHECK_EQ(new_socket->RecvV(recv_iov), kDataSize);
+    if (new_socket->IsIoUringEnabled())
+      CHECK_EQ(new_socket->RecvVUring(recv_iov), kDataSize);
   });
 
   // Second, create a client thread.
@@ -138,6 +144,8 @@ TEST_F(TcpIPv6SocketTest, BigData) {
          .iov_len = kDataSize - 2 * kPartial},
     };
     CHECK_EQ(connector_->SendV(send_iov), kDataSize);
+    if (connector_->IsIoUringEnabled())
+      CHECK_EQ(connector_->SendVUring(send_iov), kDataSize);
   });
 
   // Wait for both threads to finish.
