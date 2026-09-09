@@ -9,6 +9,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -70,11 +71,12 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
   void WaitForCompletion(Transport& t, const Handle h,
                          absl::Span<const Request> reqs) {
     while (true) {
-      ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
+      const absl::StatusOr<Status> s = t.Poll(h);
+      ASSERT_TRUE(s.ok()) << s.status();
       for (const auto& req : reqs) {
-        LOG(INFO) << Info(req, h, s);
+        LOG(INFO) << Info(req, h, *s);
       }
-      if (IsCompleted(s)) break;
+      if (IsCompleted(*s)) break;
       absl::SleepFor(absl::Seconds(1));
     }
   }
@@ -110,8 +112,9 @@ TEST_P(TransportImplTest, Read) {
         .len = a_.DataSize(),
     };
     const std::vector<Request> reqs = {req};
-    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, reqs));
-    WaitForCompletion(t, h, reqs);
+    const absl::StatusOr<Handle> h = t.Post(peer, reqs);
+    ASSERT_TRUE(h.ok()) << h.status();
+    WaitForCompletion(t, *h, reqs);
   });
 
   // Use another thread to emulate a remote process.
@@ -136,8 +139,9 @@ TEST_P(TransportImplTest, Write) {
     Transport& t = a_.GetTransport();
     const std::string peer = b_.GetControlEndpoint();
     const std::vector<Request> reqs = MakeRequests(Op::kWrite);
-    ASSERT_OK_AND_ASSIGN(const Handle h, t.Post(peer, reqs));
-    WaitForCompletion(t, h, reqs);
+    const absl::StatusOr<Handle> h = t.Post(peer, reqs);
+    ASSERT_TRUE(h.ok()) << h.status();
+    WaitForCompletion(t, *h, reqs);
   });
 
   // Use another thread to emulate a remote process.

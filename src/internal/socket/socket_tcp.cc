@@ -162,7 +162,7 @@ ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {
   size_t sent = 0;
   ssize_t left = len;
   while (left > 0) {
-    const ssize_t bytes = ::send(fd_.value(), ptr, left, /*flags=*/0);
+    const ssize_t bytes = ::send(fd_.value(), ptr, left, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       DCHECK_LE(bytes, left);
       ptr += bytes;
@@ -199,11 +199,13 @@ ssize_t TcpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
-  const int n = vecs.size();
+  const size_t n = vecs.size();
   size_t sent = 0;
-  int i = 0;
+  size_t i = 0;
+  struct msghdr msg;
   while (i < n) {
-    const ssize_t bytes = ::writev(fd_.value(), &vecs[i], n - i);
+    msg = {.msg_iov = &vecs[i], .msg_iovlen = n - i};
+    const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
       if ABSL_PREDICT_TRUE (sent >= len) break;

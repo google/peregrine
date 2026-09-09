@@ -10,8 +10,6 @@ import "src/internal/control/message.proto";
 service PeregrineService {
   // A generic unary rpc function to process Peregrine control messages.
   rpc ProcessUnary(peregrine.internal.proto.ReqMsg)
-      returns (peregrine.internal.proto.RespMsg) {
-    option deadline = 10.0;
-  }
+      returns (peregrine.internal.proto.RespMsg);
   // Do NOT add any other rpc functions!
 }

@@ -98,6 +98,7 @@ cc_test(
         ":transport_types",
         "//src/util:app",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",

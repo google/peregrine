@@ -5,6 +5,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/statusor.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/api/transport.h"
@@ -33,9 +34,10 @@ class SimpleTest : public ::testing::Test {
 
   void WaitForCompletion(Transport& t, const Handle h) {
     while (true) {
-      ASSERT_OK_AND_ASSIGN(const Status s, t.Poll(h));
-      if (IsCompleted(s)) {
-        ASSERT_EQ(s, Status::kSuccess);
+      const absl::StatusOr<Status> s = t.Poll(h);
+      ASSERT_TRUE(s.ok()) << s.status();
+      if (IsCompleted(*s)) {
+        ASSERT_EQ(*s, Status::kSuccess);
         break;
       }
       absl::SleepFor(absl::Milliseconds(100));
@@ -63,10 +65,11 @@ TEST_F(SimpleTest, Read) {
       .raddr = r_.DataPtr(),
       .len = l_.DataSize(),
   };
-  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(peer, {req}));
+  const absl::StatusOr<Handle> h = lt.Post(peer, {req});
+  ASSERT_TRUE(h.ok()) << h.status();
 
   // Wait for the transport to finish processing the request.
-  WaitForCompletion(lt, h);
+  WaitForCompletion(lt, *h);
 
   // Post-condition: all the local bytes are equal to the remote.
   EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
@@ -93,10 +96,11 @@ TEST_F(SimpleTest, Write) {
       .raddr = r_.DataPtr() + partial_,
       .len = l_.DataSize() - partial_,
   };
-  ASSERT_OK_AND_ASSIGN(const Handle h, lt.Post(peer, {req1, req2}));
+  const absl::StatusOr<Handle> h = lt.Post(peer, {req1, req2});
+  ASSERT_TRUE(h.ok()) << h.status();
 
   // Wait for the transport to finish processing the requests.
-  WaitForCompletion(lt, h);
+  WaitForCompletion(lt, *h);
 
   // Post-condition: all the remote bytes are equal to the local.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
