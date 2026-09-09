@@ -120,6 +120,7 @@ cc_test(
         "//src/internal/socket/psp",
         "//src/util",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",

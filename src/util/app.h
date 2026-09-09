@@ -35,7 +35,7 @@ class App final {
         transport_(CreateTransport(control_plane_listener_, TransportType::kTcp,
                                    num_conns_per_peer,
                                    require_dataplane_encryption)) {
-    DCHECK_GT(size, 0);
+    DCHECK_GT(size, 0U);
     CHECK_NE(transport_, nullptr);  // Crash OK
   }
 

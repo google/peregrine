@@ -7,9 +7,9 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
-#include "third_party/gloop/util/random/shared_bit_gen.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -61,7 +61,7 @@ class RdmaAcceptor final {
                              proto::RdmaConnResp* resp);
 
   // Generates a random packet sequence number.
-  uint32_t genPsn();
+  uint32_t genPsn() ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
   const Config& config_;
@@ -71,9 +71,9 @@ class RdmaAcceptor final {
   // RDMA device manager discovering and managing host HCAs. Read-only after
   // construction, so concurrent access is thread-safe without mutex locking.
   std::unique_ptr<RdmaDeviceManager> rdma_devmgr_;
-  util_random::SharedBitGen bitgen_;
 
   mutable absl::Mutex mu_;
+  absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
   std::unique_ptr<RdmaMemoryManager> rdma_memmgr_ ABSL_GUARDED_BY(mu_);
 
   // Passive Queue Pairs created for incoming connections from remote peers.

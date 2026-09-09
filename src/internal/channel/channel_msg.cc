@@ -7,6 +7,7 @@
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
+#include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
@@ -15,7 +16,6 @@
 #include "src/internal/util/test_iov.h"
 #include "src/internal/util/util.h"
 #include "src/util/util.h"
-#include "util/random/shared_bit_gen.h"
 
 namespace peregrine::internal::testing {
 
@@ -115,7 +115,7 @@ void MemMsgChannel::Shutdown() {
 
 bool MemMsgChannel::error() const {
   if ABSL_PREDICT_TRUE (error_rate_ <= 0) return false;
-  util_random::SharedBitGen bitgen;
+  absl::BitGen bitgen;
   return util::Random<int>(bitgen, 1, 100) <= error_rate_;
 }
 

@@ -12,11 +12,11 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
-#include "third_party/gloop/util/random/shared_bit_gen.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
@@ -111,13 +111,13 @@ class Engine final {
 
  private:
   // Generates a random handle.
-  Handle genHandle() {
+  Handle genHandle() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     static_assert(std::is_same_v<Handle::ValueType, uint32_t>);
     return Handle(util::Random<Handle::ValueType>(bitgen_));
   }
 
   // Generates a random request id.
-  ReqId genReqId() {
+  ReqId genReqId() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     static_assert(std::is_same_v<ReqId::ValueType, uint32_t>);
     return ReqId(util::Random<ReqId::ValueType>(bitgen_));
   }
@@ -153,10 +153,9 @@ class Engine final {
 
   EngineMetrics metrics_;
 
-  util_random::SharedBitGen bitgen_;
-
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);
+  absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
   std::deque<Entry> reqs_ ABSL_GUARDED_BY(mu_);
 
   RequestTracker outgoing_;

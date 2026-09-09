@@ -11,6 +11,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/internal/base/endpoint.h"

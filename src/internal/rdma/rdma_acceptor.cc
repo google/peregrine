@@ -88,6 +88,7 @@ RdmaAcceptor::RdmaAcceptor(const Config& config, const HostInfo& self,
 RdmaAcceptor::~RdmaAcceptor() { control_.SetRdmaConnHandler(nullptr); }
 
 uint32_t RdmaAcceptor::genPsn() {
+  absl::MutexLock _(mu_);
   return util::Random<uint32_t>(bitgen_) & 0x00FF'FFFF;
 }
 

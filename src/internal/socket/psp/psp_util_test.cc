@@ -1,6 +1,6 @@
 #include "src/internal/socket/psp/psp_util.h"
 
-#include "gtest/gunit.h"
+#include "gtest/gtest.h"
 
 namespace peregrine::internal::psp::testing {
 namespace {
