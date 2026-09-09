@@ -49,6 +49,7 @@ cc_library(
         "//src/internal/metrics:engine_metrics",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",

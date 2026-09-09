@@ -17,7 +17,6 @@
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
-#include "src/internal/control/message.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
 #include "src/internal/socket/psp/psp.h"
@@ -47,7 +46,7 @@ class ControlTest : public ::testing::Test {
   const SecurityCredentials creds_b_;
 };
 
-TEST_F(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
+TEST_F(ControlTest, GetPeerHostInfoSuccess) {
   const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port_a, 0);
   HostInfo host_a = {
@@ -98,7 +97,7 @@ TEST_F(ControlTest, DynamicGetPeerHostInfoBetweenNodes) {
             host_a.data_plane_listeners[0]);
 }
 
-TEST_F(ControlTest, GetPeerHostInfoErrors) {
+TEST_F(ControlTest, GetPeerHostInfoFailure) {
   const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port, 0);
   HostInfo self = {
@@ -126,50 +125,7 @@ TEST_F(ControlTest, GetPeerHostInfoErrors) {
   EXPECT_EQ(unreachable_or.status().code(), kUnavailable);
 }
 
-TEST_F(ControlTest, HandleIncomingHostInfoRequest) {
-  const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
-  ASSERT_GT(port, 0);
-  HostInfo server_host = {
-      .control_plane_listener =
-          Endpoint::Create(absl::StrCat("127.0.0.1:", port)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
-  };
-
-  auto ctrl = Control::Create(config_, server_host, creds_a_);
-  ASSERT_NE(ctrl, nullptr);
-  ASSERT_TRUE(ctrl->Start());
-
-  const Endpoint client_ep = Endpoint::Create("127.0.0.1:56789");
-  const HostInfo client_host = {
-      .control_plane_listener = client_ep,
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:30001")},
-  };
-
-  proto::ReqMsg req;
-  ASSERT_TRUE(Message::Serialize(client_host, *req.mutable_host_info()));
-
-  const absl::StatusOr<proto::RespMsg> resp =
-      ctrl->SendRequest(server_host.control_plane_listener, req);
-  ASSERT_TRUE(resp.ok()) << resp.status();
-
-  HostInfo peer_host;
-  ASSERT_TRUE(Message::Deserialize(resp->host_info(), peer_host));
-  EXPECT_EQ(peer_host.control_plane_listener,
-            server_host.control_plane_listener);
-  ASSERT_EQ(peer_host.data_plane_listeners.size(), 1);
-  EXPECT_EQ(peer_host.data_plane_listeners[0],
-            server_host.data_plane_listeners[0]);
-
-  // Verify that the server cached the client's HostInfo in peer_hosts_.
-  auto cached_client_or = ctrl->GetPeerHostInfo(client_ep);
-  ASSERT_TRUE(cached_client_or.ok()) << cached_client_or.status();
-  EXPECT_EQ(cached_client_or->control_plane_listener, client_ep);
-  ASSERT_EQ(cached_client_or->data_plane_listeners.size(), 1);
-  EXPECT_EQ(cached_client_or->data_plane_listeners[0],
-            client_host.data_plane_listeners[0]);
-}
-
-TEST_F(ControlTest, ExchangePspTokens) {
+TEST_F(ControlTest, ExchangePspTokensSuccess) {
   config_.require_dataplane_encryption = true;
   const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
   const uint16_t port_b = util::FindFreePort(AF_INET, /*tcp=*/true);

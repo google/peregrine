@@ -6,13 +6,13 @@
 
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "src/api/transport.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
@@ -54,13 +54,13 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(
     return nullptr;
   }
   if ABSL_PREDICT_FALSE (!t->self_.IsValid()) {
-    LOG(WARNING) << "failed to create transport: invalid " << t->self_;
+    LOG(WARNING) << "invalid host info: " << t->self_;
     return nullptr;
   }
 
   // HostInfo populated. Now start serving control RPCs.
   if ABSL_PREDICT_FALSE (!t->control_->Start()) {
-    LOG(WARNING) << "failed to start control plane: " << t->self_;
+    LOG(WARNING) << "failed to start control: " << t->self_;
     return nullptr;
   }
   return t;

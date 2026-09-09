@@ -19,15 +19,15 @@ namespace peregrine::internal {
 
 bool Message::Serialize(const HostInfo& host, absl::Span<const Request> reqs,
                         proto::ReqMsg& msg) {
-  DCHECK(host.IsValid());
-  DCHECK(IsValid(reqs));
+  if (!host.IsValid()) return false;
+  if (!IsValid(reqs)) return false;
 
   msg.Clear();
   proto::PeerReq* pr = msg.mutable_peer_req();
+  if (!pr) return false;
   auto* pp = pr->mutable_peer();
-  if (!pp || !Serialize(host, *pp)) {
-    return false;
-  }
+  if (!pp || !Serialize(host, *pp)) return false;
+
   for (const auto& req : reqs) {
     auto* proto = pr->add_reqs();
     if (!proto || !serialize(req, *proto)) return false;
@@ -37,12 +37,12 @@ bool Message::Serialize(const HostInfo& host, absl::Span<const Request> reqs,
 
 std::pair<HostInfo, std::vector<Request>> Message::Deserialize(
     const proto::ReqMsg& msg) {
-  DCHECK(msg.has_peer_req());
-
   const auto invalid = std::make_pair(HostInfo(), std::vector<Request>(0));
 
   HostInfo host;
+  if (!msg.has_peer_req()) return invalid;
   const proto::PeerReq& pr = msg.peer_req();
+  if (!pr.has_peer()) return invalid;
   if (!Deserialize(pr.peer(), host)) return invalid;
   DCHECK(host.IsValid());
 
@@ -53,9 +53,7 @@ std::pair<HostInfo, std::vector<Request>> Message::Deserialize(
     if (!deserialize(proto, req)) return invalid;
     reqs.push_back(req);
   }
-  if (!IsValid(reqs)) {
-    return invalid;
-  }
+  if (!IsValid(reqs)) return invalid;
   return {host, std::move(reqs)};
 }
 
@@ -78,10 +76,9 @@ bool Message::Serialize(const HostInfo& host, proto::HostInfo& proto) {
 }
 
 bool Message::Deserialize(const proto::HostInfo& proto, HostInfo& host) {
-  if (proto.has_control_plane_listener()) {
-    const proto::Endpoint& pc = proto.control_plane_listener();
-    if (!deserialize(pc, host.control_plane_listener)) return false;
-  }
+  if (!proto.has_control_plane_listener()) return false;
+  const proto::Endpoint& pc = proto.control_plane_listener();
+  if (!deserialize(pc, host.control_plane_listener)) return false;
 
   Endpoint e;
   host.data_plane_listeners.clear();

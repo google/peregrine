@@ -51,30 +51,33 @@ class Control final {
   ~Control();
 
   // Starts the gRPC server to begin accepting incoming request messages.
-  // Must be called only after host info is ready to be served.
+  // Must be called only after the `self_` host info is ready to be served.
+  // Returns true if the server was started successfully, false otherwise.
   bool Start();
 
-  // Registers a callback handler for incoming PSP token exchange requests.
-  void SetPspTcpHandler(PspTcpHandler handler);
+  // Sets the callback handler for incoming psp token exchange requests.
+  void SetPspTcpHandler(PspTcpHandler handler) {
+    absl::MutexLock _(psp_handler_mu_);
+    psp_tcp_handler_ = std::move(handler);
+  }
 
-  // Registers a callback handler for incoming RDMA connect requests.
-  void SetRdmaConnHandler(RdmaConnHandler handler);
+  // Sets the callback handler for incoming rdma connect requests.
+  void SetRdmaConnHandler(RdmaConnHandler handler) {
+    absl::MutexLock _(rdma_handler_mu_);
+    rdma_conn_handler_ = std::move(handler);
+  }
 
-  // Synchronously sends a request message to a remote peer endpoint.
-  // Returns the response message or an error status.
-  absl::StatusOr<proto::RespMsg> SendRequest(const Endpoint& peer,
-                                             const proto::ReqMsg& req_msg);
-
-  // Returns the HostInfo of a remote peer.
+  // Returns the host info of the `peer` endpoint.
   absl::StatusOr<HostInfo> GetPeerHostInfo(const Endpoint& peer)
       ABSL_LOCKS_EXCLUDED(peer_hosts_mu_);
 
-  // Exchanges PSP encryption keys out-of-band with a remote peer.
+  // Exchanges psp tokens with the `peer` endpoint.
   absl::StatusOr<PspToken> ExchangePspTokens(const PspToken& self_token,
                                              const Endpoint& peer_target,
                                              const Endpoint& peer);
 
-  // Exchanges QP credentials out-of-band with a remote peer.
+  // Exchanges rdma connection parameters with the `peer` endpoint.
+  // TODO(mubashirq): return an internal struct instead of proto.
   absl::StatusOr<proto::RdmaConnResp> ConnectRdmaPeer(
       const Endpoint& peer, std::string_view device_name, uint32_t qpn,
       absl::Span<const uint8_t> gid, uint32_t psn = 0, uint32_t rkey = 0);
@@ -84,8 +87,8 @@ class Control final {
   Control(const Config& config, const HostInfo& self, SecurityCredentials creds)
       : config_(config),
         self_(self),
-        server_creds_(std::move(creds.server_creds)),
-        client_creds_(std::move(creds.client_creds)) {
+        server_creds_(creds.server_creds),
+        client_creds_(creds.client_creds) {
     DCHECK(config_.IsValid());
     DCHECK(self_.control_plane_listener.HasNonzeroIpPort());
     DCHECK_NE(server_creds_, nullptr);
@@ -100,14 +103,19 @@ class Control final {
   }
 
  private:
-  // Retrieves an active client stub for peer_addr or instantiates a new one.
+  // Retrieves an active client stub for `peer` or instantiates a new one.
   const GrpcClient& getOrCreateClient(const Endpoint& peer)
       ABSL_LOCKS_EXCLUDED(peer_clients_mu_);
 
+  // Synchronously sends a request message to the `peer` endpoint.
+  // Returns the response message or an error status.
+  absl::StatusOr<proto::RespMsg> sendRequest(const Endpoint& peer,
+                                             const proto::ReqMsg& req_msg);
+
  private:
-  // Handles all incoming RPC requests.
-  absl::Status handleRequest(const proto::ReqMsg& req_msg,
-                             proto::RespMsg* resp_msg);
+  // Handles all types of incoming rpc requests.
+  absl::Status handleAllRequest(const proto::ReqMsg& req_msg,
+                                proto::RespMsg* resp_msg);
 
   // Handles host info exchange.
   absl::Status handleHostInfoExchange(const proto::HostInfo& req_proto,
@@ -119,7 +127,7 @@ class Control final {
                                       proto::PspTcpResp* resp_proto)
       ABSL_LOCKS_EXCLUDED(psp_handler_mu_);
 
-  // Handles rdma connection.
+  // Handles rdma connection establishment.
   absl::Status handleRdmaConnect(const proto::RdmaConnReq& req_proto,
                                  proto::RdmaConnResp* resp_proto)
       ABSL_LOCKS_EXCLUDED(rdma_handler_mu_);
@@ -127,6 +135,7 @@ class Control final {
  private:
   const Config& config_;
   const HostInfo& self_;
+
   std::shared_ptr<grpc::ServerCredentials> server_creds_;
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;
   std::unique_ptr<GrpcServer> grpc_server_;

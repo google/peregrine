@@ -112,7 +112,6 @@ cc_test(
     shard_count = 2,
     deps = [
         ":control",
-        ":message",
         ":message_cc_proto",
         ":message_internal_cc_proto",
         "//src/internal/base:config",
