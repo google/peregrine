@@ -7,6 +7,7 @@
 
 #include <cerrno>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -18,8 +19,10 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
-#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
+#include "third_party/liburing/src/include/liburing.h"
+#include "third_party/liburing/src/include/liburing/io_uring.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
@@ -43,8 +46,26 @@ std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family) {
   return absl::WrapUnique(new TcpSocket(fd, family, /*connected=*/true));
 }
 
+std::unique_ptr<struct io_uring> TcpSocket::uringInit() {
+  const uint32_t kEntries = 128;
+  const uint32_t kFlags = 0;
+  auto ring = std::make_unique<struct io_uring>();
+  if (int ret = io_uring_queue_init(kEntries, ring.get(), kFlags); ret != 0) {
+    LOG(WARNING) << "io_uring_queue_init failed: " << std::strerror(-ret);
+    return nullptr;
+  }
+  return ring;
+}
+
+void TcpSocket::uringShutdown() {
+  if (ring_ == nullptr) return;
+  io_uring_queue_exit(ring_.get());
+  ring_ = nullptr;
+}
+
 TcpSocket::~TcpSocket() {
   DCHECK(invariant());
+  uringShutdown();
   if (connected_) Shutdown();
   DCHECK(!connected_);
   LOG(INFO) << okMsg("closing");
@@ -315,8 +336,249 @@ ssize_t TcpSocket::RecvV(const absl::Span<const IoVec> iovecs) const {
   return rcvd;
 }
 
+struct io_uring_sqe* TcpSocket::uringGetSqe() {
+  DCHECK_NE(ring_, nullptr);
+
+  struct io_uring_sqe* sqe = io_uring_get_sqe(ring_.get());
+  if ABSL_PREDICT_FALSE (sqe == nullptr) {
+    int ret = 0;
+    while (true) {
+      ret = io_uring_submit(ring_.get());
+      if (ret == -EINTR) continue;
+      break;
+    }
+    if (ret < 0) {
+      LOG(WARNING) << "tcp io_uring_submit failed: " << std::strerror(-ret);
+      return nullptr;
+    }
+    sqe = io_uring_get_sqe(ring_.get());
+    if (sqe == nullptr) {
+      LOG(WARNING) << "tcp io_uring SQ is full";
+      return nullptr;
+    }
+  }
+  return sqe;
+}
+
+int TcpSocket::uringSubmitAndWait() {
+  DCHECK_NE(ring_, nullptr);
+
+  int ret = 0;
+  while (true) {
+    ret = io_uring_submit_and_wait(ring_.get(), /*wait_nr=*/1);
+    if (ret == -EINTR) continue;
+    break;
+  }
+  if ABSL_PREDICT_FALSE (ret < 0) {
+    LOG(WARNING) << "tcp io_uring_submit_and_wait failed: "
+                 << std::strerror(-ret);
+    return ret;
+  }
+
+  struct io_uring_cqe* cqe = nullptr;
+  while (true) {
+    ret = io_uring_wait_cqe(ring_.get(), &cqe);
+    if (ret == -EINTR) continue;
+    break;
+  }
+  if ABSL_PREDICT_FALSE (ret < 0) {
+    LOG(WARNING) << "tcp io_uring_wait_cqe failed: " << std::strerror(-ret);
+    return ret;
+  }
+
+  const int res = cqe->res;
+  io_uring_cqe_seen(ring_.get(), cqe);
+  return res;
+}
+
+ssize_t TcpSocket::SendUring(const Byte* buf, size_t len) {
+  DCHECK_NE(ring_, nullptr);
+  DCHECK(invariant());
+  DCHECK(IsBlocking());
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<int32_t>::max());
+
+  const Byte* ptr = buf;
+  size_t sent = 0;
+  ssize_t left = len;
+  while (left > 0) {
+    struct io_uring_sqe* sqe = uringGetSqe();
+    if ABSL_PREDICT_FALSE (sqe == nullptr) return -1;
+    io_uring_prep_send(sqe, fd_.value(), ptr, left, MSG_NOSIGNAL);
+
+    const int res = uringSubmitAndWait();
+    if ABSL_PREDICT_TRUE (res > 0) {
+      DCHECK_LE(res, left);
+      ptr += res;
+      left -= res;
+      sent += res;
+      DCHECK_EQ(buf + len, ptr + left);
+      VLOG(1) << ioMsg("send", res);
+    } else {
+      const int last_errno = -res;
+      if (res < 0) {
+        if (Interrupted(last_errno)) continue;
+        DCHECK(!WouldBlock(last_errno));
+        LOG(WARNING) << errMsg("send", last_errno);
+        return -1;
+      } else {
+        DCHECK_EQ(res, 0);
+        LOG(WARNING) << errMsg("send zero", last_errno);
+        return 0;
+      }
+    }
+  }
+  DCHECK_EQ(left, 0);
+  DCHECK_EQ(sent, len);
+  return sent;
+}
+
+ssize_t TcpSocket::SendVUring(absl::Span<const IoVec> iovecs) {
+  DCHECK_NE(ring_, nullptr);
+  DCHECK(invariant());
+  DCHECK(IsBlocking());
+  DCHECK_LE(iovecs.size(), IOV_MAX);
+
+  const size_t len = TotalLength(iovecs);
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<int32_t>::max());
+
+  std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
+  const size_t n = vecs.size();
+  size_t sent = 0;
+  size_t i = 0;
+  struct msghdr msg = {};
+  while (i < n) {
+    struct io_uring_sqe* sqe = uringGetSqe();
+    if ABSL_PREDICT_FALSE (sqe == nullptr) return -1;
+    msg.msg_iov = &vecs[i];
+    msg.msg_iovlen = n - i;
+    io_uring_prep_sendmsg(sqe, fd_.value(), &msg, MSG_NOSIGNAL);
+
+    const int res = uringSubmitAndWait();
+    if ABSL_PREDICT_TRUE (res > 0) {
+      sent += res;
+      VLOG(1) << ioMsg("sendv", res);
+      if ABSL_PREDICT_TRUE (sent >= len) break;
+      size_t b = static_cast<size_t>(res);
+      while (i < n && vecs[i].iov_len <= b) {
+        b -= vecs[i].iov_len;
+        ++i;
+      }
+      if (i >= n) break;
+      if (b > 0) {
+        vecs[i].iov_base = static_cast<Byte*>(vecs[i].iov_base) + b;
+        vecs[i].iov_len -= b;
+      }
+    } else {
+      const int last_errno = -res;
+      if (res < 0) {
+        if (Interrupted(last_errno)) continue;
+        DCHECK(!WouldBlock(last_errno));
+        LOG(WARNING) << errMsg("sendv", last_errno);
+        return -1;
+      } else {
+        DCHECK_EQ(res, 0);
+        LOG(WARNING) << errMsg("sendv zero", last_errno);
+        return 0;
+      }
+    }
+  }
+  DCHECK_EQ(sent, len);
+  return sent;
+}
+
+ssize_t TcpSocket::RecvUring(Byte* buf, size_t len) {
+  DCHECK_NE(ring_, nullptr);
+  DCHECK(invariant());
+  DCHECK(IsBlocking());
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<int32_t>::max());
+
+  Byte* ptr = buf;
+  size_t rcvd = 0;
+  ssize_t left = len;
+  while (left > 0) {
+    struct io_uring_sqe* sqe = uringGetSqe();
+    if ABSL_PREDICT_FALSE (sqe == nullptr) return -1;
+    io_uring_prep_recv(sqe, fd_.value(), ptr, left, /*flags=*/0);
+
+    const int res = uringSubmitAndWait();
+    if ABSL_PREDICT_TRUE (res > 0) {
+      DCHECK_LE(res, left);
+      ptr += res;
+      left -= res;
+      rcvd += res;
+      DCHECK_EQ(buf + len, ptr + left);
+      VLOG(1) << ioMsg("recv", res);
+    } else if (res == 0) {
+      LOG(INFO) << ioMsg("recv eof", 0);
+      return 0;
+    } else {
+      const int last_errno = -res;
+      if (Interrupted(last_errno)) continue;
+      DCHECK(!WouldBlock(last_errno));
+      LOG(WARNING) << errMsg("recv", last_errno);
+      return -1;
+    }
+  }
+  DCHECK_EQ(left, 0);
+  DCHECK_EQ(rcvd, len);
+  return rcvd;
+}
+
+ssize_t TcpSocket::RecvVUring(absl::Span<const IoVec> iovecs) {
+  DCHECK_NE(ring_, nullptr);
+  DCHECK(invariant());
+  DCHECK(IsBlocking());
+  DCHECK_LE(iovecs.size(), IOV_MAX);
+
+  const size_t len = TotalLength(iovecs);
+  DCHECK_GE(len, 1);
+  DCHECK_LE(len, std::numeric_limits<int32_t>::max());
+
+  std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
+  const size_t n = vecs.size();
+  size_t rcvd = 0;
+  size_t i = 0;
+  while (i < n) {
+    struct io_uring_sqe* sqe = uringGetSqe();
+    if ABSL_PREDICT_FALSE (sqe == nullptr) return -1;
+    io_uring_prep_readv(sqe, fd_.value(), &vecs[i], n - i, /*offset=*/0);
+
+    const int res = uringSubmitAndWait();
+    if ABSL_PREDICT_TRUE (res > 0) {
+      rcvd += res;
+      VLOG(1) << ioMsg("recvv", res);
+      if ABSL_PREDICT_TRUE (rcvd >= len) break;
+      size_t b = static_cast<size_t>(res);
+      while (i < n && vecs[i].iov_len <= b) {
+        b -= vecs[i].iov_len;
+        ++i;
+      }
+      if (i >= n) break;
+      if (b > 0) {
+        vecs[i].iov_base = static_cast<Byte*>(vecs[i].iov_base) + b;
+        vecs[i].iov_len -= b;
+      }
+    } else if (res == 0) {
+      LOG(INFO) << ioMsg("recvv eof", 0);
+      return 0;
+    } else {
+      const int last_errno = -res;
+      if (Interrupted(last_errno)) continue;
+      DCHECK(!WouldBlock(last_errno));
+      LOG(WARNING) << errMsg("recvv", last_errno);
+      return -1;
+    }
+  }
+  DCHECK_EQ(rcvd, len);
+  return rcvd;
+}
+
 std::string TcpSocket::ToString() const {
-  return absl::StrCat("tcp socket: ", AddrPortPair(fd_));
+  return absl::StrFormat("tcp socket: %s, io_uring=%s", AddrPortPair(fd_),
+                         ring_ != nullptr ? "enabled" : "disabled");
 }
 
 }  // namespace peregrine::internal
