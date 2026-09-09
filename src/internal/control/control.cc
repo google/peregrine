@@ -80,6 +80,7 @@ absl::Status Control::handleAllRequest(const proto::ReqMsg& req_msg,
   if (resp_msg == nullptr) {
     return absl::InvalidArgumentError("null response message");
   }
+  metrics_.rpc_requests_received.Add(1);
   switch (req_msg.msg_case()) {
     case proto::ReqMsg::kHostInfo:
       return handleHostInfoExchange(req_msg.host_info(),

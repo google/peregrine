@@ -16,6 +16,7 @@
 #include "absl/types/span.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
+#include "src/api/transport_types.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -23,6 +24,7 @@
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
+#include "src/internal/metrics/control_metrics.h"
 #include "src/internal/socket/psp/psp.h"
 #include "src/util/macro.h"
 
@@ -82,6 +84,9 @@ class Control final {
       const Endpoint& peer, std::string_view device_name, uint32_t qpn,
       absl::Span<const uint8_t> gid, uint32_t psn = 0, uint32_t rkey = 0);
 
+  // Takes a snapshot of control metrics.
+  void GetMetricsSnapshot(TransportMetrics& m) const { metrics_.Snapshot(m); }
+
  private:
   // Constructor.
   Control(const Config& config, const HostInfo& self, SecurityCredentials creds)
@@ -139,6 +144,8 @@ class Control final {
   std::shared_ptr<grpc::ServerCredentials> server_creds_;
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;
   std::unique_ptr<GrpcServer> grpc_server_;
+
+  ControlMetrics metrics_;
 
   absl::Mutex peer_clients_mu_;
   absl::flat_hash_map<Endpoint, std::unique_ptr<GrpcClient>> peer_clients_

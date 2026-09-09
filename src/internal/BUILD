@@ -46,6 +46,7 @@ cc_library(
         "//src/internal/base:hostinfo",
         "//src/internal/control",
         "//src/internal/engine",
+        "//src/internal/metrics:control_metrics",
         "//src/internal/metrics:engine_metrics",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",

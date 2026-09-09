@@ -126,9 +126,11 @@ NB_MODULE(peregrine, m) {
 
   // Bind `TransportMetrics`
   nb::class_<TransportMetrics>(m, "TransportMetrics")
-      .def_ro("tcp_connect_failures", &TransportMetrics::tcp_connect_failures);
+      .def_ro("tcp_connect_failures", &TransportMetrics::tcp_connect_failures)
+      .def_ro("rpc_requests_received",
+              &TransportMetrics::rpc_requests_received);
   // When adding a new metric, update the binding above and the count below.
-  constexpr size_t kTransportMetricsNumFields = 1;
+  constexpr size_t kTransportMetricsNumFields = 2;
   static_assert(CountFields<peregrine::TransportMetrics>() ==
                 kTransportMetricsNumFields);
 

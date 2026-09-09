@@ -17,6 +17,7 @@
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine.h"
+#include "src/internal/metrics/control_metrics.h"
 #include "src/internal/metrics/engine_metrics.h"
 
 namespace peregrine::internal {
@@ -71,8 +72,10 @@ class TransportImpl final : public Transport {
   // Returns a snapshot of metrics.
   TransportMetrics GetTransportMetrics() const override {
     static_assert(assumptions::kAddingNewMetricRules);
-    static_assert(sizeof(TransportMetrics) == sizeof(EngineMetrics));
+    static_assert(sizeof(TransportMetrics) ==
+                  sizeof(EngineMetrics) + sizeof(ControlMetrics));
     TransportMetrics m;
+    control_->GetMetricsSnapshot(m);
     engine_->GetMetricsSnapshot(m);
     return m;
   }

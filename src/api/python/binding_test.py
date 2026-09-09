@@ -113,6 +113,8 @@ class BindTest(absltest.TestCase):
         attr for attr in dir(metrics) if not attr.startswith("_")
     ]
     self.assertNotEmpty(metric_fields)
+    self.assertIn("tcp_connect_failures", metric_fields)
+    self.assertIn("rpc_requests_received", metric_fields)
     for field in metric_fields:
       val = getattr(metrics, field)
       if not callable(val):
