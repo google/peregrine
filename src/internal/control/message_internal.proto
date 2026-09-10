@@ -59,6 +59,7 @@ message RdmaConnResp {
 // Common message components
 // -------------------------
 
+// LINT.IfChange
 message Request {
   enum Op {
     INVALID = 0;
@@ -71,6 +72,7 @@ message Request {
   uint64 len = 4;    // buffer length in bytes
   uint32 rkey = 5;   // remote memory region key (for RDMA)
 }
+// LINT.ThenChange(../../api/transport_types.h)
 
 message Endpoint {
   bytes ip_port = 1;  // e.g. "127.0.0.1:56789" or "[::1]:56789"

@@ -38,7 +38,7 @@ struct Request final {
   Byte* raddr = nullptr;  // address in the remote peer process
   size_t len = 0;         // buffer length in bytes
   uint32_t rkey = 0;      // remote memory region key (for RDMA operations)
-  // LINT.ThenChange(src/internal/control/message.proto)
+  // LINT.ThenChange(../internal/control/message_internal.proto)
 
   // Returns true iff the request is valid.
   constexpr bool IsValid() const {
