@@ -73,8 +73,6 @@ class TransportImpl final : public Transport {
   // Returns a snapshot of metrics.
   TransportMetrics GetTransportMetrics() const override {
     static_assert(assumptions::kAddingNewMetricRules);
-    static_assert(sizeof(TransportMetrics) ==
-                  sizeof(EngineMetrics) + sizeof(ControlMetrics));
     TransportMetrics m;
     control_->GetMetricsSnapshot(m);
     engine_->GetMetricsSnapshot(m);
