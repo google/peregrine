@@ -16,6 +16,7 @@
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
 
 namespace peregrine::internal {
@@ -82,6 +83,30 @@ std::string PeerAddrPort(const fd_t fd) {
     const auto last_errno = errno;
     LOG(WARNING) << ErrorMsg("getpeername", last_errno);
     return "?";
+  }
+}
+
+Endpoint SelfEndpoint(const fd_t fd) {
+  struct sockaddr_storage ss;
+  socklen_t len = sizeof(ss);
+  if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
+    return Endpoint::Create(ss);
+  } else {
+    const auto last_errno = errno;
+    LOG(WARNING) << ErrorMsg("getsockname", last_errno);
+    return Endpoint();
+  }
+}
+
+Endpoint PeerEndpoint(const fd_t fd) {
+  struct sockaddr_storage ss;
+  socklen_t len = sizeof(ss);
+  if (::getpeername(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
+    return Endpoint::Create(ss);
+  } else {
+    const auto last_errno = errno;
+    LOG(WARNING) << ErrorMsg("getpeername", last_errno);
+    return Endpoint();
   }
 }
 

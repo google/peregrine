@@ -62,6 +62,21 @@ Endpoint Endpoint::Create(const std::string_view ipaddr_port) {
   }
 }
 
+Endpoint Endpoint::Create(const struct sockaddr_storage& ss) {
+  switch (ss.ss_family) {
+    case AF_INET: {
+      const auto* sa = reinterpret_cast<const struct sockaddr_in*>(&ss);
+      return Endpoint(sa->sin_addr, ntohs(sa->sin_port));
+    }
+    case AF_INET6: {
+      const auto* sa = reinterpret_cast<const struct sockaddr_in6*>(&ss);
+      return Endpoint(sa->sin6_addr, ntohs(sa->sin6_port));
+    }
+    default:
+      return Endpoint();
+  }
+}
+
 struct sockaddr_in Endpoint::BuildIPv4Sockaddr() const {
   DCHECK(IsIPv4());
   return sockaddr_in{

@@ -25,6 +25,10 @@ class Endpoint final {
   // "[::1]:56789". Returns an invalid endpoint if the string parsing fails.
   static Endpoint Create(std::string_view ipaddr_port);
 
+  // Parses and creates an endpoint from a `sockaddr_storage`.
+  // Returns an invalid endpoint if the parsing fails.
+  static Endpoint Create(const struct sockaddr_storage& ss);
+
   // Default constructor creates an invalid endpoint.
   Endpoint() : ipaddr_(), port_(0) {
     DCHECK(HasZeroIpAddr());

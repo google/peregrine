@@ -95,6 +95,7 @@ cc_library(
     srcs = ["socket_util.cc"],
     hdrs = ["socket_util.h"],
     deps = [
+        "//src/internal/base:endpoint",
         "//src/internal/base:types",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",

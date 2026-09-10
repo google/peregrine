@@ -47,7 +47,7 @@ std::unique_ptr<TcpSocket> TcpAcceptor::createOne(Endpoint& endpoint,
     return nullptr;
   }
 
-  endpoint = Endpoint::Create(SelfAddrPort(socket->fd()));
+  endpoint = SelfEndpoint(socket->fd());
   if (!endpoint.HasNonzeroIpPort()) {
     return nullptr;
   }

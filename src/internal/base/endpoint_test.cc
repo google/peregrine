@@ -16,7 +16,7 @@ namespace {
 constexpr util::ipv4_t kIPv4{.s_addr = 0x0100007f};
 constexpr util::ipv6_t kIPv6 = IN6ADDR_LOOPBACK_INIT;
 
-TEST(EndpointTest, Create) {
+TEST(EndpointTest, CreateFromString) {
   EXPECT_EQ(Endpoint::Create("127.0.0.1:12345"), Endpoint(kIPv4, 12345));
   EXPECT_EQ(Endpoint::Create("[::1]:54321"), Endpoint(kIPv6, 54321));
 
@@ -26,6 +26,23 @@ TEST(EndpointTest, Create) {
   EXPECT_FALSE(Endpoint::Create("10.0.0.1:0").HasNonzeroIpPort());
   EXPECT_FALSE(Endpoint::Create("10.0.0.1:-1").HasNonzeroIpPort());
   EXPECT_FALSE(Endpoint::Create("10.0.0.1:65536").HasNonzeroIpPort());
+}
+
+TEST(EndpointTest, CreateFromSockAddrStorage) {
+  struct sockaddr_storage ss = {};
+  EXPECT_EQ(Endpoint::Create(ss), Endpoint());
+
+  struct sockaddr_in* sa_in = (struct sockaddr_in*)&ss;
+  sa_in->sin_family = AF_INET;
+  sa_in->sin_port = htons(12345);
+  ASSERT_EQ(inet_pton(AF_INET, "127.0.0.1", &sa_in->sin_addr), 1);
+  EXPECT_EQ(Endpoint::Create(ss).ToString(), "127.0.0.1:12345");
+
+  struct sockaddr_in6* sa_in6 = (struct sockaddr_in6*)&ss;
+  sa_in6->sin6_family = AF_INET6;
+  sa_in6->sin6_port = htons(23456);
+  ASSERT_EQ(inet_pton(AF_INET6, "::1", &sa_in6->sin6_addr), 1);
+  EXPECT_EQ(Endpoint::Create(ss).ToString(), "[::1]:23456");
 }
 
 TEST(EndpointTest, Validity) {

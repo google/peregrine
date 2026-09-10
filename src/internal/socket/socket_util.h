@@ -11,6 +11,7 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
 
 namespace peregrine::internal {
@@ -67,11 +68,17 @@ inline bool WouldBlock(int last_errno) {
 // Returns true iff the socket connect operation is in progress.
 inline bool InProgress(int last_errno) { return last_errno == EINPROGRESS; }
 
-// Returns a self ip:port string for the socket `fd`.
+// Returns the self ip:port string for the socket `fd`.
 std::string SelfAddrPort(fd_t fd);
 
-// Returns a peer ip:port string for the socket `fd`.
+// Returns the peer ip:port string for the socket `fd`.
 std::string PeerAddrPort(fd_t fd);
+
+// Returns the self endpoint for the socket `fd`.
+Endpoint SelfEndpoint(fd_t fd);
+
+// Returns the peer endpoint for the socket `fd`.
+Endpoint PeerEndpoint(fd_t fd);
 
 // Returns a string of self/peer ip:port pair for the socket `fd`.
 inline std::string AddrPortPair(fd_t fd) {
