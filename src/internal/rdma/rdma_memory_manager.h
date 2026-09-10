@@ -40,7 +40,7 @@ class RdmaMemoryManager final {
   DISALLOW_COPY(RdmaMemoryManager);
   DISALLOW_MOVE(RdmaMemoryManager);
 
-  // Destructor. Automatically deregisters all memory regions across all
+  // Destructor. Automatically unregisters all memory regions across all
   // devices.
   ~RdmaMemoryManager();
 
@@ -51,8 +51,8 @@ class RdmaMemoryManager final {
   absl::Status RegisterMemory(void* addr, size_t length,
                               int access_flags = kDefaultAccessFlags);
 
-  // Deregisters the memory buffer registered at base `addr` across all devices.
-  absl::Status DeregisterMemory(const void* addr);
+  // Unregisters the memory buffer registered at base `addr` across all devices.
+  absl::Status UnregisterMemory(const void* addr);
 
   // Returns the ibv_mr handle for the range [addr, addr + length) on
   // `device_name`, or nullptr if the range is not registered or out of bounds.

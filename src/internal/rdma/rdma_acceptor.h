@@ -47,9 +47,9 @@ class RdmaAcceptor final {
   absl::Status RegisterMemory(void* addr, size_t length)
       ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Deregisters a previously registered memory buffer from active RDMA
+  // Unregisters a previously registered memory buffer from active RDMA
   // hardware adapters.
-  absl::Status DeregisterMemory(const void* addr) ABSL_LOCKS_EXCLUDED(mu_);
+  absl::Status UnregisterMemory(const void* addr) ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
   // Constructor.

@@ -46,12 +46,12 @@ class Transport {
   // Returns an error status if registration fails.
   virtual absl::Status RegisterMemory(void* addr, size_t length) = 0;
 
-  // Deregisters the memory buffer starting at base `addr` previously registered
+  // Unregisters the memory buffer starting at base `addr` previously registered
   // via RegisterMemory().
   //
   // Unpins pages and releases hardware memory regions. Returns an error status
-  // if deregistration fails.
-  virtual absl::Status DeregisterMemory(const void* addr) = 0;
+  // if the action fails.
+  virtual absl::Status UnregisterMemory(const void* addr) = 0;
 
   // Returns a snapshot of the transport metrics.
   virtual TransportMetrics GetTransportMetrics() const = 0;

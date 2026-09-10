@@ -15,6 +15,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "src/internal/rdma/rdma_device_context.h"
 #include "src/internal/rdma/rdma_device_manager.h"
@@ -27,20 +28,18 @@ std::string ErrorMsg(std::string_view prefix, int last_errno) {
                          std::strerror(last_errno));
 }
 
-void deregisterMrs(
+void UnregisterMrs(
     const absl::flat_hash_map<std::string, struct ibv_mr*>& mrs) {
   for (const auto& [device_name, mr] : mrs) {
     if (mr != nullptr) {
       if (ibv_dereg_mr(mr) != 0) {
         LOG(WARNING) << ErrorMsg(
-            absl::StrFormat("failed to deregister MR on device %s",
-                            device_name),
+            absl::StrCat("failed to unregister MR on device ", device_name),
             errno);
       }
     }
   }
 }
-
 }  // namespace
 
 RdmaMemoryManager::RdmaMemoryManager(const RdmaDeviceManager* device_manager)
@@ -51,7 +50,7 @@ RdmaMemoryManager::RdmaMemoryManager(const RdmaDeviceManager* device_manager)
 
 RdmaMemoryManager::~RdmaMemoryManager() {
   for (const auto& [addr, region] : registered_regions_) {
-    deregisterMrs(region.device_mrs);
+    UnregisterMrs(region.device_mrs);
   }
   LOG(INFO) << "RdmaMemoryManager destroyed";
 }
@@ -87,7 +86,7 @@ absl::Status RdmaMemoryManager::RegisterMemory(void* addr, size_t length,
   for (const auto& dev_ctx : device_manager_->Devices()) {
     struct ibv_pd* pd = dev_ctx->GetPd();
     if (pd == nullptr) {
-      deregisterMrs(memory_regions);
+      UnregisterMrs(memory_regions);
       return absl::InternalError(absl::StrFormat(
           "device %s has null protection domain (PD)", dev_ctx->Name()));
     }
@@ -99,7 +98,7 @@ absl::Status RdmaMemoryManager::RegisterMemory(void* addr, size_t length,
           absl::StrFormat("ibv_reg_mr failed for device %s (addr=%p, len=%zu)",
                           dev_ctx->Name(), addr, length),
           err);
-      deregisterMrs(memory_regions);
+      UnregisterMrs(memory_regions);
       return absl::InternalError(
           absl::StrFormat("ibv_reg_mr failed on device %s: errno=%d (%s)",
                           dev_ctx->Name(), err, std::strerror(err)));
@@ -115,7 +114,7 @@ absl::Status RdmaMemoryManager::RegisterMemory(void* addr, size_t length,
   return absl::OkStatus();
 }
 
-absl::Status RdmaMemoryManager::DeregisterMemory(const void* addr) {
+absl::Status RdmaMemoryManager::UnregisterMemory(const void* addr) {
   const uintptr_t target = reinterpret_cast<uintptr_t>(addr);
   auto it = registered_regions_.find(target);
   if (it == registered_regions_.end()) {
@@ -123,9 +122,9 @@ absl::Status RdmaMemoryManager::DeregisterMemory(const void* addr) {
         absl::StrFormat("buffer at %p is not registered", addr));
   }
 
-  deregisterMrs(it->second.device_mrs);
+  UnregisterMrs(it->second.device_mrs);
   registered_regions_.erase(it);
-  LOG(INFO) << "Deregistered memory buffer at " << addr;
+  LOG(INFO) << "Unregistered memory buffer at " << addr;
   return absl::OkStatus();
 }
 

@@ -14,11 +14,14 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
+#include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine.h"
+#include "src/internal/metrics/control_metrics.h"
+#include "src/internal/metrics/engine_metrics.h"
 
 namespace peregrine::internal {
 
@@ -95,6 +98,17 @@ absl::StatusOr<Handle> TransportImpl::Post(
   }
 
   return engine_->Enqueue(endpoint, requests, std::move(on_complete));
+}
+
+TransportMetrics TransportImpl::GetTransportMetrics() const {
+  static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
+  static_assert(sizeof(TransportMetrics) ==
+                sizeof(EngineMetrics) + sizeof(ControlMetrics));
+
+  TransportMetrics m;
+  control_->GetMetricsSnapshot(m);
+  engine_->GetMetricsSnapshot(m);
+  return m;
 }
 
 }  // namespace peregrine::internal

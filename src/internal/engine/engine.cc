@@ -232,9 +232,9 @@ absl::Status Engine::RegisterMemory(void* addr, size_t length) {
   return absl::FailedPreconditionError("RDMA acceptor not initialized");
 }
 
-absl::Status Engine::DeregisterMemory(const void* addr) {
+absl::Status Engine::UnregisterMemory(const void* addr) {
   if (rdma_acceptor_ != nullptr) {
-    return rdma_acceptor_->DeregisterMemory(addr);
+    return rdma_acceptor_->UnregisterMemory(addr);
   }
   if (config_.transport_type == TransportType::kTcp) {
     return absl::OkStatus();

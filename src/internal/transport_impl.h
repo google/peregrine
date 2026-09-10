@@ -12,14 +12,11 @@
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
-#include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine.h"
-#include "src/internal/metrics/control_metrics.h"
-#include "src/internal/metrics/engine_metrics.h"
 
 namespace peregrine::internal {
 
@@ -64,20 +61,14 @@ class TransportImpl final : public Transport {
     return engine_->RegisterMemory(addr, length);
   }
 
-  // Deregisters the memory buffer starting at base `addr` across active RDMA
+  // Unregisters the memory buffer starting at base `addr` across active RDMA
   // hardware adapters.
-  absl::Status DeregisterMemory(const void* addr) override {
-    return engine_->DeregisterMemory(addr);
+  absl::Status UnregisterMemory(const void* addr) override {
+    return engine_->UnregisterMemory(addr);
   }
 
   // Returns a snapshot of metrics.
-  TransportMetrics GetTransportMetrics() const override {
-    static_assert(assumptions::kAddingNewMetricRules);
-    TransportMetrics m;
-    control_->GetMetricsSnapshot(m);
-    engine_->GetMetricsSnapshot(m);
-    return m;
-  }
+  TransportMetrics GetTransportMetrics() const override;
 
  private:
   // Constructor.

@@ -264,7 +264,7 @@ inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
 //    (`src/internal/metrics/engine_metrics.h`).
 //  - Python binding: Bind the property via `.def_ro` in
 //    `src/api/python/binding.cc`.
-inline constexpr bool kAddingNewMetricRules = true;
+inline constexpr bool kRulesToFollowWhenAddingNewMetrics = true;
 
 }  // namespace peregrine::assumptions
 

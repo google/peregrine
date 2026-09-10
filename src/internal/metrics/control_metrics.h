@@ -10,6 +10,8 @@
 namespace peregrine::internal {
 
 struct ControlMetrics final {
+  static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
+
   // Number of RPC requests received by the control plane.
   MetricCounter<uint64_t> rpc_requests_received;
 
@@ -17,8 +19,6 @@ struct ControlMetrics final {
     m.rpc_requests_received = rpc_requests_received.Value();
   }
 };
-
-static_assert(assumptions::kAddingNewMetricRules);
 
 }  // namespace peregrine::internal
 

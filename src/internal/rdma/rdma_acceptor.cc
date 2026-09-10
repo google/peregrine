@@ -100,10 +100,10 @@ absl::Status RdmaAcceptor::RegisterMemory(void* addr, size_t length) {
   return absl::FailedPreconditionError("RDMA memory manager not initialized");
 }
 
-absl::Status RdmaAcceptor::DeregisterMemory(const void* addr) {
+absl::Status RdmaAcceptor::UnregisterMemory(const void* addr) {
   absl::MutexLock _(mu_);
   if (rdma_memmgr_ != nullptr) {
-    return rdma_memmgr_->DeregisterMemory(addr);
+    return rdma_memmgr_->UnregisterMemory(addr);
   }
   return absl::FailedPreconditionError("RDMA memory manager not initialized");
 }

@@ -105,8 +105,8 @@ TEST(RdmaChannelTest, LoopbackWrite) {
   EXPECT_EQ(std::memcmp(src_buf.data(), dst_buf.data(), kBufSize), 0);
 
   // Clean up memory registrations.
-  EXPECT_TRUE(mem_mgr.DeregisterMemory(src_buf.data()).ok());
-  EXPECT_TRUE(mem_mgr.DeregisterMemory(dst_buf.data()).ok());
+  EXPECT_TRUE(mem_mgr.UnregisterMemory(src_buf.data()).ok());
+  EXPECT_TRUE(mem_mgr.UnregisterMemory(dst_buf.data()).ok());
 }
 
 }  // namespace

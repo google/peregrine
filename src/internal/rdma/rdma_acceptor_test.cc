@@ -58,7 +58,7 @@ TEST(RdmaAcceptorTest, CreateAndRegisterMemoryWithRdmaTransport) {
   std::vector<uint8_t> buffer(kBufferSize, 0xAB);
 
   EXPECT_TRUE(acceptor->RegisterMemory(buffer.data(), buffer.size()).ok());
-  EXPECT_TRUE(acceptor->DeregisterMemory(buffer.data()).ok());
+  EXPECT_TRUE(acceptor->UnregisterMemory(buffer.data()).ok());
 }
 
 }  // namespace

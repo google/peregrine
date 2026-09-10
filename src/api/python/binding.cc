@@ -112,10 +112,10 @@ NB_MODULE(peregrine, m) {
           },
           nb::arg("addr"), nb::arg("length"))
       .def(
-          "deregister_memory",
+          "unregister_memory",
           [](Transport& self, uintptr_t addr) {
             ThrowIfFailed(
-                self.DeregisterMemory(reinterpret_cast<const void*>(addr)));
+                self.UnregisterMemory(reinterpret_cast<const void*>(addr)));
           },
           nb::arg("addr"))
       .def("get_transport_metrics", &Transport::GetTransportMetrics,

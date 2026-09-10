@@ -99,7 +99,7 @@ class BindTest(absltest.TestCase):
     self.assertIsNotNone(transport)
     # Registration on TCP transport is a no-op that succeeds.
     transport.register_memory(ctypes.addressof(lbuf), len(lbuf))
-    transport.deregister_memory(ctypes.addressof(lbuf))
+    transport.unregister_memory(ctypes.addressof(lbuf))
 
   def test_get_transport_metrics(self):
     port = util.find_free_port(socket.AF_INET, tcp=True)

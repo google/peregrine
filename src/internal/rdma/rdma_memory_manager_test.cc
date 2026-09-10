@@ -153,7 +153,7 @@ TEST_F(RdmaMemoryManagerTest, DuplicateOrContainedRegistrationFails) {
       mem_manager.RegisterMemory(buffer.data() + 100, 500)));
 }
 
-TEST_F(RdmaMemoryManagerTest, DeregisterMemory) {
+TEST_F(RdmaMemoryManagerTest, UnregisterMemory) {
   RdmaMemoryManager mem_manager(dev_mgr_.get());
 
   constexpr size_t kBufferSize = 4096;
@@ -161,8 +161,8 @@ TEST_F(RdmaMemoryManagerTest, DeregisterMemory) {
 
   ASSERT_TRUE(mem_manager.RegisterMemory(buffer.data(), buffer.size()).ok());
 
-  // Deregister.
-  ASSERT_TRUE(mem_manager.DeregisterMemory(buffer.data()).ok());
+  // Unregister.
+  ASSERT_TRUE(mem_manager.UnregisterMemory(buffer.data()).ok());
 
   // Subsequent lookups should fail.
   for (const auto& dev_ctx : dev_mgr_->Devices()) {
@@ -174,8 +174,8 @@ TEST_F(RdmaMemoryManagerTest, DeregisterMemory) {
             .status()));
   }
 
-  // Second deregistration should fail with NotFound.
-  EXPECT_TRUE(absl::IsNotFound(mem_manager.DeregisterMemory(buffer.data())));
+  // Second unregistration should fail with NotFound.
+  EXPECT_TRUE(absl::IsNotFound(mem_manager.UnregisterMemory(buffer.data())));
 }
 
 TEST_F(RdmaMemoryManagerTest, GetDefaultKeys) {
