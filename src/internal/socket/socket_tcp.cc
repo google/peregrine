@@ -202,9 +202,10 @@ ssize_t TcpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
   const size_t n = vecs.size();
   size_t sent = 0;
   size_t i = 0;
-  struct msghdr msg;
+  struct msghdr msg = {};
   while (i < n) {
-    msg = {.msg_iov = &vecs[i], .msg_iovlen = n - i};
+    msg.msg_iov = &vecs[i];
+    msg.msg_iovlen = n - i;
     const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
@@ -224,11 +225,11 @@ ssize_t TcpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
       if ABSL_PREDICT_TRUE (bytes < 0) {
         if (Interrupted(last_errno)) continue;
         DCHECK(!WouldBlock(last_errno));
-        LOG(WARNING) << errMsg("send", last_errno);
+        LOG(WARNING) << errMsg("sendmsg", last_errno);
         return -1;
       } else {  // rarely happens
         DCHECK_EQ(bytes, 0);
-        LOG(WARNING) << errMsg("send zero", last_errno);
+        LOG(WARNING) << errMsg("sendmsg zero", last_errno);
         return 0;
       }
     }
@@ -300,13 +301,13 @@ ssize_t TcpSocket::RecvV(const absl::Span<const IoVec> iovecs) const {
         vecs[i].iov_len -= b;
       }
     } else if (bytes == 0) {  // peer closed connection
-      LOG(INFO) << ioMsg("recv eof", 0);
+      LOG(INFO) << ioMsg("readv eof", 0);
       return 0;
     } else {
       const auto last_errno = errno;
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
-      LOG(WARNING) << errMsg("recv", last_errno);
+      LOG(WARNING) << errMsg("readv", last_errno);
       return -1;
     }
   }
