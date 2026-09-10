@@ -40,18 +40,16 @@ class Transport {
   // complete.
   virtual absl::StatusOr<Status> Poll(Handle handle) = 0;
 
-  // Registers a contiguous memory buffer of `length` bytes starting at `addr`
-  // with the transport.
+  // Registers a contiguous memory buffer of `length` bytes at the base `addr`.
   //
-  // Pins pages and registers the memory across all active hardware adapters.
-  // Returns an error status if registration fails.
+  // Pins the memory buffer in physical address space for RDMA access.
+  // Returns OK on success, or an error status otherwise.
   virtual absl::Status RegisterMemory(void* addr, size_t length) = 0;
 
-  // Unregisters the memory buffer starting at base `addr` previously registered
-  // via RegisterMemory().
+  // Unregisters the previously registered memory buffer at the base `addr`.
   //
-  // Unpins pages and releases hardware memory regions. Returns an error status
-  // if the action fails.
+  // Unpins the memory buffer from physical address space.
+  // Returns OK on success, or an error status otherwise.
   virtual absl::Status UnregisterMemory(const void* addr) = 0;
 
   // Returns a snapshot of the transport metrics.

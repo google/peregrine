@@ -40,6 +40,7 @@ cc_library(
     deps = [
         ":assumptions",
         "//src/api:transport",
+        "//src/api:transport_metrics",
         "//src/api:transport_types",
         "//src/internal/base:config",
         "//src/internal/base:endpoint",
