@@ -12,6 +12,7 @@
 #include "absl/strings/str_format.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_types.h"
 #include "src/internal/rdma/rdma_device_context.h"
 #include "src/internal/rdma/rdma_device_manager.h"
@@ -69,7 +70,7 @@ TEST_P(ChannelUtilTest, Create) {
 
   for (const Endpoint& peer : peers_) {
     constexpr int kNumChannels = 8;
-    Channels chs = Create(peer, kNumChannels);
+    std::vector<std::unique_ptr<Channel>> chs = Create(peer, kNumChannels);
     EXPECT_EQ(chs.size(), kNumChannels);
   }
 

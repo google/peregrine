@@ -8,6 +8,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
 
 namespace peregrine {

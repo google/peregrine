@@ -32,11 +32,26 @@ cc_library(
     name = "transport",
     hdrs = ["transport.h"],
     deps = [
+        ":transport_metrics",
         ":transport_types",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "transport_metrics",
+    hdrs = ["transport_metrics.h"],
+)
+
+cc_test(
+    name = "transport_metrics_test",
+    srcs = ["transport_metrics_test.cc"],
+    deps = [
+        ":transport_metrics",
+        "@googletest//:gtest_main",
     ],
 )
 

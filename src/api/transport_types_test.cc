@@ -1,7 +1,5 @@
 #include "src/api/transport_types.h"
 
-#include <cstddef>
-
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 
@@ -92,16 +90,6 @@ TEST(TransportRequest, RKeyAndEquality) {
   EXPECT_EQ(r1, r2);
   EXPECT_NE(r1, r3);
   EXPECT_NE(r1.ToString().find("rkey: 0xabcd"), std::string::npos);
-}
-
-TEST(TransportMetrics, DefaultInitialization) {
-  const TransportMetrics m;
-
-  // Verify every byte in the struct is zeroed without naming any fields.
-  const auto* bytes = reinterpret_cast<const unsigned char*>(&m);
-  for (size_t i = 0; i < sizeof(TransportMetrics); ++i) {
-    EXPECT_EQ(bytes[i], 0);
-  }
 }
 
 }  // namespace

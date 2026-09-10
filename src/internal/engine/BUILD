@@ -9,6 +9,7 @@ cc_library(
     hdrs = ["engine.h"],
     deps = [
         ":worker",
+        "//src/api:transport_metrics",
         "//src/api:transport_types",
         "//src/internal:assumptions",
         "//src/internal:coding_style",

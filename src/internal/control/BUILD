@@ -86,7 +86,7 @@ cc_library(
         ":message",
         ":message_cc_proto",
         ":message_internal_cc_proto",
-        "//src/api:transport_types",
+        "//src/api:transport_metrics",
         "//src/internal:assumptions",
         "//src/internal/base:config",
         "//src/internal/base:endpoint",

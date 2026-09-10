@@ -3,15 +3,15 @@
 
 #include <cstdint>
 
-#include "src/api/transport_types.h"
+#include "src/api/transport_metrics.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/lib/metric_counter.h"
 
 namespace peregrine::internal {
 
-struct ControlMetrics final {
-  static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
+static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 
+struct ControlMetrics final {
   // Number of RPC requests received by the control plane.
   MetricCounter<uint64_t> rpc_requests_received;
 

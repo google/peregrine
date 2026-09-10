@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_UTIL_H_
 #define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_UTIL_H_
 
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -34,10 +35,8 @@ inline std::unique_ptr<Channel> CreateRdmaChannel(
   return std::make_unique<RdmaChannel>(std::move(qp), lkey, rkey);
 }
 
-using Channels = std::vector<std::unique_ptr<Channel>>;
-
 // Creates `n` channels connected to the `peer`.
-Channels Create(const Endpoint& peer, int n);
+std::vector<std::unique_ptr<Channel>> Create(const Endpoint& peer, int n);
 
 }  // namespace peregrine::internal
 

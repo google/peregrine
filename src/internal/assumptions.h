@@ -247,23 +247,29 @@ inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
 // Assumptions about metrics.
 // ---------------------------------------------------------------------------
 //
-// Metrics use lock-free, lossy atomic counters (`MetricCounter`) to minimize
-// data-plane overhead. Snapshots are retrieved via
-// `Transport::GetTransportMetrics()`, returning a `TransportMetrics` struct.
+// All metrics must be defined in the `src/internal/metrics` directory, where
+// `control_metrics.h` is for control plane, and `engine_metrics.h` for data
+// plane.
 //
-// Counter updates in tight loops are batched into local variables and added to
-// the atomic counter once upon completion, avoiding unnecessary cache-line
-// bouncing on hot datapaths.
+// A subset of metrics are exposed via `Transport::GetTransportMetrics()` in
+// the public API `src/api/transport_metrics.h`.
 //
-// When adding a new metric, updates are needed in the following places:
-//  - Public struct: Add the field in `TransportMetrics`
-//    (`src/api/transport_types.h`).
-//  - Internal struct: Add the `MetricCounter` member in component metrics
-//    struct (e.g., `EngineMetrics` in `src/internal/metrics/engine_metrics.h`).
-//  - Snapshot mapping: Copy the counter in `Snapshot()`
-//    (`src/internal/metrics/engine_metrics.h`).
-//  - Python binding: Bind the property via `.def_ro` in
-//    `src/api/python/binding.cc`.
+// MetricCounter uses lock-free, lossy atomic counters to minimize data-plane
+// overhead. Counter updates in tight loops are batched into local variables
+// and added to the atomic counter once upon completion, avoiding unnecessary
+// cache-line bouncing on hot datapaths. Other metrics include histograms, etc.
+//
+// We follow these steps when adding a new metric:
+//
+// 1) Internal change:
+//  - Add it in one of the component metrics structs.
+//    See `ControlMetrics` in `src/internal/metrics/control_metrics.h`
+//    and `EngineMetrics` in `src/internal/metrics/engine_metrics.h`.
+//
+// 2) If the metric is to be exposed in `TransportMetrics`:
+//  - Add it to the `Snapshot()` function in `src/internal/metrics/`
+//  - Add it in `src/api/transport_metrics.h`
+//  - Bind the property in `src/api/python/binding.cc`
 inline constexpr bool kRulesToFollowWhenAddingNewMetrics = true;
 
 }  // namespace peregrine::assumptions

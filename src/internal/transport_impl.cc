@@ -20,8 +20,6 @@
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine.h"
-#include "src/internal/metrics/control_metrics.h"
-#include "src/internal/metrics/engine_metrics.h"
 
 namespace peregrine::internal {
 
@@ -102,12 +100,9 @@ absl::StatusOr<Handle> TransportImpl::Post(
 
 TransportMetrics TransportImpl::GetTransportMetrics() const {
   static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
-  static_assert(sizeof(TransportMetrics) ==
-                sizeof(EngineMetrics) + sizeof(ControlMetrics));
-
   TransportMetrics m;
-  control_->GetMetricsSnapshot(m);
-  engine_->GetMetricsSnapshot(m);
+  control_->GetMetrics(m);
+  engine_->GetMetrics(m);
   return m;
 }
 

@@ -17,6 +17,7 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
+#include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
@@ -77,7 +78,7 @@ class Engine final {
   absl::Status UnregisterMemory(const void* addr) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Takes a snapshot of engine metrics.
-  void GetMetricsSnapshot(TransportMetrics& m) const { metrics_.Snapshot(m); }
+  void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
 
  private:
   struct Entry {
@@ -149,7 +150,7 @@ class Engine final {
   HostInfo& self_;
   Control& control_;
 
-  EngineMetrics metrics_;
+  EngineHelperMetrics metrics_;
 
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);

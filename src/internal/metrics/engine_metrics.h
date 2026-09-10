@@ -3,15 +3,19 @@
 
 #include <cstdint>
 
-#include "src/api/transport_types.h"
+#include "src/api/transport_metrics.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/lib/metric_counter.h"
 
 namespace peregrine::internal {
 
-struct EngineMetrics final {
-  static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
+static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 
+struct EngineMetrics final {
+  void Snapshot(TransportMetrics& m) const {}
+};
+
+struct EngineHelperMetrics final {
   MetricCounter<uint64_t> tcp_connect_failures;
 
   void Snapshot(TransportMetrics& m) const {

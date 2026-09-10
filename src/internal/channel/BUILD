@@ -171,6 +171,7 @@ cc_test(
     srcs = ["channel_util_test.cc"],
     shard_count = 2,
     deps = [
+        ":channel",
         ":channel_types",
         ":channel_util",
         "//src/internal/base:endpoint",

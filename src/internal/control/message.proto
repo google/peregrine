@@ -23,6 +23,6 @@ message RespMsg {
     PeerResp peer_resp = 2;
     PspTcpResp psp_tcp_resp = 3;
     RdmaConnResp rdma_conn_resp = 4;
-    // Append new request types here.
+    // Append new response types here.
   }
 }

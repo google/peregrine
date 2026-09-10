@@ -16,7 +16,7 @@
 #include "absl/types/span.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
-#include "src/api/transport_types.h"
+#include "src/api/transport_metrics.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -85,7 +85,7 @@ class Control final {
       absl::Span<const uint8_t> gid, uint32_t psn = 0, uint32_t rkey = 0);
 
   // Takes a snapshot of control metrics.
-  void GetMetricsSnapshot(TransportMetrics& m) const { metrics_.Snapshot(m); }
+  void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
 
  private:
   // Constructor.

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "src/internal/base/endpoint.h"
@@ -11,11 +12,12 @@
 
 namespace peregrine::internal {
 
-Channels Create(const Endpoint& peer, const int n) {
+std::vector<std::unique_ptr<Channel>> Create(const Endpoint& peer,
+                                             const int n) {
   DCHECK(peer.HasNonzeroIpPort());
   DCHECK_GE(n, 1);
 
-  Channels chs;
+  std::vector<std::unique_ptr<Channel>> chs;
   chs.reserve(n);
   for (int i = 0; i < 2 * n; ++i) {
     std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
