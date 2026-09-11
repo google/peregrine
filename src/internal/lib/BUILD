@@ -44,3 +44,23 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "metric_histogram",
+    hdrs = ["metric_histogram.h"],
+    deps = [
+        ":metric_counter",
+        "//src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "metric_histogram_test",
+    srcs = ["metric_histogram_test.cc"],
+    deps = [
+        ":metric_histogram",
+        "@googletest//:gtest_main",
+    ],
+)
