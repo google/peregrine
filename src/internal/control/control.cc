@@ -54,13 +54,13 @@ bool Control::Start() {
   };
   if (auto server = GrpcServer::Create(e, server_creds_, std::move(handler));
       !server.ok()) {
-    LOG(WARNING) << "failed to create grpc server @ " << e << ": "
-                 << server.status();
+    LOG(ERROR) << "failed to create grpc server @ " << e << ": "
+               << server.status();
     return false;
   } else {
     grpc_server_ = std::move(server).value();
     DCHECK(invariant());
-    LOG(INFO) << "control started on " << e;
+    LOG(INFO) << "control started @ " << e;
     return true;
   }
 }
@@ -70,7 +70,7 @@ Control::~Control() {
 
   grpc_server_->Shutdown();
   grpc_server_ = nullptr;
-  LOG(INFO) << "destroyed";
+  LOG(INFO) << "control destroyed @ " << self_.control_plane_listener;
 }
 
 // Server-side functions: begin
