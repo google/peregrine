@@ -1,13 +1,12 @@
 # Keep the dependencies up to date with their latest stable versions.
-# Search Bazel Central Registry (BCR)
-# - https://registry.bazel.build/
-# - https://registry-preview.bazel.build/
+# Search Bazel Central Registry (BCR): https://registry.bazel.build/
 
 module(name = "peregrine")
 
 # Keep modules in each section sorted alphabetically.
 
 # Bazel
+bazel_dep(name = "aspect_rules_esbuild", version = "0.27.0")
 bazel_dep(name = "bazel_features", version = "1.51.0")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.22")
@@ -25,7 +24,7 @@ bazel_dep(name = "nanobind", version = "3.0.1")
 bazel_dep(name = "nanobind_bazel", version = "2.12.0")
 
 # Serialization
-bazel_dep(name = "flatbuffers", version = "25.12.19.bcr.1")
+bazel_dep(name = "flatbuffers", version = "25.12.19")
 bazel_dep(name = "protobuf", version = "36.0.bcr.1")
 
 # Testing/Benchmarking
@@ -39,4 +38,14 @@ bazel_dep(name = "ncurses", version = "6.4.20221231.bcr.12")
 single_version_override(
     module_name = "abseil-cpp",
     version = "20260817.0",
+)
+
+single_version_override(
+    module_name = "envoy_api",
+    version = "0.0.0-20260901-005c18a",
+)
+
+single_version_override(
+    module_name = "rules_swift",
+    version = "4.0.1",
 )
