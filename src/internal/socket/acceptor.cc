@@ -63,11 +63,13 @@ std::unique_ptr<TcpSocket> TcpAcceptor::createOne(Endpoint& endpoint,
 }
 
 namespace {
-auto GetTcpListenerIpAddrs() {
+auto GetTcpListenerIpAddrs(const Endpoint& control_plane_listener) {
+  const bool allow_loopback = control_plane_listener.GetIpAddr().IsLoopback();
   std::vector<Endpoint> candidates;
   for (const auto& [ifc, nis] : util::FindRoutableIpAddrs()) {
     if (nis.type == util::NicType::kRDMA) continue;
     for (const auto& ip : nis.addrs) {
+      if (!allow_loopback && ip.IsLoopback()) continue;
       candidates.push_back(Endpoint(ip, /*port=*/0));
     }
   }
@@ -82,7 +84,8 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(HostInfo& self) {
     return nullptr;
   }
 
-  std::vector<Endpoint> candidates = GetTcpListenerIpAddrs();
+  std::vector<Endpoint> candidates =
+      GetTcpListenerIpAddrs(self.control_plane_listener);
   if ABSL_PREDICT_FALSE (candidates.empty()) {
     LOG(ERROR) << "failed to find data plane tcp listener ipaddr candidates";
     return nullptr;

@@ -79,6 +79,14 @@ class IpAddr final {
   // Returns true iff the ip address is zero (i.e., "0.0.0.0" or "::").
   bool IsZero() const;
 
+  // Returns true iff the ip address is a loopback address, i.e. it is within
+  // 127.0.0.0/8 (RFC 1122), is ::1 (RFC 4291), or is an IPv4-mapped IPv6
+  // address (RFC 4291 sec 2.5.5.2) whose embedded IPv4 address is loopback.
+  //
+  // A loopback address is only reachable from the local host, so it must never
+  // be advertised to a remote peer.
+  bool IsLoopback() const;
+
   // Equality operator.
   friend bool operator==(const IpAddr& a, const IpAddr& b);
 

@@ -97,5 +97,25 @@ TEST(IpAddrTest, IPv6) {
   LOG(INFO) << b;
 }
 
+TEST(IpAddrTest, IsLoopback) {
+  // IPv4 loopback (127.0.0.0/8).
+  EXPECT_TRUE(IpAddr::Create("127.0.0.1")->IsLoopback());
+  EXPECT_TRUE(IpAddr::Create("127.1.2.3")->IsLoopback());
+  EXPECT_TRUE(IpAddr::Create("127.255.255.255")->IsLoopback());
+  EXPECT_FALSE(IpAddr::Create("128.0.0.1")->IsLoopback());
+  EXPECT_FALSE(IpAddr::Create("126.255.255.255")->IsLoopback());
+  EXPECT_FALSE(IpAddr::Create("10.0.0.1")->IsLoopback());
+  EXPECT_FALSE(IpAddr::Create("0.0.0.0")->IsLoopback());
+
+  // IPv6 loopback (::1).
+  EXPECT_TRUE(IpAddr::Create("::1")->IsLoopback());
+  EXPECT_FALSE(IpAddr::Create("::")->IsLoopback());
+  EXPECT_FALSE(IpAddr::Create("2002:a05:7538:2502::")->IsLoopback());
+
+  // IPv4-mapped IPv6 loopback (::ffff:127.0.0.0/8).
+  EXPECT_TRUE(IpAddr::Create("::ffff:127.0.0.1")->IsLoopback());
+  EXPECT_FALSE(IpAddr::Create("::ffff:10.0.0.1")->IsLoopback());
+}
+
 }  // namespace
 }  // namespace peregrine::util::testing

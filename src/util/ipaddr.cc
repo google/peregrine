@@ -37,6 +37,20 @@ bool IpAddr::IsZero() const {
   }
 }
 
+bool IpAddr::IsLoopback() const {
+  if (IsIPv4()) {
+    // RFC 1122: 127.0.0.0/8.
+    return (ntohl(IPv4Addr().s_addr) >> 24) == 0x7F;
+  } else {
+    DCHECK(IsIPv6());
+    // RFC 4291: ::1, plus IPv4-mapped ::ffff:127.0.0.0/8.
+    const ipv6_t& ip6 = IPv6Addr();
+    if (IN6_IS_ADDR_LOOPBACK(&ip6)) return true;
+    if (IN6_IS_ADDR_V4MAPPED(&ip6)) return ip6.s6_addr[12] == 0x7F;
+    return false;
+  }
+}
+
 std::optional<ipv4_t> ParseIPv4Addr(std::string_view ip) {
   ipv4_t addr;
   switch (inet_pton(AF_INET, std::string(ip).c_str(), &addr)) {
