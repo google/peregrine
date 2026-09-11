@@ -15,7 +15,8 @@ struct ControlMetrics final {
   // Number of RPC requests received by the control plane.
   MetricCounter<uint64_t> rpc_requests_received;
 
-  void Snapshot(TransportMetrics& m) const {
+  void Snapshot(TransportMetrics& m) const {}
+  void SnapshotDetails(TransportMetricsDetails& m) const {
     m.rpc_requests_received = rpc_requests_received.Value();
   }
 };

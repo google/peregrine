@@ -79,6 +79,9 @@ class Engine final {
 
   // Takes a snapshot of engine metrics.
   void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
+  void GetMetricsDetails(TransportMetricsDetails& m) const {
+    metrics_.SnapshotDetails(m);
+  }
 
  private:
   struct Entry {

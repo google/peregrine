@@ -86,6 +86,9 @@ class Control final {
 
   // Takes a snapshot of control metrics.
   void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
+  void GetMetricsDetails(TransportMetricsDetails& m) const {
+    metrics_.SnapshotDetails(m);
+  }
 
  private:
   // Constructor.

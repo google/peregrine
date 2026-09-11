@@ -119,17 +119,28 @@ NB_MODULE(peregrine, m) {
           },
           nb::arg("addr"))
       .def("get_transport_metrics", &Transport::GetTransportMetrics,
-           "Returns transport metrics.");
+           "Returns transport metrics.")
+      .def("get_transport_metrics_details",
+           &Transport::GetTransportMetricsDetails,
+           "Returns detailed transport metrics.");
 
   // Bind `TransportMetrics`
   // When adding new metrics, increment the count and update the binding.
-  constexpr size_t kTransportMetricsFieldsCount = 2;
-  nb::class_<TransportMetrics>(m, "TransportMetrics")
-      .def_ro("tcp_connect_failures", &TransportMetrics::tcp_connect_failures)
-      .def_ro("rpc_requests_received",
-              &TransportMetrics::rpc_requests_received);
+  constexpr size_t kTransportMetricsFieldsCount = 0;
+  nb::class_<TransportMetrics>(m, "TransportMetrics");
   static_assert(CountFields<peregrine::TransportMetrics>() ==
                 kTransportMetricsFieldsCount);
+
+  // Bind `TransportMetricsDetails`
+  constexpr size_t kTransportMetricsDetailsFieldsCount = 3;
+  nb::class_<TransportMetricsDetails>(m, "TransportMetricsDetails")
+      .def_ro("e2e", &TransportMetricsDetails::e2e)
+      .def_ro("tcp_connect_failures",
+              &TransportMetricsDetails::tcp_connect_failures)
+      .def_ro("rpc_requests_received",
+              &TransportMetricsDetails::rpc_requests_received);
+  static_assert(CountFields<peregrine::TransportMetricsDetails>() ==
+                kTransportMetricsDetailsFieldsCount);
 
   // Bind `TransportType` enum
   nb::enum_<TransportType>(m, "TransportType")

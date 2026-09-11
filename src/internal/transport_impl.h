@@ -69,6 +69,7 @@ class TransportImpl final : public Transport {
 
   // Returns a snapshot of metrics.
   TransportMetrics GetTransportMetrics() const override;
+  TransportMetricsDetails GetTransportMetricsDetails() const override;
 
  private:
   // Constructor.

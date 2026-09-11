@@ -251,8 +251,9 @@ inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
 // `control_metrics.h` is for control plane, and `engine_metrics.h` for data
 // plane.
 //
-// A subset of metrics are exposed via `Transport::GetTransportMetrics()` in
-// the public API `src/api/transport_metrics.h`.
+// A subset of metrics are exposed via `Transport::GetTransportMetrics()` and
+// `Transport::GetTransportMetricsDetails()` in the public API
+// `src/api/transport_metrics.h`.
 //
 // MetricCounter uses lock-free, lossy atomic counters to minimize data-plane
 // overhead. Counter updates in tight loops are batched into local variables
@@ -266,8 +267,10 @@ inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
 //    See `ControlMetrics` in `src/internal/metrics/control_metrics.h`
 //    and `EngineMetrics` in `src/internal/metrics/engine_metrics.h`.
 //
-// 2) If the metric is to be exposed in `TransportMetrics`:
-//  - Add it to the `Snapshot()` function in `src/internal/metrics/`
+// 2) If the metric is to be exposed in `TransportMetrics` or
+//    `TransportMetricsDetails`:
+//  - Add it to the `Snapshot()` or `SnapshotDetails()` function in
+//    `src/internal/metrics/`
 //  - Add it in `src/api/transport_metrics.h`
 //  - Bind the property in `src/api/python/binding.cc`
 inline constexpr bool kRulesToFollowWhenAddingNewMetrics = true;

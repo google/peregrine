@@ -13,12 +13,14 @@ static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 
 struct EngineMetrics final {
   void Snapshot(TransportMetrics& m) const {}
+  void SnapshotDetails(TransportMetricsDetails& m) const {}
 };
 
 struct EngineHelperMetrics final {
   MetricCounter<uint64_t> tcp_connect_failures;
 
-  void Snapshot(TransportMetrics& m) const {
+  void Snapshot(TransportMetrics& m) const {}
+  void SnapshotDetails(TransportMetricsDetails& m) const {
     m.tcp_connect_failures = tcp_connect_failures.Value();
   }
 };

@@ -105,4 +105,13 @@ TransportMetrics TransportImpl::GetTransportMetrics() const {
   return m;
 }
 
+TransportMetricsDetails TransportImpl::GetTransportMetricsDetails() const {
+  static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
+  TransportMetricsDetails m;
+  m.e2e = GetTransportMetrics();
+  control_->GetMetricsDetails(m);
+  engine_->GetMetricsDetails(m);
+  return m;
+}
+
 }  // namespace peregrine::internal
