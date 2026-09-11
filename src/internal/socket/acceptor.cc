@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
@@ -62,14 +63,15 @@ std::unique_ptr<TcpSocket> TcpAcceptor::createOne(Endpoint& endpoint,
 }
 
 namespace {
-bool FillListenerIpAddrs(HostInfo& self) {
-  auto& ls = self.data_plane_listeners;
-  DCHECK(ls.empty());
+auto GetTcpListenerIpAddrs() {
+  std::vector<Endpoint> candidates;
   for (const auto& [ifc, nis] : util::FindRoutableIpAddrs()) {
     if (nis.type == util::NicType::kRDMA) continue;
-    for (const auto& ip : nis.addrs) ls.push_back(Endpoint(ip, 0));
+    for (const auto& ip : nis.addrs) {
+      candidates.push_back(Endpoint(ip, /*port=*/0));
+    }
   }
-  return !ls.empty();
+  return candidates;
 }
 }  // namespace
 
@@ -80,24 +82,30 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(HostInfo& self) {
     return nullptr;
   }
 
-  if (!FillListenerIpAddrs(self)) {
-    LOG(ERROR) << "failed to fill data plane tcp listeners";
+  std::vector<Endpoint> candidates = GetTcpListenerIpAddrs();
+  if ABSL_PREDICT_FALSE (candidates.empty()) {
+    LOG(ERROR) << "failed to find data plane tcp listener ipaddr candidates";
     return nullptr;
   }
 
+  self.data_plane_listeners.clear();
   absl::flat_hash_map<fd_t, Listener> listeners;
-  for (Endpoint& e : self.data_plane_listeners) {
+  for (Endpoint& e : candidates) {  // Note: `e` is modified in createOne().
     std::unique_ptr<TcpSocket> socket = createOne(e, poller.get());
     if ABSL_PREDICT_FALSE (socket == nullptr) {
-      LOG(ERROR) << "failed to create tcp listening socket for " << e;
-      return nullptr;
+      LOG(WARNING) << "failed to create tcp listening socket for " << e;
+      continue;
     }
-    DCHECK(e.HasNonzeroIpPort());
     const fd_t fd = socket->fd();
-    DCHECK_EQ(e.ToString(), SelfAddrPort(fd));
+    DCHECK(e.HasNonzeroIpPort());
+    DCHECK_EQ(e, SelfEndpoint(fd));
+    self.data_plane_listeners.push_back(e);
     listeners.emplace(fd, Listener{std::move(socket), e});
   }
-  DCHECK(self.IsValid());
+  if ABSL_PREDICT_FALSE (!self.IsValid()) {
+    LOG(ERROR) << "invalid self host info " << self;
+    return nullptr;
+  }
 
   return absl::WrapUnique(
       new TcpAcceptor(self, std::move(poller), std::move(listeners)));

@@ -57,13 +57,13 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
   if (config.transport_type == TransportType::kTcp) {
     tcp_acceptor = TcpAcceptor::Create(self);
     if ABSL_PREDICT_FALSE (tcp_acceptor == nullptr) {
-      LOG(WARNING) << "failed to create acceptor: " << self;
+      LOG(ERROR) << "failed to create tcp acceptor for " << self;
       return nullptr;
     }
   } else if (config.transport_type == TransportType::kRdma) {
     rdma_acceptor = RdmaAcceptor::Create(config, self, control);
     if ABSL_PREDICT_FALSE (rdma_acceptor == nullptr) {
-      LOG(WARNING) << "failed to create rdma acceptor: " << self;
+      LOG(ERROR) << "failed to create rdma acceptor for " << self;
       return nullptr;
     }
   } else {
@@ -71,7 +71,7 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
   }
 
   if ABSL_PREDICT_FALSE (!self.IsValid()) {
-    LOG(WARNING) << "invalid self host info: " << self;
+    LOG(ERROR) << "invalid self host info " << self.ToString();
     return nullptr;
   }
 
