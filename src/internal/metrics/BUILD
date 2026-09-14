@@ -4,6 +4,7 @@ package(default_visibility = ["//src/internal:internal_impl"])
 
 cc_library(
     name = "control_metrics",
+    srcs = ["control_metrics.cc"],
     hdrs = ["control_metrics.h"],
     deps = [
         "//src/api:transport_metrics",
@@ -14,6 +15,7 @@ cc_library(
 
 cc_library(
     name = "engine_metrics",
+    srcs = ["engine_metrics.cc"],
     hdrs = ["engine_metrics.h"],
     deps = [
         "//src/api:transport_metrics",

@@ -15,19 +15,11 @@ struct EngineMetrics final {
   // Total payload bytes sent across all data channels.
   MetricCounter<uint64_t> bytes_sent;
 
-  void Snapshot(TransportMetrics& m) const {
-    m.bytes_sent = bytes_sent.Value();
-  }
-  void SnapshotDetails(TransportMetricsDetails& m) const {}
-};
-
-struct EngineHelperMetrics final {
+  // Total tcp connect failures.
   MetricCounter<uint64_t> tcp_connect_failures;
 
-  void Snapshot(TransportMetrics& m) const {}
-  void SnapshotDetails(TransportMetricsDetails& m) const {
-    m.tcp_connect_failures = tcp_connect_failures.Value();
-  }
+  void Snapshot(TransportMetrics& m) const;
+  void SnapshotDetails(TransportMetricsDetails& m) const;
 };
 
 }  // namespace peregrine::internal

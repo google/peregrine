@@ -1,8 +1,5 @@
 #include "src/api/transport_metrics.h"
 
-#include <cstddef>
-#include <cstdint>
-
 #include "gtest/gtest.h"
 
 namespace peregrine::testing {

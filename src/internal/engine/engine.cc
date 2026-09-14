@@ -171,7 +171,7 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
     if (workers.size() >= num_conns) break;
   }
   if (connect_failures > 0) {
-    helper_metrics_.tcp_connect_failures.Add(connect_failures);
+    metrics_.tcp_connect_failures.Add(connect_failures);
   }
   return !workers.empty();
 }

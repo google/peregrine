@@ -80,11 +80,11 @@ class Engine final {
   // Takes a snapshot of engine metrics.
   void GetMetrics(TransportMetrics& m) const {
     metrics_.Snapshot(m);
-    helper_metrics_.Snapshot(m);
   }
+
+  // Takes a snapshot of engine metrics details.
   void GetMetricsDetails(TransportMetricsDetails& m) const {
     metrics_.SnapshotDetails(m);
-    helper_metrics_.SnapshotDetails(m);
   }
 
  private:
@@ -158,7 +158,6 @@ class Engine final {
   Control& control_;
 
   EngineMetrics metrics_;
-  EngineHelperMetrics helper_metrics_;
 
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);
