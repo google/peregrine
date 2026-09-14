@@ -1,7 +1,6 @@
-#include "src/internal/lib/metric_histogram.h"
+#include "src/internal/lib/log2_histogram.h"
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <thread>  // NOLINT
 #include <vector>
@@ -15,7 +14,7 @@ TEST(Log2HistogramTest, DefaultInitialization) {
   Log2Histogram<32> h;
   EXPECT_EQ(h.Sum(), 0);
   EXPECT_EQ(h.NumBuckets(), 32);
-  for (size_t i = 0; i < h.NumBuckets(); ++i) {
+  for (int i = 0; i < h.NumBuckets(); ++i) {
     EXPECT_EQ(h.Bucket(i), 0);
   }
 }
@@ -91,6 +90,9 @@ TEST(Log2HistogramTest, BoundaryAndOverflow) {
   h.Record(100, 3);
   EXPECT_EQ(h.Bucket(3), 5);
   EXPECT_EQ(h.Sum(), 0 + 7 + 8 + 300);
+
+  // Bucket 4 is out of bounds.
+  EXPECT_EQ(h.Bucket(4), 0);
 }
 
 TEST(Log2HistogramTest, RacyExport) {
@@ -121,7 +123,7 @@ TEST(Log2HistogramTest, Clear) {
   h.Clear();
   EXPECT_EQ(h.Sum(), 0);
   EXPECT_EQ(h.Bucket(15), 0);
-  for (size_t i = 0; i < h.NumBuckets(); ++i) {
+  for (int i = 0; i < h.NumBuckets(); ++i) {
     EXPECT_EQ(h.Bucket(i), 0);
   }
   for (uint64_t val : h.RacyExport()) {
@@ -155,14 +157,7 @@ TEST(Log2HistogramTest, ConcurrentUpdates) {
   // 5 is in [4, 8) -> bucket 3
   EXPECT_EQ(h.Bucket(3), 2 * kNumThreads * kRounds);
   EXPECT_EQ(h.Bucket(15), 3 * kNumThreads * kRounds);
-  EXPECT_EQ(h.Sum(),
-            static_cast<uint64_t>(0 + 5 * 2 + 100000 * 3) * kNumThreads *
-                kRounds);
-}
-
-TEST(Log2HistogramTest, OutOfBoundsDeath) {
-  Log2Histogram<4> h;
-  EXPECT_DEBUG_DEATH(h.Bucket(4), "");
+  EXPECT_EQ(h.Sum(), (0 + 5 * 2 + 100000 * 3ULL) * kNumThreads * kRounds);
 }
 
 }  // namespace
