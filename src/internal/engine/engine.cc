@@ -123,7 +123,8 @@ void Engine::accept(std::unique_ptr<TcpSocket> socket) {
   DCHECK_NE(socket, nullptr);
   std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
   auto rw = std::make_unique<Worker>(-(1 + recv_workers_.size()), self_,
-                                     outgoing_, incoming_, std::move(ch));
+                                     outgoing_, incoming_, std::move(ch),
+                                     metrics_);
   recv_workers_.push_back(std::move(rw));
 }
 
@@ -165,12 +166,12 @@ bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
     }
     std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
     auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
-                                       incoming_, std::move(ch));
+                                       incoming_, std::move(ch), metrics_);
     workers.push_back(std::move(sw));
     if (workers.size() >= num_conns) break;
   }
   if (connect_failures > 0) {
-    metrics_.tcp_connect_failures.Add(connect_failures);
+    helper_metrics_.tcp_connect_failures.Add(connect_failures);
   }
   return !workers.empty();
 }
@@ -184,7 +185,7 @@ bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
   auto channels = rdma_acceptor_->Connect(peer, num_conns);
   for (auto& ch : channels) {
     auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
-                                       incoming_, std::move(ch));
+                                       incoming_, std::move(ch), metrics_);
     workers.push_back(std::move(sw));
     if (workers.size() >= num_conns) break;
   }

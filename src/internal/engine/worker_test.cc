@@ -24,6 +24,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/metrics/engine_metrics.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/util/test_param.h"
 #include "src/internal/util/test_util.h"
@@ -95,12 +96,14 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
   struct Host {
     RequestTracker outgoing;
     RequestTracker incoming;
+    EngineMetrics metrics;
     Worker worker;
     explicit Host(int id, const HostInfo& self,
                   std::unique_ptr<Channel> channel)
         : outgoing(),
           incoming(),
-          worker(id, self, outgoing, incoming, std::move(channel)) {}
+          metrics(),
+          worker(id, self, outgoing, incoming, std::move(channel), metrics) {}
   };
 
  protected:
@@ -158,6 +161,8 @@ TEST_P(WorkerTest, SendRecv) {
 
   // Postcondition: dst is the same as src.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));
+  EXPECT_GE(sndr_.metrics.bytes_sent.Value(), kBufSize);
+  EXPECT_EQ(rcvr_.metrics.bytes_sent.Value(), 0);
 }
 
 }  // namespace

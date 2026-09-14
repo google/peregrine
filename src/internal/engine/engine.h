@@ -78,9 +78,13 @@ class Engine final {
   absl::Status UnregisterMemory(const void* addr) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Takes a snapshot of engine metrics.
-  void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
+  void GetMetrics(TransportMetrics& m) const {
+    metrics_.Snapshot(m);
+    helper_metrics_.Snapshot(m);
+  }
   void GetMetricsDetails(TransportMetricsDetails& m) const {
     metrics_.SnapshotDetails(m);
+    helper_metrics_.SnapshotDetails(m);
   }
 
  private:
@@ -153,7 +157,8 @@ class Engine final {
   HostInfo& self_;
   Control& control_;
 
-  EngineHelperMetrics metrics_;
+  EngineMetrics metrics_;
+  EngineHelperMetrics helper_metrics_;
 
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);

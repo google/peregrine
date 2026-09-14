@@ -126,8 +126,9 @@ NB_MODULE(peregrine, m) {
 
   // Bind `TransportMetrics`
   // When adding new metrics, increment the count and update the binding.
-  constexpr size_t kTransportMetricsFieldsCount = 0;
-  nb::class_<TransportMetrics>(m, "TransportMetrics");
+  constexpr size_t kTransportMetricsFieldsCount = 1;
+  nb::class_<TransportMetrics>(m, "TransportMetrics")
+      .def_ro("bytes_sent", &TransportMetrics::bytes_sent);
   static_assert(CountFields<peregrine::TransportMetrics>() ==
                 kTransportMetricsFieldsCount);
 

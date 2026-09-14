@@ -14,6 +14,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_types.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/metrics/engine_metrics.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/transfer/transfer.h"
 
@@ -24,14 +25,16 @@ void Worker::log(std::string_view msg) const {
 }
 
 Worker::Worker(int id, const HostInfo& self, RequestTracker& outgoing,
-               RequestTracker& incoming, std::unique_ptr<Channel> channel)
+               RequestTracker& incoming, std::unique_ptr<Channel> channel,
+               EngineMetrics& metrics)
     : id_(id),
       self_(self),
       stop_(false),
       chunks_(),
       outgoing_(outgoing),
       incoming_(incoming),
-      channel_(std::move(channel)) {
+      channel_(std::move(channel)),
+      metrics_(metrics) {
   DCHECK_NE(channel_, nullptr);
   send_thread_ = std::jthread([this]() { SendLoop(); });
   recv_thread_ = std::jthread([this]() { RecvLoop(); });
@@ -90,6 +93,7 @@ void Worker::SendLoop() {
       LOG(WARNING) << "send chunk failed";
       break;
     }
+    metrics_.bytes_sent.Add(payload.size());
 
     if (channel_->Type() == ChannelType::kReliableMessage) {
       // TODO(mubashirq): Abstract one-sided vs two-sided transfer semantics

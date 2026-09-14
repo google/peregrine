@@ -6,7 +6,10 @@
 namespace peregrine {
 
 // High-level end-to-end metrics for transport users.
-struct TransportMetrics final {};
+struct TransportMetrics final {
+  // Total payload bytes sent across all data channels.
+  uint64_t bytes_sent = 0;
+};
 
 // Subsystem-level and hardware metrics for developers and diagnostics.
 struct TransportMetricsDetails final {

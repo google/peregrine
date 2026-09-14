@@ -12,6 +12,7 @@
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/metrics/engine_metrics.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/util/macro.h"
 
@@ -24,7 +25,8 @@ class Worker {
  public:
   // Constructor.
   Worker(int id, const HostInfo& self, RequestTracker& outgoing,
-         RequestTracker& incoming, std::unique_ptr<Channel> channel);
+         RequestTracker& incoming, std::unique_ptr<Channel> channel,
+         EngineMetrics& metrics);
 
   // Disallows copy and assign.
   DISALLOW_COPY(Worker);
@@ -73,6 +75,8 @@ class Worker {
   RequestTracker& incoming_;
 
   std::unique_ptr<Channel> channel_;
+
+  EngineMetrics& metrics_;
 
   std::jthread send_thread_;
   std::jthread recv_thread_;
