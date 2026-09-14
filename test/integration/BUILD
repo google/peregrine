@@ -132,7 +132,6 @@ cc_binary(
         ":integration",
         ":metrics",
         ":runner",
-        "@abseil-cpp//absl/flags:parse",
-        "@abseil-cpp//absl/log:initialize",
+        "//test/lib:initialization",
     ],
 )
