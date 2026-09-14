@@ -5,18 +5,18 @@
 #include <csignal>
 #include <memory>
 
-#include "absl/flags/parse.h"
-#include "absl/log/initialize.h"
 #include "test/integration/display.h"
 #include "test/integration/integration.h"
 #include "test/integration/metrics.h"
 #include "test/integration/runner.h"
+#include "test/lib/initialization.h"
 
 namespace {
 using ::peregrine::integration::Display;
 using ::peregrine::integration::PeregrineIntegration;
 using ::peregrine::integration::Runner;
 using ::peregrine::integration::Metrics;
+using ::peregrine::test::Init;
 
 // Global Peregrine instance used to handle SIGINT.
 PeregrineIntegration* g_peregrine_ptr = nullptr;
@@ -34,8 +34,7 @@ void RegisterSigIntHandler() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  absl::ParseCommandLine(argc, argv);
-  absl::InitializeLog();
+  Init(argc, argv);
 
   // Reset metrics registry.
   Metrics::Reset();
