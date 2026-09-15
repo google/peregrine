@@ -3,7 +3,6 @@
 #include <sys/socket.h>
 
 #include <memory>
-#include <thread>  // NOLINT
 #include <utility>
 #include <vector>
 
@@ -20,6 +19,7 @@
 #include "src/internal/socket/psp/psp_util.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -55,12 +55,10 @@ using TcpConnectorTestIPv4 = TcpConnectorTest<AF_INET>;
 using TcpConnectorTestIPv6 = TcpConnectorTest<AF_INET6>;
 
 TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
-  std::jthread ta([&]() {
-    acceptor_->Start(Accept);
-  });
+  util::Jthread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
-  std::jthread tc([&]() {
+  util::Jthread tc([&]() {
     for (const Endpoint& peer : peers_) {
       std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
       CHECK_NE(socket, nullptr);
@@ -74,7 +72,7 @@ TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
 }
 
 TEST_F(TcpConnectorTestIPv6, ConnectBeforeAccept) {
-  std::jthread tc([&]() {
+  util::Jthread tc([&]() {
     for (const Endpoint& peer : peers_) {
       std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
       CHECK_NE(socket, nullptr);
@@ -84,9 +82,7 @@ TEST_F(TcpConnectorTestIPv6, ConnectBeforeAccept) {
   });
 
   ShortSleep();
-  std::jthread ta([&]() {
-    acceptor_->Start(Accept);
-  });
+  util::Jthread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
   acceptor_->Stop();
@@ -121,10 +117,10 @@ TEST_F(PspTcpConnectorTestIPv4, AcceptBeforeConnect) {
     GTEST_SKIP() << "psp not supported";
   }
 
-  std::jthread ta([&]() { acceptor_->Start(Accept); });
+  util::Jthread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
-  std::jthread tc([&]() {
+  util::Jthread tc([&]() {
     const Endpoint& peer_control = self_.control_plane_listener;
     for (const Endpoint& peer_target : peers_) {
       std::unique_ptr<TcpSocket> socket =
@@ -145,7 +141,7 @@ TEST_F(PspTcpConnectorTestIPv6, ConnectBeforeAccept) {
     GTEST_SKIP() << "psp not supported";
   }
 
-  std::jthread tc([&]() {
+  util::Jthread tc([&]() {
     const Endpoint& peer_control = self_.control_plane_listener;
     for (const Endpoint& peer_target : peers_) {
       std::unique_ptr<TcpSocket> socket =
@@ -158,7 +154,7 @@ TEST_F(PspTcpConnectorTestIPv6, ConnectBeforeAccept) {
   });
 
   ShortSleep();
-  std::jthread ta([&]() { acceptor_->Start(Accept); });
+  util::Jthread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
   acceptor_->Stop();

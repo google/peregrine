@@ -2,10 +2,10 @@
 
 #include <array>
 #include <cstdint>
-#include <thread>  // NOLINT
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -137,7 +137,7 @@ TEST(Log2HistogramTest, ConcurrentUpdates) {
   constexpr int kNumThreads = 10;
   constexpr int kRounds = 100;
 
-  std::vector<std::thread> threads;
+  std::vector<util::Thread> threads;
   threads.reserve(kNumThreads);
   for (int i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&h]() {

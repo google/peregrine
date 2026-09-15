@@ -4,7 +4,6 @@
 
 #include <memory>
 #include <string>
-#include <thread>  // NOLINT
 #include <utility>
 
 #include "gmock/gmock.h"
@@ -21,6 +20,7 @@
 #include "src/internal/socket/psp/psp_util.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -53,9 +53,7 @@ using TcpAcceptorTestIPv4 = TcpAcceptorTest<AF_INET>;
 using TcpAcceptorTestIPv6 = TcpAcceptorTest<AF_INET6>;
 
 TEST_F(TcpAcceptorTestIPv4, StartThenStop) {
-  std::jthread ta([&]() {
-    acceptor_->Start(Accept);
-  });
+  util::Jthread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
   acceptor_->Stop();
@@ -64,9 +62,7 @@ TEST_F(TcpAcceptorTestIPv4, StartThenStop) {
 TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
   acceptor_->Stop();
 
-  std::jthread ta([&]() {
-    acceptor_->Start(Accept);
-  });
+  util::Jthread ta([&]() { acceptor_->Start(Accept); });
 }
 
 template <int kFamily>

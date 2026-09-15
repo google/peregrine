@@ -38,6 +38,7 @@ cc_test(
         "//src/internal/request:request_tracker",
         "//src/internal/util:test_param",
         "//src/util",
+        "//src/util:thread",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",

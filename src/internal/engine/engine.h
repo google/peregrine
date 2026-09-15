@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
-#include <thread>  // NOLINT
 #include <type_traits>
 #include <vector>
 
@@ -34,6 +33,7 @@
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
+#include "src/util/thread.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal {
@@ -168,8 +168,8 @@ class Engine final {
 
   absl::flat_hash_map<Endpoint, Workers> send_workers_;
   Workers recv_workers_;
-  std::jthread tcp_acceptor_thread_;
-  std::jthread main_thread_;
+  util::Jthread tcp_acceptor_thread_;
+  util::Jthread main_thread_;
 };
 
 }  // namespace peregrine::internal

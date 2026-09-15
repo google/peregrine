@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <string>
-#include <thread>  // NOLINT
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -20,6 +19,7 @@
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -64,9 +64,7 @@ INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
                          /*family=*/Values(AF_INET, AF_INET6), ToString);
 
 TEST_P(ChannelUtilTest, Create) {
-  std::jthread ta([&]() {
-    acceptor_->Start(Accept);
-  });
+  util::Jthread ta([&]() { acceptor_->Start(Accept); });
 
   for (const Endpoint& peer : peers_) {
     constexpr int kNumChannels = 8;

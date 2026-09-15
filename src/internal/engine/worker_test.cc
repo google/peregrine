@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <thread>  // NOLINT
 #include <utility>
 #include <vector>
 
@@ -28,6 +27,7 @@
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/util/test_param.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/thread.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -137,7 +137,7 @@ TEST_P(WorkerTest, SendRecv) {
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
   absl::Notification done;
-  std::jthread s([&]() {
+  util::Thread s([&]() {
     while (sndr_.outgoing.Check(kHandle) != Status::kSuccess) {
       for (int i = 0; i < kNumChunks; ++i) {
         if (sndr_.outgoing.Check(kHandle) == Status::kSuccess) break;
@@ -150,7 +150,7 @@ TEST_P(WorkerTest, SendRecv) {
     done.Notify();
   });
 
-  std::jthread r([&]() {
+  util::Thread r([&]() {
     while (!done.HasBeenNotified()) {
       absl::SleepFor(absl::Milliseconds(100));
     }

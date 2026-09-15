@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <string_view>
-#include <thread>  // NOLINT
 #include <utility>
 
 #include "absl/log/check.h"
@@ -17,6 +16,7 @@
 #include "src/internal/metrics/engine_metrics.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/transfer/transfer.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal {
 
@@ -36,8 +36,8 @@ Worker::Worker(int id, const HostInfo& self, RequestTracker& outgoing,
       channel_(std::move(channel)),
       metrics_(metrics) {
   DCHECK_NE(channel_, nullptr);
-  send_thread_ = std::jthread([this]() { SendLoop(); });
-  recv_thread_ = std::jthread([this]() { RecvLoop(); });
+  send_thread_ = util::Jthread([this]() { SendLoop(); });
+  recv_thread_ = util::Jthread([this]() { RecvLoop(); });
   log("created");
 }
 

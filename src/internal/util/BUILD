@@ -20,7 +20,6 @@ cc_test(
     srcs = ["util_test.cc"],
     deps = [
         ":util",
-        "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],
 )

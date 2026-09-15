@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <string>
-#include <thread>  // NOLINT
 #include <tuple>
 #include <vector>
 
@@ -16,8 +15,8 @@
 #include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
-#include "src/internal/util/util.h"
 #include "src/util/app.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -65,7 +64,7 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
   static std::string Info(const Request& req, const Handle h, const Status s) {
     return absl::StrFormat("%s handle = 0x%x, status = %s @ thread #%s",
                            ToString(req.op), h.value(), ToString(s),
-                           ThreadId());
+                           util::ThreadId());
   }
 
   void WaitForCompletion(Transport& t, const Handle h,
@@ -102,7 +101,7 @@ TEST_P(TransportImplTest, Read) {
   ASSERT_THAT(a_.Data(), Pointwise(Ne(), b_.Data()));
 
   // Use one thread to emulate a local process.
-  std::thread a([this]() {
+  util::Thread a([this]() {
     Transport& t = a_.GetTransport();
     const std::string peer = b_.GetControlEndpoint();
     const Request req = {
@@ -118,7 +117,7 @@ TEST_P(TransportImplTest, Read) {
   });
 
   // Use another thread to emulate a remote process.
-  std::thread b([]() { /* no code is needed. */ });
+  util::Thread b([]() { /* no code is needed. */ });
 
   absl::SleepFor(absl::Seconds(1));
   a.join();
@@ -135,7 +134,7 @@ TEST_P(TransportImplTest, Write) {
   ASSERT_THAT(b_.Data(), Pointwise(Ne(), a_.Data()));
 
   // Use one thread to emulate a local process.
-  std::thread a([this]() {
+  util::Thread a([this]() {
     Transport& t = a_.GetTransport();
     const std::string peer = b_.GetControlEndpoint();
     const std::vector<Request> reqs = MakeRequests(Op::kWrite);
@@ -145,7 +144,7 @@ TEST_P(TransportImplTest, Write) {
   });
 
   // Use another thread to emulate a remote process.
-  std::thread b([]() { /* no code is needed. */ });
+  util::Thread b([]() { /* no code is needed. */ });
 
   a.join();
   b.join();

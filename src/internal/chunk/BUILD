@@ -89,6 +89,7 @@ cc_test(
         ":chunk",
         ":chunk_tracker",
         "//src/util",
+        "//src/util:thread",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",

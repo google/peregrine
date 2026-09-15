@@ -41,6 +41,7 @@ cc_test(
     srcs = ["metric_counter_test.cc"],
     deps = [
         ":metric_counter",
+        "//src/util:thread",
         "@googletest//:gtest_main",
     ],
 )
@@ -60,6 +61,7 @@ cc_test(
     srcs = ["log2_histogram_test.cc"],
     deps = [
         ":log2_histogram",
+        "//src/util:thread",
         "@googletest//:gtest_main",
     ],
 )

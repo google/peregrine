@@ -5,7 +5,6 @@
 
 #include <cstring>
 #include <memory>
-#include <thread>  // NOLINT
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -14,6 +13,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -55,7 +55,7 @@ TEST_F(UdpSocketIPv4Test, SendRecv) {
 
   // First, create a receiver thread.
   absl::Notification rcvr_ready;
-  std::thread receiver([&]() {
+  util::Thread receiver([&]() {
     CHECK(rskt_->Bind(rcvr_));
     CHECK(rskt_->Connect(sndr_));
     DCHECK(rskt_->IsBlocking());
@@ -67,7 +67,7 @@ TEST_F(UdpSocketIPv4Test, SendRecv) {
   });
 
   // Second, create a sender thread.
-  std::thread sender([&]() {
+  util::Thread sender([&]() {
     rcvr_ready.WaitForNotification();
     CHECK(sskt_->Bind(sndr_));
     CHECK(sskt_->Connect(rcvr_));
@@ -93,7 +93,7 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
 
   // First, create a receiver thread.
   absl::Notification rcvr_ready;
-  std::thread receiver([&]() {
+  util::Thread receiver([&]() {
     CHECK(rskt_->Bind(rcvr_));
     CHECK(rskt_->Connect(sndr_));
     DCHECK(rskt_->IsBlocking());
@@ -110,7 +110,7 @@ TEST_F(UdpSocketIPv6Test, ScatterGather) {
   });
 
   // Second, create a sender thread.
-  std::thread sender([&]() {
+  util::Thread sender([&]() {
     rcvr_ready.WaitForNotification();
     CHECK(sskt_->Bind(sndr_));
     CHECK(sskt_->Connect(rcvr_));

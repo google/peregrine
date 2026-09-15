@@ -1,10 +1,10 @@
 #include "src/internal/lib/metric_counter.h"
 
 #include <cstdint>
-#include <thread>  // NOLINT
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -34,7 +34,7 @@ TEST(MetricCounterTest, ConcurrentUpdates) {
   constexpr int kInc = 7;
   constexpr int kExpected = kNumThreads * kInc;
 
-  std::vector<std::thread> threads;
+  std::vector<util::Thread> threads;
   for (int i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&c]() {
       for (int j = 0; j < kInc; ++j) {

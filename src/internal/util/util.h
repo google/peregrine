@@ -4,7 +4,6 @@
 #include <sys/uio.h>
 
 #include <cstddef>
-#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -45,9 +44,6 @@ size_t TotalLength(absl::Span<const IoVec> iovecs);
 inline size_t TotalLength(const IoVec* iov, int n) {
   return TotalLength(absl::MakeSpan(iov, n));
 }
-
-// Returns the thread id where this function is called.
-std::string ThreadId();
 
 }  // namespace peregrine::internal
 

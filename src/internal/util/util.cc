@@ -3,9 +3,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <numeric>
-#include <sstream>
-#include <string>
-#include <thread>  // NOLINT
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
@@ -24,12 +21,6 @@ size_t TotalLength(const absl::Span<const IoVec> iovecs) {
                            DCHECK(IsValid(v));
                            return sum + v.iov_len;
                          });
-}
-
-std::string ThreadId() {
-  std::stringstream ss;
-  ss << std::this_thread::get_id();
-  return ss.str();
 }
 
 }  // namespace peregrine::internal

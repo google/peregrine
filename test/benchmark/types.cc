@@ -26,7 +26,7 @@ std::string ToString(const Mbps mbps) {
   if (const auto v = mbps.value(); v >= 1000) {
     return v % 1000 == 0 ? absl::StrFormat("%dGbps", v / 1000)
                          : absl::StrFormat("%.2fGbps", ToGbps(mbps));
-  } else {  // NOLINT
+  } else {
     return absl::StrFormat("%dMbps", v);
   }
 }
@@ -35,7 +35,7 @@ std::string ToString(const uint64_t bytes) {
   if (absl::has_single_bit(static_cast<uint64_t>(bytes))) {
     if (bytes >= kGiB) {
       return absl::StrFormat("%dGiB", bytes >> 30);
-    } else if (bytes >= kMiB) {  // NOLINT
+    } else if (bytes >= kMiB) {
       return absl::StrFormat("%dMiB", bytes >> 20);
     } else if (bytes >= kKiB) {
       return absl::StrFormat("%dKiB", bytes >> 10);
@@ -45,7 +45,7 @@ std::string ToString(const uint64_t bytes) {
   } else {
     if (bytes >= kGiB) {
       return absl::StrFormat("%.2fGiB", static_cast<float>(bytes) / kGiBf);
-    } else if (bytes >= kMiB) {  // NOLINT
+    } else if (bytes >= kMiB) {
       return absl::StrFormat("%.2fMiB", static_cast<float>(bytes) / kMiBf);
     } else if (bytes >= kKiB) {
       return absl::StrFormat("%.2fKiB", static_cast<float>(bytes) / kKiBf);

@@ -67,8 +67,8 @@ cc_test(
     deps = [
         "//src/api:transport",
         "//src/api:transport_types",
-        "//src/internal/util",
         "//src/util:app",
+        "//src/util:thread",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",

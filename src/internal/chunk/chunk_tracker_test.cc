@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <thread>  // NOLINT
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -14,6 +13,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/util/thread.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -88,7 +88,7 @@ TEST_F(ChunkTrackerStressTest, MultipleWriters) {
   ASSERT_TRUE(tracker_->IsEmpty());
 
   constexpr int kNumThreads = 32;
-  std::vector<std::thread> threads;
+  std::vector<util::Thread> threads;
   threads.reserve(kNumThreads);
   for (int n = 0; n < kNumThreads; ++n) {
     threads.emplace_back([this]() {

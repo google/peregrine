@@ -35,11 +35,6 @@ cc_test(
 )
 
 cc_library(
-    name = "macro",
-    hdrs = ["macro.h"],
-)
-
-cc_library(
     name = "ipaddr",
     srcs = ["ipaddr.cc"],
     hdrs = ["ipaddr.h"],
@@ -64,6 +59,11 @@ cc_test(
 )
 
 cc_library(
+    name = "macro",
+    hdrs = ["macro.h"],
+)
+
+cc_library(
     name = "nic",
     srcs = ["nic.cc"],
     hdrs = ["nic.h"],
@@ -84,6 +84,22 @@ cc_test(
         ":ipaddr",
         ":nic",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "thread",
+    srcs = ["thread.cc"],
+    hdrs = ["thread.h"],
+)
+
+cc_test(
+    name = "thread_test",
+    srcs = ["thread_test.cc"],
+    deps = [
+        ":thread",
         "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],

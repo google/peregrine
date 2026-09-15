@@ -4,7 +4,6 @@
 #include <deque>
 #include <memory>
 #include <string_view>
-#include <thread>  // NOLINT
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
@@ -15,6 +14,7 @@
 #include "src/internal/metrics/engine_metrics.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/util/macro.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal {
 
@@ -78,8 +78,8 @@ class Worker {
 
   EngineMetrics& metrics_;
 
-  std::jthread send_thread_;
-  std::jthread recv_thread_;
+  util::Jthread send_thread_;
+  util::Jthread recv_thread_;
 };
 
 }  // namespace peregrine::internal

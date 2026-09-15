@@ -182,6 +182,7 @@ cc_test(
         "//src/internal/socket:acceptor",
         "//src/internal/socket:socket_tcp",
         "//src/internal/util:test_util",
+        "//src/util:thread",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@googletest//:gtest_main",

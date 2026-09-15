@@ -6,7 +6,6 @@
 #include <cstring>
 #include <limits>
 #include <memory>
-#include <thread>  // NOLINT
 #include <utility>
 
 #include "absl/base/optimization.h"
@@ -34,6 +33,7 @@
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/connector.h"
 #include "src/internal/socket/socket_tcp.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal {
 
@@ -93,7 +93,7 @@ Engine::Engine(const Config& config, HostInfo& self,
 
   // Start an acceptor thread if TCP acceptor is present.
   if (tcp_acceptor_ != nullptr) {
-    tcp_acceptor_thread_ = std::jthread([this]() {
+    tcp_acceptor_thread_ = util::Jthread([this]() {
       auto callback = [this](std::unique_ptr<TcpSocket> socket) {
         accept(std::move(socket));
       };
@@ -102,7 +102,7 @@ Engine::Engine(const Config& config, HostInfo& self,
   }
 
   // Start a main loop thread.
-  main_thread_ = std::jthread([this]() { mainLoop(); });
+  main_thread_ = util::Jthread([this]() { mainLoop(); });
 
   LOG(INFO) << "created @ " << self_;
 }

@@ -1,10 +1,10 @@
 #ifndef PEREGRINE_TEST_INTEGRATION_RUNNER_H_
 #define PEREGRINE_TEST_INTEGRATION_RUNNER_H_
 
-#include <stop_token> // NOLINT
-#include <thread>     // NOLINT
+#include <atomic>
 
 #include "absl/time/clock.h"
+#include "src/util/thread.h"
 
 namespace peregrine::integration {
 
@@ -12,22 +12,23 @@ namespace peregrine::integration {
 template <typename Runnable>
 class Runner final {
  public:
-  explicit Runner(Runnable* r) : runnable_(r) {
+  explicit Runner(Runnable* r) : runnable_(r), stop_(false) {
     if (runnable_ != nullptr) {
-      thread_ = std::jthread([this](std::stop_token st) {
-        while (!st.stop_requested()) {
+      thread_ = util::Jthread([this]() {
+        while (!stop_.load()) {
           runnable_->Run();
-          // Note: `absl::SleepFor` does not monitor the `std::stop_token`.
-          // `~Runner()` could block for up to `runnable_->Cycle()` on join.
           absl::SleepFor(runnable_->Cycle());
         }
       });
     }
   }
 
+  ~Runner() { stop_.store(true); }
+
  private:
   Runnable* runnable_;
-  std::jthread thread_;
+  std::atomic<bool> stop_;
+  util::Jthread thread_;
 };
 
 }  // namespace peregrine::integration

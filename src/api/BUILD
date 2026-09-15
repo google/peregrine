@@ -187,6 +187,7 @@ cc_test(
         "//src/internal/socket:socket_tcp",
         "//src/internal/util:test_util",
         "//src/util",
+        "//src/util:thread",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",

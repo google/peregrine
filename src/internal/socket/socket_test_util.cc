@@ -1,7 +1,6 @@
 #include "src/internal/socket/socket_test_util.h"
 
 #include <memory>
-#include <thread>  // NOLINT
 #include <utility>
 
 #include "absl/log/check.h"
@@ -13,6 +12,7 @@
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_udp.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 
@@ -29,7 +29,7 @@ CreateTcpSocketPair(int family) {
     sa = std::move(socket);
     socket_accepted.Notify();
   };
-  std::jthread acceptor_thread([&]() {
+  util::Jthread acceptor_thread([&]() {
     acceptor_started.Notify();
     acceptor->Start(accept);
   });

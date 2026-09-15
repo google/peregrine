@@ -5,7 +5,6 @@
 
 #include <cstring>
 #include <memory>
-#include <thread>  // NOLINT
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -18,6 +17,7 @@
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/thread.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -63,7 +63,7 @@ TEST_F(TcpIPv4SocketUtilTest, SmallMessage) {
 
   // First, create a server thread.
   absl::Notification server_ready;
-  std::thread server([&]() {
+  util::Thread server([&]() {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
@@ -77,7 +77,7 @@ TEST_F(TcpIPv4SocketUtilTest, SmallMessage) {
   });
 
   // Second, create a client thread.
-  std::thread client([&]() {
+  util::Thread client([&]() {
     server_ready.WaitForNotification();
     CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
@@ -103,7 +103,7 @@ TEST_F(TcpIPv6SocketUtilTest, BigData) {
 
   // First, create a server thread.
   absl::Notification server_ready;
-  std::thread server([&]() {
+  util::Thread server([&]() {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
@@ -122,7 +122,7 @@ TEST_F(TcpIPv6SocketUtilTest, BigData) {
   });
 
   // Second, create a client thread.
-  std::thread client([&]() {
+  util::Thread client([&]() {
     server_ready.WaitForNotification();
     CHECK(connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());

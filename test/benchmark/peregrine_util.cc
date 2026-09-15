@@ -5,7 +5,6 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <memory>
@@ -20,7 +19,6 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "absl/types/span.h"
 #include "src/api/transport.h"
 #include "src/api/transport_types.h"
 #include "src/api/transport_util.h"
@@ -37,12 +35,7 @@ namespace {
 using ::peregrine::Byte;
 using ::peregrine::CreateTransport;
 using ::peregrine::Handle;
-using ::peregrine::IsCompleted;
-using ::peregrine::Op;
-using ::peregrine::Request;
-using ::peregrine::Status;
 using ::peregrine::util::FindFreePort;
-using ::peregrine::util::RandomNonZero;
 
 std::string GenEndpoint(std::string_view ip, uint16_t port) {
   const bool ipv6 = absl::StrContains(ip, ':');

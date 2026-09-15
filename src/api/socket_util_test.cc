@@ -6,7 +6,6 @@
 #include <cstring>
 #include <memory>
 #include <string>
-#include <thread>  // NOLINT
 #include <tuple>
 #include <vector>
 
@@ -23,18 +22,18 @@
 #include "src/internal/base/types.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/thread.h"
 #include "src/util/util.h"
 
 namespace peregrine::testing {
 namespace {
 
-using ::peregrine::internal::Endpoint;
-using ::peregrine::internal::TcpSocket;
-using ::peregrine::internal::testing::IPv4Localhost;
-using ::peregrine::internal::testing::IPv6Localhost;
-using ::peregrine::internal::testing::TestOnly_CreateTcpSocket;
-using ::peregrine::internal::testing::TestOnly_FindFreeTcpPort;
-using ::peregrine::util::RandomNonZero;
+using internal::Endpoint;
+using internal::TcpSocket;
+using internal::testing::IPv4Localhost;
+using internal::testing::IPv6Localhost;
+using internal::testing::TestOnly_CreateTcpSocket;
+using internal::testing::TestOnly_FindFreeTcpPort;
 using ::testing::Combine;
 using ::testing::Eq;
 using ::testing::Ne;
@@ -92,12 +91,12 @@ TEST_P(SocketUtilTest, ReadWrite) {
   constexpr size_t kSize = 64UL << 20;
   std::vector<Byte> send_buf(kSize, 0x01);
   std::vector<Byte> recv_buf(kSize, 0x00);
-  RandomNonZero(absl::MakeSpan(send_buf));
+  util::RandomNonZero(absl::MakeSpan(send_buf));
   ASSERT_THAT(recv_buf, Pointwise(Ne(), send_buf));
 
   // First, create a server thread.
   absl::Notification server_ready;
-  std::thread server([&]() {
+  util::Thread server([&]() {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
@@ -121,7 +120,7 @@ TEST_P(SocketUtilTest, ReadWrite) {
   });
 
   // Second, create a client thread.
-  std::thread client([&]() {
+  util::Thread client([&]() {
     server_ready.WaitForNotification();
     CHECK(connector_->Connect(peer_));
     DCHECK(connector_->IsBlocking());

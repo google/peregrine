@@ -7,7 +7,6 @@
 #include <cstring>
 #include <memory>
 #include <string>
-#include <thread>  // NOLINT
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -23,6 +22,7 @@
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/util/test_param.h"
+#include "src/util/thread.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -125,7 +125,7 @@ TEST_P(TransferTest, SendRecv) {
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
   // A sends data chunks to B.
-  std::thread a_send([&]() {
+  util::Thread a_send([&]() {
     Channel* const channel = chs.sndr.get();
     while (!IsSendDone()) {
       for (uint32_t i = 0; i < kNumChunks; ++i) {
@@ -137,21 +137,21 @@ TEST_P(TransferTest, SendRecv) {
     }
   });
   // A receives ack chunks from B.
-  std::thread a_recv([&]() {
+  util::Thread a_recv([&]() {
     Channel* const channel = chs.sndr.get();
     while (!IsSendDone()) {
       if (!Transfer::RecvChunk(channel, a_.outgoing, a_.incoming)) {
-        std::this_thread::yield();
+        util::Yield();
       }
     }
   });
 
   // B receives data chunks from A (and sends ack chunks to A).
-  std::thread b_recv([&]() {
+  util::Thread b_recv([&]() {
     Channel* const channel = chs.rcvr.get();
     while (!IsSendDone()) {
       if (!Transfer::RecvChunk(channel, b_.outgoing, b_.incoming)) {
-        std::this_thread::yield();
+        util::Yield();
       }
     }
   });

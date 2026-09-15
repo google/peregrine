@@ -120,6 +120,7 @@ cc_library(
     name = "runner",
     hdrs = ["runner.h"],
     deps = [
+        "//src/util:thread",
         "@abseil-cpp//absl/time",
     ],
 )

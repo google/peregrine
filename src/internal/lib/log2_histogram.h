@@ -57,7 +57,7 @@ class Log2Histogram {
   // Records a sample value atomically with an optional count.
   void Record(SampleT sample, CountT count = 1) {
     sum_.Add(sample * count);
-    const int i = ToBucket(sample);
+    const int i = toBucket(sample);
     DCHECK(0 <= i && i <= N - 1);
     buckets_[i].Add(count);
   }
@@ -80,7 +80,7 @@ class Log2Histogram {
 
  private:
   // Returns the bucket index for the given sample value.
-  constexpr int ToBucket(SampleT sample) const {
+  constexpr int toBucket(SampleT sample) const {
     static_assert(std::is_unsigned_v<SampleT>);
     const int z = std::countl_zero(sample);
     DCHECK(0 <= z && z <= kSampleBits);

@@ -1,7 +1,6 @@
 #include "src/internal/util/util.h"
 
 #include "gtest/gtest.h"
-#include "absl/log/log.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -34,11 +33,6 @@ TEST(UtilTest, TotalLength) {
   };
   EXPECT_TRUE(IsValid(iov));
   EXPECT_EQ(TotalLength(iov, 3), 7168);
-}
-
-TEST(UtilTest, ThreadId) {
-  EXPECT_EQ(ThreadId(), ThreadId());
-  LOG(INFO) << "thread #" << ThreadId();
 }
 
 }  // namespace
