@@ -11,6 +11,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "src/api/transport.h"
+#include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
@@ -69,7 +70,6 @@ class TransportImpl final : public Transport {
 
   // Returns a snapshot of metrics.
   TransportMetrics GetTransportMetrics() const override;
-  TransportMetricsDetails GetTransportMetricsDetails() const override;
 
  private:
   // Constructor.

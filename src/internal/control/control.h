@@ -17,9 +17,11 @@
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
 #include "src/api/transport_metrics.h"
+#include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/coding_style.h"
 #include "src/internal/control/grpc_client.h"
 #include "src/internal/control/grpc_server.h"
 #include "src/internal/control/message.pb.h"
@@ -34,6 +36,10 @@ namespace peregrine::internal {
 // request and response control messages.
 // It is thread-safe.
 class Control final {
+  static_assert(assumptions::kTransportImplementationHasItsOwnThreads);
+  static_assert(coding_style::kClassPrivateFunctionNamesStartWithLowercase);
+  static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
+
  public:
   using PspTcpHandler = absl::AnyInvocable<absl::StatusOr<PspToken>(
       const PspToken& peer_token, const Endpoint& self_target) const>;
@@ -86,11 +92,6 @@ class Control final {
 
   // Takes a snapshot of control metrics.
   void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
-
-  // Takes a snapshot of control metrics details.
-  void GetMetricsDetails(TransportMetricsDetails& m) const {
-    metrics_.SnapshotDetails(m);
-  }
 
  private:
   // Constructor.

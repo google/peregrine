@@ -54,11 +54,8 @@ class Transport {
   // if the action fails.
   virtual absl::Status UnregisterMemory(const void* addr) = 0;
 
-  // Returns a snapshot of high-level transport SLIs.
+  // Returns a snapshot of transport metrics.
   virtual TransportMetrics GetTransportMetrics() const = 0;
-
-  // Returns a snapshot of detailed transport metrics.
-  virtual TransportMetricsDetails GetTransportMetricsDetails() const = 0;
 };
 
 }  // namespace peregrine

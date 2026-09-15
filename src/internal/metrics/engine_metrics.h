@@ -14,12 +14,11 @@ static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 struct EngineMetrics final {
   // Total payload bytes sent across all data channels.
   MetricCounter<uint64_t> bytes_sent;
-
   // Total tcp connect failures.
   MetricCounter<uint64_t> tcp_connect_failures;
 
+  // Takes a snapshot of the metrics.
   void Snapshot(TransportMetrics& m) const;
-  void SnapshotDetails(TransportMetricsDetails& m) const;
 };
 
 }  // namespace peregrine::internal

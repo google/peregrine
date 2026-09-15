@@ -9,12 +9,6 @@ namespace peregrine {
 struct TransportMetrics final {
   // Total payload bytes sent across all data channels.
   uint64_t bytes_sent = 0;
-};
-
-// Subsystem-level and hardware metrics for developers and diagnostics.
-struct TransportMetricsDetails final {
-  // End-to-end metrics.
-  TransportMetrics e2e{};
 
   // Transport Pipeline Breakdown
   // ---------------------------------------------------------------------------
@@ -24,7 +18,6 @@ struct TransportMetricsDetails final {
   // ---------------------------------------------------------------------------
   // Number of failed TCP connection attempts to peers
   uint64_t tcp_connect_failures = 0;
-
   // Number of RPC requests received by the control plane
   uint64_t rpc_requests_received = 0;
 };

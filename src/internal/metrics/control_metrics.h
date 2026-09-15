@@ -15,8 +15,8 @@ struct ControlMetrics final {
   // Number of RPC requests received by the control plane.
   MetricCounter<uint64_t> rpc_requests_received;
 
+  // Takes a snapshot of the metrics.
   void Snapshot(TransportMetrics& m) const;
-  void SnapshotDetails(TransportMetricsDetails& m) const;
 };
 
 }  // namespace peregrine::internal

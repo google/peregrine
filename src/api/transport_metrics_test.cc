@@ -7,11 +7,7 @@ namespace {
 
 TEST(TransportMetricsTest, DefaultInitialization) {
   const TransportMetrics m;
-  (void)m;
-}
-
-TEST(TransportMetricsDetailsTest, DefaultInitialization) {
-  const TransportMetricsDetails m;
+  EXPECT_EQ(m.bytes_sent, 0);
   EXPECT_EQ(m.tcp_connect_failures, 0);
   EXPECT_EQ(m.rpc_requests_received, 0);
 }

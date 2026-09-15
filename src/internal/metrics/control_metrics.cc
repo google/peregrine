@@ -7,9 +7,7 @@ namespace peregrine::internal {
 
 static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 
-void ControlMetrics::Snapshot(TransportMetrics& m) const {}
-
-void ControlMetrics::SnapshotDetails(TransportMetricsDetails& m) const {
+void ControlMetrics::Snapshot(TransportMetrics& m) const {
   m.rpc_requests_received = rpc_requests_received.Value();
 }
 

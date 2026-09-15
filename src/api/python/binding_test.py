@@ -105,27 +105,8 @@ class BindTest(absltest.TestCase):
     port = util.find_free_port(socket.AF_INET, tcp=True)
     transport = pg.create_transport(f"127.0.0.1:{port}", num_conns_per_peer=1)
     self.assertIsNotNone(transport)
-
     metrics = transport.get_transport_metrics()
     self.assertIsInstance(metrics, pg.TransportMetrics)
-
-    detailed_metrics = transport.get_transport_metrics_details()
-    self.assertIsInstance(detailed_metrics, pg.TransportMetricsDetails)
-
-    self.assertIsInstance(detailed_metrics.e2e, pg.TransportMetrics)
-
-    metric_fields = [
-        attr for attr in dir(detailed_metrics) if not attr.startswith("_")
-    ]
-    self.assertNotEmpty(metric_fields)
-    self.assertIn("e2e", metric_fields)
-    self.assertIn("tcp_connect_failures", metric_fields)
-    self.assertIn("rpc_requests_received", metric_fields)
-    self.assertIsInstance(detailed_metrics.tcp_connect_failures, int)
-    self.assertGreaterEqual(detailed_metrics.tcp_connect_failures, 0)
-    self.assertIsInstance(detailed_metrics.rpc_requests_received, int)
-    self.assertGreaterEqual(detailed_metrics.rpc_requests_received, 0)
-
 
 if __name__ == "__main__":
   absltest.main()

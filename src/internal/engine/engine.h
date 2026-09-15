@@ -78,14 +78,7 @@ class Engine final {
   absl::Status UnregisterMemory(const void* addr) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Takes a snapshot of engine metrics.
-  void GetMetrics(TransportMetrics& m) const {
-    metrics_.Snapshot(m);
-  }
-
-  // Takes a snapshot of engine metrics details.
-  void GetMetricsDetails(TransportMetricsDetails& m) const {
-    metrics_.SnapshotDetails(m);
-  }
+  void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
 
  private:
   struct Entry {

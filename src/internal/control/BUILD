@@ -88,6 +88,7 @@ cc_library(
         ":message_internal_cc_proto",
         "//src/api:transport_metrics",
         "//src/internal:assumptions",
+        "//src/internal:coding_style",
         "//src/internal/base:config",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",

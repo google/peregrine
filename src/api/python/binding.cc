@@ -13,6 +13,7 @@
 #include "nanobind/stl/unique_ptr.h"
 #include "nanobind/stl/vector.h"
 #include "src/api/transport.h"
+#include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
 #include "src/api/transport_util.h"
 
@@ -119,29 +120,18 @@ NB_MODULE(peregrine, m) {
           },
           nb::arg("addr"))
       .def("get_transport_metrics", &Transport::GetTransportMetrics,
-           "Returns transport metrics.")
-      .def("get_transport_metrics_details",
-           &Transport::GetTransportMetricsDetails,
-           "Returns detailed transport metrics.");
+           "Returns transport metrics.");
 
   // Bind `TransportMetrics`
   // When adding new metrics, increment the count and update the binding.
-  constexpr size_t kTransportMetricsFieldsCount = 1;
+  constexpr size_t kTransportMetricsFieldsCount = 3;
   nb::class_<TransportMetrics>(m, "TransportMetrics")
-      .def_ro("bytes_sent", &TransportMetrics::bytes_sent);
+      .def_ro("bytes_sent", &TransportMetrics::bytes_sent)
+      .def_ro("tcp_connect_failures", &TransportMetrics::tcp_connect_failures)
+      .def_ro("rpc_requests_received",
+              &TransportMetrics::rpc_requests_received);
   static_assert(CountFields<peregrine::TransportMetrics>() ==
                 kTransportMetricsFieldsCount);
-
-  // Bind `TransportMetricsDetails`
-  constexpr size_t kTransportMetricsDetailsFieldsCount = 3;
-  nb::class_<TransportMetricsDetails>(m, "TransportMetricsDetails")
-      .def_ro("e2e", &TransportMetricsDetails::e2e)
-      .def_ro("tcp_connect_failures",
-              &TransportMetricsDetails::tcp_connect_failures)
-      .def_ro("rpc_requests_received",
-              &TransportMetricsDetails::rpc_requests_received);
-  static_assert(CountFields<peregrine::TransportMetricsDetails>() ==
-                kTransportMetricsDetailsFieldsCount);
 
   // Bind `TransportType` enum
   nb::enum_<TransportType>(m, "TransportType")

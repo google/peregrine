@@ -126,6 +126,7 @@ nanobind_extension(
     features = ["-use_header_modules"],
     deps = [
         ":transport",
+        ":transport_metrics",
         ":transport_types",
         ":transport_util",
         "@abseil-cpp//absl/status",
