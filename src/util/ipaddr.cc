@@ -39,11 +39,11 @@ bool IpAddr::IsZero() const {
 
 bool IpAddr::IsLoopback() const {
   if (IsIPv4()) {
-    // RFC 1122: 127.0.0.0/8.
+    // RFC 1122: 127.0.0.0/8
     return (ntohl(IPv4Addr().s_addr) >> 24) == 0x7F;
   } else {
     DCHECK(IsIPv6());
-    // RFC 4291: ::1, plus IPv4-mapped ::ffff:127.0.0.0/8.
+    // RFC 4291: ::1 or IPv4-mapped ::ffff:127.0.0.0/8
     const ipv6_t& ip6 = IPv6Addr();
     if (IN6_IS_ADDR_LOOPBACK(&ip6)) return true;
     if (IN6_IS_ADDR_V4MAPPED(&ip6)) return ip6.s6_addr[12] == 0x7F;
