@@ -1,0 +1,5 @@
+[project]
+name = "peregrine"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+description = "A transport library for ML workloads"
