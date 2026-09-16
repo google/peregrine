@@ -1,0 +1,7 @@
+*.o
+*~
+.vscode/
+bazel-bin
+bazel-out
+bazel-peregrine
+bazel-testlogs
