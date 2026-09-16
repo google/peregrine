@@ -142,11 +142,12 @@ cc_library(
         "//src/internal/base:endpoint",
         "//src/internal/base:types",
         "//src/internal/util",
+        "//third_party/liburing",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
-        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
     ],
 )
