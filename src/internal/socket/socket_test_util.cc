@@ -29,7 +29,7 @@ CreateTcpSocketPair(int family) {
     sa = std::move(socket);
     socket_accepted.Notify();
   };
-  util::Jthread acceptor_thread([&]() {
+  util::Thread acceptor_thread([&]() {
     acceptor_started.Notify();
     acceptor->Start(accept);
   });

@@ -53,16 +53,18 @@ using TcpAcceptorTestIPv4 = TcpAcceptorTest<AF_INET>;
 using TcpAcceptorTestIPv6 = TcpAcceptorTest<AF_INET6>;
 
 TEST_F(TcpAcceptorTestIPv4, StartThenStop) {
-  util::Jthread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
   acceptor_->Stop();
+  ta.join();
 }
 
 TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
   acceptor_->Stop();
 
-  util::Jthread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(Accept); });
+  ta.join();
 }
 
 template <int kFamily>

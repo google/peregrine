@@ -3,6 +3,8 @@
 
 #include <atomic>
 
+#include "absl/base/nullability.h"
+#include "absl/log/check.h"
 #include "absl/time/clock.h"
 #include "src/util/thread.h"
 
@@ -12,23 +14,27 @@ namespace peregrine::integration {
 template <typename Runnable>
 class Runner final {
  public:
-  explicit Runner(Runnable* r) : runnable_(r), stop_(false) {
-    if (runnable_ != nullptr) {
-      thread_ = util::Jthread([this]() {
-        while (!stop_.load()) {
-          runnable_->Run();
-          absl::SleepFor(runnable_->Cycle());
-        }
-      });
-    }
+  explicit Runner(Runnable* absl_nonnull r)
+      : runnable_(r), stop_(false), thread_([this]() {
+          while (!stop_.load()) {
+            runnable_->Run();
+            absl::SleepFor(runnable_->Cycle());
+          }
+        }) {
+    DCHECK_NE(runnable_, nullptr);
   }
 
-  ~Runner() { stop_.store(true); }
+  void Stop() { stop_.store(true); }
+
+  ~Runner() {
+    Stop();
+    thread_.join();
+  }
 
  private:
   Runnable* runnable_;
   std::atomic<bool> stop_;
-  util::Jthread thread_;
+  util::Thread thread_;
 };
 
 }  // namespace peregrine::integration

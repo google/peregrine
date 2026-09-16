@@ -121,6 +121,8 @@ cc_library(
     hdrs = ["runner.h"],
     deps = [
         "//src/util:thread",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
     ],
 )

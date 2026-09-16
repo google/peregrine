@@ -64,7 +64,7 @@ INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
                          /*family=*/Values(AF_INET, AF_INET6), ToString);
 
 TEST_P(ChannelUtilTest, Create) {
-  util::Jthread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(Accept); });
 
   for (const Endpoint& peer : peers_) {
     constexpr int kNumChannels = 8;
@@ -73,6 +73,7 @@ TEST_P(ChannelUtilTest, Create) {
   }
 
   acceptor_->Stop();
+  ta.join();
 }
 
 TEST(ChannelUtilNonParamTest, CreateRdmaChannel) {

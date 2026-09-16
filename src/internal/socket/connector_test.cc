@@ -55,10 +55,10 @@ using TcpConnectorTestIPv4 = TcpConnectorTest<AF_INET>;
 using TcpConnectorTestIPv6 = TcpConnectorTest<AF_INET6>;
 
 TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
-  util::Jthread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
-  util::Jthread tc([&]() {
+  util::Thread tc([&]() {
     for (const Endpoint& peer : peers_) {
       std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
       CHECK_NE(socket, nullptr);
@@ -69,10 +69,12 @@ TEST_F(TcpConnectorTestIPv4, AcceptBeforeConnect) {
 
   ShortSleep();
   acceptor_->Stop();
+  ta.join();
+  tc.join();
 }
 
 TEST_F(TcpConnectorTestIPv6, ConnectBeforeAccept) {
-  util::Jthread tc([&]() {
+  util::Thread tc([&]() {
     for (const Endpoint& peer : peers_) {
       std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer);
       CHECK_NE(socket, nullptr);
@@ -82,10 +84,12 @@ TEST_F(TcpConnectorTestIPv6, ConnectBeforeAccept) {
   });
 
   ShortSleep();
-  util::Jthread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
   acceptor_->Stop();
+  tc.join();
+  ta.join();
 }
 
 template <int kFamily>
@@ -117,10 +121,10 @@ TEST_F(PspTcpConnectorTestIPv4, AcceptBeforeConnect) {
     GTEST_SKIP() << "psp not supported";
   }
 
-  util::Jthread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
-  util::Jthread tc([&]() {
+  util::Thread tc([&]() {
     const Endpoint& peer_control = self_.control_plane_listener;
     for (const Endpoint& peer_target : peers_) {
       std::unique_ptr<TcpSocket> socket =
@@ -134,6 +138,8 @@ TEST_F(PspTcpConnectorTestIPv4, AcceptBeforeConnect) {
 
   ShortSleep();
   acceptor_->Stop();
+  ta.join();
+  tc.join();
 }
 
 TEST_F(PspTcpConnectorTestIPv6, ConnectBeforeAccept) {
@@ -141,7 +147,7 @@ TEST_F(PspTcpConnectorTestIPv6, ConnectBeforeAccept) {
     GTEST_SKIP() << "psp not supported";
   }
 
-  util::Jthread tc([&]() {
+  util::Thread tc([&]() {
     const Endpoint& peer_control = self_.control_plane_listener;
     for (const Endpoint& peer_target : peers_) {
       std::unique_ptr<TcpSocket> socket =
@@ -154,10 +160,12 @@ TEST_F(PspTcpConnectorTestIPv6, ConnectBeforeAccept) {
   });
 
   ShortSleep();
-  util::Jthread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(Accept); });
 
   ShortSleep();
   acceptor_->Stop();
+  tc.join();
+  ta.join();
 }
 
 }  // namespace
