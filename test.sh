@@ -2,5 +2,5 @@
 
 set -e
 
-bazelisk build //
-bazelisk test //
+bazelisk build //...
+bazelisk test //...

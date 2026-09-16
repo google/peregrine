@@ -1,60 +1,56 @@
-# ==========================================
-# C++ Toolchain & Language Configuration
-# ==========================================
-# Set default C++ standard to C++20
+# ==============================
+# C++ Language & Toolchain
+# ==============================
 build --cxxopt=-std=c++20
 build --host_cxxopt=-std=c++20
-
-# Pass compiler flags to surface relevant warnings
 build --copt=-Wall
 build --copt=-Wextra
 build --copt=-Wconversion
 
-# Set host compiler explicitly to bypass ccache read-only sandbox issues on Fedora
+# Bypass ccache read-only sandbox issues
 build --repo_env=CC=/usr/bin/gcc
 build --repo_env=CXX=/usr/bin/g++
 build --action_env=CC=/usr/bin/gcc
 build --action_env=CXX=/usr/bin/g++
 
-# ==========================================
+# ==============================
 # Dependency & Bzlmod Settings
-# ==========================================
-# Enable Bzlmod dependency management (default in Bazel 7+)
+# ==============================
+# Enable Bzlmod dependency management
 build --enable_bzlmod
 
-# Enforce strict lockfile behavior in CI environments, update locally
-# (Pass --lockfile_mode=error via CI scripts instead if preferred)
+# Enforce strict lockfile behavior
 build --lockfile_mode=update
 
-# Bypass header dependency checks for legacy/third-party BUILD rules if needed
+# Bypass header dependency checks
 # build --noinclude_checking
 
-# ==========================================
-# Performance & Execution
-# ==========================================
-# Enable strict sandboxing for hermetic and reproducible builds
-build --spawn_strategy=sandboxed
-
-# Disk cache sharing across workspace builds (stored outside sandbox)
-build --disk_cache=~/.cache/bazel_disk_cache
-
-# Enable colorful output for easier readability
+# For easier readability
 build --color=yes
 
-# ==========================================
-# Debug & Troubleshooting Configurations
-# ==========================================
-# Standard Debug Build (Usage: bazel build --config=dbg //...)
-build:dbg --compilation_mode=dbg
-build:dbg --copt=-g
-build:dbg --copt=-O0
+# ==============================
+# Performance & Execution
+# ==============================
+# Sandboxing for hermetic builds
+build --spawn_strategy=sandboxed
 
-# Optimized Release Build (Usage: bazel build --config=opt //...)
+# Disk cache sharing across workspaces
+build --disk_cache=~/.cache/bazel_disk_cache
+
+# ==============================
+# Debug & Troubleshooting
+# ==============================
+# Release: --config=opt
 build:opt --compilation_mode=opt
 build:opt --copt=-O3
 build:opt --copt=-DNDEBUG
 
-# AddressSanitizer Configuration (Usage: bazel build --config=asan //...)
+# Debug: --config=dbg
+build:dbg --compilation_mode=dbg
+build:dbg --copt=-g
+build:dbg --copt=-O0
+
+# AddressSanitizer: --config=asan
 build:asan --copt=-fsanitize=address
 build:asan --linkopt=-fsanitize=address
 build:asan --copt=-fno-omit-frame-pointer
