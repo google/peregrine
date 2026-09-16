@@ -17,7 +17,10 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
@@ -25,14 +28,10 @@
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
-#include "src/internal/channel/channel_util.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/control/control.h"
+#include "src/internal/engine/engine_helper.h"
 #include "src/internal/engine/worker.h"
-#include "src/internal/rdma/rdma_acceptor.h"
-#include "src/internal/socket/acceptor.h"
-#include "src/internal/socket/connector.h"
-#include "src/internal/socket/socket_tcp.h"
 #include "src/util/thread.h"
 
 namespace peregrine::internal {
@@ -51,145 +50,98 @@ absl::Status NotFoundError(const Handle h) {
 std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
                                        Control& control) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
-  std::unique_ptr<TcpAcceptor> tcp_acceptor = nullptr;
-  std::unique_ptr<RdmaAcceptor> rdma_acceptor = nullptr;
 
-  if (config.transport_type == TransportType::kTcp) {
-    tcp_acceptor = TcpAcceptor::Create(self);
-    if ABSL_PREDICT_FALSE (tcp_acceptor == nullptr) {
-      LOG(ERROR) << "failed to create tcp acceptor for " << self;
-      return nullptr;
-    }
-  } else if (config.transport_type == TransportType::kRdma) {
-    rdma_acceptor = RdmaAcceptor::Create(config, self, control);
-    if ABSL_PREDICT_FALSE (rdma_acceptor == nullptr) {
-      LOG(ERROR) << "failed to create rdma acceptor for " << self;
-      return nullptr;
-    }
-  } else {
+  if ABSL_PREDICT_FALSE (!config.IsValid()) {
+    LOG(ERROR) << "invalid config";
     return nullptr;
   }
-
-  if ABSL_PREDICT_FALSE (!self.IsValid()) {
-    LOG(ERROR) << "invalid self host info " << self.ToString();
+  auto helper = EngineHelper::Create(config, self, control);
+  if ABSL_PREDICT_FALSE (helper == nullptr) {
+    LOG(ERROR) << "failed to create engine helper: " << self;
     return nullptr;
   }
-
-  DCHECK(!config.require_dataplane_encryption);
-  return absl::WrapUnique(new Engine(config, self, std::move(tcp_acceptor),
-                                     std::move(rdma_acceptor), control));
+  DCHECK(self.IsValid());
+  return absl::WrapUnique(new Engine(config, self, std::move(helper)));
 }
 
-Engine::Engine(const Config& config, HostInfo& self,
-               std::unique_ptr<TcpAcceptor> tcp_acceptor,
-               std::unique_ptr<RdmaAcceptor> rdma_acceptor, Control& control)
-    : config_(config),
-      self_(self),
-      control_(control),
-      stop_(false),
-      tcp_acceptor_(std::move(tcp_acceptor)),
-      rdma_acceptor_(std::move(rdma_acceptor)) {
+Engine::Engine(const Config& config, const HostInfo& self,
+               std::unique_ptr<EngineHelper> helper)
+    : config_(config), self_(self), stop_(false), helper_(std::move(helper)) {
   DCHECK(config_.IsValid());
 
-  // Start an acceptor thread if TCP acceptor is present.
-  if (tcp_acceptor_ != nullptr) {
-    tcp_acceptor_thread_ = util::Jthread([this]() {
-      auto callback = [this](std::unique_ptr<TcpSocket> socket) {
-        accept(std::move(socket));
-      };
-      tcp_acceptor_->Start(callback);
-    });
-  }
-
-  // Start a main loop thread.
+  acceptor_thread_ = util::Jthread([this]() { acceptorLoop(); });
   main_thread_ = util::Jthread([this]() { mainLoop(); });
-
   LOG(INFO) << "created @ " << self_;
 }
 
 Engine::~Engine() {
   {
     absl::MutexLock _(mu_);
-    if (tcp_acceptor_ != nullptr) {
-      tcp_acceptor_->Stop();
-    }
     stop_ = true;
   }
   // all threads are joined in their destructor.
-  LOG(INFO) << "destroyed @ " << self_;
+  LOG(INFO) << "engine destroyed @ " << self_;
 }
 
-void Engine::accept(std::unique_ptr<TcpSocket> socket) {
-  DCHECK_NE(socket, nullptr);
-  std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-  auto rw = std::make_unique<Worker>(-(1 + recv_workers_.size()), self_,
-                                     outgoing_, incoming_, std::move(ch),
-                                     metrics_);
-  recv_workers_.push_back(std::move(rw));
-}
-
-bool Engine::connect(Workers& workers, const Endpoint& peer) {
-  const int num_conns = config_.num_conns_per_peer;
-  if (workers.size() >= num_conns) {
-    return true;
-  }
-  if (config_.transport_type == TransportType::kTcp) {
-    return connectTcp(workers, peer);
-  }
-  if (config_.transport_type == TransportType::kRdma) {
-    return connectRdma(workers, peer);
-  }
-  return false;
-}
-
-bool Engine::connectTcp(Workers& workers, const Endpoint& peer) {
-  const int num_conns = config_.num_conns_per_peer;
-  auto peer_info = control_.GetPeerHostInfo(peer);
-  if (!peer_info.ok()) {
-    LOG(WARNING) << "failed to resolve peer " << peer << ": "
-                 << peer_info.status();
-    return false;
-  }
-  if (peer_info->data_plane_listeners.empty()) {
-    LOG(WARNING) << "no data plane listeners found for peer " << peer;
-    return false;
-  }
-  // We only use the first data plane listener for now.
-  const Endpoint& peer_target = peer_info->data_plane_listeners[0];
-  DCHECK(!config_.require_dataplane_encryption);
-  uint64_t connect_failures = 0;
-  for (int i = 0; i < 2 * num_conns; ++i) {
-    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_target);
-    if (socket == nullptr) {
-      connect_failures++;
-      continue;
-    }
-    std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-    auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
-                                       incoming_, std::move(ch), metrics_);
+void Engine::createSendWorkers(const Endpoint& peer) {
+  // TODO(yongx): helper_->Connect(), called at start time, is blocking.
+  Workers& workers = send_workers_[peer];
+  for (std::unique_ptr<Channel>& ch : helper_->Connect(peer)) {
+    auto sw = createWorker(1 + workers.size(), std::move(ch));
     workers.push_back(std::move(sw));
-    if (workers.size() >= num_conns) break;
   }
-  if (connect_failures > 0) {
-    metrics_.tcp_connect_failures.Add(connect_failures);
-  }
-  return !workers.empty();
 }
 
-bool Engine::connectRdma(Workers& workers, const Endpoint& peer) {
-  if (rdma_acceptor_ == nullptr) {
-    LOG(WARNING) << "no local RDMA acceptor available";
+bool Engine::createRecvWorkers() {
+  auto channels = helper_->GetAcceptedChannels();
+  if (channels.empty()) {
     return false;
   }
-  const int num_conns = config_.num_conns_per_peer;
-  auto channels = rdma_acceptor_->Connect(peer, num_conns);
+  // TODO(yongx): use peer control endpoint as key.
+  Workers& workers = recv_workers_[Endpoint()];
   for (auto& ch : channels) {
-    auto sw = std::make_unique<Worker>(1 + workers.size(), self_, outgoing_,
-                                       incoming_, std::move(ch), metrics_);
-    workers.push_back(std::move(sw));
-    if (workers.size() >= num_conns) break;
+    auto rw = createWorker(-(1 + workers.size()), std::move(ch));
+    workers.push_back(std::move(rw));
   }
-  return !workers.empty();
+  return true;
+}
+
+void Engine::acceptorLoop() {
+  while (true) {
+    {
+      absl::MutexLock _(mu_);
+      if (stop_) return;
+    }
+    if (!createRecvWorkers()) {
+      absl::SleepFor(absl::Milliseconds(100));
+    }
+  }
+}
+
+bool Engine::hasWork() const { return !reqs_.empty() || stop_; }
+
+void Engine::mainLoop() {
+  while (true) {
+    Entry entry;
+    {  // step 1: get an entry.
+      absl::MutexLock _(mu_);
+      mu_.Await(absl::Condition(this, &Engine::hasWork));
+      if (reqs_.empty()) {
+        DCHECK(stop_);  // destructor called
+        return;
+      }
+      entry = std::move(reqs_.front());
+      reqs_.pop_front();
+    }
+
+    // step 2: create send workers if needed.
+    if (send_workers_[entry.peer].size() < config_.num_conns_per_peer) {
+      createSendWorkers(entry.peer);
+    }
+
+    // step 3: process the entry.
+    process(entry);
+  }
 }
 
 absl::StatusOr<Handle> Engine::Enqueue(
@@ -223,57 +175,13 @@ absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
   return NotFoundError(handle);
 }
 
-absl::Status Engine::RegisterMemory(void* addr, size_t length) {
-  if (rdma_acceptor_ != nullptr) {
-    return rdma_acceptor_->RegisterMemory(addr, length);
-  }
-  if (config_.transport_type == TransportType::kTcp) {
-    return absl::OkStatus();
-  }
-  return absl::FailedPreconditionError("RDMA acceptor not initialized");
-}
-
-absl::Status Engine::UnregisterMemory(const void* addr) {
-  if (rdma_acceptor_ != nullptr) {
-    return rdma_acceptor_->UnregisterMemory(addr);
-  }
-  if (config_.transport_type == TransportType::kTcp) {
-    return absl::OkStatus();
-  }
-  return absl::FailedPreconditionError("RDMA acceptor not initialized");
-}
-
-bool Engine::hasWork() const { return !reqs_.empty() || stop_; }
-
-void Engine::mainLoop() {
-  while (true) {
-    Entry entry;
-    {  // step 1: get an entry.
-      absl::MutexLock _(mu_);
-      mu_.Await(absl::Condition(this, &Engine::hasWork));
-      if (reqs_.empty()) {
-        DCHECK(stop_);  // destructor called
-        return;
-      }
-      entry = std::move(reqs_.front());
-      reqs_.pop_front();
-    }
-
-    // step 2: update the request tracker.
-    getRequestTracker(entry.request).Add(entry.handle);
-
-    // step 3: process the entry.
-    process(entry);
-  }
-}
-
 void Engine::process(const Entry& entry) {
   if (entry.request.op == Op::kWrite) {
     Workers& workers = send_workers_[entry.peer];
-    if (connect(workers, entry.peer)) {
-      processWrite(workers, entry.handle, entry.reqid, entry.request);
+    if ABSL_PREDICT_FALSE (workers.empty()) {
+      LOG(ERROR) << "failed to create send workers for " << entry.peer;
     } else {
-      // TODO(yongx): handle failure.
+      processWrite(workers, entry.handle, entry.reqid, entry.request);
     }
   } else {
     processRead(entry.handle, entry.reqid, entry.request);
@@ -318,5 +226,7 @@ void Engine::processRead(const Handle handle, const ReqId reqid,
   std::memcpy(request.laddr, request.raddr, request.len);
   tracker->Set(chunk_t(0));
 }
+
+void Engine::GetMetrics(TransportMetrics& m) const { helper_->GetMetrics(m); }
 
 }  // namespace peregrine::internal

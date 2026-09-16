@@ -1,13 +1,14 @@
 #ifndef PEREGRINE_SRC_INTERNAL_ENGINE_ENGINE_H_
 #define PEREGRINE_SRC_INTERNAL_ENGINE_ENGINE_H_
 
-#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <memory>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
+#include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
@@ -23,16 +24,15 @@
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
+#include "src/internal/channel/channel.h"
 #include "src/internal/coding_style.h"
 #include "src/internal/control/control.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
+#include "src/internal/engine/engine_helper.h"
 #include "src/internal/engine/worker.h"
-#include "src/internal/metrics/engine_metrics.h"
-#include "src/internal/rdma/rdma_acceptor.h"
 #include "src/internal/request/request_tracker.h"
-#include "src/internal/socket/acceptor.h"
-#include "src/internal/socket/socket_tcp.h"
+#include "src/util/macro.h"
 #include "src/util/thread.h"
 #include "src/util/util.h"
 
@@ -53,8 +53,15 @@ class Engine final {
   static std::unique_ptr<Engine> Create(const Config& config, HostInfo& self,
                                         Control& control);
 
+  // Disallows copy and move.
+  DISALLOW_COPY(Engine);
+  DISALLOW_MOVE(Engine);
+
   // Destructor.
   ~Engine();
+
+  // Returns the engine helper.
+  EngineHelper* absl_nonnull Helper() const { return helper_.get(); }
 
   // Enqueues a number of valid transport request.
   absl::StatusOr<Handle> Enqueue(
@@ -64,21 +71,8 @@ class Engine final {
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);
 
-  // TODO(mubashirq): Decouple memory registration from Engine. Engine should be
-  // a pure scheduler; RdmaAcceptor and TcpAcceptor should be managed at the
-  // outer Transport layer, with memory registration handled directly by
-  // Transport.
-  //
-  // Registers a contiguous memory buffer across active RDMA hardware adapters.
-  absl::Status RegisterMemory(void* addr, size_t length)
-      ABSL_LOCKS_EXCLUDED(mu_);
-
-  // Unregisters a previously registered memory buffer from active RDMA hardware
-  // adapters.
-  absl::Status UnregisterMemory(const void* addr) ABSL_LOCKS_EXCLUDED(mu_);
-
   // Takes a snapshot of engine metrics.
-  void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
+  void GetMetrics(TransportMetrics& m) const;
 
  private:
   struct Entry {
@@ -90,26 +84,9 @@ class Engine final {
 
  private:
   // Constructor.
-  Engine(const Config& config, HostInfo& self,
-         std::unique_ptr<TcpAcceptor> tcp_acceptor,
-         std::unique_ptr<RdmaAcceptor> rdma_acceptor, Control& control);
+  Engine(const Config& config, const HostInfo& self,
+         std::unique_ptr<EngineHelper> helper);
 
- private:
-  using Workers = std::vector<std::unique_ptr<Worker>>;
-
-  // Accepts the incoming `socket`.
-  void accept(std::unique_ptr<TcpSocket> socket);
-
-  // Connects to the `peer` to create a number of workers.
-  bool connect(Workers& workers, const Endpoint& peer);
-
-  // Connects to a TCP `peer`.
-  bool connectTcp(Workers& workers, const Endpoint& peer);
-
-  // Connects to an RDMA `peer`.
-  bool connectRdma(Workers& workers, const Endpoint& peer);
-
- private:
   // Generates a random handle.
   Handle genHandle() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     static_assert(std::is_same_v<Handle::ValueType, uint32_t>);
@@ -127,6 +104,9 @@ class Engine final {
     return request.op == Op::kWrite ? outgoing_ : incoming_;
   }
 
+  // Runs in an acceptor thread to accept incoming channels.
+  void acceptorLoop();
+
   // Returns true iff there are pending requests or the destructor is called.
   bool hasWork() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
@@ -134,6 +114,20 @@ class Engine final {
   void mainLoop() ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
+  using Workers = std::vector<std::unique_ptr<Worker>>;
+
+  // Creates a worker, using positive/negative id for send/recv respectively.
+  std::unique_ptr<Worker> createWorker(int id, std::unique_ptr<Channel> ch) {
+    return std::make_unique<Worker>(id, self_, outgoing_, incoming_,
+                                    std::move(ch));
+  }
+
+  // Creates send workers for a `peer`.
+  void createSendWorkers(const Endpoint& peer);
+
+  // Creates recv workers for accepted channels.
+  bool createRecvWorkers();
+
   // Processes a single entry.
   void process(const Entry& entry) ABSL_LOCKS_EXCLUDED(mu_);
 
@@ -147,10 +141,7 @@ class Engine final {
 
  private:
   const Config& config_;
-  HostInfo& self_;
-  Control& control_;
-
-  EngineMetrics metrics_;
+  const HostInfo& self_;
 
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);
@@ -160,15 +151,11 @@ class Engine final {
   RequestTracker outgoing_;
   RequestTracker incoming_;
 
-  // TCP data plane.
-  std::unique_ptr<TcpAcceptor> tcp_acceptor_;
-
-  // RDMA data plane.
-  std::unique_ptr<RdmaAcceptor> rdma_acceptor_;
-
+  absl_nonnull std::unique_ptr<EngineHelper> helper_;
   absl::flat_hash_map<Endpoint, Workers> send_workers_;
-  Workers recv_workers_;
-  util::Jthread tcp_acceptor_thread_;
+  absl::flat_hash_map<Endpoint, Workers> recv_workers_;
+
+  util::Jthread acceptor_thread_;
   util::Jthread main_thread_;
 };
 
