@@ -13,6 +13,8 @@
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "third_party/liburing/src/include/liburing.h"
+#include "third_party/liburing/src/include/liburing/io_uring.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
@@ -34,6 +36,9 @@ class TcpSocket final : public SocketBase {
 
   // Destructor closes the socket.
   ~TcpSocket();
+
+  // Returns true iff io_uring is enabled for this socket.
+  bool IsIoUringEnabled() const { return ring_ != nullptr; }
 
   // Shuts down the socket for both send and recv.
   void Shutdown();
@@ -72,6 +77,26 @@ class TcpSocket final : public SocketBase {
   // peer side has closed the connection. Returns -1 on error.
   ssize_t RecvV(absl::Span<const IoVec> iovecs) const;
 
+  // Sends exactly `len` bytes of data from the `buf` via io_uring.
+  // Returns the number of bytes sent if successful. Zero byte means no data
+  // has been sent due to non-error reasons. Returns -1 on error.
+  ssize_t SendUring(const Byte* buf, size_t len);
+
+  // Receives exactly `len` bytes of data into the `buf` via io_uring.
+  // Returns the number of bytes received if successful. Zero byte means the
+  // peer side has closed the connection. Returns -1 on error.
+  ssize_t RecvUring(Byte* buf, size_t len);
+
+  // Sends exactly `length(iovecs)` bytes from the buffers via io_uring.
+  // Returns the number of bytes sent if successful. Zero byte means no data
+  // has been sent due to non-error reasons. Returns -1 on error.
+  ssize_t SendVUring(absl::Span<const IoVec> iovecs);
+
+  // Receives exactly `length(iovecs)` bytes into the buffers via io_uring.
+  // Returns the number of bytes received if successful. Zero byte means the
+  // peer side has closed the connection. Returns -1 on error.
+  ssize_t RecvVUring(absl::Span<const IoVec> iovecs);
+
   // Returns a self/peer address pair string of the socket.
   std::string ToString() const;
 
@@ -79,9 +104,23 @@ class TcpSocket final : public SocketBase {
   // Constructor with a valid file descriptor `fd`.
   // The `fd` comes from a successful `Create()` or `Accept()` call.
   TcpSocket(fd_t fd, int family, bool connected)
-      : SocketBase(fd, family, connected) {
+      : SocketBase(fd, family, connected), ring_(uringInit()) {
     DCHECK(invariant());
   }
+
+ private:
+  // Creates and initializes an io_uring queue.
+  static std::unique_ptr<struct io_uring> uringInit();
+
+  // Shuts down the io_uring queue.
+  void uringShutdown();
+
+  // Returns a new io_uring_sqe.
+  struct io_uring_sqe* uringGetSqe();
+
+  // Submits the io_uring queue and waits for the completion.
+  // Returns the result of the io_uring operation.
+  int uringSubmitAndWait();
 
  private:
   // Returns a success message for the last socket operation.
@@ -105,6 +144,9 @@ class TcpSocket final : public SocketBase {
   }
 
   static constexpr std::string_view kTcp = "tcp";
+
+ private:
+  std::unique_ptr<struct io_uring> ring_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const TcpSocket& s) {
