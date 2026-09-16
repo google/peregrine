@@ -103,21 +103,21 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
 
   ASSERT_TRUE(t_.Add(kHandle, {kReqId, kReqId2}, std::move(callback)));
 
-  // Complete first request
+  // Complete first request.
   for (int i = 0; i < kNumChunks; ++i) {
     t_.Set(kHandle, kReqId, kNumChunks, chunk_t(i));
   }
   EXPECT_EQ(callback_count, 0);
   EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
 
-  // Complete second request partially
+  // Complete second request partially.
   for (int i = 0; i < kNumChunks - 1; ++i) {
     t_.Set(kHandle, kReqId2, kNumChunks, chunk_t(i));
   }
   EXPECT_EQ(callback_count, 0);
   EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
 
-  // Complete last chunk of second request
+  // Complete second request fully.
   t_.Set(kHandle, kReqId2, kNumChunks, chunk_t(kNumChunks - 1));
   EXPECT_EQ(callback_count, 1);
   EXPECT_EQ(completed_status, Status::kSuccess);

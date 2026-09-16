@@ -41,6 +41,23 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "transport_test",
+    srcs = ["transport_test.cc"],
+    deps = [
+        ":transport",
+        ":transport_metrics",
+        ":transport_types",
+        "//src/util:app",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "transport_metrics",
     hdrs = ["transport_metrics.h"],
@@ -109,23 +126,6 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "simple_test",
-    srcs = ["simple_test.cc"],
-    deps = [
-        ":transport",
-        ":transport_metrics",
-        ":transport_types",
-        "//src/util:app",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/synchronization",
-        "@abseil-cpp//absl/time",
-        "@googletest//:gtest_main",
-    ],
-)
-
 nanobind_extension(
     name = "peregrine",
     srcs = ["python/binding.cc"],
@@ -152,9 +152,9 @@ py_test(
 )
 
 py_test(
-    name = "python/simple_test_py",
-    srcs = ["python/simple_test.py"],
-    main = "python/simple_test.py",
+    name = "python/transport_test_py",
+    srcs = ["python/transport_test.py"],
+    main = "python/transport_test.py",
     tags = ["notsan"],  # TODO(yongx): fix this
     deps = [
         ":peregrine",

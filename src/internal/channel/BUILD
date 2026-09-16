@@ -176,6 +176,7 @@ cc_test(
         ":channel_util",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
+        "//src/internal/base:nicinfo",
         "//src/internal/rdma:rdma_device_context",
         "//src/internal/rdma:rdma_device_manager",
         "//src/internal/rdma:rdma_queue_pair",

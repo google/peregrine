@@ -11,7 +11,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/span.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
@@ -31,12 +30,6 @@ class TcpAcceptor {
   // Creates a tcp acceptor with per-NIC non-blocking listening sockets, and
   // fills in `self.data_plane_listeners` with the listening endpoints.
   static std::unique_ptr<TcpAcceptor> Create(HostInfo& self);
-
-  // Returns the listening endpoints of the acceptor.
-  absl::Span<const Endpoint> Listeners() const {
-    DCHECK(self_.IsValid());
-    return self_.data_plane_listeners;
-  }
 
   // Starts running the acceptor.
   void Start(AcceptCallback accept);
