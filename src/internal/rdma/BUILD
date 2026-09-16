@@ -84,7 +84,6 @@ cc_test(
     name = "rdma_memory_manager_test",
     srcs = ["rdma_memory_manager_test.cc"],
     deps = [
-        ":rdma_device_context",
         ":rdma_device_manager",
         ":rdma_memory_manager",
         "//:libibverbs",  # buildcleaner: keep
