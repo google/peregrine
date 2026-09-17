@@ -9,7 +9,6 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
-#include "src/api/transport_metrics.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -41,6 +40,9 @@ class EngineHelper final {
   // Destructor.
   ~EngineHelper();
 
+  // Returns a mutable reference to engine metrics.
+  EngineMetrics& Metrics() { return metrics_; }
+
   // Creates a number of channels connected to the `peer`.
   Channels Connect(const Endpoint& peer);
 
@@ -52,9 +54,6 @@ class EngineHelper final {
 
   // Unregisters a previously registered rdma memory buffer.
   absl::Status UnregisterMemory(const void* addr);
-
-  // Takes a snapshot of engine metrics.
-  void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
 
  private:
   // Constructor.

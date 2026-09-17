@@ -110,6 +110,7 @@ cc_test(
     srcs = ["simple_test.cc"],
     deps = [
         ":transport",
+        ":transport_metrics",
         ":transport_types",
         "//src/util:app",
         "@abseil-cpp//absl/log:check",

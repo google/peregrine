@@ -9,6 +9,8 @@ namespace peregrine {
 struct TransportMetrics final {
   // Total payload bytes sent across all data channels.
   uint64_t bytes_sent = 0;
+  // Total user transfer requests submitted
+  uint64_t requests_posted = 0;
 
   // Transport Pipeline Breakdown
   // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/api/transport.h"
+#include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
 #include "src/util/app.h"
 
@@ -44,6 +45,10 @@ class SimpleTest : public ::testing::Test {
     }
   }
 
+  bool CheckMetrics(const TransportMetrics& metrics) {
+    return metrics.requests_posted > 0;
+  }
+
  protected:
   const size_t partial_;
   util::App l_;  // local
@@ -67,6 +72,7 @@ TEST_F(SimpleTest, Read) {
   };
   const absl::StatusOr<Handle> h = lt.Post(peer, {req});
   ASSERT_TRUE(h.ok()) << h.status();
+  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 
   // Wait for the transport to finish processing the request.
   WaitForCompletion(lt, *h);
@@ -98,6 +104,7 @@ TEST_F(SimpleTest, Write) {
   };
   const absl::StatusOr<Handle> h = lt.Post(peer, {req1, req2});
   ASSERT_TRUE(h.ok()) << h.status();
+  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 
   // Wait for the transport to finish processing the requests.
   WaitForCompletion(lt, *h);

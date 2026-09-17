@@ -31,6 +31,7 @@
 #include "src/internal/control/message_internal.pb.h"
 #include "src/internal/engine/engine_helper.h"
 #include "src/internal/engine/worker.h"
+#include "src/internal/metrics/engine_metrics.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/util/macro.h"
 #include "src/util/thread.h"
@@ -72,7 +73,7 @@ class Engine final {
   absl::StatusOr<Status> QueryUpdate(Handle handle);
 
   // Takes a snapshot of engine metrics.
-  void GetMetrics(TransportMetrics& m) const;
+  void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
 
  private:
   struct Entry {
@@ -118,7 +119,7 @@ class Engine final {
 
   // Creates a worker, using positive/negative id for send/recv respectively.
   std::unique_ptr<Worker> createWorker(int id, std::unique_ptr<Channel> ch) {
-    return std::make_unique<Worker>(id, self_, outgoing_, incoming_,
+    return std::make_unique<Worker>(id, self_, outgoing_, incoming_, metrics_,
                                     std::move(ch));
   }
 
@@ -150,6 +151,8 @@ class Engine final {
 
   RequestTracker outgoing_;
   RequestTracker incoming_;
+
+  EngineMetrics& metrics_;
 
   absl_nonnull std::unique_ptr<EngineHelper> helper_;
   absl::flat_hash_map<Endpoint, Workers> send_workers_;

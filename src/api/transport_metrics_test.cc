@@ -8,6 +8,7 @@ namespace {
 TEST(TransportMetricsTest, DefaultInitialization) {
   const TransportMetrics m;
   EXPECT_EQ(m.bytes_sent, 0);
+  EXPECT_EQ(m.requests_posted, 0);
   EXPECT_EQ(m.tcp_connect_failures, 0);
   EXPECT_EQ(m.rpc_requests_received, 0);
 }

@@ -124,9 +124,10 @@ NB_MODULE(peregrine, m) {
 
   // Bind `TransportMetrics`
   // When adding new metrics, increment the count and update the binding.
-  constexpr size_t kTransportMetricsFieldsCount = 3;
+  constexpr size_t kTransportMetricsFieldsCount = 4;
   nb::class_<TransportMetrics>(m, "TransportMetrics")
       .def_ro("bytes_sent", &TransportMetrics::bytes_sent)
+      .def_ro("requests_posted", &TransportMetrics::requests_posted)
       .def_ro("tcp_connect_failures", &TransportMetrics::tcp_connect_failures)
       .def_ro("rpc_requests_received",
               &TransportMetrics::rpc_requests_received);

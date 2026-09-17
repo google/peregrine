@@ -14,6 +14,8 @@ static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 struct EngineMetrics final {
   // Total payload bytes sent across all data channels.
   MetricCounter<uint64_t> bytes_sent;
+  // Total user transfer requests submitted.
+  MetricCounter<uint64_t> requests_posted;
   // Total tcp connect failures.
   MetricCounter<uint64_t> tcp_connect_failures;
 

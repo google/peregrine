@@ -32,6 +32,7 @@
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine_helper.h"
 #include "src/internal/engine/worker.h"
+#include "src/internal/metrics/engine_metrics.h"
 #include "src/util/thread.h"
 
 namespace peregrine::internal {
@@ -66,7 +67,11 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
 
 Engine::Engine(const Config& config, const HostInfo& self,
                std::unique_ptr<EngineHelper> helper)
-    : config_(config), self_(self), stop_(false), helper_(std::move(helper)) {
+    : config_(config),
+      self_(self),
+      stop_(false),
+      metrics_(helper->Metrics()),
+      helper_(std::move(helper)) {
   DCHECK(config_.IsValid());
 
   acceptor_thread_ = util::Jthread([this]() { acceptorLoop(); });
@@ -160,6 +165,7 @@ absl::StatusOr<Handle> Engine::Enqueue(
     const ReqId reqid = genReqId();
     reqs_.emplace_back(peer, handle, reqid, request);
   }
+  metrics_.requests_posted.Add(requests.size());
   return handle;
 }
 
@@ -226,7 +232,5 @@ void Engine::processRead(const Handle handle, const ReqId reqid,
   std::memcpy(request.laddr, request.raddr, request.len);
   tracker->Set(chunk_t(0));
 }
-
-void Engine::GetMetrics(TransportMetrics& m) const { helper_->GetMetrics(m); }
 
 }  // namespace peregrine::internal
