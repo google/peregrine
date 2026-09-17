@@ -35,17 +35,17 @@ build --color=yes
 build --spawn_strategy=sandboxed
 
 # Disk cache sharing across workspaces
-build --disk_cache=~/.cache/bazel_disk_cache
+build --disk_cache=~/.cache/bazel
 
 # ==============================
 # Debug & Troubleshooting
 # ==============================
-# Release: --config=opt
+# For release: --config=opt
 build:opt --compilation_mode=opt
 build:opt --copt=-O3
 build:opt --copt=-DNDEBUG
 
-# Debug: --config=dbg
+# For debug: --config=dbg
 build:dbg --compilation_mode=dbg
 build:dbg --copt=-g
 build:dbg --copt=-O0

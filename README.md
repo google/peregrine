@@ -2,3 +2,5 @@
 
 Our goal is to build an easy-to-use, light-weight, high-performance, and general
 transport library to serve machine learning workloads on TPU hosts.
+
+To build and test all the code, just run `./test.sh`.
