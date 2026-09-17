@@ -40,6 +40,7 @@ cc_library(
     hdrs = ["ipaddr.h"],
     deps = [
         ":macro",
+        "//:libibverbs",  # buildcleaner: keep
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

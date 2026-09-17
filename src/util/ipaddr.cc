@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include "infiniband/verbs.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
@@ -48,6 +49,20 @@ bool IpAddr::IsLoopback() const {
     if (IN6_IS_ADDR_LOOPBACK(&ip6)) return true;
     if (IN6_IS_ADDR_V4MAPPED(&ip6)) return ip6.s6_addr[12] == 0x7F;
     return false;
+  }
+}
+
+std::optional<union ibv_gid> IpAddr::ToRdmaGid() const {
+  // static_assert(assumptions::kUseIpAddrToRepresentRdmaRoCEv2Gid);
+  if (IsIPv4()) {
+    return std::nullopt;
+  } else {
+    DCHECK(IsIPv6());
+    union ibv_gid gid;
+    const ipv6_t& ip6 = IPv6Addr();
+    static_assert(sizeof(union ibv_gid) == sizeof(ipv6_t));
+    std::memcpy(gid.raw, &ip6, sizeof(ipv6_t));
+    return gid;
   }
 }
 

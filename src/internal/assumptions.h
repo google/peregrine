@@ -88,9 +88,16 @@ inline constexpr bool kThereIsOnlyOnePairOfWrapperControlMessages = true;
 // known cases including jumbo frames.
 inline constexpr bool kNetworkMtuIsAtMostTenKiloBytes = true;
 
-// Assumptions about RDMA memory registration.
+// Assumptions about RDMA NIC address.
 // ---------------------------------------------------------------------------
 //
+// RDMA NIC RoCEv2 address (gid) is 16 bytes, the same as IPv6 address. So we
+// can use (v6) IpAddr to represent the RDMA address. As a result, the
+// `Endpoint` struct can represent both IP and RDMA endpoints.
+inline constexpr bool kUseIpAddrToRepresentRdmaRoCEv2Gid = true;
+
+// Assumptions about RDMA memory registration.
+// ---------------------------------------------------------------------------
 // Peregrine will have a NUMA-aware memory allocator in its buffer API.
 //
 // For now, Peregrine transport provides functions to register application-
