@@ -68,6 +68,8 @@ std::string ToString(const WorkloadType workload) {
   switch (workload) {
     case WorkloadType::kSerialFixedWrite:
       return "serial_fixed_write";
+    case WorkloadType::kKvCache:
+      return "kv_cache";
   }
   return absl::StrFormat("Unknown(%d)", static_cast<int>(workload));
 }
@@ -77,13 +79,17 @@ bool AbslParseFlag(absl::string_view text, WorkloadType* workload,
   if (absl::EqualsIgnoreCase(text, "serial_fixed_write")) {
     *workload = WorkloadType::kSerialFixedWrite;
     return true;
+  } else if (absl::EqualsIgnoreCase(text, "kv_cache")) {
+    *workload = WorkloadType::kKvCache;
+    return true;
   }
-  *error = absl::StrCat("unknown workload '", text,
-                        "'. Supported workloads: [serial_fixed_write]");
+  *error =
+      absl::StrCat("unknown workload '", text,
+                   "'. Supported workloads: [serial_fixed_write, kv_cache]");
   return false;
 }
 
-std::string AbslUnparseFlag(WorkloadType workload) {
+std::string AbslUnparseFlag(const WorkloadType workload) {
   return ToString(workload);
 }
 

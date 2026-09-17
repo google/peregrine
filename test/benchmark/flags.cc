@@ -46,12 +46,12 @@ ABSL_FLAG(std::string, peer, "",
 ABSL_FLAG(uint64_t, xfer_size, 1024 * 1024 * 1024ULL,
           "Buffer transfer size in bytes (default = 1 GiB)");
 
-ABSL_FLAG(uint32_t, num_xfers, 100,
-          "Number of transfers to perform (default = 100)");
+ABSL_FLAG(uint32_t, num_xfers, 50,
+          "Number of transfers to perform (default = 50)");
 
 ABSL_FLAG(peregrine::benchmark::WorkloadType, workload,
           peregrine::benchmark::WorkloadType::kSerialFixedWrite,
-          "Workload type to run: 'serial_fixed_write'");
+          "Workload type to run: 'serial_fixed_write', 'kv_cache'");
 
 namespace peregrine::benchmark {
 

@@ -108,5 +108,6 @@ cc_binary(
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",
         "//src/api:transport_types",
+        "//test/benchmark/workloads:workload_util",
     ],
 )
