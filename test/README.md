@@ -7,5 +7,5 @@
 
 | Subdirectory   |           Namespace          |         Purpose            |
 | :------------- | :--------------------------- | :------------------------- |
-| `benchmark/`   | `peregrine::benchmark`       | Benchmarks across hosts.   |
-| `integration/` | `peregrine::integration`     | Tests in a single process. |
+| `benchmark/`   | `peregrine::benchmark`       | Benchmarks across hosts    |
+| `integration/` | `peregrine::integration`     | Tests in a single process  |

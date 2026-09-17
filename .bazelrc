@@ -35,7 +35,8 @@ build --color=yes
 build --spawn_strategy=sandboxed
 
 # Disk cache sharing across workspaces
-build --disk_cache=~/.cache/bazel
+# `~/.cache/bazel` breaks Bazel 9.0+
+build --disk_cache=~/.cache/bazel_
 
 # ==============================
 # Debug & Troubleshooting
