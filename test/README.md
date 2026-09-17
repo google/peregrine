@@ -9,3 +9,4 @@
 | :------------- | :--------------------------- | :------------------------- |
 | `benchmark/`   | `peregrine::benchmark`       | Benchmarks across hosts.   |
 | `integration/` | `peregrine::integration`     | Tests in a single process. |
+| `lib/`         | `peregrine::test`            | Shared test utilities.     |

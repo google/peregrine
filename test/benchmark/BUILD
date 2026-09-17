@@ -105,8 +105,7 @@ cc_binary(
         ":flags",
         ":peregrine_util",
         ":types",
-        "@abseil-cpp//absl/flags:parse",
-        "@abseil-cpp//absl/log:initialize",
         "//src/api:transport_types",
+        "//test/lib:initialization",
     ],
 )

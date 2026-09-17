@@ -3,12 +3,11 @@
 #include <cstdint>
 #include <string>
 
-#include "absl/flags/parse.h"
-#include "absl/log/initialize.h"
 #include "src/api/transport_types.h"
 #include "test/benchmark/flags.h"
 #include "test/benchmark/peregrine_util.h"
 #include "test/benchmark/types.h"
+#include "test/lib/initialization.h"
 
 namespace {
 using ::peregrine::benchmark::ParseAppControlPort;
@@ -23,12 +22,12 @@ using ::peregrine::benchmark::Role;
 using ::peregrine::benchmark::RunClient;
 using ::peregrine::benchmark::RunServer;
 using ::peregrine::benchmark::WorkloadType;
+using ::peregrine::test::Init;
 }  // namespace
 
 int main(int argc, char* argv[]) {
   // Initialize logging and flags.
-  absl::ParseCommandLine(argc, argv);
-  absl::InitializeLog();
+  Init(argc, argv);
 
   // Parse cmd line flags.
   const std::string ip = ParseIp();
