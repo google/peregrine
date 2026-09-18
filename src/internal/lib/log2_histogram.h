@@ -9,6 +9,7 @@
 #include <type_traits>
 
 #include "absl/log/check.h"
+#include "src/api/transport_metrics.h"
 #include "src/internal/lib/metric_counter.h"
 #include "src/util/macro.h"
 
@@ -70,6 +71,11 @@ class Log2Histogram {
       buckets[i] = buckets_[i].Value();
     }
     return buckets;
+  }
+
+  // Takes a snapshot of the histogram.
+  ::peregrine::Log2Histogram<N> Snapshot() const {
+    return {.sum = Sum(), .buckets = RacyExport()};
   }
 
   // Sets all counters to zero.

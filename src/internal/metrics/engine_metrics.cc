@@ -8,6 +8,7 @@ namespace peregrine::internal {
 static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 
 void EngineMetrics::Snapshot(TransportMetrics& m) const {
+  m.e2e_write_latency_us = e2e_write_latency_us.Snapshot();
   m.bytes_sent = bytes_sent.Value();
   m.requests_posted = requests_posted.Value();
   m.e2e_write_errors = e2e_write_errors.Value();

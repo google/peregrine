@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "src/api/transport_metrics.h"
 #include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
@@ -109,6 +110,21 @@ TEST(Log2HistogramTest, RacyExport) {
   EXPECT_EQ(exported[2], 5);
   EXPECT_EQ(exported[3], 18);
   EXPECT_EQ(h.Bucket(3), 18);
+}
+
+TEST(Log2HistogramTest, Snapshot) {
+  Log2Histogram<4> h;
+  h.Record(0, 2);
+  h.Record(1, 3);
+  h.Record(3, 5);
+
+  const ::peregrine::Log2Histogram<4> snap = h.Snapshot();
+  EXPECT_EQ(snap.sum, 0 * 2 + 1 * 3 + 3 * 5);
+  EXPECT_EQ(snap.buckets[0], 2);
+  EXPECT_EQ(snap.buckets[1], 3);
+  EXPECT_EQ(snap.buckets[2], 5);
+  EXPECT_EQ(snap.buckets[3], 0);
+  EXPECT_EQ(snap.Count(), 10);
 }
 
 TEST(Log2HistogramTest, Clear) {

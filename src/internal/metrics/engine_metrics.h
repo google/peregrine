@@ -5,6 +5,7 @@
 
 #include "src/api/transport_metrics.h"
 #include "src/internal/assumptions.h"
+#include "src/internal/lib/log2_histogram.h"
 #include "src/internal/lib/metric_counter.h"
 
 namespace peregrine::internal {
@@ -12,6 +13,8 @@ namespace peregrine::internal {
 static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 
 struct EngineMetrics final {
+  // End-to-end write duration in microseconds.
+  Log2Histogram<32> e2e_write_latency_us;
   // Total payload bytes sent across all data channels.
   MetricCounter<uint64_t> bytes_sent;
   // Total user transfer requests submitted.

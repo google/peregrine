@@ -20,6 +20,7 @@ cc_library(
     deps = [
         "//src/api:transport_metrics",
         "//src/internal:assumptions",
+        "//src/internal/lib:log2_histogram",
         "//src/internal/lib:metric_counter",
     ],
 )

@@ -44,6 +44,10 @@ cc_library(
 cc_library(
     name = "transport_metrics",
     hdrs = ["transport_metrics.h"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
 )
 
 cc_test(

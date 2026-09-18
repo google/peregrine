@@ -51,6 +51,7 @@ cc_library(
     hdrs = ["log2_histogram.h"],
     deps = [
         ":metric_counter",
+        "//src/api:transport_metrics",
         "//src/util:macro",
         "@abseil-cpp//absl/log:check",
     ],
@@ -61,6 +62,7 @@ cc_test(
     srcs = ["log2_histogram_test.cc"],
     deps = [
         ":log2_histogram",
+        "//src/api:transport_metrics",
         "//src/util:thread",
         "@googletest//:gtest_main",
     ],

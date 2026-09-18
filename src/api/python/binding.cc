@@ -8,6 +8,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "nanobind/nanobind.h"
+#include "nanobind/stl/array.h"
 #include "nanobind/stl/string.h"
 #include "nanobind/stl/string_view.h"
 #include "nanobind/stl/unique_ptr.h"
@@ -122,10 +123,20 @@ NB_MODULE(peregrine, m) {
       .def("get_transport_metrics", &Transport::GetTransportMetrics,
            "Returns transport metrics.");
 
+  // Bind `Log2Histogram<32>`
+  nb::class_<Log2Histogram<32>>(m, "Log2Histogram32")
+      .def_ro("sum", &Log2Histogram<32>::sum)
+      .def_ro("buckets", &Log2Histogram<32>::buckets)
+      .def("num_buckets", &Log2Histogram<32>::NumBuckets)
+      .def("count", &Log2Histogram<32>::Count)
+      .def("__str__", &Log2Histogram<32>::ToString)
+      .def("__repr__", &Log2Histogram<32>::ToString);
+
   // Bind `TransportMetrics`
   // When adding new metrics, increment the count and update the binding.
-  constexpr size_t kTransportMetricsFieldsCount = 5;
+  constexpr size_t kTransportMetricsFieldsCount = 6;
   nb::class_<TransportMetrics>(m, "TransportMetrics")
+      .def_ro("e2e_write_latency_us", &TransportMetrics::e2e_write_latency_us)
       .def_ro("bytes_sent", &TransportMetrics::bytes_sent)
       .def_ro("requests_posted", &TransportMetrics::requests_posted)
       .def_ro("e2e_write_errors", &TransportMetrics::e2e_write_errors)
