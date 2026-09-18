@@ -13,9 +13,10 @@ cc_library(
         "//src/internal/chunk:chunk_tracker",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/base:nullability",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 

@@ -33,7 +33,7 @@ class Transfer final {
   static bool deserialize(Byte* header, ChunkHeader& chunk);
 
   // Returns the outgoing or incoming chunk tracker for the given chunk.
-  static ChunkTracker* getChunkTracker(const ChunkHeader& chunk,
+  static ChunkTracker& getChunkTracker(const ChunkHeader& chunk,
                                        RequestTracker& outgoing,
                                        RequestTracker& incoming);
 

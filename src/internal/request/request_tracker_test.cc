@@ -24,14 +24,13 @@ class RequestTrackerTest : public ::testing::Test {
 };
 
 TEST_F(RequestTrackerTest, Send) {
-  ASSERT_TRUE(t_.Add(kHandle));
-  ChunkTracker* send = t_.FindOrCreate(kHandle, kReqId, kNumChunks);
-  ASSERT_NE(send, nullptr);
+  ASSERT_TRUE(t_.Add(kHandle, {kReqId}));
+  ChunkTracker& send = t_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
     const chunk_t index(i);
-    send->Set(index);
+    send.Set(index);
   }
   EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
 
@@ -41,15 +40,14 @@ TEST_F(RequestTrackerTest, Send) {
 }
 
 TEST_F(RequestTrackerTest, Recv) {
-  ASSERT_TRUE(t_.Add(kHandle));
-  ChunkTracker* recv = t_.FindOrCreate(kHandle, kReqId, kNumChunks);
-  ASSERT_NE(recv, nullptr);
+  ASSERT_TRUE(t_.Add(kHandle, {kReqId}));
+  ChunkTracker& recv = t_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
     const chunk_t index(i);
-    ASSERT_EQ(recv->Acquire(index), ChunkTracker::ChunkStatus::kEmpty);
-    recv->Release(index, /*success=*/true);
+    ASSERT_EQ(recv.Acquire(index), ChunkTracker::ChunkStatus::kEmpty);
+    recv.Release(index, /*success=*/true);
   }
   EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
 

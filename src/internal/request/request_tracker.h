@@ -4,10 +4,10 @@
 #include <cstdint>
 #include <memory>
 
-#include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/chunk/chunk_tracker.h"
@@ -35,26 +35,33 @@ class RequestTracker {
   // Returns the status of the `handle`.
   Status Check(Handle handle) const ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Adds the tracker for the given `handle`.
+  // Adds the tracker for the request id's of the `handle`.
   // Returns true iff the handle was not already in the tracker.
-  bool Add(Handle handle) ABSL_LOCKS_EXCLUDED(mu_);
+  bool Add(Handle handle, absl::Span<const ReqId> reqids)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
   // Removes the tracker for the given `handle`.
   void Remove(Handle handle) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Finds a request tracker for the given `handle` and `reqid`.
   // If not found, creates a new one with the given `num_chunks`.
-  // Returns the (always non-null) tracker pointer.
-  ChunkTracker* absl_nonnull FindOrCreate(Handle handle, ReqId reqid,
-                                          uint32_t num_chunks)
+  // Returns a reference to the chunk tracker.
+  ChunkTracker& FindOrCreate(Handle handle, ReqId reqid, uint32_t num_chunks)
       ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
   using ReqMap = absl::flat_hash_map<ReqId, std::unique_ptr<ChunkTracker>>;
 
+  struct ReqsTracker {
+    ReqMap req_map;
+  };
+
+  // Returns true iff all the requests tracked by `rt` are complete.
+  bool isComplete(const ReqMap& req_map) const ABSL_SHARED_LOCKS_REQUIRED(mu_);
+
  private:
   mutable absl::Mutex mu_;
-  absl::flat_hash_map<Handle, ReqMap> trackers_ ABSL_GUARDED_BY(mu_);
+  absl::flat_hash_map<Handle, ReqsTracker> trackers_ ABSL_GUARDED_BY(mu_);
 };
 
 }  // namespace peregrine::internal

@@ -5,7 +5,9 @@
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/chunk/chunk_tracker.h"
@@ -17,24 +19,41 @@ bool RequestTracker::IsEmpty() const {
   return trackers_.empty();
 }
 
+bool RequestTracker::isComplete(const ReqMap& req_map) const {
+  if (req_map.empty()) return false;
+  for (const auto& [reqid, tracker] : req_map) {
+    if (tracker == nullptr || !tracker->IsDone()) return false;
+  }
+  return true;
+}
+
 Status RequestTracker::Check(const Handle handle) const {
   absl::MutexLock _(mu_);
   const auto it = trackers_.find(handle);
   if ABSL_PREDICT_FALSE (it == trackers_.end()) {
     return Status::kNotFound;
   }
-  if (it->second.empty()) {
+  if (!isComplete(it->second.req_map)) {
     return Status::kInProgress;
-  }
-  for (const auto& [request, tracker] : it->second) {
-    if (!tracker->IsDone()) return Status::kInProgress;
   }
   return Status::kSuccess;
 }
 
-bool RequestTracker::Add(const Handle handle) {
+bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids) {
+  DCHECK(!reqids.empty());
+
+  ReqMap req_map;
+  req_map.reserve(reqids.size());
+  for (const ReqId reqid : reqids) {
+    // ChunkTracker can only be created after its #chunks is known.
+    req_map.emplace(reqid, /*chunk_tracker=*/nullptr);
+  }
+
+  ReqsTracker rt{
+      .req_map = std::move(req_map),
+  };
   absl::MutexLock _(mu_);
-  return trackers_.try_emplace(handle, ReqMap()).second;
+  return trackers_.try_emplace(handle, std::move(rt)).second;
 }
 
 void RequestTracker::Remove(const Handle handle) {
@@ -42,16 +61,16 @@ void RequestTracker::Remove(const Handle handle) {
   trackers_.erase(handle);
 }
 
-ChunkTracker* RequestTracker::FindOrCreate(const Handle handle,
+ChunkTracker& RequestTracker::FindOrCreate(const Handle handle,
                                            const ReqId reqid,
                                            const uint32_t num_chunks) {
   absl::MutexLock _(mu_);
-  ReqMap& map = trackers_[handle];
-  std::unique_ptr<ChunkTracker>& tracker = map[reqid];
+  ReqsTracker& rt = trackers_[handle];
+  std::unique_ptr<ChunkTracker>& tracker = rt.req_map[reqid];
   if ABSL_PREDICT_FALSE (tracker == nullptr) {
     tracker = std::make_unique<ChunkTracker>(num_chunks);
   }
-  return tracker.get();
+  return *tracker;
 }
 
 }  // namespace peregrine::internal

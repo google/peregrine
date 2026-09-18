@@ -60,7 +60,7 @@ bool Transfer::deserialize(Byte* header, ChunkHeader& chunk) {
   return ChunkUtil::Deserialize(s, chunk) && chunk.IsValid();
 }
 
-ChunkTracker* Transfer::getChunkTracker(const ChunkHeader& chunk,
+ChunkTracker& Transfer::getChunkTracker(const ChunkHeader& chunk,
                                         RequestTracker& outgoing,
                                         RequestTracker& incoming) {
   RequestTracker& t = chunk.IsAck() ? outgoing : incoming;
@@ -101,20 +101,12 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   }
 
   // Step 3: find chunk tracker.
-  ChunkTracker* const tracker = getChunkTracker(chunk, outgoing, incoming);
-  DCHECK_NE(tracker, nullptr);
-  if ABSL_PREDICT_FALSE (tracker == nullptr) {
-    LOG(WARNING) << "failed to find chunk tracker: " << chunk.reqid.value();
-    if (!drainStream(channel, chunk.size)) {
-      // TODO(yongx): drop this channel.
-    }
-    return false;
-  }
+  ChunkTracker& tracker = getChunkTracker(chunk, outgoing, incoming);
 
   // Step 4: process ack chunk.
   if (chunk.IsAck()) {
     static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    tracker->Set(chunk.index);
+    tracker.Set(chunk.index);
     return true;
   }
 
@@ -123,11 +115,11 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
   const size_t size = chunk.size;
-  const ChunkStatus s = tracker->Acquire(index);
+  const ChunkStatus s = tracker.Acquire(index);
   if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
     // Write permission granted, read payload and track data arrival.
     const bool success = (channel->Read(chunk.DstAddr(), size) == size);
-    tracker->Release(index, success);
+    tracker.Release(index, success);
     return success && sendAck(channel, chunk);
   } else {
     DCHECK(s == ChunkStatus::kDone || s == ChunkStatus::kBusy);
@@ -173,17 +165,12 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
   }
 
   // Step 4: find chunk tracker.
-  ChunkTracker* const tracker = getChunkTracker(chunk, outgoing, incoming);
-  DCHECK_NE(tracker, nullptr);
-  if ABSL_PREDICT_FALSE (tracker == nullptr) {
-    LOG(WARNING) << "failed to find chunk tracker: " << chunk.reqid.value();
-    return false;
-  }
+  ChunkTracker& tracker = getChunkTracker(chunk, outgoing, incoming);
 
   // Step 5: process ack chunk.
   if (chunk.IsAck()) {
     static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    tracker->Set(chunk.index);
+    tracker.Set(chunk.index);
     return true;
   }
 
@@ -191,10 +178,10 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
-  switch (tracker->Acquire(index)) {
+  switch (tracker.Acquire(index)) {
     case ChunkStatus::kEmpty:
       std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
-      tracker->Release(index, true);
+      tracker.Release(index, true);
       return sendAck(channel, chunk);
     case ChunkStatus::kDone:
       LOG(WARNING) << "done chunk #" << index.value();

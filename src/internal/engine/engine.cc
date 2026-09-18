@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/functional/any_invocable.h"
@@ -20,7 +21,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
-#include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/config.h"
@@ -29,10 +29,12 @@
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/chunk/chunk_tracker.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine_helper.h"
 #include "src/internal/engine/worker.h"
 #include "src/internal/metrics/engine_metrics.h"
+#include "src/internal/request/request_tracker.h"
 #include "src/util/thread.h"
 
 namespace peregrine::internal {
@@ -157,13 +159,21 @@ absl::StatusOr<Handle> Engine::Enqueue(
 
   absl::MutexLock _(mu_);
   const Handle handle = genHandle();
+
+  std::vector<ReqId> reqids;
+  reqids.reserve(requests.size());
+  for (int i = 0; i < requests.size(); ++i) {
+    reqids.push_back(genReqId());
+  }
+  DCHECK_EQ(reqids.size(), requests.size());
+
   // TODO(yongx): all the request ops are the same for now.
-  if (!getRequestTracker(requests[0]).Add(handle)) {
+  RequestTracker& tracker = getRequestTracker(requests[0]);
+  if (!tracker.Add(handle, reqids)) {
     return AlreadyExistsError(handle);
   }
-  for (const auto& request : requests) {
-    const ReqId reqid = genReqId();
-    reqs_.emplace_back(peer, handle, reqid, request);
+  for (int i = 0; i < requests.size(); ++i) {
+    reqs_.emplace_back(peer, handle, reqids[i], requests[i]);
   }
   metrics_.requests_posted.Add(requests.size());
   return handle;
@@ -229,9 +239,10 @@ void Engine::processWrite(Workers& workers, const Handle handle,
 void Engine::processRead(const Handle handle, const ReqId reqid,
                          const Request& request) {
   // TODO(yongx): implement read.
-  auto tracker = incoming_.FindOrCreate(handle, reqid, /*num_channels=*/1);
+  constexpr uint32_t kNumChannels = 1;
+  ChunkTracker& tracker = incoming_.FindOrCreate(handle, reqid, kNumChannels);
   std::memcpy(request.laddr, request.raddr, request.len);
-  tracker->Set(chunk_t(0));
+  tracker.Set(chunk_t(0));
 }
 
 }  // namespace peregrine::internal

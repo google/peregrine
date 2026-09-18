@@ -107,7 +107,7 @@ void Worker::SendLoop() {
       static_assert(
           assumptions::kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe);
       outgoing_.FindOrCreate(chunk.handle, chunk.reqid, chunk.nchunks)
-          ->Set(chunk.index);
+          .Set(chunk.index);
     }
   }
 }
