@@ -16,6 +16,8 @@ struct EngineMetrics final {
   MetricCounter<uint64_t> bytes_sent;
   // Total user transfer requests submitted.
   MetricCounter<uint64_t> requests_posted;
+  // Total transfer write failures.
+  MetricCounter<uint64_t> e2e_write_errors;
   // Total tcp connect failures.
   MetricCounter<uint64_t> tcp_connect_failures;
 

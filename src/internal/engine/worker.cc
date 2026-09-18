@@ -90,6 +90,7 @@ void Worker::SendLoop() {
         return;
       }
       // TODO(yongx): Handle errors.
+      metrics_.e2e_write_errors.Add(1);
       LOG(WARNING) << "send chunk failed";
       break;
     }

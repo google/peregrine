@@ -186,6 +186,7 @@ void Engine::process(const Entry& entry) {
     Workers& workers = send_workers_[entry.peer];
     if ABSL_PREDICT_FALSE (workers.empty()) {
       LOG(ERROR) << "failed to create send workers for " << entry.peer;
+      metrics_.e2e_write_errors.Add(1);
     } else {
       processWrite(workers, entry.handle, entry.reqid, entry.request);
     }

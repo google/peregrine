@@ -46,7 +46,7 @@ class SimpleTest : public ::testing::Test {
   }
 
   bool CheckMetrics(const TransportMetrics& metrics) {
-    return metrics.requests_posted > 0;
+    return metrics.requests_posted > 0 && metrics.e2e_write_errors == 0;
   }
 
  protected:
@@ -72,13 +72,13 @@ TEST_F(SimpleTest, Read) {
   };
   const absl::StatusOr<Handle> h = lt.Post(peer, {req});
   ASSERT_TRUE(h.ok()) << h.status();
-  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 
   // Wait for the transport to finish processing the request.
   WaitForCompletion(lt, *h);
 
   // Post-condition: all the local bytes are equal to the remote.
   EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
+  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 }
 
 TEST_F(SimpleTest, Write) {
@@ -104,13 +104,13 @@ TEST_F(SimpleTest, Write) {
   };
   const absl::StatusOr<Handle> h = lt.Post(peer, {req1, req2});
   ASSERT_TRUE(h.ok()) << h.status();
-  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 
   // Wait for the transport to finish processing the requests.
   WaitForCompletion(lt, *h);
 
   // Post-condition: all the remote bytes are equal to the local.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
+  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 }
 
 }  // namespace

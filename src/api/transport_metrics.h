@@ -11,6 +11,8 @@ struct TransportMetrics final {
   uint64_t bytes_sent = 0;
   // Total user transfer requests submitted
   uint64_t requests_posted = 0;
+  // Total transfer write failures.
+  uint64_t e2e_write_errors = 0;
 
   // Transport Pipeline Breakdown
   // ---------------------------------------------------------------------------
