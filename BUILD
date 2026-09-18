@@ -7,9 +7,8 @@ exports_files([
     "README.md",
 ])
 
-# System libibverbs dependency for RDMA transport.
 cc_library(
-    name = "libibverbs",
+    name = "libibverbs",  # RDMA
     linkopts = ["-libverbs"],
     visibility = ["//visibility:public"],
 )
