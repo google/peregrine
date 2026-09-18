@@ -48,7 +48,7 @@ jobs:
           path: |
             ${{ runner.temp }}/bazel_repo_cache
             ${{ runner.temp }}/bazel_disk_cache
-          key: bazel-cache-${{ runner.os }}-${{ hashFiles('.bazelversion', 'MODULE.bazel', 'BUILD', 'ci/run_unit_tests.sh') }}
+          key: bazel-cache-${{ runner.os }}-${{ hashFiles('.bazelrc', '.bazelversion', 'MODULE.bazel', 'BUILD', 'ci/run_unit_tests.sh') }}
           restore-keys: |
             bazel-cache-${{ runner.os }}-
 

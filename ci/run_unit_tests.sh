@@ -60,12 +60,8 @@ bazel build \
   -- //...
 
 # Run all unit tests in the workspace (targets tagged "manual" are skipped automatically by Bazel).
-#
-# libibverbs does not work on CPU-only runners, so the RDMA tests under
-# //src/internal/rdma/... are skipped for now. They are still built above, and
-# still run on RDMA-capable hosts.
 bazel test \
   "${COMMON_ARGS[@]}" \
   --test_output=errors \
-  -- //... -//src/internal/rdma/...
+  -- //...
 
