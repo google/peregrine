@@ -1,0 +1,66 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit_tests:
+    name: "bazel-cpu-unit-tests"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Restore Bazel repository and disk cache
+        id: cache-restore
+        uses: actions/cache/restore@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ${{ runner.temp }}/bazel_repo_cache
+            ${{ runner.temp }}/bazel_disk_cache
+          key: bazel-cache-${{ runner.os }}-${{ hashFiles('.bazelversion', 'MODULE.bazel', 'BUILD', 'ci/run_unit_tests.sh') }}
+          restore-keys: |
+            bazel-cache-${{ runner.os }}-
+
+      - name: Run Bazel build and unit tests
+        run: bash ci/run_unit_tests.sh
+
+      - name: Save Bazel repository and disk cache
+        if: always() && steps.cache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ${{ runner.temp }}/bazel_repo_cache
+            ${{ runner.temp }}/bazel_disk_cache
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+

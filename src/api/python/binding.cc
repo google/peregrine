@@ -153,7 +153,9 @@ NB_MODULE(peregrine, m) {
   m.def("is_completed", &IsCompleted);
 }
 
-#if defined(__has_feature) && __has_feature(dataflow_sanitizer)
+#if defined(__has_feature)
+#if __has_feature(dataflow_sanitizer)
 asm(".globl PyInit_peregrine\n"
     "PyInit_peregrine = PyInit_peregrine.dfsan");
+#endif
 #endif
