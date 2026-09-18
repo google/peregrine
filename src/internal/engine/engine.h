@@ -65,9 +65,9 @@ class Engine final {
   EngineHelper* absl_nonnull Helper() const { return helper_.get(); }
 
   // Enqueues a number of valid transport request.
-  absl::StatusOr<Handle> Enqueue(
-      const Endpoint& peer, absl::Span<const Request> requests,
-      absl::AnyInvocable<void(Status)> on_complete = nullptr);
+  absl::StatusOr<Handle> Enqueue(const Endpoint& peer,
+                                 absl::Span<const Request> requests,
+                                 absl::AnyInvocable<void(Status)> on_complete);
 
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);

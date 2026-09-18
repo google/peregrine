@@ -98,7 +98,8 @@ void PeregrineIntegration::sendRequest() {
   }
 
   const absl::StatusOr<Handle> handle_or =
-      datapath_sndr_->Post(controlpath_rcvr_->endpoint(), {req});
+      datapath_sndr_->Post(controlpath_rcvr_->endpoint(), {req},
+                           /*on_complete=*/nullptr);
   if (!handle_or.ok()) {
     absl::SleepFor(absl::Microseconds(50));
     return;

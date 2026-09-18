@@ -38,10 +38,10 @@ class TransportImpl final : public Transport {
   // On success, returns a process-level unique `handle`, which can be used to
   // poll the request batch status. Returns an error on failure.
   //
-  // If `on_complete` is provided, it is invoked once when the batch of requests
-  // completes (either successfully or with an error), and the `handle` is
-  // automatically removed upon completion. Callers providing `on_complete`
-  // do not need to call `Poll()`.
+  // If a non-null `on_complete` is provided, it is invoked once when the batch
+  // of requests completes (either successfully or with an error), and the
+  // `handle` is automatically removed. Callers providing `on_complete` do not
+  // need to call `Poll()`.
   //
   // The caller must maintain the validity of the local/remote memory buffers
   // specified by the `request` until processing is complete.

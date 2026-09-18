@@ -28,9 +28,9 @@ class DatapathHost final {
   ~DatapathHost() = default;
 
   // Posts requests using this host's transport.
-  absl::StatusOr<Handle> Post(
-      std::string_view peer, absl::Span<const Request> requests,
-      absl::AnyInvocable<void(Status)> on_complete = nullptr) {
+  absl::StatusOr<Handle> Post(std::string_view peer,
+                              absl::Span<const Request> requests,
+                              absl::AnyInvocable<void(Status)> on_complete) {
     return transport_->Post(peer, requests, std::move(on_complete));
   }
 
