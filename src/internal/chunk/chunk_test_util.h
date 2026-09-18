@@ -18,6 +18,7 @@ constexpr addr_t kBufferBaseAddr(0xffff0000);  // write to
 static_assert(kBufferBaseAddr != kPayloadSrcAddr);
 constexpr Handle kHandle(0x1234);
 constexpr ReqId kReqId(0xbeef);
+constexpr ReqId kReqId2(0xdead);
 constexpr uint32_t kChunkSize = 1024;
 constexpr uint32_t kNumChunks = 10;
 constexpr chunk_t kChunkIndex(1);

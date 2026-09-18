@@ -6,10 +6,12 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
+#include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_tracker.h"
 #include "src/util/macro.h"
 
@@ -19,6 +21,8 @@ namespace peregrine::internal {
 // It is thread-safe.
 class RequestTracker {
  public:
+  using OnCompleteCallback = absl::AnyInvocable<void(Status)>;
+
   // Constructor.
   RequestTracker() = default;
 
@@ -35,13 +39,21 @@ class RequestTracker {
   // Returns the status of the `handle`.
   Status Check(Handle handle) const ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Adds the tracker for the request id's of the `handle`.
+  // Adds the tracker for the given `handle` and `reqids`.
   // Returns true iff the handle was not already in the tracker.
-  bool Add(Handle handle, absl::Span<const ReqId> reqids)
-      ABSL_LOCKS_EXCLUDED(mu_);
+  bool Add(Handle handle, absl::Span<const ReqId> reqids,
+           OnCompleteCallback on_complete) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Removes the tracker for the given `handle`.
   void Remove(Handle handle) ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Sets the chunk at `index` as completed for the given `handle` and `reqid`.
+  // If this completes all chunks of all requests for the `handle`:
+  // - If a completion callback is registered, it is invoked and the handle is
+  //   automatically removed.
+  // - Otherwise, the handle remains until `Poll()` is called.
+  void Set(Handle handle, ReqId reqid, uint32_t num_chunks, chunk_t index)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
   // Finds a request tracker for the given `handle` and `reqid`.
   // If not found, creates a new one with the given `num_chunks`.
@@ -54,10 +66,11 @@ class RequestTracker {
 
   struct ReqsTracker {
     ReqMap req_map;
+    OnCompleteCallback on_complete;
   };
 
-  // Returns true iff all the requests tracked by `rt` are complete.
-  bool isComplete(const ReqMap& req_map) const ABSL_SHARED_LOCKS_REQUIRED(mu_);
+  // Returns true iff all requests tracked by `rt` are complete.
+  bool isComplete(const ReqsTracker& rt) const ABSL_SHARED_LOCKS_REQUIRED(mu_);
 
  private:
   mutable absl::Mutex mu_;

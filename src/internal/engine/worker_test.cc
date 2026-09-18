@@ -135,6 +135,7 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(WorkerTest, SendRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
+  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {kReqId}, /*on_complete=*/nullptr));
 
   absl::Notification done;
   util::Thread s([&]() {

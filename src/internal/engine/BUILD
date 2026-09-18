@@ -20,7 +20,6 @@ cc_library(
         "//src/internal/base:types",
         "//src/internal/channel",
         "//src/internal/chunk",
-        "//src/internal/chunk:chunk_tracker",
         "//src/internal/control",
         "//src/internal/control:message_cc_proto",
         "//src/internal/control:message_internal_cc_proto",

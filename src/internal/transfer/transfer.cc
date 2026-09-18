@@ -25,7 +25,13 @@
 
 namespace peregrine::internal {
 
+namespace {
 using ChunkStatus = ChunkTracker::ChunkStatus;
+
+ChunkTracker& GetChunkTracker(RequestTracker& rt, const ChunkHeader& chunk) {
+  return rt.FindOrCreate(chunk.handle, chunk.reqid, chunk.nchunks);
+}
+}  // namespace
 
 bool Transfer::SendChunk(Channel* const channel, const ChunkHeader& chunk,
                          const ChunkPayloadView payload) {
@@ -58,13 +64,6 @@ bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
 bool Transfer::deserialize(Byte* header, ChunkHeader& chunk) {
   std::string_view s(reinterpret_cast<const char*>(header), ChunkUtil::kSize);
   return ChunkUtil::Deserialize(s, chunk) && chunk.IsValid();
-}
-
-ChunkTracker& Transfer::getChunkTracker(const ChunkHeader& chunk,
-                                        RequestTracker& outgoing,
-                                        RequestTracker& incoming) {
-  RequestTracker& t = chunk.IsAck() ? outgoing : incoming;
-  return t.FindOrCreate(chunk.handle, chunk.reqid, chunk.nchunks);
 }
 
 bool Transfer::sendAck(Channel* channel, ChunkHeader& chunk) {
@@ -100,15 +99,15 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
     return false;
   }
 
-  // Step 3: find chunk tracker.
-  ChunkTracker& tracker = getChunkTracker(chunk, outgoing, incoming);
-
-  // Step 4: process ack chunk.
+  // Step 3: process ack chunk.
   if (chunk.IsAck()) {
     static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    tracker.Set(chunk.index);
+    outgoing.Set(chunk.handle, chunk.reqid, chunk.nchunks, chunk.index);
     return true;
   }
+
+  // Step 4: find chunk tracker for incoming data chunk.
+  ChunkTracker& tracker = GetChunkTracker(incoming, chunk);
 
   // Step 5: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
@@ -164,15 +163,15 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
     return false;
   }
 
-  // Step 4: find chunk tracker.
-  ChunkTracker& tracker = getChunkTracker(chunk, outgoing, incoming);
-
-  // Step 5: process ack chunk.
+  // Step 4: process ack chunk.
   if (chunk.IsAck()) {
     static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    tracker.Set(chunk.index);
+    outgoing.Set(chunk.handle, chunk.reqid, chunk.nchunks, chunk.index);
     return true;
   }
+
+  // Step 5: find chunk tracker for incoming data chunk.
+  ChunkTracker& tracker = GetChunkTracker(incoming, chunk);
 
   // Step 6: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);

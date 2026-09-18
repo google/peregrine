@@ -123,6 +123,7 @@ TEST_P(TransferTest, SendRecv) {
 
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
+  ASSERT_TRUE(a_.outgoing.Add(kHandle, {kReqId}, /*on_complete=*/nullptr));
 
   // A sends data chunks to B.
   util::Thread a_send([&]() {

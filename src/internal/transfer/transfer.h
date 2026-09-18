@@ -32,11 +32,6 @@ class Transfer final {
   // Deserializes chunk header and returns true iff the chunk is valid.
   static bool deserialize(Byte* header, ChunkHeader& chunk);
 
-  // Returns the outgoing or incoming chunk tracker for the given chunk.
-  static ChunkTracker& getChunkTracker(const ChunkHeader& chunk,
-                                       RequestTracker& outgoing,
-                                       RequestTracker& incoming);
-
   // Sends an ack chunk with no payload to the channel.
   static bool sendAck(Channel* channel, ChunkHeader& chunk);
 
