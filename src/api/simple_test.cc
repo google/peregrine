@@ -46,7 +46,9 @@ class SimpleTest : public ::testing::Test {
   }
 
   bool CheckMetrics(const TransportMetrics& metrics) {
-    return metrics.requests_posted > 0 && metrics.e2e_write_errors == 0;
+    return metrics.requests_posted > 0 && metrics.e2e_write_errors == 0 &&
+           metrics.e2e_write_latency_us.Count() > 0 &&
+           metrics.e2e_write_latency_us.sum >= 0;
   }
 
  protected:

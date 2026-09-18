@@ -20,6 +20,7 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/metrics/engine_metrics.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/util/test_param.h"
 #include "src/util/thread.h"
@@ -90,9 +91,10 @@ class TransferTest : public ::testing::TestWithParam<Param> {
 
  private:
   struct Host {
+    EngineMetrics metrics;
     RequestTracker outgoing;
     RequestTracker incoming;
-    Host() : outgoing(), incoming() {}
+    Host() : metrics(), outgoing(metrics), incoming(metrics) {}
   };
 
  protected:

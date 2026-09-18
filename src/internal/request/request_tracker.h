@@ -8,11 +8,13 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_tracker.h"
+#include "src/internal/metrics/engine_metrics.h"
 #include "src/util/macro.h"
 
 namespace peregrine::internal {
@@ -24,7 +26,7 @@ class RequestTracker {
   using OnCompleteCallback = absl::AnyInvocable<void(Status)>;
 
   // Constructor.
-  RequestTracker() = default;
+  explicit RequestTracker(EngineMetrics& metrics) : metrics_(metrics) {}
 
   // Disable copy and move.
   DISALLOW_COPY(RequestTracker);
@@ -67,12 +69,15 @@ class RequestTracker {
   struct ReqsTracker {
     ReqMap req_map;
     OnCompleteCallback on_complete;
+    absl::Time start_time = absl::InfinitePast();
   };
 
   // Returns true iff all requests tracked by `rt` are complete.
   bool isComplete(const ReqsTracker& rt) const ABSL_SHARED_LOCKS_REQUIRED(mu_);
 
  private:
+  EngineMetrics& metrics_;
+
   mutable absl::Mutex mu_;
   absl::flat_hash_map<Handle, ReqsTracker> trackers_ ABSL_GUARDED_BY(mu_);
 };

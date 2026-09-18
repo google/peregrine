@@ -9,18 +9,20 @@
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_test_util.h"
 #include "src/internal/chunk/chunk_tracker.h"
+#include "src/internal/metrics/engine_metrics.h"
 
 namespace peregrine::internal::testing {
 namespace {
 
 class RequestTrackerTest : public ::testing::Test {
  protected:
-  RequestTrackerTest() : t_() {
+  RequestTrackerTest() : metrics_(), t_(metrics_) {
     CHECK(t_.IsEmpty());
     CHECK_EQ(t_.Check(kHandle), Status::kNotFound);
   }
 
  protected:
+  EngineMetrics metrics_;
   RequestTracker t_;
 };
 

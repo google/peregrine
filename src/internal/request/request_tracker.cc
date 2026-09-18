@@ -1,5 +1,6 @@
 #include "src/internal/request/request_tracker.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -7,6 +8,8 @@
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
@@ -54,6 +57,7 @@ bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids,
   ReqsTracker rt{
       .req_map = std::move(req_map),
       .on_complete = std::move(on_complete),
+      .start_time = absl::Now(),
   };
   absl::MutexLock _(mu_);
   return trackers_.try_emplace(handle, std::move(rt)).second;
@@ -63,9 +67,12 @@ void RequestTracker::Remove(const Handle handle) {
   absl::MutexLock _(mu_);
   trackers_.erase(handle);
 }
+
 void RequestTracker::Set(const Handle handle, const ReqId reqid,
                          const uint32_t num_chunks, const chunk_t index) {
   OnCompleteCallback callback = nullptr;
+  bool completed = false;
+  absl::Time start_time;
   {
     absl::MutexLock lock(mu_);
     auto it = trackers_.find(handle);
@@ -79,10 +86,19 @@ void RequestTracker::Set(const Handle handle, const ReqId reqid,
     }
     tracker->Set(index);
 
-    if (rt.on_complete != nullptr && tracker->IsDone() && isComplete(rt)) {
-      callback = std::move(rt.on_complete);
-      trackers_.erase(it);
+    if (tracker->IsDone() && isComplete(rt)) {
+      start_time = rt.start_time;
+      completed = true;
+      if (rt.on_complete != nullptr) {
+        callback = std::move(rt.on_complete);
+        trackers_.erase(it);
+      }
     }
+  }
+  if (completed) {
+    const int64_t latency_us =
+        absl::ToInt64Microseconds(absl::Now() - start_time);
+    metrics_.e2e_write_latency_us.Record(std::max<int64_t>(0, latency_us));
   }
   if (callback != nullptr) {
     std::move(callback)(Status::kSuccess);

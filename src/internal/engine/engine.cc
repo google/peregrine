@@ -71,6 +71,8 @@ Engine::Engine(const Config& config, const HostInfo& self,
     : config_(config),
       self_(self),
       stop_(false),
+      outgoing_(helper->Metrics()),
+      incoming_(helper->Metrics()),
       metrics_(helper->Metrics()),
       helper_(std::move(helper)) {
   DCHECK(config_.IsValid());
