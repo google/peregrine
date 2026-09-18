@@ -94,15 +94,15 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
 
  private:
   struct Host {
+    EngineMetrics metrics;
     RequestTracker outgoing;
     RequestTracker incoming;
-    EngineMetrics metrics;
     Worker worker;
     explicit Host(int id, const HostInfo& self,
                   std::unique_ptr<Channel> channel)
-        : outgoing(),
-          incoming(),
-          metrics(),
+        : metrics(),
+          outgoing(metrics),
+          incoming(metrics),
           worker(id, self, outgoing, incoming, metrics, std::move(channel)) {}
   };
 
