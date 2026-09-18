@@ -29,7 +29,6 @@
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
-#include "src/internal/chunk/chunk_tracker.h"
 #include "src/internal/control/control.h"
 #include "src/internal/engine/engine_helper.h"
 #include "src/internal/engine/worker.h"
@@ -153,7 +152,7 @@ void Engine::mainLoop() {
 
 absl::StatusOr<Handle> Engine::Enqueue(
     const Endpoint& peer, absl::Span<const Request> requests,
-    absl::AnyInvocable<void(Status)> on_complete) {
+    absl::AnyInvocable<void(Status)>&& on_complete) {
   DCHECK(peer.HasNonzeroIpPort());
   DCHECK(IsValid(requests));
 
@@ -169,7 +168,7 @@ absl::StatusOr<Handle> Engine::Enqueue(
 
   // TODO(yongx): all the request ops are the same for now.
   RequestTracker& tracker = getRequestTracker(requests[0]);
-  if (!tracker.Add(handle, reqids)) {
+  if (!tracker.Add(handle, reqids, std::move(on_complete))) {
     return AlreadyExistsError(handle);
   }
   for (int i = 0; i < requests.size(); ++i) {
@@ -239,10 +238,8 @@ void Engine::processWrite(Workers& workers, const Handle handle,
 void Engine::processRead(const Handle handle, const ReqId reqid,
                          const Request& request) {
   // TODO(yongx): implement read.
-  constexpr uint32_t kNumChannels = 1;
-  ChunkTracker& tracker = incoming_.FindOrCreate(handle, reqid, kNumChannels);
   std::memcpy(request.laddr, request.raddr, request.len);
-  tracker.Set(chunk_t(0));
+  incoming_.Set(handle, reqid, /*num_chunks=*/1, chunk_t(0));
 }
 
 }  // namespace peregrine::internal

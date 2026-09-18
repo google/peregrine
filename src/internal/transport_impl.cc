@@ -68,7 +68,7 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(
 
 absl::StatusOr<Handle> TransportImpl::Post(
     std::string_view peer, absl::Span<const Request> requests,
-    absl::AnyInvocable<void(Status)> on_complete) {
+    absl::AnyInvocable<void(Status)>&& on_complete) {
   const Endpoint endpoint = Endpoint::Create(peer);
   if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError(

@@ -10,6 +10,7 @@
 #include "absl/types/span.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/types.h"
+#include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_tracker.h"
 
 namespace peregrine::internal {
@@ -39,7 +40,8 @@ Status RequestTracker::Check(const Handle handle) const {
   return Status::kSuccess;
 }
 
-bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids) {
+bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids,
+                         OnCompleteCallback&& on_complete) {
   DCHECK(!reqids.empty());
 
   ReqMap req_map;
@@ -51,6 +53,7 @@ bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids) {
 
   ReqsTracker rt{
       .req_map = std::move(req_map),
+      .on_complete = std::move(on_complete),
   };
   absl::MutexLock _(mu_);
   return trackers_.try_emplace(handle, std::move(rt)).second;
@@ -59,6 +62,33 @@ bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids) {
 void RequestTracker::Remove(const Handle handle) {
   absl::MutexLock _(mu_);
   trackers_.erase(handle);
+}
+
+void RequestTracker::Set(const Handle handle, const ReqId reqid,
+                         const uint32_t num_chunks, const chunk_t index) {
+  OnCompleteCallback callback = nullptr;
+  {
+    absl::MutexLock lock(mu_);
+    auto it = trackers_.find(handle);
+    if ABSL_PREDICT_FALSE (it == trackers_.end()) {
+      return;
+    }
+    ReqsTracker& rt = it->second;
+    std::unique_ptr<ChunkTracker>& tracker = rt.req_map[reqid];
+    if ABSL_PREDICT_FALSE (tracker == nullptr) {
+      tracker = std::make_unique<ChunkTracker>(num_chunks);
+    }
+    tracker->Set(index);
+
+    if (rt.on_complete != nullptr && tracker->IsDone() &&
+        isComplete(rt.req_map)) {
+      callback = std::move(rt.on_complete);
+      trackers_.erase(it);
+    }
+  }
+  if (callback != nullptr) {
+    std::move(callback)(Status::kSuccess);
+  }
 }
 
 ChunkTracker& RequestTracker::FindOrCreate(const Handle handle,

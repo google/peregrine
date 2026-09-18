@@ -10,10 +10,12 @@ cc_library(
     deps = [
         "//src/api:transport_types",
         "//src/internal/base:types",
+        "//src/internal/chunk",
         "//src/internal/chunk:chunk_tracker",
         "//src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
@@ -26,6 +28,7 @@ cc_test(
     deps = [
         ":request_tracker",
         "//src/api:transport_types",
+        "//src/internal/base:types",
         "//src/internal/chunk",
         "//src/internal/chunk:chunk_test_util",
         "//src/internal/chunk:chunk_tracker",

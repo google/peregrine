@@ -67,7 +67,7 @@ class Engine final {
   // Enqueues a number of valid transport request.
   absl::StatusOr<Handle> Enqueue(
       const Endpoint& peer, absl::Span<const Request> requests,
-      absl::AnyInvocable<void(Status)> on_complete = nullptr);
+      absl::AnyInvocable<void(Status)>&& on_complete);
 
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);

@@ -25,13 +25,15 @@ class Transport {
   // poll the request batch status. Returns an error on failure.
   //
   // If `on_complete` is provided, it is invoked once when the batch of requests
-  // completes (either successfully or with an error).
+  // completes (either successfully or with an error), and the `handle` is
+  // automatically removed upon completion. Callers providing `on_complete`
+  // do not need to call `Poll()`.
   //
   // The caller must maintain the validity of the local/remote memory buffers
   // specified by the `request` until processing is complete.
   virtual absl::StatusOr<Handle> Post(
       std::string_view peer, absl::Span<const Request> requests,
-      absl::AnyInvocable<void(Status)> on_complete = nullptr) = 0;
+      absl::AnyInvocable<void(Status)>&& on_complete = nullptr) = 0;
 
   // Polls the status of the transport request identified by the `handle`.
   //

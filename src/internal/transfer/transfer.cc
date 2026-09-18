@@ -25,7 +25,9 @@
 
 namespace peregrine::internal {
 
+namespace {
 using ChunkStatus = ChunkTracker::ChunkStatus;
+}  // namespace
 
 bool Transfer::SendChunk(Channel* const channel, const ChunkHeader& chunk,
                          const ChunkPayloadView payload) {
@@ -106,7 +108,7 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   // Step 4: process ack chunk.
   if (chunk.IsAck()) {
     static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    tracker.Set(chunk.index);
+    outgoing.Set(chunk.handle, chunk.reqid, chunk.nchunks, chunk.index);
     return true;
   }
 
@@ -170,7 +172,7 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
   // Step 5: process ack chunk.
   if (chunk.IsAck()) {
     static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    tracker.Set(chunk.index);
+    outgoing.Set(chunk.handle, chunk.reqid, chunk.nchunks, chunk.index);
     return true;
   }
 
