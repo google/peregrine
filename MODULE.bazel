@@ -1,7 +1,10 @@
 # Keep the dependencies up to date with their latest stable versions.
 # Search Bazel Central Registry (BCR): https://registry.bazel.build/
 
-module(name = "peregrine")
+module(
+    name = "peregrine",
+    version = "0.0.0",
+)
 
 # Keep modules in each section sorted alphabetically.
 
@@ -15,7 +18,7 @@ bazel_dep(name = "rules_shell", version = "0.8.0")
 
 # C++ Libraries
 bazel_dep(name = "abseil-cpp", version = "20260817.0")
-bazel_dep(name = "envoy_api", version = "0.0.0-20260901-005c18a")
+bazel_dep(name = "envoy_api", version = "0.0.0-20260901-005c18a.bcr.1")
 bazel_dep(name = "grpc", version = "1.84.0")
 bazel_dep(name = "xxhash", version = "0.8.3.bcr.1")
 
@@ -26,7 +29,7 @@ bazel_dep(name = "nanobind_bazel", version = "2.12.0")
 
 # Serialization
 bazel_dep(name = "flatbuffers", version = "25.12.19.bcr.1")
-bazel_dep(name = "protobuf", version = "36.1.bcr.1")
+bazel_dep(name = "protobuf", version = "36.2")
 
 # Testing/Benchmarking
 bazel_dep(name = "fuzztest", version = "20260629.0")
