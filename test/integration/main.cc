@@ -1,5 +1,5 @@
 // ---------------------------------------------------------
-// $ blaze run //third_party/peregrine/test/integration:main
+// $ bazelisk run //test/integration:main
 // ---------------------------------------------------------
 
 #include <csignal>
