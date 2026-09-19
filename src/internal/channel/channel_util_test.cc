@@ -11,6 +11,7 @@
 #include "absl/strings/str_format.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/base/nicinfo.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_types.h"
 #include "src/internal/rdma/rdma_device_context.h"
@@ -57,7 +58,7 @@ class ChannelUtilTest : public ::testing::TestWithParam<Param> {
   const int family_;
   HostInfo self_;
   std::unique_ptr<TcpAcceptor> acceptor_;
-  const std::vector<Endpoint> peers_;
+  const std::vector<NicInfo> peers_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
@@ -66,10 +67,12 @@ INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
 TEST_P(ChannelUtilTest, Create) {
   util::Thread ta([&]() { acceptor_->Start(Accept); });
 
-  for (const Endpoint& peer : peers_) {
-    constexpr int kNumChannels = 8;
-    std::vector<std::unique_ptr<Channel>> chs = Create(peer, kNumChannels);
-    EXPECT_EQ(chs.size(), kNumChannels);
+  for (const NicInfo& nic : peers_) {
+    for (const Endpoint& peer : nic.endpoints) {
+      constexpr int kNumChannels = 2;
+      std::vector<std::unique_ptr<Channel>> chs = Create(peer, kNumChannels);
+      EXPECT_EQ(chs.size(), kNumChannels);
+    }
   }
 
   acceptor_->Stop();

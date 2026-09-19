@@ -23,12 +23,12 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
-class SimpleTest : public ::testing::Test {
+class TransportTest : public ::testing::Test {
   static constexpr size_t kBufSize = (64UL << 20) - 1;
   static constexpr int kNumConnsPerPeer = 8;
 
  protected:
-  SimpleTest()
+  TransportTest()
       : partial_(kBufSize / 2),
         l_(kBufSize, kNumConnsPerPeer),
         r_(kBufSize, kNumConnsPerPeer) {
@@ -58,7 +58,7 @@ class SimpleTest : public ::testing::Test {
   util::App r_;  // remote
 };
 
-TEST_F(SimpleTest, Read) {
+TEST_F(TransportTest, Read) {
   // Pre-condition: no single local byte is equal to the remote.
   l_.ClearData();
   r_.GenData();
@@ -84,7 +84,7 @@ TEST_F(SimpleTest, Read) {
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 }
 
-TEST_F(SimpleTest, Write) {
+TEST_F(TransportTest, Write) {
   // Pre-condition: no single remote byte is equal to the local.
   l_.GenData();
   r_.ClearData();
@@ -116,7 +116,7 @@ TEST_F(SimpleTest, Write) {
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 }
 
-TEST_F(SimpleTest, ReadWithCallback) {
+TEST_F(TransportTest, ReadWithCallback) {
   // Pre-condition: no single local byte is equal to the remote.
   l_.ClearData();
   r_.GenData();
@@ -148,7 +148,7 @@ TEST_F(SimpleTest, ReadWithCallback) {
   EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
 }
 
-TEST_F(SimpleTest, WriteWithCallback) {
+TEST_F(TransportTest, WriteWithCallback) {
   // Pre-condition: no single remote byte is equal to the local.
   l_.GenData();
   r_.ClearData();

@@ -175,7 +175,15 @@ std::string ToString(const NicType t) {
       return "ip";
     case NicType::kRDMA:
       return "rdma";
+    default:
+      return "invalid";
   }
+}
+
+NicType FromString(const std::string_view s) {
+  if (absl::EqualsIgnoreCase(s, "ip")) return NicType::kIP;
+  if (absl::EqualsIgnoreCase(s, "rdma")) return NicType::kRDMA;
+  return NicType::kInvalid;
 }
 
 std::string ToString(const NicInfo& ni) {

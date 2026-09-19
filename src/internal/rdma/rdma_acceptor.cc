@@ -11,7 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
@@ -22,6 +21,7 @@
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/base/nicinfo.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_util.h"
 #include "src/internal/control/control.h"
@@ -31,6 +31,8 @@
 #include "src/internal/rdma/rdma_device_manager.h"
 #include "src/internal/rdma/rdma_memory_manager.h"
 #include "src/internal/rdma/rdma_queue_pair.h"
+#include "src/util/ipaddr.h"
+#include "src/util/nic.h"
 #include "src/util/util.h"
 
 namespace peregrine::internal {
@@ -50,18 +52,22 @@ std::unique_ptr<RdmaAcceptor> RdmaAcceptor::Create(const Config& config,
   }
   auto devmgr = std::move(*devmgr_or);
 
+  std::vector<NicInfo> nics;
+  nics.reserve(devmgr->Devices().size());
   for (const auto& dev : devmgr->Devices()) {
-    self.rdma_nics.push_back({
-        .name = std::string(dev->Name()),
-        .gid = std::string(reinterpret_cast<const char*>(dev->LocalGid().raw),
-                           sizeof(dev->LocalGid().raw)),
-        .port = RdmaDeviceContext::kDefaultPort,
-    });
+    util::ipv6_t ipv6;
+    std::memcpy(ipv6.s6_addr, dev->LocalGid().raw, sizeof(ipv6));
+    const NicInfo nic(std::string(dev->Name()), util::NicType::kRDMA,
+                      {Endpoint(ipv6, RdmaDeviceContext::kDefaultPort)});
+    DCHECK(nic.IsValid());
+    nics.push_back(nic);
   }
-  if ABSL_PREDICT_FALSE (self.rdma_nics.empty()) {
+  if (nics.empty()) {
     LOG(WARNING) << "no active RDMA devices found: " << self;
     return nullptr;
   }
+  self.data_plane_listeners.insert(self.data_plane_listeners.end(),
+                                   nics.begin(), nics.end());
 
   auto acceptor = absl::WrapUnique(
       new RdmaAcceptor(config, self, control, std::move(devmgr)));
@@ -117,13 +123,19 @@ std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
   }
 
   const auto& local_devices = rdma_devmgr_->Devices();
-  auto peer_info = control_.GetPeerHostInfo(peer);
+  const auto peer_info = control_.GetPeerHostInfo(peer);
   if (!peer_info.ok()) {
     LOG(WARNING) << "failed to resolve peer " << peer << ": "
                  << peer_info.status();
     return channels;
   }
-  const auto& remote_interfaces = peer_info->rdma_nics;
+
+  std::vector<NicInfo> remote_interfaces;
+  for (const auto& nic : peer_info->data_plane_listeners) {
+    if (nic.type == util::NicType::kRDMA) {
+      remote_interfaces.push_back(nic);
+    }
+  }
   if (remote_interfaces.empty()) {
     LOG(WARNING) << "no RDMA interfaces found for peer " << peer;
     return channels;

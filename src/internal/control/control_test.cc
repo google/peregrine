@@ -11,13 +11,13 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
-#include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/base/nicinfo.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
 #include "src/internal/socket/psp/psp.h"
@@ -53,7 +53,7 @@ TEST_F(ControlTest, GetPeerHostInfoSuccess) {
   HostInfo host_a = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
+      .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20001")},
   };
 
   const uint16_t port_b = util::FindFreePort(AF_INET, /*tcp=*/true);
@@ -61,7 +61,7 @@ TEST_F(ControlTest, GetPeerHostInfoSuccess) {
   HostInfo host_b = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
+      .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20002")},
   };
 
   auto ctrl_a = Control::Create(config_, host_a, creds_a_);
@@ -104,7 +104,7 @@ TEST_F(ControlTest, GetPeerHostInfoFailure) {
   HostInfo self = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
+      .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20001")},
   };
   auto ctrl = Control::Create(config_, self, creds_a_);
   ASSERT_NE(ctrl, nullptr);
@@ -136,12 +136,12 @@ TEST_F(ControlTest, ExchangePspTokensSuccess) {
   const HostInfo host_a = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
+      .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20001")},
   };
   const HostInfo host_b = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
+      .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20002")},
   };
 
   auto ctrl_a = Control::Create(config_, host_a, creds_a_);
@@ -177,12 +177,12 @@ TEST_F(ControlTest, ExchangePspTokenErrors) {
   const HostInfo host_a = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20001")},
+      .data_plane_listeners = {NicInfo::Create("eth0/ip/127.0.0.1:20001")},
   };
   const HostInfo host_b = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20002")},
+      .data_plane_listeners = {NicInfo::Create("eth0/ip/127.0.0.1:20002")},
   };
 
   const PspToken self_token{Spi(1), Gen(9), {0xbe, 0xef}};
@@ -231,7 +231,7 @@ TEST_F(ControlTest, ExchangePspTokenErrors) {
   const HostInfo host_c = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_c)),
-      .data_plane_listeners = {Endpoint::Create("127.0.0.1:20003")},
+      .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20003")},
   };
   auto ctrl_missing = Control::Create(config_, host_c, creds_b_);
   ASSERT_NE(ctrl_missing, nullptr);
@@ -252,12 +252,12 @@ TEST_F(ControlTest, ConnectRdmaPeer) {
   const HostInfo host_a = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
-      .rdma_nics = {{.name = "irdma0", .gid = std::string(16, '\0')}},
+      .data_plane_listeners = {NicInfo::Create("irdma0/rdma/[::1]:1")},
   };
   const HostInfo host_b = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
-      .rdma_nics = {{.name = "irdma0", .gid = std::string(16, '\0')}},
+      .data_plane_listeners = {NicInfo::Create("irdma0/rdma/[::1]:2")},
   };
 
   auto ctrl_a = Control::Create(config_, host_a, creds_a_);

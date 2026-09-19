@@ -11,6 +11,7 @@
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/base/nicinfo.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
 #include "src/internal/socket/psp/psp.h"
@@ -82,11 +83,11 @@ class Message final {
   static bool serialize(const Endpoint& endpoint, proto::Endpoint& proto);
   static bool deserialize(const proto::Endpoint& proto, Endpoint& endpoint);
 
+  static bool serialize(const NicInfo& nic, proto::NicInfo& proto);
+  static bool deserialize(const proto::NicInfo& proto, NicInfo& nic);
+
   static bool serialize(const PspToken& token, proto::PspToken& proto);
   static bool deserialize(const proto::PspToken& proto, PspToken& token);
-
-  static bool serialize(const RdmaNic& rdma, proto::RdmaNic& proto);
-  static bool deserialize(const proto::RdmaNic& proto, RdmaNic& rdma);
 };
 
 }  // namespace peregrine::internal

@@ -6,7 +6,8 @@ transport library to serve machine learning workloads on TPU hosts.
 ## Code Organization
 
 - `src/`: the library and all the unit tests
-- `test/`: integration tests and benchmarks
+- `test/`: the integration tests and benchmarks
+- `ci/`: continuous integration in GitHub
 
 ## Quick Start
 

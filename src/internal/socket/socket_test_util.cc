@@ -1,9 +1,11 @@
 #include "src/internal/socket/socket_test_util.h"
 
+#include <cstddef>
 #include <memory>
 #include <utility>
 
 #include "absl/log/check.h"
+#include "absl/random/random.h"
 #include "absl/synchronization/notification.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -12,9 +14,25 @@
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_udp.h"
 #include "src/internal/util/test_util.h"
+#include "src/util/nic.h"
 #include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
+
+namespace {
+Endpoint PickPeer(const HostInfo& peer_host) {
+  DCHECK(peer_host.IsValid());
+  for (const auto& nic : peer_host.data_plane_listeners) {
+    if (nic.type != util::NicType::kIP) continue;
+    const size_t n = nic.endpoints.size();
+    CHECK_GE(n, 1);
+    if (n == 1) return nic.endpoints[0];
+    absl::BitGen bitgen;
+    return nic.endpoints[absl::Uniform<size_t>(bitgen, 0, n)];
+  }
+  CHECK(false) << "no peer tcp endpoint found in " << peer_host;  // Crash OK
+}
+}  // namespace
 
 std::pair<std::unique_ptr<TcpSocket>, std::unique_ptr<TcpSocket>>
 CreateTcpSocketPair(int family) {
@@ -35,7 +53,7 @@ CreateTcpSocketPair(int family) {
   });
 
   acceptor_started.WaitForNotification();
-  const Endpoint peer = a.data_plane_listeners[0];
+  const Endpoint peer = PickPeer(a);
   const Endpoint local = {};
   std::unique_ptr<TcpSocket> sb = TcpConnector::Create(peer, local);
 

@@ -6,12 +6,9 @@ edition = "2024";
 package peregrine.internal.proto;
 
 // See internal/base/hostinfo.h
-// TODO: Consider unifying TCP data_plane_listeners and rdma_interfaces into a
-// polymorphic DataPlaneEndpoint message.
 message HostInfo {
   Endpoint control_plane_listener = 1;
-  repeated Endpoint data_plane_listeners = 2;
-  repeated RdmaNic rdma_nics = 3;
+  repeated NicInfo data_plane_listeners = 2;
 }
 
 message PeerReq {
@@ -75,17 +72,22 @@ message Request {
 // LINT.ThenChange(../../api/transport_types.h)
 
 message Endpoint {
-  bytes ip_port = 1;  // e.g. "127.0.0.1:56789" or "[::1]:56789"
+  string ip_port = 1;  // e.g. "127.0.0.1:56789" or "[::1]:56789"
+}
+
+message NicInfo {
+  enum Type {
+    INVALID = 0;
+    IP = 1;
+    RDMA = 2;
+  }
+  string name = 1;
+  Type type = 2;
+  repeated Endpoint endpoints = 3;
 }
 
 message PspToken {
   uint32 spi = 1;  // security parameter index
   uint32 gen = 2;  // generation
   bytes key = 3;   // 16 bytes
-}
-
-message RdmaNic {
-  string name = 1;  // device name, e.g. "irdma0"
-  bytes gid = 2;    // 16-byte RoCEv2 GID
-  uint32 port = 3;  // physical port number on HCA (typically 1)
 }

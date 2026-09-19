@@ -38,7 +38,9 @@ std::string ToIPv4String(const ipv4_t& ip4);
 // Returns a string representation of the ipv6 address.
 std::string ToIPv6String(const ipv6_t& ip6);
 
-// This class represents an ipv{4,6} address.
+// This class represents an ipv{4,6} address or an RDMA RoCEv2 GID. IPv6 is
+// used to represent RDMA, so it can't differentiate between the two. External
+// information, such as NIC type, is needed to make that distinction.
 // It is thread-compatible but not thread-safe.
 class IpAddr final {
  public:

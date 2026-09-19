@@ -15,6 +15,7 @@
 #include "absl/time/time.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/base/nicinfo.h"
 #include "src/internal/socket/psp/psp.h"
 #include "src/internal/socket/psp/psp_mock.h"
 #include "src/internal/socket/psp/psp_util.h"
@@ -92,7 +93,8 @@ TEST_F(PspTcpAcceptorTestIPv6, HandlePspTokenExchange) {
 
   ASSERT_FALSE(local_.data_plane_listeners.empty());
   const PspToken peer_token(Spi(1), Gen(9), {0xbe, 0xef});
-  const Endpoint self_target = local_.data_plane_listeners[0];
+  const NicInfo& nic = local_.data_plane_listeners[0];
+  const Endpoint& self_target = nic.endpoints[0];
   const auto self_token = acceptor_->ExchangePspTokens(peer_token, self_target);
   ASSERT_TRUE(self_token.ok());
   EXPECT_TRUE(self_token->IsValid());

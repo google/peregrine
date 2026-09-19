@@ -13,6 +13,7 @@ cc_library(
         "//src/internal:assumptions",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
+        "//src/internal/base:nicinfo",
         "//src/internal/base:types",
         "//src/internal/event:poller",
         "//src/internal/socket/psp",
@@ -28,7 +29,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/synchronization",
-        "@abseil-cpp//absl/types:span",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -40,6 +41,7 @@ cc_test(
         ":socket_tcp",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
+        "//src/internal/base:nicinfo",
         "//src/internal/socket/psp",
         "//src/internal/socket/psp:psp_mock",
         "//src/internal/socket/psp:psp_util",
@@ -80,6 +82,7 @@ cc_test(
         ":socket_tcp",
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
+        "//src/internal/base:nicinfo",
         "//src/internal/socket/psp",
         "//src/internal/socket/psp:psp_mock",
         "//src/internal/socket/psp:psp_util",
@@ -217,8 +220,10 @@ cc_library(
         "//src/internal/base:endpoint",
         "//src/internal/base:hostinfo",
         "//src/internal/util:test_util",
+        "//src/util:nic",
         "//src/util:thread",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/synchronization",
     ],
 )

@@ -57,16 +57,26 @@ inline bool IsWouldBlock(int ret) { return ret == -3; }
 // Returns true iff the tcp listen socket Accept() call was shut down.
 inline bool IsShutdown(int ret) { return ret == -2; }
 
+// Returns true iff the tcp listen socket Accept() call failed due to
+// resource exhaustion.
+inline bool IsOutOfResource(int ret) { return ret == -10; }
+
 // Returns true iff the last socket operation was interrupted by a signal.
 inline bool Interrupted(int last_errno) { return last_errno == EINTR; }
+
+// Returns true iff the last socket connect operation is in progress.
+inline bool InProgress(int last_errno) { return last_errno == EINPROGRESS; }
 
 // Returns true iff the last socket operation would block.
 inline bool WouldBlock(int last_errno) {
   return last_errno == EAGAIN || last_errno == EWOULDBLOCK;
 }
 
-// Returns true iff the socket connect operation is in progress.
-inline bool InProgress(int last_errno) { return last_errno == EINPROGRESS; }
+// Returns true iff the last socket operation failed due to resource exhaustion.
+inline bool OutOfResource(int last_errno) {
+  return last_errno == EMFILE || last_errno == ENFILE ||
+         last_errno == ENOBUFS || last_errno == ENOMEM;
+}
 
 // Returns the self ip:port string for the socket `fd`.
 std::string SelfAddrPort(fd_t fd);
