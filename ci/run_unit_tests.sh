@@ -18,13 +18,16 @@ if ! dpkg -s libibverbs-dev >/dev/null 2>&1; then
     wget
 fi
 
-# Ensure IPv6 loopback (::1) is enabled in CI environments so dual-stack (AF_INET + AF_INET6)
-# socket unit tests can bind to [::1].
+# Ensure IPv6 loopback (::1) is enabled for dual-stack socket tests.
+# Also remove libibverbs provider configs so CPU-only runners do not report
+# unusable RDMA devices; this can be removed once RDMA-related unit tests are
+# updated to remove the hardware dependency.
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0 \
     net.ipv6.conf.default.disable_ipv6=0 \
     net.ipv6.conf.lo.disable_ipv6=0 || true
   sudo ip -6 addr add ::1/128 dev lo 2>/dev/null || true
+  sudo rm -f /etc/libibverbs.d/*.driver || true
 fi
 
 # Ensure the Bazel version from .bazelversion is installed.
@@ -62,6 +65,7 @@ bazel build \
 # Run all unit tests in the workspace (targets tagged "manual" are skipped automatically by Bazel).
 bazel test \
   "${COMMON_ARGS[@]}" \
+  --nocache_test_results \
   --test_output=errors \
   -- //...
 
