@@ -64,7 +64,7 @@ void TcpSocket::Shutdown() {
 bool TcpSocket::Bind(const Endpoint& local) const {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << errMsg("bind", last_errno);
     return false;
   } else {
@@ -78,16 +78,16 @@ bool TcpSocket::Listen(const Endpoint& local) const {
 
   int on = 1;
   if ABSL_PREDICT_FALSE (!SetOption(fd_, SO_REUSEADDR, &on, sizeof(on))) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << errMsg("set SO_REUSEADDR", last_errno);
     return false;
   }
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << errMsg("bind", last_errno);
     return false;
   } else if (ABSL_PREDICT_FALSE(::listen(fd_.value(), SOMAXCONN) < 0)) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << errMsg("listen", last_errno);
     return false;
   } else {
@@ -118,7 +118,7 @@ fd_t TcpSocket::Accept() const {
   const int ret = AcceptConn(family_, fd_);
   if ABSL_PREDICT_FALSE (ret < 0) {
     // At this point, shutdown() is the only reason that can cause EINVAL.
-    const auto last_errno = errno;
+    const int last_errno = errno;
     if (WouldBlock(last_errno)) {
       return fd_t(-3);
     } else if (last_errno == EINVAL) {
@@ -142,7 +142,7 @@ bool TcpSocket::Connect(const Endpoint& peer) {
   DCHECK(IsBlocking());
 
   if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << errMsg("connect", last_errno);
     return false;
   } else {
@@ -171,7 +171,7 @@ ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {
       DCHECK_EQ(buf + len, ptr + left);
       VLOG(1) << ioMsg("send", bytes);
     } else {
-      const auto last_errno = errno;
+      const int last_errno = errno;
       if ABSL_PREDICT_TRUE (bytes < 0) {
         if (Interrupted(last_errno)) continue;
         DCHECK(!WouldBlock(last_errno));
@@ -221,7 +221,7 @@ ssize_t TcpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
         vecs[i].iov_len -= b;
       }
     } else {
-      const auto last_errno = errno;
+      const int last_errno = errno;
       if ABSL_PREDICT_TRUE (bytes < 0) {
         if (Interrupted(last_errno)) continue;
         DCHECK(!WouldBlock(last_errno));
@@ -260,7 +260,7 @@ ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
       LOG(INFO) << ioMsg("recv eof", 0);
       return 0;
     } else {
-      const auto last_errno = errno;
+      const int last_errno = errno;
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       LOG(WARNING) << errMsg("recv", last_errno);
@@ -304,7 +304,7 @@ ssize_t TcpSocket::RecvV(const absl::Span<const IoVec> iovecs) const {
       LOG(INFO) << ioMsg("readv eof", 0);
       return 0;
     } else {
-      const auto last_errno = errno;
+      const int last_errno = errno;
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       LOG(WARNING) << errMsg("readv", last_errno);

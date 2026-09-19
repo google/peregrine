@@ -75,7 +75,7 @@ std::optional<ipv4_t> ParseIPv4Addr(std::string_view ip) {
       LOG(WARNING) << "invalid ipv4 addr: " << ip;
       return std::nullopt;
     default:
-      const auto last_errno = errno;
+      const int last_errno = errno;
       LOG(WARNING) << PtonErrorMsg(ip, 4, last_errno);
       return std::nullopt;
   }
@@ -90,7 +90,7 @@ std::optional<ipv6_t> ParseIPv6Addr(const std::string_view ip) {
       LOG(WARNING) << "invalid ipv6 addr: " << ip;
       return std::nullopt;
     default:
-      const auto last_errno = errno;
+      const int last_errno = errno;
       LOG(WARNING) << PtonErrorMsg(ip, 6, last_errno);
       return std::nullopt;
   }
@@ -101,7 +101,7 @@ std::string ToIPv4String(const ipv4_t& ip4) {
   if (inet_ntop(AF_INET, &ip4, addr, INET_ADDRSTRLEN) != nullptr) {
     return addr;
   } else {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << NtopErrorMsg(last_errno);
     return "invalid ipv4 addr";
   }
@@ -112,7 +112,7 @@ std::string ToIPv6String(const ipv6_t& ip6) {
   if (inet_ntop(AF_INET6, &ip6, addr, INET6_ADDRSTRLEN) != nullptr) {
     return addr;
   } else {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << NtopErrorMsg(last_errno);
     return "invalid ipv6 addr";
   }

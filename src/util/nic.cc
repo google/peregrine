@@ -40,7 +40,7 @@ absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics() {
   // Retrieve the interfaces list.
   struct ifaddrs* interfaces = nullptr;
   if (getifaddrs(&interfaces) < 0 || interfaces == nullptr) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << Error("getifaddrs", last_errno);
     return ifc_ips;
   }

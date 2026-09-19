@@ -55,7 +55,7 @@ absl::Status TcpSocketUtil::Send(const fd_t fd, const Byte* const buf,
       DCHECK_EQ(buf + len, ptr + left);
     } else {
       if ABSL_PREDICT_TRUE (bytes < 0) {
-        const auto last_errno = errno;
+        const int last_errno = errno;
         if (Interrupted(last_errno)) continue;
         DCHECK(!WouldBlock(last_errno));
         return absl::InternalError(ErrMsg("send", fd, last_errno));
@@ -92,7 +92,7 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd, Byte* const buf,
     } else if (bytes == 0) {  // peer closed connection
       return absl::InternalError("recv eof");
     } else {
-      const auto last_errno = errno;
+      const int last_errno = errno;
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       return absl::InternalError(ErrMsg("recv", fd, last_errno));
@@ -137,7 +137,7 @@ absl::Status TcpSocketUtil::SendV(const fd_t fd,
       }
     } else {
       if ABSL_PREDICT_TRUE (bytes < 0) {
-        const auto last_errno = errno;
+        const int last_errno = errno;
         if (Interrupted(last_errno)) continue;
         DCHECK(!WouldBlock(last_errno));
         return absl::InternalError(ErrMsg("sendmsg", fd, last_errno));
@@ -183,7 +183,7 @@ absl::Status TcpSocketUtil::RecvV(const fd_t fd,
     } else if (bytes == 0) {  // peer closed connection
       return absl::InternalError("readv eof");
     } else {
-      const auto last_errno = errno;
+      const int last_errno = errno;
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       return absl::InternalError(ErrMsg("readv", fd, last_errno));

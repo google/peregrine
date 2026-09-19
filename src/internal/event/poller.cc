@@ -33,7 +33,7 @@ std::string ErrMsg(const std::string_view what, const int last_errno) {
 std::unique_ptr<Poller> Poller::Create() {
   const int ret = ::epoll_create1(/*flags=*/EPOLL_CLOEXEC);
   if ABSL_PREDICT_FALSE (ret < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(ERROR) << ErrMsg("create", last_errno);
     return nullptr;
   }
@@ -54,7 +54,7 @@ bool Poller::Register(const fd_t fd, const uint32_t events) {
       .data = {.fd = fd.value()},
   };
   if (::epoll_ctl(epoll_fd_.value(), EPOLL_CTL_ADD, fd.value(), &ev) < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(ERROR) << ErrMsg("register", last_errno);
     return false;
   }
@@ -64,7 +64,7 @@ bool Poller::Register(const fd_t fd, const uint32_t events) {
 
 bool Poller::Unregister(const fd_t fd) {
   if (::epoll_ctl(epoll_fd_.value(), EPOLL_CTL_DEL, fd.value(), nullptr) < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(ERROR) << ErrMsg("unregister", last_errno);
     return false;
   }
@@ -80,7 +80,7 @@ int Poller::BlockingWait(epoll_event* events, int max_events) {
   constexpr int kInfiniteTimeout = -1;
   const int nfds = ::epoll_wait(efd, events, max_events, kInfiniteTimeout);
   if ABSL_PREDICT_FALSE (nfds < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(ERROR) << ErrMsg("blocking wait", last_errno);
   }
   return nfds;

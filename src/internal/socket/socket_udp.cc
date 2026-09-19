@@ -59,7 +59,7 @@ void UdpSocket::Shutdown() {
 bool UdpSocket::Bind(const Endpoint& local) const {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << errMsg("bind", last_errno);
     return false;
   } else {
@@ -71,7 +71,7 @@ bool UdpSocket::Bind(const Endpoint& local) const {
 bool UdpSocket::Connect(const Endpoint& peer) {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << errMsg("connect", last_errno);
     return false;
   } else {
@@ -94,7 +94,7 @@ ssize_t UdpSocket::Send(const Byte* const buf, const size_t len) const {
       VLOG(1) << ioMsg("send", bytes);
       return bytes;
     }
-    const auto last_errno = errno;
+    const int last_errno = errno;
     if (Interrupted(last_errno)) continue;
     DCHECK(!WouldBlock(last_errno));
     LOG(WARNING) << errMsg("send", last_errno);
@@ -115,7 +115,7 @@ ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
       VLOG(1) << ioMsg("recv", bytes);
       return bytes;
     } else if (bytes < 0) {
-      const auto last_errno = errno;
+      const int last_errno = errno;
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       LOG(WARNING) << errMsg("recv", last_errno);
@@ -145,7 +145,7 @@ ssize_t UdpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
       VLOG(1) << ioMsg("writev", bytes);
       return bytes;
     }
-    const auto last_errno = errno;
+    const int last_errno = errno;
     if (Interrupted(last_errno)) continue;
     DCHECK(!WouldBlock(last_errno));
     LOG(WARNING) << errMsg("writev", last_errno);
@@ -169,7 +169,7 @@ ssize_t UdpSocket::RecvV(const absl::Span<const IoVec> iovecs) const {
       VLOG(1) << ioMsg("readv", bytes);
       return bytes;
     } else if (bytes < 0) {
-      const auto last_errno = errno;
+      const int last_errno = errno;
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       LOG(WARNING) << errMsg("readv", last_errno);

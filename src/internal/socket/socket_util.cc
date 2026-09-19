@@ -26,7 +26,7 @@ fd_t CreateSocket(int family, int type, bool blocking) {
   DCHECK(type == SOCK_STREAM || type == SOCK_DGRAM);
   const int ret = ::socket(family, type | SOCK_CLOEXEC, /*protocol=*/0);
   if (ret < 0) {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << ErrorMsg("socket", last_errno);
     return fd_t(-1);
   }
@@ -66,7 +66,7 @@ std::string SelfAddrPort(const fd_t fd) {
   if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return ToIpAddrPortString(ss);
   } else {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << ErrorMsg("getsockname", last_errno);
     return "?";
   }
@@ -80,7 +80,7 @@ std::string PeerAddrPort(const fd_t fd) {
   } else if (errno == ENOTCONN) {
     return "*";
   } else {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << ErrorMsg("getpeername", last_errno);
     return "?";
   }
@@ -92,7 +92,7 @@ Endpoint SelfEndpoint(const fd_t fd) {
   if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return Endpoint::Create(ss);
   } else {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << ErrorMsg("getsockname", last_errno);
     return Endpoint();
   }
@@ -104,7 +104,7 @@ Endpoint PeerEndpoint(const fd_t fd) {
   if (::getpeername(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return Endpoint::Create(ss);
   } else {
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << ErrorMsg("getpeername", last_errno);
     return Endpoint();
   }
@@ -126,7 +126,7 @@ std::string ToString(const struct sockaddr_storage& ss) {
     if (inet_ntop(AF_INET, &sa->sin_addr, addr, kAddrLen) != nullptr) {
       return absl::StrCat(addr, ":", ntohs(sa->sin_port));
     }
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << NtopErrorMsg(4, last_errno);
     return "invalid ipv4:port";
   } else {
@@ -134,7 +134,7 @@ std::string ToString(const struct sockaddr_storage& ss) {
     if (inet_ntop(AF_INET6, &sa->sin6_addr, addr, kAddrLen) != nullptr) {
       return absl::StrCat("[", addr, "]:", ntohs(sa->sin6_port));
     }
-    const auto last_errno = errno;
+    const int last_errno = errno;
     LOG(WARNING) << NtopErrorMsg(6, last_errno);
     return "invalid ipv6:port";
   }
