@@ -5,7 +5,9 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/api/transport.h"
@@ -16,6 +18,7 @@
 namespace peregrine::testing {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
@@ -111,6 +114,76 @@ TEST_F(SimpleTest, Write) {
   // Post-condition: all the remote bytes are equal to the local.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
+}
+
+TEST_F(SimpleTest, ReadWithCallback) {
+  // Pre-condition: no single local byte is equal to the remote.
+  l_.ClearData();
+  r_.GenData();
+  ASSERT_THAT(l_.Data(), Pointwise(Ne(), r_.Data()));
+
+  absl::Notification done;
+  Status completed_status = Status::kNotFound;
+
+  // Post a read request (local <- remote) with callback.
+  Transport& lt = l_.GetTransport();
+  const std::string peer = r_.GetControlEndpoint();
+  const Request req = {
+      .op = Op::kRead,
+      .laddr = l_.DataPtr(),
+      .raddr = r_.DataPtr(),
+      .len = l_.DataSize(),
+  };
+  ASSERT_THAT(lt.Post(peer, {req},
+                      [&done, &completed_status](Status s) {
+                        completed_status = s;
+                        done.Notify();
+                      }),
+              IsOk());
+
+  ASSERT_TRUE(done.WaitForNotificationWithTimeout(absl::Seconds(10)));
+  EXPECT_EQ(completed_status, Status::kSuccess);
+
+  // Post-condition: all the local bytes are equal to the remote.
+  EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
+}
+
+TEST_F(SimpleTest, WriteWithCallback) {
+  // Pre-condition: no single remote byte is equal to the local.
+  l_.GenData();
+  r_.ClearData();
+  ASSERT_THAT(r_.Data(), Pointwise(Ne(), l_.Data()));
+
+  absl::Notification done;
+  Status completed_status = Status::kNotFound;
+
+  // Post multiple write requests (local -> remote) with callback.
+  Transport& lt = l_.GetTransport();
+  const std::string peer = r_.GetControlEndpoint();
+  const Request req1 = {
+      .op = Op::kWrite,
+      .laddr = l_.DataPtr(),
+      .raddr = r_.DataPtr(),
+      .len = partial_,
+  };
+  const Request req2 = {
+      .op = Op::kWrite,
+      .laddr = l_.DataPtr() + partial_,
+      .raddr = r_.DataPtr() + partial_,
+      .len = l_.DataSize() - partial_,
+  };
+  ASSERT_THAT(lt.Post(peer, {req1, req2},
+                      [&done, &completed_status](Status s) {
+                        completed_status = s;
+                        done.Notify();
+                      }),
+              IsOk());
+
+  ASSERT_TRUE(done.WaitForNotificationWithTimeout(absl::Seconds(10)));
+  EXPECT_EQ(completed_status, Status::kSuccess);
+
+  // Post-condition: all the remote bytes are equal to the local.
+  EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
 }
 
 }  // namespace
