@@ -106,8 +106,7 @@ void Worker::SendLoop() {
       // ACK chunk sent by the receiver.
       static_assert(
           assumptions::kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe);
-      outgoing_.FindOrCreate(chunk.handle, chunk.reqid, chunk.nchunks)
-          .Set(chunk.index);
+      outgoing_.Set(chunk.handle, chunk.reqid, chunk.nchunks, chunk.index);
     }
   }
 }
