@@ -63,6 +63,7 @@ void RequestTracker::Remove(const Handle handle) {
   absl::MutexLock _(mu_);
   trackers_.erase(handle);
 }
+
 void RequestTracker::Set(const Handle handle, const ReqId reqid,
                          const uint32_t num_chunks, const chunk_t index) {
   OnCompleteCallback callback = nullptr;

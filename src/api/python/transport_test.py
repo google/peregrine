@@ -13,7 +13,7 @@ _TIMEOUT = datetime.timedelta(seconds=10)
 _INTERVAL = datetime.timedelta(milliseconds=100)
 
 
-class SimpleTest(absltest.TestCase):
+class TransportTest(absltest.TestCase):
 
   def setUp(self):
     super().setUp()

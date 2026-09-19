@@ -115,25 +115,32 @@ fd_t TcpSocket::Accept() const {
   DCHECK(invariant());
   DCHECK(IsNonBlocking() || IsBlocking());
 
-  const int ret = AcceptConn(family_, fd_);
-  if ABSL_PREDICT_FALSE (ret < 0) {
-    // At this point, shutdown() is the only reason that can cause EINVAL.
-    const int last_errno = errno;
-    if (WouldBlock(last_errno)) {
-      return fd_t(-3);
-    } else if (last_errno == EINVAL) {
-      LOG(WARNING) << okMsg("accept shutdown");
-      DCHECK(IsShutdown(-2));
-      return fd_t(-2);
+  while (true) {
+    const int ret = AcceptConn(family_, fd_);
+    if ABSL_PREDICT_FALSE (ret < 0) {
+      // At this point, shutdown() is the only reason that can cause EINVAL.
+      const int last_errno = errno;
+      if (Interrupted(last_errno)) {
+        continue;
+      } else if (WouldBlock(last_errno)) {
+        return fd_t(-3);
+      } else if (last_errno == EINVAL) {
+        LOG(WARNING) << okMsg("accept shutdown");
+        DCHECK(IsShutdown(-2));
+        return fd_t(-2);
+      } else if (OutOfResource(last_errno)) {
+        DCHECK(IsOutOfResource(-10));
+        return fd_t(-10);
+      } else {
+        LOG(WARNING) << errMsg("accept", last_errno);
+        return fd_t(-1);
+      }
     } else {
-      LOG(WARNING) << errMsg("accept", last_errno);
-      return fd_t(-1);
+      const fd_t new_fd(ret);
+      DCHECK_GE(new_fd.value(), 0);
+      LOG(INFO) << okMsg("accepted", new_fd);
+      return new_fd;
     }
-  } else {
-    const fd_t new_fd(ret);
-    DCHECK_GE(new_fd.value(), 0);
-    LOG(INFO) << okMsg("accepted", new_fd);
-    return new_fd;
   }
 }
 
@@ -141,14 +148,17 @@ bool TcpSocket::Connect(const Endpoint& peer) {
   DCHECK(invariant());
   DCHECK(IsBlocking());
 
-  if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
-    const int last_errno = errno;
-    LOG(WARNING) << errMsg("connect", last_errno);
-    return false;
-  } else {
-    LOG(INFO) << okMsg("connected");
-    connected_ = true;
-    return true;
+  while (true) {
+    if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
+      const int last_errno = errno;
+      if (Interrupted(last_errno)) continue;
+      LOG(WARNING) << errMsg("connect", last_errno);
+      return false;
+    } else {
+      LOG(INFO) << okMsg("connected");
+      connected_ = true;
+      return true;
+    }
   }
 }
 
