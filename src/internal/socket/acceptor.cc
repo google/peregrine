@@ -17,6 +17,8 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
@@ -141,7 +143,10 @@ void TcpAcceptor::Start(AcceptCallback accept) {
         const fd_t new_fd = listener->Accept();
         const int ret = new_fd.value();
         if ABSL_PREDICT_FALSE (ret < 0) {
-          if (IsWouldBlock(ret) || IsShutdown(ret)) {
+          if ABSL_PREDICT_FALSE (IsOutOfResource(ret)) {
+            LOG_EVERY_N_SEC(ERROR, 3) << "out of resource, " << *listener;
+            absl::SleepFor(absl::Milliseconds(100));  // avoid busy-looping
+          } else if (IsWouldBlock(ret) || IsShutdown(ret)) {
             // do nothing
           } else {
             LOG(WARNING) << "accept failed, " << *listener;
