@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -17,6 +18,7 @@
 #include "src/internal/base/config.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/base/nicinfo.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_util.h"
 #include "src/internal/control/control.h"
@@ -26,6 +28,7 @@
 #include "src/internal/socket/connector.h"
 #include "src/internal/socket/socket_tcp.h"
 #include "src/internal/socket/socket_util.h"
+#include "src/util/nic.h"
 #include "src/util/thread.h"
 
 namespace peregrine::internal {
@@ -36,6 +39,7 @@ std::unique_ptr<EngineHelper> EngineHelper::Create(const Config& config,
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
   DCHECK(config.IsValid());
 
+  self.data_plane_listeners.clear();
   auto rdma_acceptor = RdmaAcceptor::Create(config, self, control);
   if (rdma_acceptor == nullptr) {
     if (config.transport_type == TransportType::kRdma) {
@@ -113,6 +117,15 @@ EngineHelper::Channels EngineHelper::Connect(const Endpoint& peer) {
   }
 }
 
+namespace {
+std::optional<NicInfo> GetTcpListener(const HostInfo& peer_info) {
+  for (const auto& nic : peer_info.data_plane_listeners) {
+    if (nic.type == util::NicType::kIP) return nic;
+  }
+  return std::nullopt;
+}
+}  // namespace
+
 EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer,
                                                 const int n) {
   const auto peer_info = control_.GetPeerHostInfo(peer);
@@ -121,14 +134,19 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer,
                  << peer_info.status();
     return {};
   }
+  const auto nic = GetTcpListener(*peer_info);
+  if (!nic.has_value()) {
+    LOG(WARNING) << "no tcp listener found for peer " << peer;
+    return {};
+  }
   if (peer_info->data_plane_listeners.empty()) {
     LOG(WARNING) << "no data plane tcp listeners found for peer " << peer;
     return {};
   }
 
   EngineHelper::Channels chs;
-  // TODO(yongx): connect to all data plane listeners of the peer.
-  const Endpoint& peer_target = peer_info->data_plane_listeners[0];
+  // TODO(yongx): build connection locality group
+  const Endpoint& peer_target = nic.value().endpoints[0];
   uint64_t failures = 0;
   for (int i = 0; chs.size() < n && i < 2 * n; ++i) {
     DCHECK(!config_.require_dataplane_encryption);

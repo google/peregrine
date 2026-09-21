@@ -50,11 +50,38 @@ cc_test(
 )
 
 cc_library(
+    name = "nicinfo",
+    srcs = ["nicinfo.cc"],
+    hdrs = ["nicinfo.h"],
+    deps = [
+        ":endpoint",
+        "//src/internal:assumptions",
+        "//src/util:nic",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "nicinfo_test",
+    srcs = ["nicinfo_test.cc"],
+    deps = [
+        ":endpoint",
+        ":nicinfo",
+        "//src/util:nic",
+        "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "hostinfo",
     srcs = ["hostinfo.cc"],
     hdrs = ["hostinfo.h"],
     deps = [
         ":endpoint",
+        ":nicinfo",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -67,6 +94,8 @@ cc_test(
     deps = [
         ":endpoint",
         ":hostinfo",
+        ":nicinfo",
+        "//src/util:nic",
         "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],

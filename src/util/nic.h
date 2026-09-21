@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -14,12 +15,17 @@
 namespace peregrine::util {
 
 enum class NicType : uint8_t {
-  kIP = 0,
-  kRDMA = 1,
+  kInvalid = 0,
+  kIP = 1,
+  kRDMA = 2,
 };
 
 // Returns a string representation of the nic type.
 std::string ToString(NicType t);
+
+// Parses and creates a nic type from a string.
+// Returns kInvalid if the string parsing fails.
+NicType FromString(std::string_view s);
 
 inline std::ostream& operator<<(std::ostream& os, NicType t) {
   return os << ToString(t);

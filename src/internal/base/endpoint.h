@@ -110,6 +110,12 @@ class Endpoint final {
   // Returns a string representation of the endpoint.
   std::string ToString() const;
 
+  // Formats an endpoint for abseil stringification.
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, const Endpoint& e) {
+    sink.Append(e.ToString());
+  }
+
  private:
   // Calculates a hash value for the endpoint.
   template <typename H>

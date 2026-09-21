@@ -7,6 +7,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/base/nicinfo.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
 
@@ -26,11 +27,10 @@ TEST(MessageTest, RequestOp) {
 }
 
 TEST(MessageTest, Serialization) {
-  const Endpoint c = Endpoint::Create("10.0.0.1:10000");
-  const Endpoint d0 = Endpoint::Create("10.0.0.1:35247");
-  const Endpoint d1 = Endpoint::Create("10.0.0.2:51691");
+  const Endpoint c = Endpoint::Create("127.0.0.1:10000");
+  const NicInfo lo = NicInfo::Create("lo/ip/127.0.0.1:35247,[::1]:35247");
   const HostInfo host = {.control_plane_listener = c,
-                         .data_plane_listeners = {d0, d1}};
+                         .data_plane_listeners = {lo}};
   ASSERT_TRUE(host.IsValid());
   const Request req = {
       .op = Op::kRead,
@@ -50,9 +50,8 @@ TEST(MessageTest, Serialization) {
 
   const auto [hb, requests] = Message::Deserialize(b);
   EXPECT_EQ(hb.control_plane_listener, c);
-  EXPECT_EQ(hb.data_plane_listeners.size(), 2);
-  EXPECT_EQ(hb.data_plane_listeners[0], d0);
-  EXPECT_EQ(hb.data_plane_listeners[1], d1);
+  EXPECT_EQ(hb.data_plane_listeners.size(), 1);
+  EXPECT_EQ(hb.data_plane_listeners[0], lo);
   EXPECT_EQ(requests.size(), 1);
   EXPECT_EQ(requests[0], req);
   EXPECT_EQ(requests[0].rkey, 0xCAFE);
@@ -61,37 +60,28 @@ TEST(MessageTest, Serialization) {
 TEST(MessageTest, HostInfoExchange) {
   // Construct a valid Multi-NIC HostInfo configuration.
   const Endpoint c = Endpoint::Create("10.0.0.1:10000");
-  const Endpoint d0 = Endpoint::Create("10.0.0.1:35247");
-  const Endpoint d1 = Endpoint::Create("10.0.0.2:51691");
-  const std::string gid(16, '\xAB');
-  const HostInfo source = {
+  const NicInfo lo = NicInfo::Create("lo/ip/127.0.0.1:35247,[::1]:35247");
+  const NicInfo ipv4 = NicInfo::Create("eth4/ip/183.10.20.11:43521");
+  const NicInfo ipv6 = NicInfo::Create("eth6/ip/[2202:a05:7901::]:9876");
+  const NicInfo rdma = NicInfo::Create("irdma0/rdma/[2202:a05::]:1");
+  const HostInfo input = {
       .control_plane_listener = c,
-      .data_plane_listeners = {d0, d1},
-      .rdma_nics =
-          {
-              RdmaNic{.name = "irdma0", .gid = gid, .port = 1},
-              RdmaNic{.name = "irdma1", .gid = gid, .port = 2},
-          },
+      .data_plane_listeners = {lo, ipv4, ipv6, rdma},
   };
-  ASSERT_TRUE(source.IsValid());
+  ASSERT_TRUE(input.IsValid());
 
   proto::ReqMsg req;
-  ASSERT_TRUE(Message::Serialize(source, *req.mutable_host_info()));
+  ASSERT_TRUE(Message::Serialize(input, *req.mutable_host_info()));
   EXPECT_TRUE(req.has_host_info());
 
   HostInfo host;
   ASSERT_TRUE(Message::Deserialize(req.host_info(), host));
   EXPECT_EQ(host.control_plane_listener, c);
-  ASSERT_EQ(host.data_plane_listeners.size(), 2);
-  EXPECT_EQ(host.data_plane_listeners[0], d0);
-  EXPECT_EQ(host.data_plane_listeners[1], d1);
-  ASSERT_EQ(host.rdma_nics.size(), 2);
-  EXPECT_EQ(host.rdma_nics[0].name, "irdma0");
-  EXPECT_EQ(host.rdma_nics[0].gid, gid);
-  EXPECT_EQ(host.rdma_nics[0].port, 1);
-  EXPECT_EQ(host.rdma_nics[1].name, "irdma1");
-  EXPECT_EQ(host.rdma_nics[1].gid, gid);
-  EXPECT_EQ(host.rdma_nics[1].port, 2);
+  ASSERT_EQ(host.data_plane_listeners.size(), 4);
+  EXPECT_EQ(host.data_plane_listeners[0], lo);
+  EXPECT_EQ(host.data_plane_listeners[1], ipv4);
+  EXPECT_EQ(host.data_plane_listeners[2], ipv6);
+  EXPECT_EQ(host.data_plane_listeners[3], rdma);
 }
 
 TEST(MessageTest, RdmaConnectMessages) {

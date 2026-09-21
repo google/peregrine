@@ -11,9 +11,11 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
+#include "src/internal/base/nicinfo.h"
 #include "src/internal/control/message.pb.h"
 #include "src/internal/control/message_internal.pb.h"
 #include "src/internal/socket/psp/psp.h"
+#include "src/util/nic.h"
 
 namespace peregrine::internal {
 
@@ -68,10 +70,6 @@ bool Message::Serialize(const HostInfo& host, proto::HostInfo& proto) {
     auto* pd = proto.add_data_plane_listeners();
     if (!pd || !serialize(e, *pd)) return false;
   }
-  for (const auto& r : host.rdma_nics) {
-    proto::RdmaNic* pr = proto.add_rdma_nics();
-    if (!pr || !serialize(r, *pr)) return false;
-  }
   return true;
 }
 
@@ -80,22 +78,13 @@ bool Message::Deserialize(const proto::HostInfo& proto, HostInfo& host) {
   const proto::Endpoint& pc = proto.control_plane_listener();
   if (!deserialize(pc, host.control_plane_listener)) return false;
 
-  Endpoint e;
+  NicInfo nic;
   host.data_plane_listeners.clear();
   host.data_plane_listeners.reserve(proto.data_plane_listeners_size());
-  for (const auto& pd : proto.data_plane_listeners()) {
-    if (!deserialize(pd, e)) return false;
-    host.data_plane_listeners.push_back(e);
+  for (const auto& pn : proto.data_plane_listeners()) {
+    if (!deserialize(pn, nic)) return false;
+    host.data_plane_listeners.push_back(nic);
   }
-
-  RdmaNic r;
-  host.rdma_nics.clear();
-  host.rdma_nics.reserve(proto.rdma_nics_size());
-  for (const auto& pr : proto.rdma_nics()) {
-    if (!deserialize(pr, r)) return false;
-    host.rdma_nics.push_back(r);
-  }
-
   return host.IsValid();
 }
 
@@ -175,6 +164,34 @@ bool Message::deserialize(const proto::Endpoint& proto, Endpoint& endpoint) {
   return endpoint.HasNonzeroIpPort();
 }
 
+bool Message::serialize(const NicInfo& nic, proto::NicInfo& proto) {
+  if (!nic.IsValid()) return false;
+
+  proto.set_name(nic.name);
+  proto.set_type(static_cast<proto::NicInfo::Type>(nic.type));
+  for (const auto& e : nic.endpoints) {
+    auto* pe = proto.add_endpoints();
+    if (!pe || !serialize(e, *pe)) return false;
+  }
+  return true;
+}
+
+bool Message::deserialize(const proto::NicInfo& proto, NicInfo& nic) {
+  if (!proto.has_name()) return false;
+  if (!proto.has_type()) return false;
+
+  nic.name = proto.name();
+  nic.type = static_cast<util::NicType>(proto.type());
+  nic.endpoints.clear();
+  nic.endpoints.reserve(proto.endpoints_size());
+  Endpoint e;
+  for (const auto& pe : proto.endpoints()) {
+    if (!deserialize(pe, e)) return false;
+    nic.endpoints.push_back(e);
+  }
+  return nic.IsValid();
+}
+
 bool Message::serialize(const PspToken& token, proto::PspToken& proto) {
   if (!token.IsValid()) return false;
 
@@ -195,26 +212,6 @@ bool Message::deserialize(const proto::PspToken& proto, PspToken& token) {
   token.gen = Gen(proto.gen());
   std::memcpy(token.key.data(), proto.key().data(), token.key.size());
   return token.IsValid();
-}
-
-bool Message::serialize(const RdmaNic& rdma, proto::RdmaNic& proto) {
-  if (!rdma.IsValid()) return false;
-
-  proto.set_name(rdma.name);
-  proto.set_gid(rdma.gid);
-  proto.set_port(rdma.port);
-  return true;
-}
-
-bool Message::deserialize(const proto::RdmaNic& proto, RdmaNic& rdma) {
-  if (!proto.has_name()) return false;
-  if (!proto.has_gid()) return false;
-  if (!proto.has_port()) return false;
-
-  rdma.name = proto.name();
-  rdma.gid = proto.gid();
-  rdma.port = proto.port();
-  return rdma.IsValid();
 }
 
 }  // namespace peregrine::internal
