@@ -3,6 +3,11 @@
 Our goal is to build an easy-to-use, light-weight, high-performance, and general
 transport library to serve machine learning workloads on TPU hosts.
 
+## Project Status
+
+- Peregrine is still in experimental mode.
+- You must contact us to get our support.
+
 ## Code Organization
 
 - `src/`: the library and all the unit tests
