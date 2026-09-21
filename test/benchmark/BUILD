@@ -82,6 +82,7 @@ cc_library(
     deps = [
         ":control_cc_proto",
         ":control_util",
+        ":flags",
         ":types",
         "//src/api:transport",
         "//src/api:transport_types",
@@ -91,9 +92,11 @@ cc_library(
         "//test/benchmark/workloads:workload_util",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -108,5 +111,6 @@ cc_binary(
         "@abseil-cpp//absl/flags:parse",
         "@abseil-cpp//absl/log:initialize",
         "//src/api:transport_types",
+        "//test/benchmark/workloads:workload_util",
     ],
 )

@@ -9,8 +9,10 @@
 #include "test/benchmark/flags.h"
 #include "test/benchmark/peregrine_util.h"
 #include "test/benchmark/types.h"
+#include "test/benchmark/workloads/workload_util.h"
 
 namespace {
+using ::peregrine::benchmark::GetXferSize;
 using ::peregrine::benchmark::ParseAppControlPort;
 using ::peregrine::benchmark::ParseIp;
 using ::peregrine::benchmark::ParseNumConns;
@@ -18,7 +20,6 @@ using ::peregrine::benchmark::ParsePeer;
 using ::peregrine::benchmark::ParsePeregrineControlPort;
 using ::peregrine::benchmark::ParseRole;
 using ::peregrine::benchmark::ParseWorkloadType;
-using ::peregrine::benchmark::ParseXferSize;
 using ::peregrine::benchmark::Role;
 using ::peregrine::benchmark::RunClient;
 using ::peregrine::benchmark::RunServer;
@@ -43,7 +44,7 @@ int main(int argc, char* argv[]) {
 
   // Run server or client.
   if (role == Role::kServer) {
-    const uint64_t xfer_size = ParseXferSize();
+    const uint64_t xfer_size = GetXferSize(workload);
     RunServer(ip, peregrine_control_port, app_control_port, nconns, xfer_size,
               transport_type);
   } else {

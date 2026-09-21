@@ -10,7 +10,9 @@ package(
 cc_library(
     name = "workload_generator",
     hdrs = ["workload_generator.h"],
-    deps = ["@abseil-cpp//absl/status"],
+    deps = [
+        "//src/api:transport_types",
+    ],
 )
 
 cc_library(
@@ -19,19 +21,9 @@ cc_library(
     hdrs = ["serial_fixed_write.h"],
     deps = [
         ":workload_generator",
-        "//src/api:transport",
         "//src/api:transport_types",
-        "//src/util",
-        "//test/benchmark:control_cc_proto",
-        "//test/benchmark:control_util",
         "//test/benchmark:flags",
-        "//test/benchmark:types",
-        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -41,7 +33,6 @@ cc_library(
     deps = [
         ":serial_fixed_write",
         ":workload_generator",
-        "//src/api:transport",
         "//test/benchmark:types",
         "@abseil-cpp//absl/log",
     ],

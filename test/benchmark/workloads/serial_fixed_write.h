@@ -3,34 +3,31 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
 #include <string_view>
+#include <vector>
 
-#include "absl/status/status.h"
-#include "src/api/transport.h"
+#include "src/api/transport_types.h"
 #include "test/benchmark/workloads/workload_generator.h"
 
 namespace peregrine::benchmark {
 
+// Workload generator for a single contiguous fixed-size write request.
 class SerialFixedWrite : public WorkloadGenerator {
  public:
-  SerialFixedWrite(Transport* transport, int app_control_fd,
-                   std::string_view server_endpoint, uint64_t xfer_size,
-                   uint32_t num_xfers);
+  explicit SerialFixedWrite(uint64_t xfer_size);
 
-  // Creates a SerialFixedWrite after validating --xfer_size and --num_xfers.
-  static std::unique_ptr<SerialFixedWrite> Create(
-      Transport* transport, int app_control_fd,
-      std::string_view server_endpoint);
+  // Creates a SerialFixedWrite generator from CLI flags.
+  static std::unique_ptr<SerialFixedWrite> Create();
 
-  absl::Status Run() override;
+  std::string_view Name() const override { return "serial_fixed_write"; }
+
+  uint64_t TotalSizeBytes() const override { return xfer_size_; }
+
+  std::vector<peregrine::Request> GenerateRequests(
+      peregrine::Byte* base_laddr, peregrine::Byte* base_raddr) const override;
 
  private:
-  Transport* const transport_;
-  const int app_control_fd_;
-  const std::string server_endpoint_;
   const uint64_t xfer_size_;
-  const uint32_t num_xfers_;
 };
 
 }  // namespace peregrine::benchmark
