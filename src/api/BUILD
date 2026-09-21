@@ -5,11 +5,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("@rules_python//python:py_test.bzl", "py_test")
 
-package(default_visibility = [
-    # TODO(yongx): make the visibility public
-    "//src:__subpackages__",
-    "//test:__subpackages__",
-])
+package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "strong_int",
