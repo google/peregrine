@@ -1,16 +1,21 @@
+#include "src/api/transport.h"
+
+#include <array>
 #include <cstddef>
 #include <cstring>
 #include <string>
+#include <tuple>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
-#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "src/api/transport.h"
 #include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
 #include "src/util/app.h"
@@ -18,31 +23,54 @@
 namespace peregrine::testing {
 namespace {
 
-using ::absl_testing::IsOk;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
+using ::testing::TestParamInfo;
+using ::testing::Values;
 
-class TransportTest : public ::testing::Test {
+using Param = std::tuple</*completion_callback=*/bool>;
+
+std::string ToString(const TestParamInfo<Param>& info) {
+  const bool completion_callback = std::get<0>(info.param);
+  return absl::StrFormat("CompletionCallback_%s",
+                         completion_callback ? "true" : "false");
+}
+
+class TransportTest : public ::testing::TestWithParam<Param> {
   static constexpr size_t kBufSize = (64UL << 20) - 1;
   static constexpr int kNumConnsPerPeer = 8;
 
  protected:
   TransportTest()
-      : partial_(kBufSize / 2),
+      : completion_callback_(std::get<0>(GetParam())),
+        completed_status_(Status::kNotFound),
+        partial_(kBufSize / 2),
         l_(kBufSize, kNumConnsPerPeer),
         r_(kBufSize, kNumConnsPerPeer) {
     CHECK(1 <= partial_ && partial_ < l_.DataSize());
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
   }
 
-  void WaitForCompletion(Transport& t, const Handle h) {
+  absl::AnyInvocable<void(Status)> GetCompletionCallback() {
+    if (!completion_callback_) return nullptr;
+    return [this](Status s) {
+      completed_status_ = s;
+      done_.Notify();
+    };
+  }
+
+  Status WaitForCompletion(Transport& t, const Handle h) {
+    if (completion_callback_) {
+      done_.WaitForNotificationWithTimeout(absl::Seconds(10));
+      return completed_status_;
+    }
     while (true) {
       const absl::StatusOr<Status> s = t.Poll(h);
-      ASSERT_TRUE(s.ok()) << s.status();
+      CHECK_OK(s) << s.status();
       if (IsCompleted(*s)) {
-        ASSERT_EQ(*s, Status::kSuccess);
-        break;
+        completed_status_ = *s;
+        return completed_status_;
       }
       absl::SleepFor(absl::Milliseconds(100));
     }
@@ -53,16 +81,23 @@ class TransportTest : public ::testing::Test {
   }
 
  protected:
+  const bool completion_callback_;
+  Status completed_status_;
+  absl::Notification done_;
   const size_t partial_;
   util::App l_;  // local
   util::App r_;  // remote
 };
 
-TEST_F(TransportTest, Read) {
+INSTANTIATE_TEST_SUITE_P(, TransportTest,
+                         /*completion_callback=*/Values(true, false), ToString);
+
+TEST_P(TransportTest, Read) {
   // Pre-condition: no single local byte is equal to the remote.
   l_.ClearData();
   r_.GenData();
   ASSERT_THAT(l_.Data(), Pointwise(Ne(), r_.Data()));
+  ASSERT_THAT(completed_status_, Ne(Status::kSuccess));
 
   // Post a read request (local <- remote).
   Transport& lt = l_.GetTransport();
@@ -73,22 +108,24 @@ TEST_F(TransportTest, Read) {
       .raddr = r_.DataPtr(),
       .len = l_.DataSize(),
   };
-  const absl::StatusOr<Handle> h = lt.Post(peer, {req});
+  auto callback = GetCompletionCallback();
+  const absl::StatusOr<Handle> h = lt.Post(peer, {req}, std::move(callback));
   ASSERT_TRUE(h.ok()) << h.status();
 
   // Wait for the transport to finish processing the request.
-  WaitForCompletion(lt, *h);
+  ASSERT_THAT(WaitForCompletion(lt, *h), Eq(Status::kSuccess));
 
   // Post-condition: all the local bytes are equal to the remote.
   EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 }
 
-TEST_F(TransportTest, Write) {
+TEST_P(TransportTest, Write) {
   // Pre-condition: no single remote byte is equal to the local.
   l_.GenData();
   r_.ClearData();
   ASSERT_THAT(r_.Data(), Pointwise(Ne(), l_.Data()));
+  ASSERT_THAT(completed_status_, Ne(Status::kSuccess));
 
   // Post multiple write requests (local -> remote).
   Transport& lt = l_.GetTransport();
@@ -105,85 +142,17 @@ TEST_F(TransportTest, Write) {
       .raddr = r_.DataPtr() + partial_,
       .len = l_.DataSize() - partial_,
   };
-  const absl::StatusOr<Handle> h = lt.Post(peer, {req1, req2});
+  std::array<Request, 2> reqs = {req1, req2};
+  auto callback = GetCompletionCallback();
+  const absl::StatusOr<Handle> h = lt.Post(peer, reqs, std::move(callback));
   ASSERT_TRUE(h.ok()) << h.status();
 
   // Wait for the transport to finish processing the requests.
-  WaitForCompletion(lt, *h);
+  ASSERT_THAT(WaitForCompletion(lt, *h), Eq(Status::kSuccess));
 
   // Post-condition: all the remote bytes are equal to the local.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
-}
-
-TEST_F(TransportTest, ReadWithCallback) {
-  // Pre-condition: no single local byte is equal to the remote.
-  l_.ClearData();
-  r_.GenData();
-  ASSERT_THAT(l_.Data(), Pointwise(Ne(), r_.Data()));
-
-  absl::Notification done;
-  Status completed_status = Status::kNotFound;
-
-  // Post a read request (local <- remote) with callback.
-  Transport& lt = l_.GetTransport();
-  const std::string peer = r_.GetControlEndpoint();
-  const Request req = {
-      .op = Op::kRead,
-      .laddr = l_.DataPtr(),
-      .raddr = r_.DataPtr(),
-      .len = l_.DataSize(),
-  };
-  ASSERT_THAT(lt.Post(peer, {req},
-                      [&done, &completed_status](Status s) {
-                        completed_status = s;
-                        done.Notify();
-                      }),
-              IsOk());
-
-  ASSERT_TRUE(done.WaitForNotificationWithTimeout(absl::Seconds(10)));
-  EXPECT_EQ(completed_status, Status::kSuccess);
-
-  // Post-condition: all the local bytes are equal to the remote.
-  EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
-}
-
-TEST_F(TransportTest, WriteWithCallback) {
-  // Pre-condition: no single remote byte is equal to the local.
-  l_.GenData();
-  r_.ClearData();
-  ASSERT_THAT(r_.Data(), Pointwise(Ne(), l_.Data()));
-
-  absl::Notification done;
-  Status completed_status = Status::kNotFound;
-
-  // Post multiple write requests (local -> remote) with callback.
-  Transport& lt = l_.GetTransport();
-  const std::string peer = r_.GetControlEndpoint();
-  const Request req1 = {
-      .op = Op::kWrite,
-      .laddr = l_.DataPtr(),
-      .raddr = r_.DataPtr(),
-      .len = partial_,
-  };
-  const Request req2 = {
-      .op = Op::kWrite,
-      .laddr = l_.DataPtr() + partial_,
-      .raddr = r_.DataPtr() + partial_,
-      .len = l_.DataSize() - partial_,
-  };
-  ASSERT_THAT(lt.Post(peer, {req1, req2},
-                      [&done, &completed_status](Status s) {
-                        completed_status = s;
-                        done.Notify();
-                      }),
-              IsOk());
-
-  ASSERT_TRUE(done.WaitForNotificationWithTimeout(absl::Seconds(10)));
-  EXPECT_EQ(completed_status, Status::kSuccess);
-
-  // Post-condition: all the remote bytes are equal to the local.
-  EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
 }
 
 }  // namespace
