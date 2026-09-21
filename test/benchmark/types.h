@@ -20,6 +20,7 @@ enum class Role {
 // Traffic workload type.
 enum class WorkloadType {
   kSerialFixedWrite,
+  kKvCache,
 };
 
 // NIC bandwidth in Mbps.

@@ -6,6 +6,7 @@
 
 #include "absl/log/log.h"
 #include "test/benchmark/types.h"
+#include "test/benchmark/workloads/kv_cache.h"
 #include "test/benchmark/workloads/serial_fixed_write.h"
 #include "test/benchmark/workloads/workload_generator.h"
 
@@ -17,6 +18,8 @@ inline std::unique_ptr<WorkloadGenerator> CreateWorkload(
   switch (workload) {
     case WorkloadType::kSerialFixedWrite:
       return SerialFixedWrite::Create();
+    case WorkloadType::kKvCache:
+      return KvCache::Create();
   }
   LOG(FATAL) << "Unknown workload: " << ToString(workload);
 }

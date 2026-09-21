@@ -16,6 +16,7 @@ TEST(TypesTest, CalcRate) {
 
 TEST(TypesTest, WorkloadTypeToString) {
   EXPECT_EQ(ToString(WorkloadType::kSerialFixedWrite), "serial_fixed_write");
+  EXPECT_EQ(ToString(WorkloadType::kKvCache), "kv_cache");
 }
 
 TEST(TypesTest, WorkloadTypeFlagParsing) {
@@ -26,9 +27,14 @@ TEST(TypesTest, WorkloadTypeFlagParsing) {
   EXPECT_TRUE(AbslParseFlag("SERIAL_FIXED_WRITE", &workload, &error));
   EXPECT_EQ(workload, WorkloadType::kSerialFixedWrite);
 
+  EXPECT_TRUE(AbslParseFlag("kv_cache", &workload, &error));
+  EXPECT_EQ(workload, WorkloadType::kKvCache);
+  EXPECT_TRUE(AbslParseFlag("KV_CACHE", &workload, &error));
+  EXPECT_EQ(workload, WorkloadType::kKvCache);
+
   EXPECT_FALSE(AbslParseFlag("invalid_workload", &workload, &error));
-  EXPECT_TRUE(
-      absl::StrContains(error, "Supported workloads: [serial_fixed_write]"));
+  EXPECT_TRUE(absl::StrContains(
+      error, "Supported workloads: [serial_fixed_write, kv_cache]"));
 }
 
 }  // namespace

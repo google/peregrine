@@ -28,9 +28,22 @@ cc_library(
 )
 
 cc_library(
+    name = "kv_cache",
+    srcs = ["kv_cache.cc"],
+    hdrs = ["kv_cache.h"],
+    deps = [
+        ":workload_generator",
+        "//src/api:transport_types",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_library(
     name = "workload_util",
     hdrs = ["workload_util.h"],
     deps = [
+        ":kv_cache",
         ":serial_fixed_write",
         ":workload_generator",
         "//test/benchmark:types",
