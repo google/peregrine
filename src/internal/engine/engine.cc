@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
-#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
@@ -150,16 +149,21 @@ void Engine::mainLoop() {
   }
 }
 
-absl::StatusOr<Handle> Engine::Enqueue(
-    const Endpoint& peer, absl::Span<const Request> requests,
-    absl::AnyInvocable<void(Status)> on_complete) {
+bool Engine::Item::IsValid() const {
+  return !requests.empty() &&
+         std::all_of(requests.begin(), requests.end(),
+                     [](const Request& r) { return r.IsValid(); });
+}
+
+absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
   DCHECK(peer.HasNonzeroIpPort());
-  DCHECK(IsValid(requests));
+  DCHECK(item.IsValid());
 
   absl::MutexLock _(mu_);
   const Handle handle = genHandle();
 
   std::vector<ReqId> reqids;
+  const auto& requests = item.requests;
   reqids.reserve(requests.size());
   for (int i = 0; i < requests.size(); ++i) {
     reqids.push_back(genReqId());
@@ -168,7 +172,7 @@ absl::StatusOr<Handle> Engine::Enqueue(
 
   // TODO(yongx): all the request ops are the same for now.
   RequestTracker& tracker = getRequestTracker(requests[0]);
-  if (!tracker.Add(handle, reqids, std::move(on_complete))) {
+  if (!tracker.Add(handle, reqids, std::move(item.on_complete))) {
     return AlreadyExistsError(handle);
   }
   for (int i = 0; i < requests.size(); ++i) {

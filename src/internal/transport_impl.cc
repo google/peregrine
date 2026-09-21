@@ -94,7 +94,7 @@ absl::StatusOr<Handle> TransportImpl::Post(
         "All requests must have the same op type");
   }
 
-  return engine_->Enqueue(endpoint, requests, std::move(on_complete));
+  return engine_->Enqueue(endpoint, {requests, std::move(on_complete)});
 }
 
 TransportMetrics TransportImpl::GetTransportMetrics() const {

@@ -50,6 +50,14 @@ class Engine final {
   static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
 
  public:
+  // A transport request item.
+  struct Item {
+    absl::Span<const Request> requests;
+    absl::AnyInvocable<void(Status)> on_complete;
+    // Returns true iff the item has at least one request and all are valid.
+    bool IsValid() const;
+  };
+
   // Creates an engine.
   static std::unique_ptr<Engine> Create(const Config& config, HostInfo& self,
                                         Control& control);
@@ -64,10 +72,8 @@ class Engine final {
   // Returns the engine helper.
   EngineHelper* absl_nonnull Helper() const { return helper_.get(); }
 
-  // Enqueues a number of valid transport request.
-  absl::StatusOr<Handle> Enqueue(const Endpoint& peer,
-                                 absl::Span<const Request> requests,
-                                 absl::AnyInvocable<void(Status)> on_complete);
+  // Enqueues a transport request item.
+  absl::StatusOr<Handle> Enqueue(const Endpoint& peer, Item item);
 
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);
