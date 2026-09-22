@@ -2,11 +2,13 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/time/clock.h"
 #include "src/api/transport_types.h"
+#include "src/internal/base/types.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_test_util.h"
 #include "src/internal/chunk/chunk_tracker.h"
@@ -17,136 +19,133 @@ namespace {
 
 class RequestTrackerTest : public ::testing::Test {
  protected:
-  RequestTrackerTest() : metrics_(), t_(metrics_) {
-    CHECK(t_.IsEmpty());
-    CHECK_EQ(t_.Check(kHandle), Status::kNotFound);
+  RequestTrackerTest() : metrics_(), rt_(metrics_) {
+    CHECK(rt_.IsEmpty());
+    CHECK_EQ(rt_.Check(kHandle), Status::kNotFound);
   }
 
  protected:
   EngineMetrics metrics_;
-  RequestTracker t_;
+  RequestTracker rt_;
 };
 
 TEST_F(RequestTrackerTest, Send) {
-  ASSERT_TRUE(
-      t_.Add(kHandle, {kReqId}, absl::Now(), /*on_complete=*/nullptr));
-  ChunkTracker& send = t_.FindOrCreate(kHandle, kReqId, kNumChunks);
+  RequestTracker::OnCompleteCallback on_complete = nullptr;
+  ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
+  ChunkTracker& send = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
-    EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
+    EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
     const chunk_t index(i);
     send.Set(index);
   }
-  EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 
-  t_.Remove(kHandle);
-  EXPECT_TRUE(t_.IsEmpty());
-  EXPECT_EQ(t_.Check(kHandle), Status::kNotFound);
+  rt_.Remove(kHandle);
+  EXPECT_TRUE(rt_.IsEmpty());
+  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
 }
 
 TEST_F(RequestTrackerTest, Recv) {
-  ASSERT_TRUE(
-      t_.Add(kHandle, {kReqId}, absl::Now(), /*on_complete=*/nullptr));
-  ChunkTracker& recv = t_.FindOrCreate(kHandle, kReqId, kNumChunks);
+  RequestTracker::OnCompleteCallback on_complete = nullptr;
+  ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
+  ChunkTracker& recv = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
-    EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
+    EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
     const chunk_t index(i);
     ASSERT_EQ(recv.Acquire(index), ChunkTracker::ChunkStatus::kEmpty);
     recv.Release(index, /*success=*/true);
   }
-  EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 
-  t_.Remove(kHandle);
-  EXPECT_TRUE(t_.IsEmpty());
-  EXPECT_EQ(t_.Check(kHandle), Status::kNotFound);
+  rt_.Remove(kHandle);
+  EXPECT_TRUE(rt_.IsEmpty());
+  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
 }
 
 TEST_F(RequestTrackerTest, SetMethod) {
-  ASSERT_TRUE(
-      t_.Add(kHandle, {kReqId}, absl::Now(), /*on_complete=*/nullptr));
+  RequestTracker::OnCompleteCallback on_complete = nullptr;
+  ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
   for (int i = 0; i < kNumChunks; ++i) {
-    EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
-    t_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
+    EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
+    rt_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
   }
-  EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 
-  t_.Remove(kHandle);
-  EXPECT_TRUE(t_.IsEmpty());
+  rt_.Remove(kHandle);
+  EXPECT_TRUE(rt_.IsEmpty());
 }
 
 TEST_F(RequestTrackerTest, CompletionCallbackSingleRequest) {
   int callback_count = 0;
   Status completed_status = Status::kNotFound;
-
-  auto callback = [&](Status s) {
+  auto on_complete = [&](Status s) {
     ++callback_count;
     completed_status = s;
   };
-
-  ASSERT_TRUE(t_.Add(kHandle, {kReqId}, absl::Now(), std::move(callback)));
+  ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
 
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(callback_count, 0);
-    EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
-    t_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
+    EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
+    rt_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
   }
 
   EXPECT_EQ(callback_count, 1);
   EXPECT_EQ(completed_status, Status::kSuccess);
-  EXPECT_TRUE(t_.IsEmpty());
-  EXPECT_EQ(t_.Check(kHandle), Status::kNotFound);
+  EXPECT_TRUE(rt_.IsEmpty());
+  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
 }
 
 TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
   int callback_count = 0;
   Status completed_status = Status::kNotFound;
-
-  auto callback = [&](Status s) {
+  auto on_complete = [&](Status s) {
     ++callback_count;
     completed_status = s;
   };
-
-  ASSERT_TRUE(
-      t_.Add(kHandle, {kReqId, kReqId2}, absl::Now(), std::move(callback)));
+  const std::vector<ReqId> reqs = {kReqId, kReqId2};
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, absl::Now(), std::move(on_complete)));
 
   // Complete first request.
   for (int i = 0; i < kNumChunks; ++i) {
-    t_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
   }
   EXPECT_EQ(callback_count, 0);
-  EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
 
   // Complete second request partially.
   for (int i = 0; i < kNumChunks - 1; ++i) {
-    t_.Update(kHandle, kReqId2, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId2, kNumChunks, chunk_t(i));
   }
   EXPECT_EQ(callback_count, 0);
-  EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
 
   // Complete second request fully.
-  t_.Update(kHandle, kReqId2, kNumChunks, chunk_t(kNumChunks - 1));
+  rt_.Update(kHandle, kReqId2, kNumChunks, chunk_t(kNumChunks - 1));
   EXPECT_EQ(callback_count, 1);
   EXPECT_EQ(completed_status, Status::kSuccess);
-  EXPECT_TRUE(t_.IsEmpty());
-  EXPECT_EQ(t_.Check(kHandle), Status::kNotFound);
+  EXPECT_TRUE(rt_.IsEmpty());
+  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
 }
 
 TEST_F(RequestTrackerTest, MultipleRequestsPartialProgress) {
-  ASSERT_TRUE(t_.Add(kHandle, {kReqId, kReqId2}, absl::Now(),
-                     /*on_complete=*/nullptr));
+  RequestTracker::OnCompleteCallback on_complete = nullptr;
+  const std::vector<ReqId> reqs = {kReqId, kReqId2};
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, absl::Now(), std::move(on_complete)));
 
   // Complete the first request.
   for (int i = 0; i < kNumChunks; ++i) {
-    t_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
   }
-  EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
 
   // Complete the second request.
   for (int i = 0; i < kNumChunks; ++i) {
-    t_.Update(kHandle, kReqId2, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId2, kNumChunks, chunk_t(i));
   }
-  EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 }
 
 }  // namespace
