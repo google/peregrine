@@ -40,6 +40,7 @@ cc_library(
 cc_test(
     name = "transport_test",
     srcs = ["transport_test.cc"],
+    shard_count = 2,
     deps = [
         ":transport",
         ":transport_metrics",

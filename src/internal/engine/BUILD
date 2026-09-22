@@ -104,6 +104,7 @@ cc_library(
 cc_test(
     name = "worker_test",
     srcs = ["worker_test.cc"],
+    shard_count = 8,
     deps = [
         ":worker",
         "//src/api:transport_types",
