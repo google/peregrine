@@ -9,6 +9,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/synchronization/mutex.h"
+#include "src/api/transport_metrics.h"
 #include "test/integration/settings.h"
 
 namespace peregrine::integration {
@@ -28,6 +29,7 @@ struct DatapathMetrics {
   std::string status;
   int64_t n_transfers = 0;
   int64_t n_bytes = 0;
+  TransportMetrics transport_metrics{};
   bool active = false;
 };
 
@@ -113,6 +115,14 @@ void Metrics::SetDatapathInfo(Component c, std::string_view endpoint,
   }
 }
 
+void Metrics::UpdateTransportMetrics(Component c, const TransportMetrics& tm) {
+  absl::MutexLock lock(GetMutex());
+  DatapathMetrics* dp = GetDatapath(c, GetState());
+  if (dp != nullptr) {
+    dp->transport_metrics = tm;
+  }
+}
+
 void Metrics::IncrementTransfers(Component c, int64_t bytes) {
   absl::MutexLock lock(GetMutex());
   DatapathMetrics* dp = GetDatapath(c, GetState());
@@ -183,6 +193,24 @@ std::string Metrics::GetDatapathDebugString(Component c) {
   lines.push_back(absl::StrFormat(
       "%-15s: %d bytes (%.2f MB)", "Bytes", dp->n_bytes,
       static_cast<double>(dp->n_bytes) / (1024.0 * 1024.0)));
+
+  const TransportMetrics& tm = dp->transport_metrics;
+  const uint64_t lat_count = tm.e2e_write_latency_us.Count();
+  const double avg_lat_us =
+      lat_count > 0
+          ? static_cast<double>(tm.e2e_write_latency_us.sum) / lat_count
+          : 0.0;
+  lines.push_back("---- Transport Metrics ----");
+  lines.push_back(
+      absl::StrFormat("%-15s: %u", "Requests Posted", tm.requests_posted));
+  lines.push_back(absl::StrFormat(
+      "%-15s: %u bytes (%.2f MB)", "Bytes Sent", tm.bytes_sent,
+      static_cast<double>(tm.bytes_sent) / (1024.0 * 1024.0)));
+  lines.push_back(absl::StrFormat("%-15s: %.2f us avg (%u samples)",
+                                  "Write Latency", avg_lat_us, lat_count));
+  lines.push_back(
+      absl::StrFormat("%-15s: %u", "Write Errors", tm.e2e_write_errors));
+  // TODO(yyd): show more metrics.
   return absl::StrJoin(lines, "\n");
 }
 

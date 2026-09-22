@@ -5,6 +5,8 @@
 #include <string>
 #include <string_view>
 
+#include "src/api/transport_metrics.h"
+
 namespace peregrine::integration {
 
 enum class Component {
@@ -31,6 +33,9 @@ class Metrics final {
   static void SetDatapathInfo(Component c, std::string_view endpoint,
                               std::string_view peer_endpoint,
                               std::string_view status);
+
+  // Updates the transport metrics snapshot for a datapath host.
+  static void UpdateTransportMetrics(Component c, const TransportMetrics& tm);
 
   // Increments transfers and bytes for a datapath host.
   static void IncrementTransfers(Component c, int64_t bytes);

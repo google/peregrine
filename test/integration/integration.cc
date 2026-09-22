@@ -54,6 +54,17 @@ PeregrineIntegration::PeregrineIntegration() {
       flags_.buffer_size, flags_.conns_per_peer);
 }
 
+void PeregrineIntegration::CollectMetrics() const {
+  if (datapath_sndr_ != nullptr) {
+    Metrics::UpdateTransportMetrics(Component::kSenderDatapath,
+                                    datapath_sndr_->GetTransportMetrics());
+  }
+  if (datapath_rcvr_ != nullptr) {
+    Metrics::UpdateTransportMetrics(Component::kReceiverDatapath,
+                                    datapath_rcvr_->GetTransportMetrics());
+  }
+}
+
 PeregrineIntegration::Stats PeregrineIntegration::GetStats() const {
   Stats stats;
   stats.transfers_completed =

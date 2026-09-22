@@ -59,6 +59,7 @@ void Display::PrintFooter() const {
 }
 
 void Display::Print(absl::Time time) const {
+  integration_.CollectMetrics();
   if (ncurses_ != nullptr) {
     ncursePrint(time);
   } else {
@@ -67,6 +68,7 @@ void Display::Print(absl::Time time) const {
 }
 
 void Display::PrintSummary() const {
+  integration_.CollectMetrics();
   std::vector<std::string> results;
   results.push_back(Metrics::GetControlpathDebugString(
       Component::kSenderControlpath));

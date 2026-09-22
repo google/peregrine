@@ -32,6 +32,7 @@ cc_library(
     hdrs = ["metrics.h"],
     deps = [
         ":settings",
+        "//src/api:transport_metrics",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
@@ -53,6 +54,7 @@ cc_library(
     deps = [
         ":metrics",
         "//src/api:transport",
+        "//src/api:transport_metrics",
         "//src/api:transport_types",
         "//src/api:transport_util",
         "//src/util",

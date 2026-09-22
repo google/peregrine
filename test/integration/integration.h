@@ -25,6 +25,7 @@ class PeregrineIntegration final {
 
   void Run();
   void Stop() { stop_.store(true); }
+  void CollectMetrics() const;
 
   Stats GetStats() const;
   const Settings& settings() const { return settings_; }

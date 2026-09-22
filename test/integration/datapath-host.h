@@ -13,6 +13,7 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "src/api/transport.h"
+#include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
 
 #include "test/integration/metrics.h"
@@ -37,6 +38,11 @@ class DatapathHost final {
   // Polls the request handle.
   absl::StatusOr<Status> Poll(Handle handle) {
     return transport_->Poll(handle);
+  }
+
+  // Returns a snapshot of transport metrics.
+  TransportMetrics GetTransportMetrics() const {
+    return transport_->GetTransportMetrics();
   }
 
   absl::Span<const Byte> Data() const { return absl::MakeConstSpan(data_); }
