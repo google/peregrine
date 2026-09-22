@@ -1,0 +1,5 @@
+{
+  "url": "https://github.com/{OWNER}/{REPO}/releases/download/{TAG}/peregrine-{TAG}.tar.gz",
+  "strip_prefix": "peregrine-{TAG}",
+  "patch_strip": 0
+}

@@ -1,0 +1,105 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'MODULE.bazel'
+  workflow_dispatch:
+    inputs:
+      registry_fork:
+        description: 'Fork of bazel-central-registry to push to'
+        required: false
+        default: 'mubashirq/bazel-central-registry'
+        type: string
+      overwrite_existing:
+        description: 'Overwrite existing release/tag if it already exists'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Cut GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.cut.outputs.tag }}
+      should_release: ${{ steps.cut.outputs.should_release }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Create GitHub Release from MODULE.bazel
+        id: cut
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OVERWRITE_EXISTING: ${{ inputs.overwrite_existing || 'false' }}
+        run: |
+          set -euo pipefail
+
+          VERSION="$(sed -n '/module(/,/)/s/.*version *= *"\([^"]*\)".*/\1/p' MODULE.bazel | head -n 1)"
+          if [ -z "${VERSION}" ] || [ "${VERSION}" = "0.0.0" ]; then
+            echo "MODULE.bazel version is '${VERSION:-empty}'; skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          TAG="v${VERSION}"
+
+          # Never overwrite an already-published release on push (e.g. when MODULE.bazel
+          # deps are edited without bumping the module version).
+          if gh release view "${TAG}" >/dev/null 2>&1 || git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+            if [ "${OVERWRITE_EXISTING}" != "true" ]; then
+              echo "Release/tag ${TAG} already exists; skipping."
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "overwrite_existing=true: deleting existing release/tag ${TAG}..."
+            gh release delete "${TAG}" --cleanup-tag --yes || true
+            git push --delete origin "${TAG}" || true
+          fi
+
+          echo "Creating release ${TAG}..."
+
+          ARCHIVE="peregrine-${TAG}.tar.gz"
+          git archive --format=tar.gz --prefix="peregrine-${TAG}/" -o "${ARCHIVE}" HEAD
+
+          NOTES_FILE="$(mktemp)"
+          git log -1 --format=%b HEAD | sed '/^PiperOrigin-RevId:/d' > "${NOTES_FILE}"
+          if [ -n "$(sed '/^[[:space:]]*$/d' "${NOTES_FILE}")" ]; then
+            gh release create "${TAG}" "${ARCHIVE}" \
+              --target "${GITHUB_SHA}" \
+              --title "${TAG}" \
+              --notes-file "${NOTES_FILE}"
+          else
+            gh release create "${TAG}" "${ARCHIVE}" \
+              --target "${GITHUB_SHA}" \
+              --title "${TAG}" \
+              --generate-notes
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+  publish-bcr:
+    name: Publish to Bazel Central Registry
+    needs: [release]
+    if: needs.release.outputs.should_release == 'true'
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@ad6879fd015a01c3e3b1b318fe3c061f928ac2fb # v1.4.2
+    with:
+      tag_name: ${{ needs.release.outputs.tag }}
+      registry_fork: ${{ inputs.registry_fork || 'mubashirq/bazel-central-registry' }}
+      attest: false
+      draft: false
+    secrets:
+      publish_token: ${{ secrets.BCR_PUBLISH_TOKEN }}
