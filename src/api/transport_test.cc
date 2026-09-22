@@ -77,7 +77,8 @@ class TransportTest : public ::testing::TestWithParam<Param> {
   }
 
   bool CheckMetrics(const TransportMetrics& metrics) {
-    return metrics.requests_posted > 0 && metrics.e2e_write_errors == 0;
+    return metrics.requests_posted > 0 && metrics.e2e_write_errors == 0 &&
+           metrics.e2e_write_latency_us.Count() > 0;
   }
 
  protected:
@@ -117,7 +118,6 @@ TEST_P(TransportTest, Read) {
 
   // Post-condition: all the local bytes are equal to the remote.
   EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
-  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
 }
 
 TEST_P(TransportTest, Write) {

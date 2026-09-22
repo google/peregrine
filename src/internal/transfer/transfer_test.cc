@@ -14,12 +14,14 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
+#include "absl/time/clock.h"
 #include "src/api/transport_types.h"
 #include "src/internal/assumptions.h"
 #include "src/internal/base/types.h"
 #include "src/internal/channel/channel.h"
 #include "src/internal/channel/channel_test_util.h"
 #include "src/internal/chunk/chunk.h"
+#include "src/internal/metrics/engine_metrics.h"
 #include "src/internal/request/request_tracker.h"
 #include "src/internal/util/test_param.h"
 #include "src/util/thread.h"
@@ -90,9 +92,10 @@ class TransferTest : public ::testing::TestWithParam<Param> {
 
  private:
   struct Host {
+    EngineMetrics metrics;
     RequestTracker outgoing;
     RequestTracker incoming;
-    Host() : outgoing(), incoming() {}
+    Host() : metrics(), outgoing(metrics), incoming(metrics) {}
   };
 
  protected:
@@ -123,7 +126,8 @@ TEST_P(TransferTest, SendRecv) {
 
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
-  ASSERT_TRUE(a_.outgoing.Add(kHandle, {kReqId}, /*on_complete=*/nullptr));
+  ASSERT_TRUE(
+      a_.outgoing.Add(kHandle, {kReqId}, absl::Now(), /*on_complete=*/nullptr));
 
   // A sends data chunks to B.
   util::Thread a_send([&]() {

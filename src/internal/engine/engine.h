@@ -16,6 +16,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
@@ -53,6 +54,7 @@ class Engine final {
   // A transport request item.
   struct Item {
     absl::Span<const Request> requests;
+    absl::Time start_time;
     absl::AnyInvocable<void(Status)> on_complete;
     // Returns true iff the item has at least one request and all are valid.
     bool IsValid() const;

@@ -70,6 +70,8 @@ Engine::Engine(const Config& config, const HostInfo& self,
     : config_(config),
       self_(self),
       stop_(false),
+      outgoing_(helper->Metrics()),
+      incoming_(helper->Metrics()),
       metrics_(helper->Metrics()),
       helper_(std::move(helper)) {
   DCHECK(config_.IsValid());
@@ -172,7 +174,8 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
 
   // TODO(yongx): all the request ops are the same for now.
   RequestTracker& tracker = getRequestTracker(requests[0]);
-  if (!tracker.Add(handle, reqids, std::move(item.on_complete))) {
+  if (!tracker.Add(handle, reqids, item.start_time,
+                   std::move(item.on_complete))) {
     return AlreadyExistsError(handle);
   }
   for (int i = 0; i < requests.size(); ++i) {

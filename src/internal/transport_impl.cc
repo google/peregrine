@@ -13,6 +13,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "src/api/transport_metrics.h"
 #include "src/api/transport_types.h"
@@ -69,6 +71,7 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(
 absl::StatusOr<Handle> TransportImpl::Post(
     std::string_view peer, absl::Span<const Request> requests,
     absl::AnyInvocable<void(Status)> on_complete) {
+  const absl::Time start_time = absl::Now();
   const Endpoint endpoint = Endpoint::Create(peer);
   if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError(
@@ -94,7 +97,8 @@ absl::StatusOr<Handle> TransportImpl::Post(
         "All requests must have the same op type");
   }
 
-  return engine_->Enqueue(endpoint, {requests, std::move(on_complete)});
+  return engine_->Enqueue(endpoint,
+                          {requests, start_time, std::move(on_complete)});
 }
 
 TransportMetrics TransportImpl::GetTransportMetrics() const {

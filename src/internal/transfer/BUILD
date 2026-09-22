@@ -35,6 +35,7 @@ cc_test(
         "//src/internal/channel",
         "//src/internal/channel:channel_test_util",
         "//src/internal/chunk",
+        "//src/internal/metrics:engine_metrics",
         "//src/internal/request:request_tracker",
         "//src/internal/util:test_param",
         "//src/util",
@@ -42,6 +43,7 @@ cc_test(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
 )

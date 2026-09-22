@@ -94,15 +94,15 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
 
  private:
   struct Host {
+    EngineMetrics metrics;
     RequestTracker outgoing;
     RequestTracker incoming;
-    EngineMetrics metrics;
     Worker worker;
     explicit Host(int id, const HostInfo& self,
                   std::unique_ptr<Channel> channel)
-        : outgoing(),
-          incoming(),
-          metrics(),
+        : metrics(),
+          outgoing(metrics),
+          incoming(metrics),
           worker(id, self, outgoing, incoming, metrics, std::move(channel)) {}
   };
 
@@ -135,7 +135,8 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(WorkerTest, SendRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
-  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {kReqId}, /*on_complete=*/nullptr));
+  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {kReqId}, absl::Now(),
+                                 /*on_complete=*/nullptr));
 
   absl::Notification done;
   util::Thread s([&]() {
