@@ -30,6 +30,7 @@ cc_test(
     deps = [
         ":request_tracker",
         "//src/api:transport_types",
+        "//src/internal/base:types",
         "//src/internal/chunk",
         "//src/internal/chunk:chunk_test_util",
         "//src/internal/chunk:chunk_tracker",
