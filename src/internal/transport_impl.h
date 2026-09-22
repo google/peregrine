@@ -54,6 +54,9 @@ class TransportImpl final : public Transport {
   // If the `handle` is not found, returns an error. Otherwise, returns the
   // request status and automatically removes the `handle` if processing is
   // complete.
+  //
+  // Callers providing a non-null `on_complete` callback to `Post()` must not
+  // call this `Poll()` function.
   absl::StatusOr<Status> Poll(Handle handle) override {
     return engine_->QueryUpdate(handle);
   }

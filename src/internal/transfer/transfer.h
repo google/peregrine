@@ -9,7 +9,6 @@
 #include "src/internal/channel/channel.h"
 #include "src/internal/chunk/chunk.h"
 #include "src/internal/chunk/chunk_flatbuf.h"
-#include "src/internal/chunk/chunk_tracker.h"
 #include "src/internal/request/request_tracker.h"
 
 namespace peregrine::internal {

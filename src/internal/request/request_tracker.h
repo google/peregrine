@@ -52,7 +52,7 @@ class RequestTracker {
   // - If a completion callback is registered, it is invoked and the handle is
   //   automatically removed.
   // - Otherwise, the handle remains until `Poll()` is called.
-  void Set(Handle handle, ReqId reqid, uint32_t num_chunks, chunk_t index)
+  void Update(Handle handle, ReqId reqid, uint32_t num_chunks, chunk_t index)
       ABSL_LOCKS_EXCLUDED(mu_);
 
   // Finds a request tracker for the given `handle` and `reqid`.
@@ -69,7 +69,7 @@ class RequestTracker {
     OnCompleteCallback on_complete;
   };
 
-  // Returns true iff all requests tracked by `rt` are complete.
+  // Returns true iff all the requests tracked by `rt` are complete.
   bool isComplete(const ReqsTracker& rt) const ABSL_SHARED_LOCKS_REQUIRED(mu_);
 
  private:

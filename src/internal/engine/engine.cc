@@ -243,7 +243,7 @@ void Engine::processRead(const Handle handle, const ReqId reqid,
                          const Request& request) {
   // TODO(yongx): implement read.
   std::memcpy(request.laddr, request.raddr, request.len);
-  incoming_.Set(handle, reqid, /*num_chunks=*/1, chunk_t(0));
+  incoming_.Update(handle, reqid, /*num_chunks=*/1, chunk_t(0));
 }
 
 }  // namespace peregrine::internal

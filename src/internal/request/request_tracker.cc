@@ -64,15 +64,14 @@ void RequestTracker::Remove(const Handle handle) {
   trackers_.erase(handle);
 }
 
-void RequestTracker::Set(const Handle handle, const ReqId reqid,
-                         const uint32_t num_chunks, const chunk_t index) {
+void RequestTracker::Update(const Handle handle, const ReqId reqid,
+                            const uint32_t num_chunks, const chunk_t index) {
   OnCompleteCallback callback = nullptr;
   {
     absl::MutexLock lock(mu_);
     auto it = trackers_.find(handle);
-    if ABSL_PREDICT_FALSE (it == trackers_.end()) {
-      return;
-    }
+    if ABSL_PREDICT_FALSE (it == trackers_.end()) return;
+
     ReqsTracker& rt = it->second;
     std::unique_ptr<ChunkTracker>& tracker = rt.req_map[reqid];
     if (tracker == nullptr) {
@@ -80,9 +79,12 @@ void RequestTracker::Set(const Handle handle, const ReqId reqid,
     }
     tracker->Set(index);
 
-    if (rt.on_complete != nullptr && tracker->IsDone() && isComplete(rt)) {
-      callback = std::move(rt.on_complete);
-      trackers_.erase(it);
+    if (tracker->IsDone() && isComplete(rt)) {
+      // Here to add e2e latency measurement.
+      if (rt.on_complete != nullptr) {
+        callback = std::move(rt.on_complete);
+        trackers_.erase(it);
+      }
     }
   }
   if (callback != nullptr) {

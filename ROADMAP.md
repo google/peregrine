@@ -1,4 +1,4 @@
-# Peregrine Release Plan
+# Release Plan
 
 ## Background
 

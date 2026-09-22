@@ -61,7 +61,7 @@ TEST_F(RequestTrackerTest, SetMethod) {
   ASSERT_TRUE(t_.Add(kHandle, {kReqId}, /*on_complete=*/nullptr));
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
-    t_.Set(kHandle, kReqId, kNumChunks, chunk_t(i));
+    t_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
   }
   EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
 
@@ -83,7 +83,7 @@ TEST_F(RequestTrackerTest, CompletionCallbackSingleRequest) {
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(callback_count, 0);
     EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
-    t_.Set(kHandle, kReqId, kNumChunks, chunk_t(i));
+    t_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
   }
 
   EXPECT_EQ(callback_count, 1);
@@ -105,20 +105,20 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
 
   // Complete first request.
   for (int i = 0; i < kNumChunks; ++i) {
-    t_.Set(kHandle, kReqId, kNumChunks, chunk_t(i));
+    t_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
   }
   EXPECT_EQ(callback_count, 0);
   EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
 
   // Complete second request partially.
   for (int i = 0; i < kNumChunks - 1; ++i) {
-    t_.Set(kHandle, kReqId2, kNumChunks, chunk_t(i));
+    t_.Update(kHandle, kReqId2, kNumChunks, chunk_t(i));
   }
   EXPECT_EQ(callback_count, 0);
   EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
 
   // Complete second request fully.
-  t_.Set(kHandle, kReqId2, kNumChunks, chunk_t(kNumChunks - 1));
+  t_.Update(kHandle, kReqId2, kNumChunks, chunk_t(kNumChunks - 1));
   EXPECT_EQ(callback_count, 1);
   EXPECT_EQ(completed_status, Status::kSuccess);
   EXPECT_TRUE(t_.IsEmpty());
@@ -130,13 +130,13 @@ TEST_F(RequestTrackerTest, MultipleRequestsPartialProgress) {
 
   // Complete the first request.
   for (int i = 0; i < kNumChunks; ++i) {
-    t_.Set(kHandle, kReqId, kNumChunks, chunk_t(i));
+    t_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
   }
   EXPECT_EQ(t_.Check(kHandle), Status::kInProgress);
 
   // Complete the second request.
   for (int i = 0; i < kNumChunks; ++i) {
-    t_.Set(kHandle, kReqId2, kNumChunks, chunk_t(i));
+    t_.Update(kHandle, kReqId2, kNumChunks, chunk_t(i));
   }
   EXPECT_EQ(t_.Check(kHandle), Status::kSuccess);
 }

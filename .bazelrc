@@ -7,7 +7,7 @@ build --copt=-Wall
 build --copt=-Wextra
 build --copt=-Wconversion
 
-# Link libibverbs so symbols bind to IBVERBS_1.1, not legacy IBVERBS_1.0
+# Link libibverbs symbols to IBVERBS_1.1
 build --linkopt=-libverbs
 
 # Bypass ccache read-only sandbox issues

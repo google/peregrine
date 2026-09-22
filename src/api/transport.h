@@ -40,6 +40,9 @@ class Transport {
   // If the `handle` is not found, returns an error. Otherwise, returns the
   // request status and automatically removes the `handle` if processing is
   // complete.
+  //
+  // Callers providing a non-null `on_complete` callback to `Post()` must not
+  // call this `Poll()` function.
   virtual absl::StatusOr<Status> Poll(Handle handle) = 0;
 
   // Registers a contiguous memory buffer of `length` bytes at the base `addr`.

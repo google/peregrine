@@ -16,11 +16,7 @@ transport library to serve machine learning workloads on TPU hosts.
 
 ## Quick Start
 
-- To build and test all the code, run
-
-```
-  $ ./test.sh
-```
+- `run.sh` builds and tests all the code;
 
 - To start the integration test, run
 
