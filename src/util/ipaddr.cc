@@ -97,8 +97,9 @@ std::optional<ipv6_t> ParseIPv6Addr(const std::string_view ip) {
 }
 
 std::string ToIPv4String(const ipv4_t& ip4) {
-  char addr[INET_ADDRSTRLEN];
-  if (inet_ntop(AF_INET, &ip4, addr, INET_ADDRSTRLEN) != nullptr) {
+  constexpr int kAddrLen = INET_ADDRSTRLEN;
+  char addr[kAddrLen];
+  if (inet_ntop(AF_INET, &ip4, addr, kAddrLen) != nullptr) {
     return addr;
   } else {
     const int last_errno = errno;
@@ -108,8 +109,9 @@ std::string ToIPv4String(const ipv4_t& ip4) {
 }
 
 std::string ToIPv6String(const ipv6_t& ip6) {
-  char addr[INET6_ADDRSTRLEN];
-  if (inet_ntop(AF_INET6, &ip6, addr, INET6_ADDRSTRLEN) != nullptr) {
+  constexpr int kAddrLen = INET6_ADDRSTRLEN;
+  char addr[kAddrLen];
+  if (inet_ntop(AF_INET6, &ip6, addr, kAddrLen) != nullptr) {
     return addr;
   } else {
     const int last_errno = errno;

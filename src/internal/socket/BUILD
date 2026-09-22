@@ -102,6 +102,7 @@ cc_library(
     deps = [
         "//src/internal/base:endpoint",
         "//src/internal/base:types",
+        "//src/util:ipaddr",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

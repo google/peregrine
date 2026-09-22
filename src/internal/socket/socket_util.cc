@@ -7,7 +7,6 @@
 #include <sys/types.h>
 
 #include <cerrno>
-#include <cstring>
 #include <string>
 #include <string_view>
 
@@ -15,26 +14,27 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
+#include "src/util/ipaddr.h"
 
 namespace peregrine::internal {
 
 fd_t CreateSocket(int family, int type, bool blocking) {
   DCHECK(family == AF_INET || family == AF_INET6);
   DCHECK(type == SOCK_STREAM || type == SOCK_DGRAM);
+
   const int ret = ::socket(family, type | SOCK_CLOEXEC, /*protocol=*/0);
-  if (ret < 0) {
+  if ABSL_PREDICT_FALSE (ret < 0) {
     const int last_errno = errno;
     LOG(WARNING) << ErrorMsg("socket", last_errno);
     return fd_t(-1);
   }
+
   const fd_t fd(ret);
   DCHECK(IsBlockingMode(fd));
-  if (blocking) {
-    return fd;
-  }
+  if (blocking) return fd;
+
   if (!SetNonBlockingMode(fd)) {
     ::close(fd.value());  // release the socket resource.
     return fd_t(-1);
@@ -110,43 +110,18 @@ Endpoint PeerEndpoint(const fd_t fd) {
   }
 }
 
-namespace {
-std::string NtopErrorMsg(int v, int last_errno) {
-  return absl::StrFormat("inet_ntop failed: ipv%d, errno=%d (%s)", v,
-                         last_errno, std::strerror(last_errno));
-}
-}  // namespace
-
-namespace {
-template <int kFamily, int kAddrLen, typename T>
-std::string ToString(const struct sockaddr_storage& ss) {
-  char addr[kAddrLen];
-  const T* sa = reinterpret_cast<const T*>(&ss);
-  if constexpr (kFamily == AF_INET) {
-    if (inet_ntop(AF_INET, &sa->sin_addr, addr, kAddrLen) != nullptr) {
-      return absl::StrCat(addr, ":", ntohs(sa->sin_port));
-    }
-    const int last_errno = errno;
-    LOG(WARNING) << NtopErrorMsg(4, last_errno);
-    return "invalid ipv4:port";
-  } else {
-    static_assert(kFamily == AF_INET6);
-    if (inet_ntop(AF_INET6, &sa->sin6_addr, addr, kAddrLen) != nullptr) {
-      return absl::StrCat("[", addr, "]:", ntohs(sa->sin6_port));
-    }
-    const int last_errno = errno;
-    LOG(WARNING) << NtopErrorMsg(6, last_errno);
-    return "invalid ipv6:port";
-  }
-}
-}  // namespace
-
 std::string ToIpAddrPortString(const struct sockaddr_storage& ss) {
   switch (ss.ss_family) {
-    case AF_INET:
-      return ToString<AF_INET, INET_ADDRSTRLEN, struct sockaddr_in>(ss);
-    case AF_INET6:
-      return ToString<AF_INET6, INET6_ADDRSTRLEN, struct sockaddr_in6>(ss);
+    case AF_INET: {
+      const auto* sa = reinterpret_cast<const struct sockaddr_in*>(&ss);
+      const std::string s = util::ToIPv4String(sa->sin_addr);
+      return absl::StrCat(s, ":", ntohs(sa->sin_port));
+    }
+    case AF_INET6: {
+      const auto* sa = reinterpret_cast<const struct sockaddr_in6*>(&ss);
+      const std::string s = util::ToIPv6String(sa->sin6_addr);
+      return absl::StrCat("[", s, "]:", ntohs(sa->sin6_port));
+    }
     default:
       return absl::StrCat("invalid addr family: ", ss.ss_family);
   }
