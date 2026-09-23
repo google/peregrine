@@ -32,9 +32,9 @@ template <int kFamily>
 class TcpAcceptorTest : public ::testing::Test {
  protected:
   TcpAcceptorTest()
-      : local_(TestOnly_LocalHostInfo(kFamily, kTcp)),
-        acceptor_(TcpAcceptor::Create(local_)) {
-    CHECK(local_.IsValid());
+      : self_(TestOnly_LocalHostInfo(kFamily, kTcp)),
+        acceptor_(TcpAcceptor::Create(self_)) {
+    CHECK(self_.IsValid());
     CHECK_NE(acceptor_, nullptr);
   }
 
@@ -46,7 +46,7 @@ class TcpAcceptorTest : public ::testing::Test {
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(300)); }
 
  protected:
-  HostInfo local_;
+  HostInfo self_;
   std::unique_ptr<TcpAcceptor> acceptor_;
 };
 
@@ -91,9 +91,9 @@ TEST_F(PspTcpAcceptorTestIPv6, HandlePspTokenExchange) {
     GTEST_SKIP() << "psp not supported";
   }
 
-  ASSERT_FALSE(local_.data_plane_listeners.empty());
+  ASSERT_FALSE(self_.data_plane_listeners.empty());
   const PspToken peer_token(Spi(1), Gen(9), {0xbe, 0xef});
-  const NicInfo& nic = local_.data_plane_listeners[0];
+  const NicInfo& nic = self_.data_plane_listeners[0];
   const Endpoint& self_target = nic.endpoints[0];
   const auto self_token = acceptor_->ExchangePspTokens(peer_token, self_target);
   ASSERT_TRUE(self_token.ok());

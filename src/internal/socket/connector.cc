@@ -15,8 +15,8 @@
 
 namespace peregrine::internal {
 
-std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
-                                                const Endpoint& local) {
+std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& self,
+                                                const Endpoint& peer) {
   DCHECK(peer.HasNonzeroIpPort());
 
   const int family = peer.GetIpAddr().AddressFamily();
@@ -25,7 +25,7 @@ std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
     return nullptr;
   }
 
-  if (!local.HasZeroIpAddr() && !socket->Bind(local)) {
+  if (!self.HasZeroIpAddr() && !socket->Bind(self)) {
     return nullptr;
   }
 
@@ -40,19 +40,19 @@ std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& peer,
 }
 
 std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
-    const Endpoint& peer_target, const Endpoint& peer_control,
-    PspTokenExchangeFunc& psp_exchange_func, const Endpoint& local) {
-  DCHECK(peer_target.HasNonzeroIpPort());
+    const Endpoint& self, const Endpoint& peer, const Endpoint& peer_control,
+    PspTokenExchangeFunc& psp_exchange_func) {
+  DCHECK(peer.HasNonzeroIpPort());
   DCHECK(peer_control.HasNonzeroIpPort());
   DCHECK_NE(psp_exchange_func, nullptr);
 
-  const int family = peer_target.GetIpAddr().AddressFamily();
+  const int family = peer.GetIpAddr().AddressFamily();
   std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family);
   if ABSL_PREDICT_FALSE (socket == nullptr) {
     return nullptr;
   }
 
-  if (!local.HasZeroIpAddr() && !socket->Bind(local)) {
+  if (!self.HasZeroIpAddr() && !socket->Bind(self)) {
     return nullptr;
   }
 
@@ -64,7 +64,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
   }
 
   const absl::StatusOr<PspToken> peer_token =
-      psp_exchange_func(self_token.value(), peer_target, peer_control);
+      psp_exchange_func(self_token.value(), peer, peer_control);
   if (!peer_token.ok()) {
     LOG(WARNING) << "failed to exchange psp token with peer";
     return nullptr;
@@ -77,7 +77,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
   }
 
   DCHECK(socket->IsBlocking());
-  if (!socket->Connect(peer_target)) {
+  if (!socket->Connect(peer)) {
     return nullptr;
   }
 

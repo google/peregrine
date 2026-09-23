@@ -127,29 +127,28 @@ std::optional<NicInfo> GetTcpListener(const HostInfo& peer_info) {
 }
 }  // namespace
 
-EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer,
+EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
                                                 const int n) {
-  const auto peer_info = control_.GetPeerHostInfo(peer);
+  const auto peer_info = control_.GetPeerHostInfo(peer_control);
   if (!peer_info.ok()) {
-    LOG(WARNING) << "failed to get host info for peer " << peer << ": "
+    LOG(WARNING) << "failed to get host info for peer " << peer_control << ": "
                  << peer_info.status();
     return {};
   }
   const auto nic = GetTcpListener(*peer_info);
   if (!nic.has_value()) {
-    LOG(WARNING) << "no tcp listener found for peer " << peer;
+    LOG(WARNING) << "no tcp listener found for peer " << peer_control;
     return {};
   }
 
   EngineHelper::Channels chs;
   // TODO(yongx): build connection locality group
-  const Endpoint& peer_target = nic.value().endpoints[0];
+  const Endpoint self = {};
+  const Endpoint& peer = nic.value().endpoints[0];
   uint64_t failures = 0;
   for (int i = 0; chs.size() < n && i < 2 * n; ++i) {
     DCHECK(!config_.require_dataplane_encryption);
-    const Endpoint local = {};
-    std::unique_ptr<TcpSocket> socket =
-        TcpConnector::Create(peer_target, local);
+    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(self, peer);
     if ABSL_PREDICT_FALSE (socket == nullptr) {
       ++failures;
       continue;
@@ -161,10 +160,10 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer,
   return chs;
 }
 
-EngineHelper::Channels EngineHelper::connectRdma(const Endpoint& peer,
+EngineHelper::Channels EngineHelper::connectRdma(const Endpoint& peer_control,
                                                  const int n) {
   if (rdma_acceptor_ == nullptr) return {};
-  return rdma_acceptor_->Connect(peer, n);
+  return rdma_acceptor_->Connect(peer_control, n);
 }
 
 absl::Status EngineHelper::checkRdmaAcceptor() const {

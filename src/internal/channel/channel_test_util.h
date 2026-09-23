@@ -16,10 +16,10 @@ struct ConnectedChannelPair final {
   std::unique_ptr<Channel> rcvr;
 };
 
-  // Creates a tcp channel pair in the given address family.
+// Creates a tcp channel pair.
 ConnectedChannelPair CreateTcpChannelPair(int family);
 
-// Creates a udp channel pair in the given address family.
+// Creates a udp channel pair.
 ConnectedChannelPair CreateUdpChannelPair(int family);
 
 // Creates a memory stream channel pair.

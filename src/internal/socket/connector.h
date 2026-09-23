@@ -19,19 +19,19 @@ class TcpConnector {
   using PspTokenExchangeFunc = absl::AnyInvocable<absl::StatusOr<PspToken>(
       const PspToken&, const Endpoint&, const Endpoint&)>;
 
-  // Connects to the `peer` endpoint. If `local` has nonzero ip address,
-  // binds to it before connecting. Returns a connected tcp socket if
-  // successful. Otherwise, returns a null pointer.
-  static std::unique_ptr<TcpSocket> Create(const Endpoint& peer,
-                                           const Endpoint& local);
+  // Connects the `self` endpoint to the `peer` in blocking mode.
+  // If `self` has nonzero ip address, binds to it before connecting.
+  // Returns a connected tcp socket if successful, or null pointer otherwise.
+  static std::unique_ptr<TcpSocket> Create(const Endpoint& self,
+                                           const Endpoint& peer);
 
-  // Connects to the `peer_target` endpoint. The `peer_control` is used for
-  // sending the PSP token exchange rpc request. If `local` has nonzero ip
-  // address, binds to it before connecting. Returns a connected psp tcp socket
-  // if successful. Otherwise, returns a null pointer.
+  // Connects the `self` endpoint to the `peer` in blocking mode, while
+  // exchanging PSP tokens with the `peer_control` endpoint. If `self` has
+  // nonzero ip address, binds to it before connecting. Returns a connected
+  // psp tcp socket if successful. Otherwise, returns a null pointer.
   static std::unique_ptr<TcpSocket> CreatePsp(
-      const Endpoint& peer_target, const Endpoint& peer_control,
-      PspTokenExchangeFunc& psp_exchange_func, const Endpoint& local);
+      const Endpoint& self, const Endpoint& peer, const Endpoint& peer_control,
+      PspTokenExchangeFunc& psp_exchange_func);
 };
 
 }  // namespace peregrine::internal

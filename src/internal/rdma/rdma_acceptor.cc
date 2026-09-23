@@ -115,7 +115,7 @@ absl::Status RdmaAcceptor::UnregisterMemory(const void* addr) {
 }
 
 std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
-    const Endpoint& peer, int num_conns) {
+    const Endpoint& peer_control, int num_conns) {
   std::vector<std::unique_ptr<Channel>> channels;
   if (rdma_devmgr_ == nullptr || rdma_devmgr_->Devices().empty()) {
     LOG(WARNING) << "no local RDMA devices available";
@@ -123,9 +123,9 @@ std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
   }
 
   const auto& local_devices = rdma_devmgr_->Devices();
-  const auto peer_info = control_.GetPeerHostInfo(peer);
+  const auto peer_info = control_.GetPeerHostInfo(peer_control);
   if (!peer_info.ok()) {
-    LOG(WARNING) << "failed to resolve peer " << peer << ": "
+    LOG(WARNING) << "failed to resolve peer " << peer_control << ": "
                  << peer_info.status();
     return channels;
   }
@@ -137,7 +137,7 @@ std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
     }
   }
   if (remote_interfaces.empty()) {
-    LOG(WARNING) << "no RDMA interfaces found for peer " << peer;
+    LOG(WARNING) << "no RDMA interfaces found for peer " << peer_control;
     return channels;
   }
 
@@ -173,19 +173,19 @@ std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
       }
     }
 
-    auto resp_or = control_.ConnectRdmaPeer(peer, remote_device_name, qp->Qpn(),
-                                            local_dev->LocalGid().raw,
-                                            local_psn, initiator_rkey);
+    auto resp_or = control_.ConnectRdmaPeer(
+        peer_control, remote_device_name, qp->Qpn(), local_dev->LocalGid().raw,
+        local_psn, initiator_rkey);
     if (!resp_or.ok()) {
-      LOG(WARNING) << "ConnectRdmaPeer RPC failed for peer " << peer << ": "
-                   << resp_or.status();
+      LOG(WARNING) << "ConnectRdmaPeer RPC failed for peer " << peer_control
+                   << ": " << resp_or.status();
       continue;
     }
     const auto& resp = *resp_or;
 
     if (resp.gid().size() != sizeof(union ibv_gid)) {
       LOG(WARNING) << "invalid GID size in RdmaConnectResponse from peer "
-                   << peer;
+                   << peer_control;
       continue;
     }
 

@@ -71,11 +71,11 @@ class EngineHelper final {
   void accept(std::unique_ptr<TcpSocket> socket)
       ABSL_LOCKS_EXCLUDED(channels_mu_);
 
-  // Creates `n` TCP channels that connect to the `peer`.
-  Channels connectTcp(const Endpoint& peer, int n);
+  // Creates `n` TCP channels that connect to the peer.
+  Channels connectTcp(const Endpoint& peer_control, int n);
 
-  // Creates `n` RDMA channels that connect to the `peer`.
-  Channels connectRdma(const Endpoint& peer, int n);
+  // Creates `n` RDMA channels that connect to the peer.
+  Channels connectRdma(const Endpoint& peer_control, int n);
 
   // Returns an error if the config requires RDMA but its acceptor is null.
   absl::Status checkRdmaAcceptor() const;

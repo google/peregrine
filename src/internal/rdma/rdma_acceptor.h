@@ -39,7 +39,7 @@ class RdmaAcceptor final {
   ~RdmaAcceptor();
 
   // Connects to a peer via RDMA and returns established RDMA channels.
-  std::vector<std::unique_ptr<Channel>> Connect(const Endpoint& peer,
+  std::vector<std::unique_ptr<Channel>> Connect(const Endpoint& peer_control,
                                                 int num_conns);
 
   // Registers a contiguous memory buffer across all active RDMA hardware

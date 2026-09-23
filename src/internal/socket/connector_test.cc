@@ -47,7 +47,6 @@ class TcpConnectorTest : public ::testing::Test {
 
  protected:
   HostInfo self_;
-  const Endpoint local_;
   std::unique_ptr<TcpAcceptor> acceptor_;
   const std::vector<NicInfo> peers_;
 };
@@ -63,7 +62,7 @@ TEST_F(BlockingTcpConnectorTestIPv4, AcceptBeforeConnect) {
     for (const NicInfo& ni : peers_) {
       for (const Endpoint& peer : ni.endpoints) {
         std::unique_ptr<TcpSocket> socket =
-            TcpConnector::Create(peer, /*local=*/{});
+            TcpConnector::Create(/*self=*/{}, peer);
         CHECK_NE(socket, nullptr);
         DCHECK(socket->IsBlocking());
         DCHECK(socket->IsConnected());
@@ -82,7 +81,7 @@ TEST_F(BlockingTcpConnectorTestIPv6, ConnectBeforeAccept) {
     for (const NicInfo& ni : peers_) {
       for (const Endpoint& peer : ni.endpoints) {
         std::unique_ptr<TcpSocket> socket =
-            TcpConnector::Create(peer, /*local=*/{});
+            TcpConnector::Create(/*self=*/{}, peer);
         CHECK_NE(socket, nullptr);
         DCHECK(socket->IsBlocking());
         DCHECK(socket->IsConnected());
@@ -104,10 +103,9 @@ class PspTcpConnectorTest : public TcpConnectorTest<kFamily> {
  protected:
   PspTcpConnectorTest()
       : psp_syscalls_(psp::testing::FakePspTcpSyscalls::Create()),
-        psp_xchg_func_([this](const PspToken& self_token,
-                              const Endpoint& peer_target,
+        psp_xchg_func_([this](const PspToken& self_token, const Endpoint& peer,
                               const Endpoint& peer_control) {
-          return this->acceptor_->ExchangePspTokens(self_token, peer_target);
+          return this->acceptor_->ExchangePspTokens(self_token, peer);
         }) {
     CHECK_NE(psp_syscalls_, nullptr);
     psp::TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
@@ -132,11 +130,12 @@ TEST_F(BlockingPspTcpConnectorTestIPv4, AcceptBeforeConnect) {
 
   ShortSleep();
   util::Thread tc([&]() {
+    const Endpoint self = {};
     const Endpoint& peer_control = self_.control_plane_listener;
     for (const NicInfo& ni : peers_) {
-      const Endpoint& peer_target = ni.endpoints[0];
-      std::unique_ptr<TcpSocket> socket = TcpConnector::CreatePsp(
-          peer_target, peer_control, psp_xchg_func_, /*local=*/{});
+      const Endpoint& peer = ni.endpoints[0];
+      std::unique_ptr<TcpSocket> socket =
+          TcpConnector::CreatePsp(self, peer, peer_control, psp_xchg_func_);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());
@@ -156,11 +155,12 @@ TEST_F(BlockingPspTcpConnectorTestIPv6, ConnectBeforeAccept) {
   }
 
   util::Thread tc([&]() {
+    const Endpoint self = {};
     const Endpoint& peer_control = self_.control_plane_listener;
     for (const NicInfo& ni : peers_) {
-      const Endpoint& peer_target = ni.endpoints[0];
-      std::unique_ptr<TcpSocket> socket = TcpConnector::CreatePsp(
-          peer_target, peer_control, psp_xchg_func_, /*local=*/{});
+      const Endpoint& peer = ni.endpoints[0];
+      std::unique_ptr<TcpSocket> socket =
+          TcpConnector::CreatePsp(self, peer, peer_control, psp_xchg_func_);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());

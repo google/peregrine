@@ -53,9 +53,9 @@ CreateTcpSocketPair(int family) {
   });
 
   acceptor_started.WaitForNotification();
+  const Endpoint self = {};
   const Endpoint peer = PickPeer(a);
-  const Endpoint local = {};
-  std::unique_ptr<TcpSocket> sb = TcpConnector::Create(peer, local);
+  std::unique_ptr<TcpSocket> sb = TcpConnector::Create(self, peer);
 
   socket_accepted.WaitForNotification();
   acceptor->Stop();

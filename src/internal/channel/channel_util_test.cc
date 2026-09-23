@@ -69,10 +69,10 @@ TEST_P(ChannelUtilTest, Create) {
 
   for (const NicInfo& nic : peers_) {
     for (const Endpoint& peer : nic.endpoints) {
-      const Endpoint local = {};
+      const Endpoint self = {};
       constexpr int kNumChannels = 2;
       std::vector<std::unique_ptr<Channel>> chs =
-          Create(peer, local, kNumChannels);
+          Create(self, peer, kNumChannels);
       EXPECT_EQ(chs.size(), kNumChannels);
     }
   }

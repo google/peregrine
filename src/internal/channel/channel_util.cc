@@ -12,8 +12,8 @@
 
 namespace peregrine::internal {
 
-std::vector<std::unique_ptr<Channel>> Create(const Endpoint& peer,
-                                             const Endpoint& local,
+std::vector<std::unique_ptr<Channel>> Create(const Endpoint& self,
+                                             const Endpoint& peer,
                                              const int n) {
   DCHECK(peer.HasNonzeroIpPort());
   DCHECK_GE(n, 1);
@@ -21,7 +21,7 @@ std::vector<std::unique_ptr<Channel>> Create(const Endpoint& peer,
   std::vector<std::unique_ptr<Channel>> chs;
   chs.reserve(n);
   for (int i = 0; i < 2 * n; ++i) {
-    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer, local);
+    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(self, peer);
     if (socket == nullptr) continue;
     DCHECK(socket->IsBlocking());
 
