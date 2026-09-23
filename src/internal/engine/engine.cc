@@ -178,10 +178,13 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
                    std::move(item.on_complete))) {
     return AlreadyExistsError(handle);
   }
+  auto& req_size_metric =
+      requests[0].op == Op::kWrite ? metrics_.request_write_size
+                                   : metrics_.request_read_size;
   for (int i = 0; i < requests.size(); ++i) {
     reqs_.emplace_back(peer, handle, reqids[i], requests[i]);
+    req_size_metric.Record(requests[i].len);
   }
-  metrics_.requests_posted.Add(requests.size());
   return handle;
 }
 

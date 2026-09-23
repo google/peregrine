@@ -11,7 +11,12 @@ TEST(TransportMetricsTest, DefaultInitialization) {
   EXPECT_EQ(m.e2e_write_latency_us.Count(), 0);
   EXPECT_EQ(m.e2e_write_latency_us.NumBuckets(), 32);
   EXPECT_EQ(m.bytes_sent, 0);
-  EXPECT_EQ(m.requests_posted, 0);
+  EXPECT_EQ(m.request_write_size.sum, 0);
+  EXPECT_EQ(m.request_write_size.Count(), 0);
+  EXPECT_EQ(m.request_write_size.NumBuckets(), 32);
+  EXPECT_EQ(m.request_read_size.sum, 0);
+  EXPECT_EQ(m.request_read_size.Count(), 0);
+  EXPECT_EQ(m.request_read_size.NumBuckets(), 32);
   EXPECT_EQ(m.e2e_write_errors, 0);
   EXPECT_EQ(m.tcp_connect_failures, 0);
   EXPECT_EQ(m.rpc_requests_received, 0);

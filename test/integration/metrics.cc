@@ -85,6 +85,15 @@ DatapathMetrics* GetDatapath(Component c, MetricsState& s) {
   }
 }
 
+double Avg(const Log2Histogram<32>& h) {
+  const uint64_t count = h.Count();
+  return count > 0 ? static_cast<double>(h.sum) / count : 0.0;
+}
+
+constexpr double BytesToMiB(double bytes) {
+  return bytes / (1ULL << 20);
+}
+
 }  // namespace
 
 void Metrics::SetControlpathInfo(Component c, std::string_view endpoint,
@@ -190,24 +199,24 @@ std::string Metrics::GetDatapathDebugString(Component c) {
   lines.push_back(absl::StrFormat("%-15s: %s", "Status", dp->status));
   lines.push_back(absl::StrFormat("%-15s: %d completed", "Transfers",
                                   dp->n_transfers));
-  lines.push_back(absl::StrFormat(
-      "%-15s: %d bytes (%.2f MB)", "Bytes", dp->n_bytes,
-      static_cast<double>(dp->n_bytes) / (1024.0 * 1024.0)));
+  lines.push_back(absl::StrFormat("%-15s: %d bytes (%.2f MiB)", "Bytes",
+                                  dp->n_bytes, BytesToMiB(dp->n_bytes)));
 
   const TransportMetrics& tm = dp->transport_metrics;
-  const uint64_t lat_count = tm.e2e_write_latency_us.Count();
-  const double avg_lat_us =
-      lat_count > 0
-          ? static_cast<double>(tm.e2e_write_latency_us.sum) / lat_count
-          : 0.0;
   lines.push_back("---- Transport Metrics ----");
   lines.push_back(
-      absl::StrFormat("%-15s: %u", "Requests Posted", tm.requests_posted));
-  lines.push_back(absl::StrFormat(
-      "%-15s: %u bytes (%.2f MB)", "Bytes Sent", tm.bytes_sent,
-      static_cast<double>(tm.bytes_sent) / (1024.0 * 1024.0)));
-  lines.push_back(absl::StrFormat("%-15s: %.2f us avg (%u samples)",
-                                  "Write Latency", avg_lat_us, lat_count));
+      absl::StrFormat("%-15s: %u (avg %.2f MiB)", "Write Requests",
+                      tm.request_write_size.Count(),
+                      BytesToMiB(Avg(tm.request_write_size))));
+  lines.push_back(
+      absl::StrFormat("%-15s: %u (avg %.2f MiB)", "Read Requests",
+                      tm.request_read_size.Count(),
+                      BytesToMiB(Avg(tm.request_read_size))));
+  lines.push_back(absl::StrFormat("%-15s: %u bytes (%.2f MiB)", "Bytes Sent",
+                                  tm.bytes_sent, BytesToMiB(tm.bytes_sent)));
+  lines.push_back(absl::StrFormat("%-15s: avg %.2f us (%u samples)",
+                                  "Write Latency", Avg(tm.e2e_write_latency_us),
+                                  tm.e2e_write_latency_us.Count()));
   lines.push_back(
       absl::StrFormat("%-15s: %u", "Write Errors", tm.e2e_write_errors));
   // TODO(yyd): show more metrics.

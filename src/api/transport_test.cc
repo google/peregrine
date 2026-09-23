@@ -77,7 +77,8 @@ class TransportTest : public ::testing::TestWithParam<Param> {
   }
 
   bool CheckMetrics(const TransportMetrics& metrics) {
-    return metrics.requests_posted > 0 && metrics.e2e_write_errors == 0 &&
+    return metrics.request_write_size.Count() > 0 &&
+           metrics.e2e_write_errors == 0 &&
            metrics.e2e_write_latency_us.Count() > 0;
   }
 

@@ -44,8 +44,10 @@ struct TransportMetrics final {
   Log2Histogram<32> e2e_write_latency_us{};
   // Total payload bytes sent across all data channels.
   uint64_t bytes_sent = 0;
-  // Total user transfer requests submitted
-  uint64_t requests_posted = 0;
+  // Write request per-op size in bytes.
+  Log2Histogram<32> request_write_size{};
+  // Read request per-op size in bytes.
+  Log2Histogram<32> request_read_size{};
   // Total transfer write failures.
   uint64_t e2e_write_errors = 0;
 

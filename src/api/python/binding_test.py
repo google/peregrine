@@ -77,8 +77,6 @@ class BindTest(absltest.TestCase):
     )
     handle = local_transport.post(remote, [req])
     self.assertIsInstance(handle, pg.Handle)
-    metrics = local_transport.get_transport_metrics()
-    self.assertEqual(metrics.requests_posted, 1)
 
     timeout = datetime.timedelta(seconds=10)
     end_time = time.monotonic() + timeout.total_seconds()

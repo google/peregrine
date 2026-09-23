@@ -17,8 +17,10 @@ struct EngineMetrics final {
   Log2Histogram<32> e2e_write_latency_us;
   // Total payload bytes sent across all data channels.
   MetricCounter<uint64_t> bytes_sent;
-  // Total user transfer requests submitted.
-  MetricCounter<uint64_t> requests_posted;
+  // Write request per-op size.
+  Log2Histogram<32> request_write_size;
+  // Read request per-op size.
+  Log2Histogram<32> request_read_size;
   // Total transfer write failures.
   MetricCounter<uint64_t> e2e_write_errors;
   // Total tcp connect failures.
