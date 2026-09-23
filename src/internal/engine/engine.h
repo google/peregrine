@@ -113,6 +113,11 @@ class Engine final {
     return request.op == Op::kWrite ? outgoing_ : incoming_;
   }
 
+  // Returns the per-op metrics for the request.
+  OpMetrics& getOpMetrics(const Request& request) {
+    return request.op == Op::kWrite ? metrics_.write : metrics_.read;
+  }
+
   // Runs in an acceptor thread to accept incoming channels.
   void acceptorLoop();
 

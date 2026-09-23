@@ -107,6 +107,8 @@ class BindTest(absltest.TestCase):
     self.assertIsNotNone(transport)
     metrics = transport.get_transport_metrics()
     self.assertIsInstance(metrics, pg.TransportMetrics)
+    self.assertIsInstance(metrics.write, pg.OpMetrics)
+    self.assertIsInstance(metrics.read, pg.OpMetrics)
 
 if __name__ == "__main__":
   absltest.main()

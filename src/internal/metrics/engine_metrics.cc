@@ -7,12 +7,18 @@ namespace peregrine::internal {
 
 static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 
+::peregrine::OpMetrics OpMetrics::Snapshot() const {
+  return {
+      .e2e_latency_us = e2e_latency_us.Snapshot(),
+      .request_size_bytes = request_size_bytes.Snapshot(),
+      .bytes = bytes.Value(),
+      .errors = errors.Value(),
+  };
+}
+
 void EngineMetrics::Snapshot(TransportMetrics& m) const {
-  m.e2e_write_latency_us = e2e_write_latency_us.Snapshot();
-  m.bytes_sent = bytes_sent.Value();
-  m.request_write_size = request_write_size.Snapshot();
-  m.request_read_size = request_read_size.Snapshot();
-  m.e2e_write_errors = e2e_write_errors.Value();
+  m.write = write.Snapshot();
+  m.read = read.Snapshot();
   m.tcp_connect_failures = tcp_connect_failures.Value();
 }
 

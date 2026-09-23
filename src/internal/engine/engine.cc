@@ -178,12 +178,10 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
                    std::move(item.on_complete))) {
     return AlreadyExistsError(handle);
   }
-  auto& req_size_metric =
-      requests[0].op == Op::kWrite ? metrics_.request_write_size
-                                   : metrics_.request_read_size;
+  OpMetrics& op_metrics = getOpMetrics(requests[0]);
   for (int i = 0; i < requests.size(); ++i) {
     reqs_.emplace_back(peer, handle, reqids[i], requests[i]);
-    req_size_metric.Record(requests[i].len);
+    op_metrics.request_size_bytes.Record(requests[i].len);
   }
   return handle;
 }
@@ -205,7 +203,7 @@ void Engine::process(const Entry& entry) {
     Workers& workers = send_workers_[entry.peer];
     if ABSL_PREDICT_FALSE (workers.empty()) {
       LOG(ERROR) << "failed to create send workers for " << entry.peer;
-      metrics_.e2e_write_errors.Add(1);
+      metrics_.write.errors.Add(1);
     } else {
       processWrite(workers, entry.handle, entry.reqid, entry.request);
     }

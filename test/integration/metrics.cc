@@ -206,19 +206,20 @@ std::string Metrics::GetDatapathDebugString(Component c) {
   lines.push_back("---- Transport Metrics ----");
   lines.push_back(
       absl::StrFormat("%-15s: %u (avg %.2f MiB)", "Write Requests",
-                      tm.request_write_size.Count(),
-                      BytesToMiB(Avg(tm.request_write_size))));
+                      tm.write.request_size_bytes.Count(),
+                      BytesToMiB(Avg(tm.write.request_size_bytes))));
   lines.push_back(
       absl::StrFormat("%-15s: %u (avg %.2f MiB)", "Read Requests",
-                      tm.request_read_size.Count(),
-                      BytesToMiB(Avg(tm.request_read_size))));
+                      tm.read.request_size_bytes.Count(),
+                      BytesToMiB(Avg(tm.read.request_size_bytes))));
   lines.push_back(absl::StrFormat("%-15s: %u bytes (%.2f MiB)", "Bytes Sent",
-                                  tm.bytes_sent, BytesToMiB(tm.bytes_sent)));
-  lines.push_back(absl::StrFormat("%-15s: avg %.2f us (%u samples)",
-                                  "Write Latency", Avg(tm.e2e_write_latency_us),
-                                  tm.e2e_write_latency_us.Count()));
+                                  tm.write.bytes, BytesToMiB(tm.write.bytes)));
   lines.push_back(
-      absl::StrFormat("%-15s: %u", "Write Errors", tm.e2e_write_errors));
+      absl::StrFormat("%-15s: avg %.2f us (%u samples)", "Write Latency",
+                      Avg(tm.write.e2e_latency_us),
+                      tm.write.e2e_latency_us.Count()));
+  lines.push_back(
+      absl::StrFormat("%-15s: %u", "Write Errors", tm.write.errors));
   // TODO(yyd): show more metrics.
   return absl::StrJoin(lines, "\n");
 }

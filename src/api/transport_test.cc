@@ -82,9 +82,9 @@ class TransportTest : public ::testing::TestWithParam<Param> {
   }
 
   bool CheckMetrics(const TransportMetrics& metrics) {
-    return metrics.request_write_size.Count() > 0 &&
-           metrics.e2e_write_errors == 0 &&
-           metrics.e2e_write_latency_us.Count() > 0;
+    return metrics.write.request_size_bytes.Count() > 0 &&
+           metrics.write.errors == 0 &&
+           metrics.write.e2e_latency_us.Count() > 0;
   }
 
  protected:

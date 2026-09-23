@@ -90,7 +90,7 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
   }
   if (start_time != ReqsTracker::kInvalidTime) {
     const int64_t us = absl::ToInt64Microseconds(absl::Now() - start_time);
-    if (us >= 0) metrics_.e2e_write_latency_us.Record(us);
+    if (us >= 0) metrics_.write.e2e_latency_us.Record(us);
   }
   if (callback != nullptr) {
     std::move(callback)(Status::kSuccess);

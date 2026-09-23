@@ -90,11 +90,11 @@ void Worker::SendLoop() {
         return;
       }
       // TODO(yongx): Handle errors.
-      metrics_.e2e_write_errors.Add(1);
+      metrics_.write.errors.Add(1);
       LOG(WARNING) << "send chunk failed";
       break;
     }
-    metrics_.bytes_sent.Add(payload.size());
+    metrics_.write.bytes.Add(payload.size());
 
     if (channel_->Type() == ChannelType::kReliableMessage) {
       // TODO(mubashirq): Abstract one-sided vs two-sided transfer semantics

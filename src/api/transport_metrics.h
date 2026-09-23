@@ -38,18 +38,22 @@ struct Log2Histogram final {
   }
 };
 
+// Per-operation (read or write) end-to-end metrics.
+struct OpMetrics final {
+  // End-to-end transfer duration in microseconds.
+  Log2Histogram<32> e2e_latency_us{};
+  // Request per-op size in bytes.
+  Log2Histogram<32> request_size_bytes{};
+  // Total payload bytes transferred across all data channels.
+  uint64_t bytes = 0;
+  // Total transfer failures.
+  uint64_t errors = 0;
+};
+
 // High-level end-to-end metrics for transport users.
 struct TransportMetrics final {
-  // End-to-end write duration in microseconds.
-  Log2Histogram<32> e2e_write_latency_us{};
-  // Total payload bytes sent across all data channels.
-  uint64_t bytes_sent = 0;
-  // Write request per-op size in bytes.
-  Log2Histogram<32> request_write_size{};
-  // Read request per-op size in bytes.
-  Log2Histogram<32> request_read_size{};
-  // Total transfer write failures.
-  uint64_t e2e_write_errors = 0;
+  OpMetrics write{};
+  OpMetrics read{};
 
   // Transport Pipeline Breakdown
   // ---------------------------------------------------------------------------
