@@ -6,7 +6,10 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -19,6 +22,8 @@
 #include "test/integration/flags.h"
 #include "test/integration/metrics.h"
 #include "test/integration/settings.h"
+#include "test/integration/workloads/batch-generator.h"
+#include "test/integration/workloads/serial-fixed-write.h"
 
 namespace peregrine::integration {
 
@@ -52,6 +57,10 @@ PeregrineIntegration::PeregrineIntegration() {
   datapath_rcvr_ = std::make_unique<DatapathHost>(
       Component::kReceiverDatapath, rcvr_ctrl, rcvr_data, "", "",
       flags_.buffer_size, flags_.conns_per_peer);
+
+  batch_generator_ = std::make_unique<SerialFixedWrite>(
+      controlpath_rcvr_->endpoint(), datapath_sndr_->DataPtr(),
+      datapath_rcvr_->DataPtr(), datapath_sndr_->DataSize());
 }
 
 void PeregrineIntegration::CollectMetrics() const {
@@ -88,55 +97,101 @@ void PeregrineIntegration::Run() {
   datapath_sndr_->GenData();
   datapath_rcvr_->ClearData();
   while (shouldContinue()) {
-    sendRequest();
+    runBatch();
   }
 }
 
-void PeregrineIntegration::sendRequest() {
-  const Request req = {
-      .op = Op::kWrite,
-      .laddr = datapath_sndr_->DataPtr(),
-      .raddr = datapath_rcvr_->DataPtr(),
-      .len = datapath_sndr_->DataSize(),
-  };
-
-  if (flags_.verify_data) {
-    if (req.op == Op::kWrite) {
-      datapath_rcvr_->ClearData();
-    } else {
-      datapath_sndr_->ClearData();
-    }
-  }
-
-  const absl::StatusOr<Handle> handle_or =
-      datapath_sndr_->Post(controlpath_rcvr_->endpoint(), {req},
-                           /*on_complete=*/nullptr);
-  if (!handle_or.ok()) {
-    absl::SleepFor(absl::Microseconds(50));
+void PeregrineIntegration::runBatch() {
+  // 1. Get a Post batch.
+  PostBatch batch = batch_generator_->NextBatch();
+  if (batch.items.empty()) {
     return;
   }
 
-  const Handle h = handle_or.value();
-  while (shouldContinue()) {
-    const auto status_or = datapath_sndr_->Poll(h);
-    if (!status_or.ok()) break;
+  if (flags_.verify_data) {
+    datapath_rcvr_->ClearData();
+  }
 
-    const Status s = status_or.value();
-    if (IsCompleted(s)) {
-      if (s == Status::kSuccess) {
-        Metrics::IncrementTransfers(Component::kSenderDatapath,
-                                    datapath_sndr_->DataSize());
-        Metrics::IncrementTransfers(Component::kReceiverDatapath,
-                                    datapath_sndr_->DataSize());
-        if (flags_.verify_data) {
-          CHECK(datapath_sndr_->Data() == datapath_rcvr_->Data())
-              << "Data integrity verification failed!";
-        }
-      }
-      break;
+  // 2. Call Post for each PostItem.
+  PendingHandles pending = postItems(absl::MakeSpan(batch.items));
+
+  // 3. Sleep.
+  if (batch.sleep > absl::ZeroDuration()) {
+    absl::SleepFor(batch.sleep);
+  }
+
+  // 4. Poll all handles (if its on_complete == nullptr), wait until the batch
+  // is done.
+  pollHandles(pending);
+}
+
+PeregrineIntegration::PendingHandles PeregrineIntegration::postItems(
+    absl::Span<PostItem> items) {
+  PendingHandles pending;
+  pending.reserve(items.size());
+
+  for (PostItem& item : items) {
+    const bool need_poll = (item.on_complete == nullptr);
+    int64_t item_bytes = 0;
+    for (const Request& req : item.requests) {
+      item_bytes += req.len;
     }
 
-    absl::SleepFor(absl::Microseconds(50));
+    absl::AnyInvocable<void(Status)> on_complete = nullptr;
+    if (!need_poll) {
+      on_complete = [this, item_bytes,
+                     cb = std::move(item.on_complete)](Status s) mutable {
+        if (s == Status::kSuccess) {
+          onTransferSuccess(item_bytes);
+        }
+        cb(s);
+      };
+    }
+
+    const absl::StatusOr<Handle> handle_or = datapath_sndr_->Post(
+        item.peer, item.requests, std::move(on_complete));
+    if (!handle_or.ok()) {
+      // TODO(yyd): Add an app-level metric for this.
+      continue;
+    }
+    if (need_poll) {
+      pending.push_back({.handle = handle_or.value(), .bytes = item_bytes});
+    }
+  }
+  return pending;
+}
+
+void PeregrineIntegration::pollHandles(PendingHandles& pending) {
+  while (shouldContinue() && !pending.empty()) {
+    for (auto it = pending.begin(); it != pending.end();) {
+      const auto status_or = datapath_sndr_->Poll(it->handle);
+      if (!status_or.ok()) {
+        it = pending.erase(it);
+        continue;
+      }
+
+      const Status s = status_or.value();
+      if (IsCompleted(s)) {
+        if (s == Status::kSuccess) {
+          onTransferSuccess(it->bytes);
+        }
+        it = pending.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    if (!pending.empty()) {
+      absl::SleepFor(absl::Microseconds(10));
+    }
+  }
+}
+
+void PeregrineIntegration::onTransferSuccess(int64_t bytes) {
+  Metrics::IncrementTransfers(Component::kSenderDatapath, bytes);
+  Metrics::IncrementTransfers(Component::kReceiverDatapath, bytes);
+  if (flags_.verify_data) {
+    CHECK(datapath_sndr_->Data() == datapath_rcvr_->Data())
+        << "Data integrity verification failed!";
   }
 }
 

@@ -4,11 +4,14 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
+#include "absl/types/span.h"
 #include "test/integration/controlpath-host.h"
 #include "test/integration/datapath-host.h"
 #include "test/integration/flags.h"
 #include "test/integration/settings.h"
+#include "test/integration/workloads/batch-generator.h"
 
 namespace peregrine::integration {
 
@@ -32,8 +35,17 @@ class PeregrineIntegration final {
   const Flags& flags() const { return flags_; }
 
  private:
+  struct PendingHandle {
+    Handle handle;
+    int64_t bytes = 0;
+  };
+  using PendingHandles = std::vector<PendingHandle>;
+
   bool shouldContinue() const;
-  void sendRequest();
+  void runBatch();
+  PendingHandles postItems(absl::Span<PostItem> items);
+  void pollHandles(PendingHandles& pending);
+  void onTransferSuccess(int64_t bytes);
 
  private:
   Settings settings_;
@@ -44,6 +56,7 @@ class PeregrineIntegration final {
   std::unique_ptr<ControlpathHost> controlpath_rcvr_;
   std::unique_ptr<DatapathHost> datapath_sndr_;
   std::unique_ptr<DatapathHost> datapath_rcvr_;
+  std::unique_ptr<BatchGenerator> batch_generator_;
 };
 
 }  // namespace peregrine::integration
