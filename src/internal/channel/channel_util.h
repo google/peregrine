@@ -36,7 +36,8 @@ inline std::unique_ptr<Channel> CreateRdmaChannel(
 }
 
 // Creates `n` channels connected to the `peer`.
-std::vector<std::unique_ptr<Channel>> Create(const Endpoint& peer, int n);
+std::vector<std::unique_ptr<Channel>> Create(const Endpoint& peer,
+                                             const Endpoint& local, int n);
 
 }  // namespace peregrine::internal
 

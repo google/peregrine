@@ -24,7 +24,7 @@ namespace peregrine::internal {
 // creates a new tcp socket for each connection.
 // It is thread-compatible but not thread-safe.
 class TcpAcceptor {
-  using AcceptCallback = absl::AnyInvocable<void(std::unique_ptr<TcpSocket>)>;
+  using OnAccept = absl::AnyInvocable<void(std::unique_ptr<TcpSocket>)>;
 
  public:
   // Creates a tcp acceptor with per-NIC non-blocking listening sockets, and
@@ -32,14 +32,14 @@ class TcpAcceptor {
   static std::unique_ptr<TcpAcceptor> Create(HostInfo& self);
 
   // Starts running the acceptor.
-  void Start(AcceptCallback accept);
+  void Start(OnAccept on_accept);
+
+  // Stops the acceptor.
+  void Stop();
 
   // Handles peer psp token exchange request for the `self_target` endpoint.
   absl::StatusOr<PspToken> ExchangePspTokens(const PspToken& peer_token,
                                              const Endpoint& self_target);
-
-  // Stops the acceptor.
-  void Stop();
 
  private:
   struct Listener {
@@ -68,10 +68,9 @@ class TcpAcceptor {
   }
 
   // Creates a tcp non-blocking socket listening on the `endpoint`.
-  // If `endpoint.port` is 0, an ephemeral port will be used and
-  // fills back in the `endpoint.port`.
+  // If `endpoint.port` is 0, an ephemeral port will be used and filled back in.
   static std::unique_ptr<TcpSocket> createOne(Endpoint& endpoint,
-                                              Poller* poller);
+                                              Poller& poller);
 
   // Returns true iff the acceptor is in a valid state.
   bool invariant() const;

@@ -23,7 +23,7 @@ class TcpConnector {
   // binds to it before connecting. Returns a connected tcp socket if
   // successful. Otherwise, returns a null pointer.
   static std::unique_ptr<TcpSocket> Create(const Endpoint& peer,
-                                           const Endpoint& local = {});
+                                           const Endpoint& local);
 
   // Connects to the `peer_target` endpoint. The `peer_control` is used for
   // sending the PSP token exchange rpc request. If `local` has nonzero ip
@@ -31,7 +31,7 @@ class TcpConnector {
   // if successful. Otherwise, returns a null pointer.
   static std::unique_ptr<TcpSocket> CreatePsp(
       const Endpoint& peer_target, const Endpoint& peer_control,
-      PspTokenExchangeFunc& psp_exchange_func, const Endpoint& local = {});
+      PspTokenExchangeFunc& psp_exchange_func, const Endpoint& local);
 };
 
 }  // namespace peregrine::internal

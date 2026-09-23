@@ -49,10 +49,10 @@ class TcpSocketTest : public ::testing::Test {
   const std::unique_ptr<TcpSocket> connector_;
 };
 
-using TcpIPv4SocketTest = TcpSocketTest<AF_INET>;
-using TcpIPv6SocketTest = TcpSocketTest<AF_INET6>;
+using BlockingTcpIPv4SocketTest = TcpSocketTest<AF_INET>;
+using BlockingTcpIPv6SocketTest = TcpSocketTest<AF_INET6>;
 
-TEST_F(TcpIPv4SocketTest, SmallMessage) {
+TEST_F(BlockingTcpIPv4SocketTest, SmallMessage) {
   // Create a small send message and a recv buffer.
   const std::vector<Byte> message = {'h', 'e', 'l', 'l', 'o'};
   const size_t kMsgSize = message.size();
@@ -91,7 +91,7 @@ TEST_F(TcpIPv4SocketTest, SmallMessage) {
   EXPECT_THAT(recv_buf, Pointwise(Eq(), message));
 }
 
-TEST_F(TcpIPv6SocketTest, BigData) {
+TEST_F(BlockingTcpIPv6SocketTest, BigData) {
   // Create a big chunk of data and a recv buffer.
   constexpr size_t kDataSize = 16UL << 20;
   std::vector<Byte> send_buf(kDataSize);

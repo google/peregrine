@@ -43,10 +43,10 @@ class UdpSocketTest : public ::testing::Test {
   const std::unique_ptr<UdpSocket> rskt_;
 };
 
-using UdpSocketIPv4Test = UdpSocketTest<AF_INET>;
-using UdpSocketIPv6Test = UdpSocketTest<AF_INET6>;
+using BlockingUdpSocketIPv4Test = UdpSocketTest<AF_INET>;
+using BlockingUdpSocketIPv6Test = UdpSocketTest<AF_INET6>;
 
-TEST_F(UdpSocketIPv4Test, SendRecv) {
+TEST_F(BlockingUdpSocketIPv4Test, SendRecv) {
   // Create a small send message and a recv buffer.
   const std::vector<Byte> message = {'h', 'e', 'l', 'l', 'o'};
   const size_t kMsgSize = message.size();
@@ -84,7 +84,7 @@ TEST_F(UdpSocketIPv4Test, SendRecv) {
   EXPECT_EQ(recv_buf, message);
 }
 
-TEST_F(UdpSocketIPv6Test, ScatterGather) {
+TEST_F(BlockingUdpSocketIPv6Test, ScatterGather) {
   // Create a small send message and a recv buffer.
   const std::vector<Byte> message = {'h', 'e', 'l', 'l', 'o'};
   const size_t kMsgSize = message.size();

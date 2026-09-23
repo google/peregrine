@@ -77,9 +77,10 @@ EngineHelper::EngineHelper(const Config& config, const HostInfo& self,
       rdma_acceptor_(std::move(rdma_acceptor)) {
   DCHECK(invariant());
   tcp_acceptor_thread_ = util::Jthread([this]() {
-    tcp_acceptor_->Start([this](std::unique_ptr<TcpSocket> socket) {
+    auto onAccept = [this](std::unique_ptr<TcpSocket> socket) {
       accept(std::move(socket));
-    });
+    };
+    tcp_acceptor_->Start(onAccept);
   });
   LOG(INFO) << "engine helper created @ " << self_;
 }
@@ -139,10 +140,6 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer,
     LOG(WARNING) << "no tcp listener found for peer " << peer;
     return {};
   }
-  if (peer_info->data_plane_listeners.empty()) {
-    LOG(WARNING) << "no data plane tcp listeners found for peer " << peer;
-    return {};
-  }
 
   EngineHelper::Channels chs;
   // TODO(yongx): build connection locality group
@@ -150,7 +147,9 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer,
   uint64_t failures = 0;
   for (int i = 0; chs.size() < n && i < 2 * n; ++i) {
     DCHECK(!config_.require_dataplane_encryption);
-    std::unique_ptr<TcpSocket> socket = TcpConnector::Create(peer_target);
+    const Endpoint local = {};
+    std::unique_ptr<TcpSocket> socket =
+        TcpConnector::Create(peer_target, local);
     if ABSL_PREDICT_FALSE (socket == nullptr) {
       ++failures;
       continue;

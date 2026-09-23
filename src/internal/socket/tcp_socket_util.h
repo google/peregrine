@@ -20,8 +20,9 @@
 
 namespace peregrine::internal {
 
-// This utility class implements tcp socket send/recv functions.
-// This class is thread-safe since it has no data members.
+// This utility class implements blocking tcp socket send/recv functions.
+// It will be deprecated once TPU Raiden code has been migrated to use the
+// Peregrine `Post()` API (see `src/api/transport.h`).
 class TcpSocketUtil final {
  public:
   // Sends on the socket `fd` exactly `len` bytes of data from the `buf`.

@@ -35,9 +35,8 @@
 namespace peregrine::internal {
 
 std::unique_ptr<TcpSocket> TcpAcceptor::createOne(Endpoint& endpoint,
-                                                  Poller* poller) {
+                                                  Poller& poller) {
   DCHECK(!endpoint.HasZeroIpAddr());
-  DCHECK_NE(poller, nullptr);
 
   static_assert(assumptions::kOnlyTcpListeningSocketsAreNonBlocking);
   const int family = endpoint.GetIpAddr().AddressFamily();
@@ -58,7 +57,7 @@ std::unique_ptr<TcpSocket> TcpAcceptor::createOne(Endpoint& endpoint,
   }
 
   constexpr uint32_t kEvents = EPOLLIN | EPOLLRDHUP | EPOLLET;
-  if ABSL_PREDICT_FALSE (!poller->Register(socket->fd(), kEvents)) {
+  if ABSL_PREDICT_FALSE (!poller.Register(socket->fd(), kEvents)) {
     return nullptr;
   }
 
@@ -101,7 +100,7 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(HostInfo& self) {
   for (auto& [_, ni] : candidates) {
     NicInfo nic(ni.name, ni.type, {});
     for (auto& e : ni.endpoints) {  // `e` will be modified in createOne().
-      std::unique_ptr<TcpSocket> socket = createOne(e, poller.get());
+      std::unique_ptr<TcpSocket> socket = createOne(e, *poller);
       if ABSL_PREDICT_FALSE (socket == nullptr) {
         LOG(WARNING) << "failed to create tcp listening socket for " << e;
         continue;
@@ -125,10 +124,10 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(HostInfo& self) {
       new TcpAcceptor(self, std::move(poller), std::move(listeners)));
 }
 
-void TcpAcceptor::Start(AcceptCallback accept) {
+void TcpAcceptor::Start(OnAccept on_accept) {
   static_assert(assumptions::kOnlyTcpListeningSocketsAreNonBlocking);
   DCHECK(invariant());
-  DCHECK_NE(accept, nullptr);
+  DCHECK_NE(on_accept, nullptr);
   LOG(INFO) << "starting, " << self_;
 
   constexpr int kMaxEvents = 64;
@@ -167,7 +166,7 @@ void TcpAcceptor::Start(AcceptCallback accept) {
         DCHECK(socket->IsBlocking());
         DCHECK(socket->IsConnected());
         LOG(INFO) << "made " << *socket;
-        accept(std::move(socket));
+        on_accept(std::move(socket));
       }
     }
   }

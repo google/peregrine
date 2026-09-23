@@ -38,7 +38,7 @@ class TcpAcceptorTest : public ::testing::Test {
     CHECK_NE(acceptor_, nullptr);
   }
 
-  static void Accept(std::unique_ptr<TcpSocket> socket) {
+  static void OnAccept(std::unique_ptr<TcpSocket> socket) {
     auto x = std::move(socket);
     CHECK_NE(x, nullptr);
   }
@@ -54,7 +54,7 @@ using TcpAcceptorTestIPv4 = TcpAcceptorTest<AF_INET>;
 using TcpAcceptorTestIPv6 = TcpAcceptorTest<AF_INET6>;
 
 TEST_F(TcpAcceptorTestIPv4, StartThenStop) {
-  util::Thread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(OnAccept); });
 
   ShortSleep();
   acceptor_->Stop();
@@ -64,7 +64,7 @@ TEST_F(TcpAcceptorTestIPv4, StartThenStop) {
 TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
   acceptor_->Stop();
 
-  util::Thread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(OnAccept); });
   ta.join();
 }
 

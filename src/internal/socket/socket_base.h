@@ -13,8 +13,8 @@
 namespace peregrine::internal {
 
 // This class provides common functionalities for TCP/UDP sockets.
-// It is not intended to be instantiated directly. Instead, instantiate the
-// derived classes `TcpSocket` or `UdpSocket`.
+// It is not intended to be instantiated directly.
+// Instead, use the derived classes `TcpSocket` or `UdpSocket`.
 // This class is thread-compatible but not thread-safe.
 class SocketBase {
  public:
