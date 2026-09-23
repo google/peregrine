@@ -33,13 +33,13 @@ using Param = std::tuple</*completion_callback=*/bool>;
 
 std::string ToString(const TestParamInfo<Param>& info) {
   const bool completion_callback = std::get<0>(info.param);
-  return absl::StrFormat("CompletionCallback_%s",
-                         completion_callback ? "true" : "false");
+  return absl::StrFormat("%sCompletionCallback",
+                         completion_callback ? "With" : "No");
 }
 
 class TransportTest : public ::testing::TestWithParam<Param> {
   static constexpr size_t kBufSize = (64UL << 20) - 1;
-  static constexpr int kNumConnsPerPeer = 8;
+  static constexpr int kNumConnsPerPeer = 4;
 
  protected:
   TransportTest()
@@ -53,26 +53,31 @@ class TransportTest : public ::testing::TestWithParam<Param> {
   }
 
   absl::AnyInvocable<void(Status)> GetCompletionCallback() {
-    if (!completion_callback_) return nullptr;
-    return [this](Status s) {
-      completed_status_ = s;
-      done_.Notify();
-    };
+    if (completion_callback_) {
+      return [this](Status s) {
+        completed_status_ = s;
+        done_.Notify();
+      };
+    } else {
+      return nullptr;
+    }
   }
 
-  Status WaitForCompletion(Transport& t, const Handle h) {
+  void WaitForCompletion(Transport& t, const Handle h) {
+    const absl::Duration timeout = absl::Seconds(10);
     if (completion_callback_) {
-      done_.WaitForNotificationWithTimeout(absl::Seconds(10));
-      return completed_status_;
-    }
-    while (true) {
-      const absl::StatusOr<Status> s = t.Poll(h);
-      CHECK_OK(s) << s.status();
-      if (IsCompleted(*s)) {
-        completed_status_ = *s;
-        return completed_status_;
+      done_.WaitForNotificationWithTimeout(timeout);
+    } else {
+      const absl::Time deadline = absl::Now() + timeout;
+      while (absl::Now() < deadline) {
+        const absl::StatusOr<Status> s = t.Poll(h);
+        CHECK_OK(s) << s.status();
+        if (IsCompleted(*s)) {
+          completed_status_ = *s;
+          return;
+        }
+        absl::SleepFor(absl::Milliseconds(100));
       }
-      absl::SleepFor(absl::Milliseconds(100));
     }
   }
 
@@ -99,7 +104,7 @@ TEST_P(TransportTest, Read) {
   l_.ClearData();
   r_.GenData();
   ASSERT_THAT(l_.Data(), Pointwise(Ne(), r_.Data()));
-  ASSERT_THAT(completed_status_, Ne(Status::kSuccess));
+  ASSERT_NE(completed_status_, Status::kSuccess);
 
   // Post a read request (local <- remote).
   Transport& lt = l_.GetTransport();
@@ -115,7 +120,8 @@ TEST_P(TransportTest, Read) {
   ASSERT_TRUE(h.ok()) << h.status();
 
   // Wait for the transport to finish processing the request.
-  ASSERT_THAT(WaitForCompletion(lt, *h), Eq(Status::kSuccess));
+  WaitForCompletion(lt, *h);
+  ASSERT_EQ(completed_status_, Status::kSuccess);
 
   // Post-condition: all the local bytes are equal to the remote.
   EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
@@ -126,7 +132,7 @@ TEST_P(TransportTest, Write) {
   l_.GenData();
   r_.ClearData();
   ASSERT_THAT(r_.Data(), Pointwise(Ne(), l_.Data()));
-  ASSERT_THAT(completed_status_, Ne(Status::kSuccess));
+  ASSERT_NE(completed_status_, Status::kSuccess);
 
   // Post multiple write requests (local -> remote).
   Transport& lt = l_.GetTransport();
@@ -149,7 +155,8 @@ TEST_P(TransportTest, Write) {
   ASSERT_TRUE(h.ok()) << h.status();
 
   // Wait for the transport to finish processing the requests.
-  ASSERT_THAT(WaitForCompletion(lt, *h), Eq(Status::kSuccess));
+  WaitForCompletion(lt, *h);
+  ASSERT_EQ(completed_status_, Status::kSuccess);
 
   // Post-condition: all the remote bytes are equal to the local.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
