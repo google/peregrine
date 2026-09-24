@@ -24,7 +24,7 @@ namespace peregrine::internal {
 // It is thread-safe.
 class RequestTracker {
  public:
-  using OnCompleteCallback = absl::AnyInvocable<void(Status)>;
+  using OnComplete = absl::AnyInvocable<void(Status)>;
 
   // Constructor.
   explicit RequestTracker(EngineMetrics& metrics) : metrics_(metrics) {}
@@ -45,7 +45,7 @@ class RequestTracker {
   // Adds the tracker for the given `handle` and `reqids`.
   // Returns true iff the handle was not already in the tracker.
   bool Add(Handle handle, absl::Span<const ReqId> reqids, absl::Time start_time,
-           OnCompleteCallback on_complete) ABSL_LOCKS_EXCLUDED(trackers_mu_);
+           OnComplete on_complete) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Removes the tracker for the given `handle`.
   void Remove(Handle handle) ABSL_LOCKS_EXCLUDED(trackers_mu_);
@@ -70,14 +70,13 @@ class RequestTracker {
   struct ReqsTracker {
     ReqMap req_map;
     absl::Time start_time;
-    OnCompleteCallback on_complete;
+    OnComplete on_complete;
 
     // Default constructor.
     ReqsTracker() : start_time(kInvalidTime) {}
 
     // Constructor.
-    ReqsTracker(ReqMap req_map, absl::Time start_time,
-                OnCompleteCallback on_complete)
+    ReqsTracker(ReqMap req_map, absl::Time start_time, OnComplete on_complete)
         : req_map(std::move(req_map)),
           start_time(start_time),
           on_complete(std::move(on_complete)) {}

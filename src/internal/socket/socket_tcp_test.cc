@@ -65,7 +65,7 @@ TEST_F(BlockingTcpIPv4SocketTest, SmallMessage) {
   // First, create a server thread.
   absl::Notification server_ready;
   util::Thread server([&]() {
-    CHECK(listener_->Listen(local_));
+    CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
     const fd_t new_fd = listener_->Accept(kBlocking);
@@ -105,7 +105,7 @@ TEST_F(BlockingTcpIPv6SocketTest, BigData) {
   // First, create a server thread.
   absl::Notification server_ready;
   util::Thread server([&]() {
-    CHECK(listener_->Listen(local_));
+    CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
     const fd_t new_fd = listener_->Accept(kBlocking);
@@ -128,7 +128,7 @@ TEST_F(BlockingTcpIPv6SocketTest, BigData) {
   util::Thread client([&]() {
     server_ready.WaitForNotification();
     const Endpoint local_ip(local_.GetIpAddr(), 0);
-    CHECK(connector_->Bind(local_ip));
+    CHECK(!connector_->Bind(local_ip));
     CHECK(!connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());

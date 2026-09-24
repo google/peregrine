@@ -56,28 +56,28 @@ void UdpSocket::Shutdown() {
   DCHECK(invariant());
 }
 
-bool UdpSocket::Bind(const Endpoint& local) const {
+int UdpSocket::Bind(const Endpoint& local) const {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
     const int last_errno = errno;
     LOG(WARNING) << errMsg("bind", last_errno);
-    return false;
+    return -1;
   } else {
     LOG(INFO) << okMsg("bound");
-    return true;
+    return 0;
   }
 }
 
-bool UdpSocket::Connect(const Endpoint& peer) {
+int UdpSocket::Connect(const Endpoint& peer) {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
     const int last_errno = errno;
     LOG(WARNING) << errMsg("connect", last_errno);
-    return false;
+    return -1;
   } else {
     LOG(INFO) << okMsg("connected");
     connected_ = true;
-    return true;
+    return 0;
   }
 }
 

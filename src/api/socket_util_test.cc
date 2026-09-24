@@ -99,7 +99,7 @@ TEST_P(SocketUtilTest, ReadWrite) {
   // First, create a server thread.
   absl::Notification server_ready;
   util::Thread server([&]() {
-    CHECK(listener_->Listen(local_));
+    CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
     const internal::fd_t new_fd = listener_->Accept(/*gen_blocking=*/true);

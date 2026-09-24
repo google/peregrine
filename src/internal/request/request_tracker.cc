@@ -43,8 +43,7 @@ Status RequestTracker::Check(const Handle handle) const {
 }
 
 bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids,
-                         const absl::Time start_time,
-                         OnCompleteCallback on_complete) {
+                         const absl::Time start_time, OnComplete on_complete) {
   DCHECK(!reqids.empty());
 
   ReqMap req_map;
@@ -66,7 +65,7 @@ void RequestTracker::Remove(const Handle handle) {
 
 void RequestTracker::Update(const Handle handle, const ReqId reqid,
                             const uint32_t num_chunks, const chunk_t index) {
-  OnCompleteCallback callback = nullptr;
+  OnComplete callback = nullptr;
   absl::Time start_time = ReqsTracker::kInvalidTime;
   {
     absl::MutexLock lock(trackers_mu_);

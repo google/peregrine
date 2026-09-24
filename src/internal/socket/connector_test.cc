@@ -114,8 +114,8 @@ class PspTcpConnectorTest : public TcpConnectorTest {
  protected:
   PspTcpConnectorTest()
       : psp_syscalls_(psp::testing::FakePspTcpSyscalls::Create()),
-        psp_xchg_func_([this](const PspToken& self_token, const Endpoint& peer,
-                              const Endpoint& peer_control) {
+        psp_token_xchg_([this](const PspToken& self_token, const Endpoint& peer,
+                               const Endpoint& peer_control) {
           return this->acceptor_->ExchangePspTokens(self_token, peer);
         }) {
     CHECK_NE(psp_syscalls_, nullptr);
@@ -126,7 +126,7 @@ class PspTcpConnectorTest : public TcpConnectorTest {
 
  protected:
   std::unique_ptr<psp::testing::FakePspTcpSyscalls> psp_syscalls_;
-  TcpConnector::PspTokenExchangeFunc psp_xchg_func_;
+  TcpConnector::PspTokenExchange psp_token_xchg_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, PspTcpConnectorTest,
@@ -148,7 +148,7 @@ TEST_P(PspTcpConnectorTest, AcceptBeforeConnect) {
     for (const NicInfo& ni : peers_) {
       const Endpoint& peer = ni.endpoints[0];
       std::unique_ptr<TcpSocket> socket =
-          TcpConnector::CreatePsp(self, peer, peer_control, psp_xchg_func_);
+          TcpConnector::CreatePsp(self, peer, peer_control, psp_token_xchg_);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());
@@ -173,7 +173,7 @@ TEST_P(PspTcpConnectorTest, ConnectBeforeAccept) {
     for (const NicInfo& ni : peers_) {
       const Endpoint& peer = ni.endpoints[0];
       std::unique_ptr<TcpSocket> socket =
-          TcpConnector::CreatePsp(self, peer, peer_control, psp_xchg_func_);
+          TcpConnector::CreatePsp(self, peer, peer_control, psp_token_xchg_);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());

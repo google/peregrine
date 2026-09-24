@@ -22,21 +22,26 @@
 namespace peregrine::internal::testing {
 namespace {
 
+using TestChannelType::kMemMsg;
+using TestChannelType::kMemStream;
+using TestChannelType::kTcp;
+using TestChannelType::kUdp;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 using ::testing::Values;
 
-using Param = TestChannelSizeParam;
+using Param = ChannelTestParam;
 
 std::string ToString(const ::testing::TestParamInfo<Param>& info) {
-  return testing::ToString(info.param);
+  return info.param.ToString();
 }
 
 class ChannelTest : public ::testing::TestWithParam<Param> {
  protected:
   ChannelTest()
-      : size_(GetParam().size),
+      : p_(GetParam()),
+        size_(p_.size),
         part_(size_ / 4),
         src_(size_),
         dst_(size_, 0),
@@ -57,6 +62,7 @@ class ChannelTest : public ::testing::TestWithParam<Param> {
   }
 
  protected:
+  const Param p_;
   const size_t size_;
   const size_t part_;
   std::vector<Byte> src_;
@@ -70,18 +76,17 @@ class ChannelTest : public ::testing::TestWithParam<Param> {
 
 INSTANTIATE_TEST_SUITE_P(
     , ChannelTest,
-    Values(Param{TestChannelType::kTcp, AF_INET, /*size=*/1UL << 20},
-           Param{TestChannelType::kTcp, AF_INET6, /*size=*/1UL << 20},
-           Param{TestChannelType::kMemStream, 0, /*size=*/1UL << 20},
-           Param{TestChannelType::kUdp, AF_INET, /*size=*/1UL << 10},
-           Param{TestChannelType::kUdp, AF_INET6, /*size=*/1UL << 10},
-           Param{TestChannelType::kMemMsg, 0, /*size=*/1UL << 10}),
+    Values(Param{kTcp, AF_INET, /*error_rate=*/0, /*size=*/1UL << 20},
+           Param{kTcp, AF_INET6, /*error_rate=*/0, /*size=*/1UL << 20},
+           Param{kUdp, AF_INET, /*error_rate=*/0, /*size=*/1UL << 10},
+           Param{kUdp, AF_INET6, /*error_rate=*/0, /*size=*/1UL << 10},
+           Param{kMemStream, AF_UNSPEC, /*error_rate=*/0, /*size=*/1UL << 20},
+           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/0, /*size=*/1UL << 10}),
     ToString);
 
 TEST_P(ChannelTest, ReadWrite) {
-  const auto p = GetParam();
-  const auto chs = CreateTestChannelPair(p.type, p.family, /*blocking=*/true,
-                                         /*error_rate=*/0);
+  const auto chs = CreateTestChannelPair(p_.type, p_.family, /*blocking=*/true,
+                                         p_.error_rate);
   Channel* sndr = chs.sndr.get();
   Channel* rcvr = chs.rcvr.get();
 

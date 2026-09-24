@@ -74,11 +74,10 @@ CreateUdpSocketPair(int family, bool blocking) {
   std::unique_ptr<UdpSocket> sa = TestOnly_CreateUdpSocket(family, blocking);
   std::unique_ptr<UdpSocket> sb = TestOnly_CreateUdpSocket(family, blocking);
 
-  CHECK(sa->Bind(a));
-  CHECK(sb->Bind(b));
-
-  CHECK(sa->Connect(b));
-  CHECK(sb->Connect(a));
+  CHECK(!sa->Bind(a));
+  CHECK(!sb->Bind(b));
+  CHECK(!sa->Connect(b));
+  CHECK(!sb->Connect(a));
 
   return {std::move(sa), std::move(sb)};
 }

@@ -25,12 +25,12 @@ std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& self,
     return nullptr;
   }
 
-  if (!self.HasZeroIpAddr() && !socket->Bind(self)) {
+  if (!self.HasZeroIpAddr() && socket->Bind(self)) {
     return nullptr;
   }
 
   DCHECK(socket->IsBlocking());
-  if (socket->Connect(peer) != 0) {
+  if (socket->Connect(peer)) {
     return nullptr;
   }
 
@@ -41,10 +41,10 @@ std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& self,
 
 std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
     const Endpoint& self, const Endpoint& peer, const Endpoint& peer_control,
-    PspTokenExchangeFunc& psp_exchange_func) {
+    PspTokenExchange& psp_token_xchg) {
   DCHECK(peer.HasNonzeroIpPort());
   DCHECK(peer_control.HasNonzeroIpPort());
-  DCHECK_NE(psp_exchange_func, nullptr);
+  DCHECK_NE(psp_token_xchg, nullptr);
 
   const int family = peer.GetIpAddr().AddressFamily();
   auto socket = TcpSocket::Create(family, /*blocking=*/true);
@@ -52,7 +52,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
     return nullptr;
   }
 
-  if (!self.HasZeroIpAddr() && !socket->Bind(self)) {
+  if (!self.HasZeroIpAddr() && socket->Bind(self)) {
     return nullptr;
   }
 
@@ -64,7 +64,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
   }
 
   const absl::StatusOr<PspToken> peer_token =
-      psp_exchange_func(self_token.value(), peer, peer_control);
+      psp_token_xchg(self_token.value(), peer, peer_control);
   if (!peer_token.ok()) {
     LOG(WARNING) << "failed to exchange psp token with peer";
     return nullptr;
@@ -77,7 +77,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
   }
 
   DCHECK(socket->IsBlocking());
-  if (socket->Connect(peer) != 0) {
+  if (socket->Connect(peer)) {
     return nullptr;
   }
 

@@ -38,15 +38,15 @@ class TcpSocket final : public SocketBase {
   // Shuts down the socket for both send and recv.
   void Shutdown();
 
-  // Binds to the `local` endpoint.
-  bool Bind(const Endpoint& local) const;
+  // Binds to the `local` endpoint. Returns 0 on success, -1 on error.
+  int Bind(const Endpoint& local) const;
 
-  // Listens on the `local` endpoint.
-  bool Listen(const Endpoint& local) const;
+  // Listens on the `local` endpoint. Returns 0 on success, -1 on error.
+  int Listen(const Endpoint& local) const;
 
   // Accepts a new connection to this listening socket, using `gen_blocking`
   // to set the blocking/non-blocking mode of the newly spawned socket.
-  // Returns the new socket file descriptor (>= 0) if successful.
+  // Returns the new socket file descriptor (>= 0) on success.
   // Return -2 if the listening socket is shut down. Otherwise, returns -1.
   fd_t Accept(bool gen_blocking) const;
 

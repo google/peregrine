@@ -8,7 +8,7 @@
 
 namespace peregrine::internal::testing {
 
-std::string ToString(const TestChannelType t) {
+std::string ChannelTypeToString(const TestChannelType t) {
   switch (t) {
     case TestChannelType::kTcp:
       return "TcpChannel";
@@ -36,14 +36,10 @@ std::string SocketTestConfig::ToString() const {
                          BlockingToString(blocking));
 }
 
-std::string ToString(const TestChannelErrorParam& p) {
-  return absl::StrFormat("%s_%s_ErrorRate_%d", ToString(p.type),
-                         FamilyToString(p.family), p.error_rate);
-}
-
-std::string ToString(const TestChannelSizeParam& p) {
-  return absl::StrFormat("%s_%s_Size_%zu", ToString(p.type),
-                         FamilyToString(p.family), p.size);
+std::string ChannelTestParam::ToString() const {
+  return absl::StrFormat("%s_%s_ErrorRate_%d_Size_%u",
+                         ChannelTypeToString(type), FamilyToString(family),
+                         error_rate, size);
 }
 
 }  // namespace peregrine::internal::testing

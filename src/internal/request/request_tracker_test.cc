@@ -30,7 +30,7 @@ class RequestTrackerTest : public ::testing::Test {
 };
 
 TEST_F(RequestTrackerTest, Send) {
-  RequestTracker::OnCompleteCallback on_complete = nullptr;
+  RequestTracker::OnComplete on_complete = nullptr;
   ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
   ChunkTracker& send = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
@@ -47,7 +47,7 @@ TEST_F(RequestTrackerTest, Send) {
 }
 
 TEST_F(RequestTrackerTest, Recv) {
-  RequestTracker::OnCompleteCallback on_complete = nullptr;
+  RequestTracker::OnComplete on_complete = nullptr;
   ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
   ChunkTracker& recv = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
@@ -65,7 +65,7 @@ TEST_F(RequestTrackerTest, Recv) {
 }
 
 TEST_F(RequestTrackerTest, SetMethod) {
-  RequestTracker::OnCompleteCallback on_complete = nullptr;
+  RequestTracker::OnComplete on_complete = nullptr;
   ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
@@ -131,7 +131,7 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
 }
 
 TEST_F(RequestTrackerTest, MultipleRequestsPartialProgress) {
-  RequestTracker::OnCompleteCallback on_complete = nullptr;
+  RequestTracker::OnComplete on_complete = nullptr;
   const std::vector<ReqId> reqs = {kReqId, kReqId2};
   ASSERT_TRUE(rt_.Add(kHandle, reqs, absl::Now(), std::move(on_complete)));
 

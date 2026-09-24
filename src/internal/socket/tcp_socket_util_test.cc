@@ -66,7 +66,7 @@ TEST_F(TcpIPv4SocketUtilTest, SmallMessage) {
   // First, create a server thread.
   absl::Notification server_ready;
   util::Thread server([&]() {
-    CHECK(listener_->Listen(local_));
+    CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
     const fd_t new_fd = listener_->Accept(kBlocking);
@@ -106,7 +106,7 @@ TEST_F(TcpIPv6SocketUtilTest, BigData) {
   // First, create a server thread.
   absl::Notification server_ready;
   util::Thread server([&]() {
-    CHECK(listener_->Listen(local_));
+    CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
     const fd_t new_fd = listener_->Accept(kBlocking);

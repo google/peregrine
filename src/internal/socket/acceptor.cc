@@ -47,7 +47,7 @@ std::unique_ptr<TcpSocket> TcpAcceptor::createOne(Endpoint& endpoint,
   }
 
   DCHECK(socket->IsNonBlocking());
-  if ABSL_PREDICT_FALSE (!socket->Listen(endpoint)) {
+  if ABSL_PREDICT_FALSE (socket->Listen(endpoint)) {
     return nullptr;
   }
 

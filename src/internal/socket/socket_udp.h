@@ -35,11 +35,11 @@ class UdpSocket final : public SocketBase {
   // Shuts down the socket for both send and recv.
   void Shutdown();
 
-  // Binds to the `local` endpoint.
-  bool Bind(const Endpoint& local) const;
+  // Binds to the `local` endpoint. Returns 0 on success, -1 on error.
+  int Bind(const Endpoint& local) const;
 
-  // Connects to the `peer` endpoint.
-  bool Connect(const Endpoint& peer);
+  // Connects to the `peer` endpoint. Returns 0 on success, -1 on error.
+  int Connect(const Endpoint& peer);
 
   // Sends exactly `len` bytes of data from the `buf`.
   // Returns the number of bytes sent if successful. Zero byte means no data

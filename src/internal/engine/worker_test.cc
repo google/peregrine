@@ -33,10 +33,13 @@
 namespace peregrine::internal::testing {
 namespace {
 
+using TestChannelType::kMemMsg;
+using TestChannelType::kMemStream;
+using TestChannelType::kTcp;
+using TestChannelType::kUdp;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
-using ::testing::TestParamInfo;
 using ::testing::Values;
 
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
@@ -48,24 +51,22 @@ constexpr uint32_t kLastChunkSize = kChunkSize - 1;
 constexpr size_t kBufSize = (kNumChunks - 1) * kChunkSize + kLastChunkSize;
 static_assert(kBufSize % kNumChunks != 0);
 
-using Param = TestChannelErrorParam;
+using Param = ChannelTestParam;
 
-std::string ToString(const TestParamInfo<Param>& info) {
-  return testing::ToString(info.param);
+std::string ToString(const ::testing::TestParamInfo<Param>& info) {
+  return info.param.ToString();
 }
 
 class WorkerTest : public ::testing::TestWithParam<Param> {
  protected:
   WorkerTest()
-      : type_(GetParam().type),
-        family_(GetParam().family),
-        error_rate_(GetParam().error_rate),
+      : p_(GetParam()),
         src_(kBufSize),
         dst_(kBufSize),
-        chs_(CreateTestChannelPair(type_, family_, /*blocking=*/true,
-                                   error_rate_)),
-        s_(TestOnly_LocalHostInfo(family_ ?: AF_INET, /*tcp=*/true)),
-        r_(TestOnly_LocalHostInfo(family_ ?: AF_INET, /*tcp=*/true)),
+        chs_(CreateTestChannelPair(p_.type, p_.family, /*blocking=*/true,
+                                   p_.error_rate)),
+        s_(CreateHostInfo()),
+        r_(CreateHostInfo()),
         sndr_(5, s_, std::move(chs_.sndr)),
         rcvr_(0, r_, std::move(chs_.rcvr)) {
     for (int i = 0; i < kBufSize; ++i) {
@@ -73,6 +74,11 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
       dst_[i] = Byte(0);
     }
     DCHECK_NE(src_.data(), dst_.data());
+  }
+
+  HostInfo CreateHostInfo() {
+    if (p_.family == AF_UNSPEC) return {};
+    return TestOnly_LocalHostInfo(p_.family, /*tcp=*/true);
   }
 
   static uint32_t GetChunkSize(uint32_t i) {
@@ -108,9 +114,7 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
   };
 
  protected:
-  const TestChannelType type_;
-  const int family_;
-  const int error_rate_;
+  const Param p_;
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
@@ -123,14 +127,14 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
 
 INSTANTIATE_TEST_SUITE_P(
     , WorkerTest,
-    Values(Param{TestChannelType::kTcp, AF_INET, /*error_rate=*/0},
-           Param{TestChannelType::kTcp, AF_INET6, /*error_rate=*/0},
-           Param{TestChannelType::kUdp, AF_INET, /*error_rate=*/0},
-           Param{TestChannelType::kUdp, AF_INET6, /*error_rate=*/0},
-           Param{TestChannelType::kMemStream, /*family=*/0, /*error_rate=*/0},
-           Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/0},
-           Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/10},
-           Param{TestChannelType::kMemMsg, /*family=*/0, /*error_rate=*/30}),
+    Values(Param{kTcp, AF_INET, /*error_rate=*/0, /*size=*/0},
+           Param{kTcp, AF_INET6, /*error_rate=*/0, /*size=*/0},
+           Param{kUdp, AF_INET, /*error_rate=*/0, /*size=*/0},
+           Param{kUdp, AF_INET6, /*error_rate=*/0, /*size=*/0},
+           Param{kMemStream, AF_UNSPEC, /*error_rate=*/0, /*size=*/0},
+           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/0, /*size=*/0},
+           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/10, /*size=*/0},
+           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/30, /*size=*/0}),
     ToString);
 
 TEST_P(WorkerTest, SendRecv) {

@@ -61,38 +61,38 @@ void TcpSocket::Shutdown() {
   DCHECK(invariant());
 }
 
-bool TcpSocket::Bind(const Endpoint& local) const {
+int TcpSocket::Bind(const Endpoint& local) const {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
     const int last_errno = errno;
     LOG(WARNING) << errMsg("bind", last_errno);
-    return false;
+    return -1;
   } else {
     LOG(INFO) << okMsg("bound");
-    return true;
+    return 0;
   }
 }
 
-bool TcpSocket::Listen(const Endpoint& local) const {
+int TcpSocket::Listen(const Endpoint& local) const {
   DCHECK(invariant());
 
   int on = 1;
   if ABSL_PREDICT_FALSE (!SetOption(fd_, SO_REUSEADDR, &on, sizeof(on))) {
     const int last_errno = errno;
     LOG(WARNING) << errMsg("set SO_REUSEADDR", last_errno);
-    return false;
+    return -1;
   }
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
     const int last_errno = errno;
     LOG(WARNING) << errMsg("bind", last_errno);
-    return false;
+    return -1;
   } else if (ABSL_PREDICT_FALSE(::listen(fd_.value(), SOMAXCONN) < 0)) {
     const int last_errno = errno;
     LOG(WARNING) << errMsg("listen", last_errno);
-    return false;
+    return -1;
   } else {
     LOG(INFO) << okMsg("listening");
-    return true;
+    return 0;
   }
 }
 

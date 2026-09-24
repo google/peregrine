@@ -16,8 +16,9 @@ namespace peregrine::internal {
 // It is thread-safe since it has no state.
 class TcpConnector {
  public:
-  using PspTokenExchangeFunc = absl::AnyInvocable<absl::StatusOr<PspToken>(
-      const PspToken&, const Endpoint&, const Endpoint&)>;
+  using PspTokenExchange = absl::AnyInvocable<absl::StatusOr<PspToken>(
+      const PspToken& self_token, const Endpoint& peer,
+      const Endpoint& peer_control)>;
 
   // Connects the `self` endpoint to the `peer` in blocking mode.
   // If `self` has nonzero ip address, binds to it before connecting.
@@ -29,9 +30,10 @@ class TcpConnector {
   // exchanging PSP tokens with the `peer_control` endpoint. If `self` has
   // nonzero ip address, binds to it before connecting. Returns a connected
   // psp tcp socket if successful. Otherwise, returns a null pointer.
-  static std::unique_ptr<TcpSocket> CreatePsp(
-      const Endpoint& self, const Endpoint& peer, const Endpoint& peer_control,
-      PspTokenExchangeFunc& psp_exchange_func);
+  static std::unique_ptr<TcpSocket> CreatePsp(const Endpoint& self,
+                                              const Endpoint& peer,
+                                              const Endpoint& peer_control,
+                                              PspTokenExchange& psp_token_xchg);
 };
 
 }  // namespace peregrine::internal

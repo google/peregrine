@@ -58,8 +58,8 @@ TEST_F(BlockingUdpSocketIPv4Test, SendRecv) {
   // First, create a receiver thread.
   absl::Notification rcvr_ready;
   util::Thread receiver([&]() {
-    CHECK(rskt_->Bind(rcvr_));
-    CHECK(rskt_->Connect(sndr_));
+    CHECK(!rskt_->Bind(rcvr_));
+    CHECK(!rskt_->Connect(sndr_));
     DCHECK(rskt_->IsBlocking());
     DCHECK(rskt_->IsConnected());
     rcvr_ready.Notify();
@@ -71,8 +71,8 @@ TEST_F(BlockingUdpSocketIPv4Test, SendRecv) {
   // Second, create a sender thread.
   util::Thread sender([&]() {
     rcvr_ready.WaitForNotification();
-    CHECK(sskt_->Bind(sndr_));
-    CHECK(sskt_->Connect(rcvr_));
+    CHECK(!sskt_->Bind(sndr_));
+    CHECK(!sskt_->Connect(rcvr_));
     DCHECK(sskt_->IsBlocking());
     DCHECK(sskt_->IsConnected());
     CHECK_EQ(sskt_->Send(message.data(), kMsgSize), kMsgSize);
@@ -96,8 +96,8 @@ TEST_F(BlockingUdpSocketIPv6Test, ScatterGather) {
   // First, create a receiver thread.
   absl::Notification rcvr_ready;
   util::Thread receiver([&]() {
-    CHECK(rskt_->Bind(rcvr_));
-    CHECK(rskt_->Connect(sndr_));
+    CHECK(!rskt_->Bind(rcvr_));
+    CHECK(!rskt_->Connect(sndr_));
     DCHECK(rskt_->IsBlocking());
     DCHECK(rskt_->IsConnected());
     constexpr int kRN = 2;
@@ -114,8 +114,8 @@ TEST_F(BlockingUdpSocketIPv6Test, ScatterGather) {
   // Second, create a sender thread.
   util::Thread sender([&]() {
     rcvr_ready.WaitForNotification();
-    CHECK(sskt_->Bind(sndr_));
-    CHECK(sskt_->Connect(rcvr_));
+    CHECK(!sskt_->Bind(sndr_));
+    CHECK(!sskt_->Connect(rcvr_));
     DCHECK(sskt_->IsBlocking());
     DCHECK(sskt_->IsConnected());
     constexpr int kSN = 2;
