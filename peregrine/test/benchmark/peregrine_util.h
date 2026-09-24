@@ -8,7 +8,7 @@
 #include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/test/benchmark/types.h"
-#include "peregrine/test/benchmark/workloads/workload_generator.h"
+#include "peregrine/test/workloads/workload_generator.h"
 
 namespace peregrine::benchmark {
 

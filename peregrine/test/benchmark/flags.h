@@ -8,6 +8,7 @@
 #include "absl/flags/declare.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/test/benchmark/types.h"
+#include "peregrine/test/workloads/workload_generator.h"
 
 ABSL_DECLARE_FLAG(std::string, role);
 ABSL_DECLARE_FLAG(std::string, ip);
@@ -16,9 +17,8 @@ ABSL_DECLARE_FLAG(uint16_t, app_control_port);
 ABSL_DECLARE_FLAG(uint16_t, peregrine_control_port);
 ABSL_DECLARE_FLAG(int, conn);
 ABSL_DECLARE_FLAG(std::string, peer);
-ABSL_DECLARE_FLAG(uint64_t, xfer_size);
 ABSL_DECLARE_FLAG(uint32_t, num_xfers);
-ABSL_DECLARE_FLAG(peregrine::benchmark::WorkloadType, workload);
+ABSL_DECLARE_FLAG(std::string, workload);
 
 namespace peregrine::benchmark {
 
@@ -52,9 +52,6 @@ int ParseNumConns();
 
 // Parses the peer address.
 std::string ParsePeer();
-
-// Parses the transfer size.
-uint64_t ParseXferSize();
 
 // Parses the number of transfers.
 uint32_t ParseNumXfers();

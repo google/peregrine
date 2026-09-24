@@ -1,22 +1,27 @@
-#include "peregrine/test/benchmark/workloads/serial_fixed_write.h"
+#include "peregrine/test/workloads/serial_fixed_write.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
 
+#include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "peregrine/src/api/transport_types.h"
-#include "peregrine/test/benchmark/flags.h"
 
-namespace peregrine::benchmark {
+ABSL_FLAG(uint64_t, xfer_size, 1024 * 1024 * 1024ULL,
+          "Buffer transfer size in bytes (default = 1 GiB)");
+
+namespace peregrine {
 
 SerialFixedWrite::SerialFixedWrite(uint64_t xfer_size) : xfer_size_(xfer_size) {
   QCHECK_GT(xfer_size_, 0) << "Transfer size must be greater than 0";
 }
 
 std::unique_ptr<SerialFixedWrite> SerialFixedWrite::Create() {
-  const uint64_t xfer_size = ParseXferSize();
+  const uint64_t xfer_size =
+      std::max(static_cast<uint64_t>(1), absl::GetFlag(FLAGS_xfer_size));
   return std::make_unique<SerialFixedWrite>(xfer_size);
 }
 
@@ -34,4 +39,4 @@ std::vector<peregrine::Request> SerialFixedWrite::GenerateRequests(
   };
 }
 
-}  // namespace peregrine::benchmark
+}  // namespace peregrine

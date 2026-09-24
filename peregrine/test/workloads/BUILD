@@ -1,10 +1,10 @@
-# For benchmark workloads only.
+# Shared traffic workload generators for Peregrine tests.
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(
     default_testonly = True,
-    default_visibility = ["//peregrine/test/benchmark:__subpackages__"],
+    default_visibility = ["//peregrine/test:__subpackages__"],
 )
 
 cc_library(
@@ -22,7 +22,7 @@ cc_library(
     deps = [
         ":workload_generator",
         "//peregrine/src/api:transport_types",
-        "//peregrine/test/benchmark:flags",
+        "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log:check",
     ],
 )
@@ -46,7 +46,6 @@ cc_library(
         ":kv_cache",
         ":serial_fixed_write",
         ":workload_generator",
-        "//peregrine/test/benchmark:types",
         "@abseil-cpp//absl/log",
     ],
 )

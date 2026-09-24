@@ -9,10 +9,12 @@
 #include "peregrine/test/benchmark/flags.h"
 #include "peregrine/test/benchmark/peregrine_util.h"
 #include "peregrine/test/benchmark/types.h"
-#include "peregrine/test/benchmark/workloads/workload_util.h"
+#include "peregrine/test/workloads/workload_generator.h"
+#include "peregrine/test/workloads/workload_util.h"
 
 namespace {
-using ::peregrine::benchmark::GetXferSize;
+using ::peregrine::GetXferSize;
+using ::peregrine::WorkloadType;
 using ::peregrine::benchmark::ParseAppControlPort;
 using ::peregrine::benchmark::ParseIp;
 using ::peregrine::benchmark::ParseNumConns;
@@ -23,7 +25,6 @@ using ::peregrine::benchmark::ParseWorkloadType;
 using ::peregrine::benchmark::Role;
 using ::peregrine::benchmark::RunClient;
 using ::peregrine::benchmark::RunServer;
-using ::peregrine::benchmark::WorkloadType;
 }  // namespace
 
 int main(int argc, char* argv[]) {

@@ -30,8 +30,8 @@
 #include "peregrine/test/benchmark/control_util.h"
 #include "peregrine/test/benchmark/flags.h"
 #include "peregrine/test/benchmark/types.h"
-#include "peregrine/test/benchmark/workloads/workload_generator.h"
-#include "peregrine/test/benchmark/workloads/workload_util.h"
+#include "peregrine/test/workloads/workload_generator.h"
+#include "peregrine/test/workloads/workload_util.h"
 
 namespace peregrine::benchmark {
 
@@ -295,9 +295,7 @@ void RunClient(std::string_view ip, uint16_t peregrine_control_port,
 
   // Create workload and run benchmark engine.
   std::unique_ptr<WorkloadGenerator> generator = CreateWorkload(workload);
-  CHECK(generator != nullptr)
-      << "Failed to create workload generator for workload: "
-      << ToString(workload);
+  CHECK(generator != nullptr) << "Failed to create workload generator";
   CHECK_OK(RunBenchmark(transport.get(), app_control_fd, server_endpoint,
                         *generator, num_xfers));
 

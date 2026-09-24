@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_TEST_BENCHMARK_WORKLOADS_WORKLOAD_GENERATOR_H_
-#define PEREGRINE_TEST_BENCHMARK_WORKLOADS_WORKLOAD_GENERATOR_H_
+#ifndef PEREGRINE_TEST_WORKLOADS_WORKLOAD_GENERATOR_H_
+#define PEREGRINE_TEST_WORKLOADS_WORKLOAD_GENERATOR_H_
 
 #include <cstdint>
 #include <string_view>
@@ -7,7 +7,13 @@
 
 #include "peregrine/src/api/transport_types.h"
 
-namespace peregrine::benchmark {
+namespace peregrine {
+
+// Traffic workload type.
+enum class WorkloadType {
+  kSerialFixedWrite,
+  kKvCache,
+};
 
 // Abstract interface for workload generators that map workloads into generic
 // Peregrine transfer requests.
@@ -27,6 +33,6 @@ class WorkloadGenerator {
       peregrine::Byte* base_laddr, peregrine::Byte* base_raddr) const = 0;
 };
 
-}  // namespace peregrine::benchmark
+}  // namespace peregrine
 
-#endif  // PEREGRINE_TEST_BENCHMARK_WORKLOADS_WORKLOAD_GENERATOR_H_
+#endif  // PEREGRINE_TEST_WORKLOADS_WORKLOAD_GENERATOR_H_

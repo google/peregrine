@@ -15,6 +15,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/nic.h"
 #include "peregrine/test/benchmark/types.h"
+#include "peregrine/test/workloads/workload_generator.h"
 
 ABSL_FLAG(
     std::string, ip, "",
@@ -43,14 +44,10 @@ ABSL_FLAG(int, conn, 8,
 ABSL_FLAG(std::string, peer, "",
           "Server IP address or host name (required for client)");
 
-ABSL_FLAG(uint64_t, xfer_size, 1024 * 1024 * 1024ULL,
-          "Buffer transfer size in bytes (default = 1 GiB)");
-
 ABSL_FLAG(uint32_t, num_xfers, 50,
           "Number of transfers to perform (default = 50)");
 
-ABSL_FLAG(peregrine::benchmark::WorkloadType, workload,
-          peregrine::benchmark::WorkloadType::kSerialFixedWrite,
+ABSL_FLAG(std::string, workload, "serial_fixed_write",
           "Workload type to run: 'serial_fixed_write', 'kv_cache'");
 
 namespace peregrine::benchmark {
@@ -132,16 +129,21 @@ int ParseNumConns() {
 
 std::string ParsePeer() { return absl::GetFlag(FLAGS_peer); }
 
-uint64_t ParseXferSize() {
-  const uint64_t v = absl::GetFlag(FLAGS_xfer_size);
-  return std::max(static_cast<uint64_t>(1), v);
-}
-
 uint32_t ParseNumXfers() {
   const uint32_t v = absl::GetFlag(FLAGS_num_xfers);
   return std::max(1U, v);
 }
 
-WorkloadType ParseWorkloadType() { return absl::GetFlag(FLAGS_workload); }
+WorkloadType ParseWorkloadType() {
+  const std::string s = absl::GetFlag(FLAGS_workload);
+  if (absl::EqualsIgnoreCase(s, "serial_fixed_write")) {
+    return WorkloadType::kSerialFixedWrite;
+  } else if (absl::EqualsIgnoreCase(s, "kv_cache")) {
+    return WorkloadType::kKvCache;
+  } else {
+    LOG(FATAL) << "invalid workload: " << s
+               << ". Expected 'serial_fixed_write' or 'kv_cache'.";
+  }
+}
 
 }  // namespace peregrine::benchmark

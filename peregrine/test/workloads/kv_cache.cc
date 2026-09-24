@@ -1,4 +1,4 @@
-#include "peregrine/test/benchmark/workloads/kv_cache.h"
+#include "peregrine/test/workloads/kv_cache.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -19,7 +19,7 @@ ABSL_FLAG(uint32_t, num_blocks, 64,
 ABSL_FLAG(uint64_t, block_size, 1024 * 1024ULL,
           "Block size in bytes for kv_cache workload (default = 1 MiB)");
 
-namespace peregrine::benchmark {
+namespace peregrine {
 
 KvCache::KvCache(uint32_t num_layers, uint32_t num_blocks, uint64_t block_size)
     : num_layers_(num_layers),
@@ -62,4 +62,4 @@ std::vector<peregrine::Request> KvCache::GenerateRequests(
   return requests;
 }
 
-}  // namespace peregrine::benchmark
+}  // namespace peregrine

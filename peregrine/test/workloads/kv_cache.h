@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_TEST_BENCHMARK_WORKLOADS_KV_CACHE_H_
-#define PEREGRINE_TEST_BENCHMARK_WORKLOADS_KV_CACHE_H_
+#ifndef PEREGRINE_TEST_WORKLOADS_KV_CACHE_H_
+#define PEREGRINE_TEST_WORKLOADS_KV_CACHE_H_
 
 #include <cstdint>
 #include <memory>
@@ -7,9 +7,9 @@
 #include <vector>
 
 #include "peregrine/src/api/transport_types.h"
-#include "peregrine/test/benchmark/workloads/workload_generator.h"
+#include "peregrine/test/workloads/workload_generator.h"
 
-namespace peregrine::benchmark {
+namespace peregrine {
 
 // Workload generator for KV-cache transfers.
 class KvCache : public WorkloadGenerator {
@@ -33,6 +33,6 @@ class KvCache : public WorkloadGenerator {
   const uint64_t xfer_size_;
 };
 
-}  // namespace peregrine::benchmark
+}  // namespace peregrine
 
-#endif  // PEREGRINE_TEST_BENCHMARK_WORKLOADS_KV_CACHE_H_
+#endif  // PEREGRINE_TEST_WORKLOADS_KV_CACHE_H_
