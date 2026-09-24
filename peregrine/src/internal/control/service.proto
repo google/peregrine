@@ -1,0 +1,15 @@
+// This file only contains RPC-related service definitions.
+
+edition = "2024";
+
+package peregrine.internal.control;
+
+import "peregrine/src/internal/control/message.proto";
+
+// static_assert(assumptions::kThereIsOnlyOnePairOfWrapperControlMessages);
+service PeregrineService {
+  // A generic unary rpc function to process Peregrine control messages.
+  rpc ProcessUnary(peregrine.internal.proto.ReqMsg)
+      returns (peregrine.internal.proto.RespMsg);
+  // Do NOT add any other rpc functions!
+}

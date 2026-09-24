@@ -1,0 +1,143 @@
+# For integration tests only.
+# Unit tests should be put in `/peregrine/src`.
+
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:private"],
+)
+
+cc_library(
+    name = "flags",
+    srcs = ["flags.cc"],
+    hdrs = ["flags.h"],
+    deps = [
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "settings",
+    hdrs = ["settings.h"],
+    deps = ["@abseil-cpp//absl/time"],
+)
+
+cc_library(
+    name = "metrics",
+    srcs = ["metrics.cc"],
+    hdrs = ["metrics.h"],
+    deps = [
+        ":settings",
+        "//peregrine/src/api:transport_metrics",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_library(
+    name = "controlpath-host",
+    srcs = ["controlpath-host.cc"],
+    hdrs = ["controlpath-host.h"],
+    deps = [":metrics"],
+)
+
+cc_library(
+    name = "datapath-host",
+    srcs = ["datapath-host.cc"],
+    hdrs = ["datapath-host.h"],
+    deps = [
+        ":metrics",
+        "//peregrine/src/api:transport",
+        "//peregrine/src/api:transport_metrics",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/api:transport_util",
+        "//peregrine/src/util",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "ncurses",
+    srcs = ["ncurses.cc"],
+    hdrs = ["ncurses.h"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+        "@ncurses",
+    ],
+)
+
+cc_library(
+    name = "integration",
+    srcs = ["integration.cc"],
+    hdrs = [
+        "integration.h",
+    ],
+    deps = [
+        ":controlpath-host",
+        ":datapath-host",
+        ":flags",
+        ":metrics",
+        ":settings",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "display",
+    srcs = ["display.cc"],
+    hdrs = ["display.h"],
+    deps = [
+        ":flags",
+        ":integration",
+        ":metrics",
+        ":ncurses",
+        ":settings",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_library(
+    name = "runner",
+    hdrs = ["runner.h"],
+    deps = [
+        "//peregrine/src/util:thread",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_binary(
+    name = "main",
+    srcs = ["main.cc"],
+    deps = [
+        ":display",
+        ":integration",
+        ":metrics",
+        ":runner",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/log:initialize",
+    ],
+)

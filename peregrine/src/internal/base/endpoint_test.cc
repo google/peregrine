@@ -1,0 +1,120 @@
+#include "peregrine/src/internal/base/endpoint.h"
+
+#include <arpa/inet.h>
+
+#include <cstring>
+#include <utility>
+
+#include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
+#include "peregrine/src/util/ipaddr.h"
+
+namespace peregrine::internal::testing {
+namespace {
+
+constexpr util::ipv4_t kIPv4{.s_addr = 0x0100007f};
+constexpr util::ipv6_t kIPv6 = IN6ADDR_LOOPBACK_INIT;
+
+TEST(EndpointTest, CreateFromString) {
+  EXPECT_EQ(Endpoint::Create("127.0.0.1:12345"), Endpoint(kIPv4, 12345));
+  EXPECT_EQ(Endpoint::Create("[::1]:54321"), Endpoint(kIPv6, 54321));
+
+  EXPECT_FALSE(Endpoint::Create("?").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("::1").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("127.0.0.1:").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("10.0.0.1:0").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("10.0.0.1:-1").HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint::Create("10.0.0.1:65536").HasNonzeroIpPort());
+}
+
+TEST(EndpointTest, CreateFromSockAddrStorage) {
+  struct sockaddr_storage ss = {};
+  EXPECT_EQ(Endpoint::Create(ss), Endpoint());
+
+  struct sockaddr_in* sa_in = (struct sockaddr_in*)&ss;
+  sa_in->sin_family = AF_INET;
+  sa_in->sin_port = htons(12345);
+  ASSERT_EQ(inet_pton(AF_INET, "127.0.0.1", &sa_in->sin_addr), 1);
+  EXPECT_EQ(Endpoint::Create(ss).ToString(), "127.0.0.1:12345");
+
+  struct sockaddr_in6* sa_in6 = (struct sockaddr_in6*)&ss;
+  sa_in6->sin6_family = AF_INET6;
+  sa_in6->sin6_port = htons(23456);
+  ASSERT_EQ(inet_pton(AF_INET6, "::1", &sa_in6->sin6_addr), 1);
+  EXPECT_EQ(Endpoint::Create(ss).ToString(), "[::1]:23456");
+}
+
+TEST(EndpointTest, Validity) {
+  EXPECT_FALSE(Endpoint().HasNonzeroIpPort());
+  EXPECT_FALSE(Endpoint(kIPv4, 0).HasNonzeroIpPort());
+
+  const Endpoint a(kIPv4, 23456);
+  EXPECT_TRUE(a.HasNonzeroIpPort());
+  LOG(INFO) << "endpoint = " << a;
+}
+
+TEST(EndpointTest, Ctors) {
+  const Endpoint a(kIPv4, 9999);
+  const Endpoint b(a);
+  const Endpoint c = a;
+  LOG(INFO) << "a = " << a;
+  LOG(INFO) << "b = " << b;
+  LOG(INFO) << "c = " << c;
+
+  const Endpoint d(std::move(a));
+  const Endpoint e = std::move(b);
+  LOG(INFO) << "d = " << d;
+  LOG(INFO) << "e = " << e;
+
+  const Endpoint f(util::IpAddr(kIPv4), 9999);
+  EXPECT_EQ(f, c);
+  LOG(INFO) << "f = " << f;
+
+  const Endpoint g(util::IpAddr(kIPv6), 9999);
+  const Endpoint h(kIPv6, 9999);
+  EXPECT_EQ(g, h);
+  LOG(INFO) << "g = " << g;
+  LOG(INFO) << "h = " << h;
+}
+
+TEST(EndpointTest, Hash) {
+  const Endpoint a(kIPv4, 9999);
+  const Endpoint b(kIPv4, 9999);
+  const Endpoint c(kIPv6, 9999);
+  const Endpoint d(kIPv4, 7777);
+  EXPECT_EQ(a, b);
+  EXPECT_NE(a, c);
+  EXPECT_NE(a, d);
+
+  EXPECT_EQ(a.Hash(), b.Hash());
+  EXPECT_EQ(Endpoint::Hash(a), Endpoint::Hash(b));
+
+  absl::flat_hash_set<Endpoint> set;
+  set.insert(a);
+  set.insert(b);
+  set.insert(c);
+  set.insert(d);
+  EXPECT_EQ(set.size(), 3);
+}
+
+TEST(EndpointTest, BuildIPv4Sockaddr) {
+  const Endpoint e = Endpoint::Create("127.0.0.1:34567");
+  struct sockaddr_in sa = e.BuildIPv4Sockaddr();
+  EXPECT_EQ(sa.sin_family, AF_INET);
+  EXPECT_EQ(sa.sin_port, htons(34567));
+  EXPECT_EQ(sa.sin_addr.s_addr, inet_addr("127.0.0.1"));
+}
+
+TEST(EndpointTest, BuildIPv6Sockaddr) {
+  const Endpoint e = Endpoint::Create("[::1]:45678");
+  struct sockaddr_in6 sa = e.BuildIPv6Sockaddr();
+  EXPECT_EQ(sa.sin6_family, AF_INET6);
+  EXPECT_EQ(sa.sin6_port, htons(45678));
+  struct in6_addr addr2;
+  ASSERT_EQ(inet_pton(AF_INET6, "::1", &addr2), 1);
+  EXPECT_EQ(std::memcmp(&sa.sin6_addr, &addr2, sizeof(addr2)), 0);
+}
+
+}  // namespace
+}  // namespace peregrine::internal::testing

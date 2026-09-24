@@ -1,0 +1,118 @@
+#ifndef PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_TCP_H_
+#define PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_TCP_H_
+
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/uio.h>
+
+#include <cstddef>
+#include <memory>
+#include <ostream>
+#include <string>
+#include <string_view>
+
+#include "absl/log/check.h"
+#include "absl/types/span.h"
+#include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/endpoint.h"
+#include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/socket/socket_base.h"
+#include "peregrine/src/internal/socket/socket_util.h"
+
+namespace peregrine::internal {
+
+// This class wraps a TCP/IPv{4,6} socket for reliable network communications.
+// It is movable but not copyable.
+// This class is thread-compatible but not thread-safe.
+class TcpSocket final : public SocketBase {
+ public:
+  // Creates an unconnected tcp socket.
+  static std::unique_ptr<TcpSocket> Create(int family, bool blocking);
+
+  // Creates a connected tcp socket.
+  static std::unique_ptr<TcpSocket> Create(fd_t fd, int family);
+
+  // Destructor closes the socket.
+  ~TcpSocket();
+
+  // Shuts down the socket for both send and recv.
+  void Shutdown();
+
+  // Binds to the `local` endpoint. Returns 0 on success, -1 on error.
+  int Bind(const Endpoint& local) const;
+
+  // Listens on the `local` endpoint. Returns 0 on success, -1 on error.
+  int Listen(const Endpoint& local) const;
+
+  // Accepts a new connection to this listening socket, using `gen_blocking`
+  // to set the blocking/non-blocking mode of the newly spawned socket.
+  // Returns the new socket file descriptor (>= 0) on success.
+  // Return -2 if the listening socket is shut down. Otherwise, returns -1.
+  fd_t Accept(bool gen_blocking) const;
+
+  // Connects to the `peer` endpoint. Returns 0 if the connection is
+  // established, 1 if the connection is in progress, and -1 on error.
+  int Connect(const Endpoint& peer);
+
+  // Sends exactly `len` bytes of data from the `buf`.
+  // Returns the number of bytes sent if successful. Zero byte means no data
+  // has been sent due to non-error reasons. Returns -1 on error.
+  ssize_t Send(const Byte* buf, size_t len) const;
+
+  // Receives exactly `len` bytes of data into the `buf`.
+  // Returns the number of bytes received if successful. Zero byte means the
+  // peer side has closed the connection. Returns -1 on error.
+  ssize_t Recv(Byte* buf, size_t len) const;
+
+  // Sends exactly `length(iovecs)` bytes of data from the buffers.
+  // Returns the number of bytes sent if successful. Zero byte means no data
+  // has been sent due to non-error reasons. Returns -1 on error.
+  ssize_t SendV(absl::Span<const IoVec> iovecs) const;
+
+  // Receives exactly `length(iovecs)` bytes of data into the buffers.
+  // Returns the number of bytes received if successful. Zero byte means the
+  // peer side has closed the connection. Returns -1 on error.
+  ssize_t RecvV(absl::Span<const IoVec> iovecs) const;
+
+  // Returns a self/peer address pair string of the socket.
+  std::string ToString() const;
+
+ private:
+  // Constructor with a valid file descriptor `fd`.
+  // The `fd` comes from a successful `Create()` or `Accept()` call.
+  TcpSocket(fd_t fd, int family, bool connected)
+      : SocketBase(fd, family, connected) {
+    DCHECK(invariant());
+  }
+
+ private:
+  // Returns a success message for the last socket operation.
+  static std::string okMsg(std::string_view func, fd_t fd) {
+    return SuccessMsg(kTcp, func, fd);
+  }
+
+  // Returns a success message for the last socket operation.
+  std::string okMsg(std::string_view func) const {
+    return SuccessMsg(kTcp, func, fd_);
+  }
+
+  // Returns a success message for the socket send/recv call.
+  std::string ioMsg(std::string_view func, size_t bytes) const {
+    return SuccessMsg(kTcp, func, fd_, bytes);
+  }
+
+  // Returns an error message for the last socket operation.
+  std::string errMsg(std::string_view func, int last_errno) const {
+    return ErrorMsg(kTcp, func, fd_, last_errno);
+  }
+
+  static constexpr std::string_view kTcp = "tcp";
+};
+
+inline std::ostream& operator<<(std::ostream& os, const TcpSocket& s) {
+  return os << s.ToString();
+}
+
+}  // namespace peregrine::internal
+
+#endif  // PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_TCP_H_

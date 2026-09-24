@@ -16,4 +16,4 @@ tasks:
       - "--cxxopt=-std=c++20"
       - "--host_cxxopt=-std=c++20"
     build_targets:
-      - "@peregrine//src/api:socket_util"
+      - "@peregrine//peregrine/src/api:socket_util"
