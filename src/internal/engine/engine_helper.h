@@ -43,8 +43,8 @@ class EngineHelper final {
   // Returns a mutable reference to engine metrics.
   EngineMetrics& Metrics() { return metrics_; }
 
-  // Creates a number of channels connected to the `peer`.
-  Channels Connect(const Endpoint& peer);
+  // Creates a number of channels connected to the peer.
+  Channels Connect(const Endpoint& peer_control);
 
   // Returns the accepted channels.
   Channels GetAcceptedChannels() ABSL_LOCKS_EXCLUDED(channels_mu_);

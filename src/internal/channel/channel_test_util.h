@@ -29,9 +29,8 @@ ConnectedChannelPair CreateMemStreamChannelPair(int error_rate);
 ConnectedChannelPair CreateMemMsgChannelPair(int error_rate);
 
 // Creates a test channel pair with the given type and error rate.
-ConnectedChannelPair CreateTestChannelPair(TestChannelType type,
-                                           int family = AF_INET,
-                                           int error_rate = 0);
+ConnectedChannelPair CreateTestChannelPair(TestChannelType type, int family,
+                                           int error_rate);
 
 }  // namespace peregrine::internal::testing
 

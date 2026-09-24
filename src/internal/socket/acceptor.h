@@ -72,6 +72,9 @@ class TcpAcceptor {
   static std::unique_ptr<TcpSocket> createOne(Endpoint& endpoint,
                                               Poller& poller);
 
+  // Returns true iff the stop flag is true.
+  bool isStopped() const { return stop_.load(std::memory_order_relaxed); }
+
   // Returns true iff the acceptor is in a valid state.
   bool invariant() const;
 

@@ -59,11 +59,11 @@ port_t TestOnly_FindFreeTcpPort(int family);
 // Return a nonzero port if successful, otherwise crashes.
 port_t TestOnly_FindFreeUdpPort(int family);
 
-// Creates a TCP socket in the given address `family`.
+// Creates a TCP socket.
 // Return a non-null socket if successful, otherwise crashes.
 std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family);
 
-// Creates a UDP socket in the given address `family`.
+// Creates a UDP socket.
 // Return a non-null socket if successful, otherwise crashes.
 std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family);
 

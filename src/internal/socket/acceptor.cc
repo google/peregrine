@@ -132,10 +132,10 @@ void TcpAcceptor::Start(OnAccept on_accept) {
 
   constexpr int kMaxEvents = 64;
   epoll_event events[kMaxEvents];
-  while (!stop_.load(std::memory_order_relaxed) && !listeners_.empty()) {
+  while (!isStopped() && !listeners_.empty()) {
     const int nfds = poller_->BlockingWait(events, kMaxEvents);
     if (nfds < 0) {
-      if (stop_.load(std::memory_order_relaxed)) break;
+      if (isStopped()) break;
       LOG(WARNING) << "poller wait failed";
       continue;
     }

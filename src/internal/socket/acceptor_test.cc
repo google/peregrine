@@ -4,6 +4,7 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 
 #include "gmock/gmock.h"
@@ -11,6 +12,7 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/internal/base/endpoint.h"
@@ -26,13 +28,21 @@
 namespace peregrine::internal::testing {
 namespace {
 
-constexpr bool kTcp = true;
+using ::testing::Combine;
+using ::testing::Values;
 
-template <int kFamily>
-class TcpAcceptorTest : public ::testing::Test {
+using Param = std::tuple</*family=*/int>;
+
+std::string ToString(const ::testing::TestParamInfo<Param>& info) {
+  const int family = std::get<0>(info.param);
+  return absl::StrFormat("IPv%d", family == AF_INET ? 4 : 6);
+}
+
+class TcpAcceptorTest : public ::testing::TestWithParam<Param> {
  protected:
   TcpAcceptorTest()
-      : self_(TestOnly_LocalHostInfo(kFamily, kTcp)),
+      : family_(std::get<0>(GetParam())),
+        self_(TestOnly_LocalHostInfo(family_, /*tcp=*/true)),
         acceptor_(TcpAcceptor::Create(self_)) {
     CHECK(self_.IsValid());
     CHECK_NE(acceptor_, nullptr);
@@ -46,14 +56,16 @@ class TcpAcceptorTest : public ::testing::Test {
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(300)); }
 
  protected:
+  const int family_;
   HostInfo self_;
   std::unique_ptr<TcpAcceptor> acceptor_;
 };
 
-using TcpAcceptorTestIPv4 = TcpAcceptorTest<AF_INET>;
-using TcpAcceptorTestIPv6 = TcpAcceptorTest<AF_INET6>;
+INSTANTIATE_TEST_SUITE_P(, TcpAcceptorTest,
+                         Combine(/*family=*/Values(AF_INET, AF_INET6)),
+                         ToString);
 
-TEST_F(TcpAcceptorTestIPv4, StartThenStop) {
+TEST_P(TcpAcceptorTest, StartThenStop) {
   util::Thread ta([&]() { acceptor_->Start(OnAccept); });
 
   ShortSleep();
@@ -61,15 +73,14 @@ TEST_F(TcpAcceptorTestIPv4, StartThenStop) {
   ta.join();
 }
 
-TEST_F(TcpAcceptorTestIPv6, StopThenStart) {
+TEST_P(TcpAcceptorTest, StopThenStart) {
   acceptor_->Stop();
 
   util::Thread ta([&]() { acceptor_->Start(OnAccept); });
   ta.join();
 }
 
-template <int kFamily>
-class PspTcpAcceptorTest : public TcpAcceptorTest<kFamily> {
+class PspTcpAcceptorTest : public TcpAcceptorTest {
  protected:
   PspTcpAcceptorTest()
       : psp_syscalls_(psp::testing::FakePspTcpSyscalls::Create()) {
@@ -83,10 +94,11 @@ class PspTcpAcceptorTest : public TcpAcceptorTest<kFamily> {
   std::unique_ptr<psp::testing::FakePspTcpSyscalls> psp_syscalls_;
 };
 
-using PspTcpAcceptorTestIPv4 = PspTcpAcceptorTest<AF_INET>;
-using PspTcpAcceptorTestIPv6 = PspTcpAcceptorTest<AF_INET6>;
+INSTANTIATE_TEST_SUITE_P(, PspTcpAcceptorTest,
+                         Combine(/*family=*/Values(AF_INET, AF_INET6)),
+                         ToString);
 
-TEST_F(PspTcpAcceptorTestIPv6, HandlePspTokenExchange) {
+TEST_P(PspTcpAcceptorTest, HandlePspTokenExchange) {
   if (!psp::IsPspSupported()) {
     GTEST_SKIP() << "psp not supported";
   }

@@ -27,6 +27,7 @@ class TcpChannel final : public Channel {
       : socket_(std::move(socket)) {
     DCHECK_NE(socket_, nullptr);
     DCHECK(socket_->IsValid());
+    DCHECK(socket_->IsBlocking());
   }
 
   // Returns the channel type.

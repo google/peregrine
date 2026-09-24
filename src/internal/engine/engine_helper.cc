@@ -109,12 +109,12 @@ EngineHelper::Channels EngineHelper::GetAcceptedChannels() {
   return std::move(accepted_channels_);
 }
 
-EngineHelper::Channels EngineHelper::Connect(const Endpoint& peer) {
+EngineHelper::Channels EngineHelper::Connect(const Endpoint& peer_control) {
   const int n = config_.num_conns_per_peer;
   if (config_.transport_type == TransportType::kRdma) {
-    return connectRdma(peer, n);
+    return connectRdma(peer_control, n);
   } else {
-    return connectTcp(peer, n);
+    return connectTcp(peer_control, n);
   }
 }
 

@@ -36,6 +36,7 @@ cc_library(
 cc_test(
     name = "acceptor_test",
     srcs = ["acceptor_test.cc"],
+    shard_count = 4,
     deps = [
         ":acceptor",
         ":socket_tcp",
@@ -50,6 +51,7 @@ cc_test(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
@@ -76,6 +78,7 @@ cc_library(
 cc_test(
     name = "connector_test",
     srcs = ["connector_test.cc"],
+    shard_count = 4,
     deps = [
         ":acceptor",
         ":connector",
@@ -90,6 +93,7 @@ cc_test(
         "//src/util:thread",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
