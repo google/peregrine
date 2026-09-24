@@ -76,7 +76,7 @@ Engine::Engine(const Config& config, const HostInfo& self,
       helper_(std::move(helper)) {
   DCHECK(config_.IsValid());
 
-  acceptor_thread_ = util::Jthread([this]() { acceptorLoop(); });
+  tcpmgr_thread_ = util::Jthread([this]() { tcpmgrLoop(); });
   main_thread_ = util::Jthread([this]() { mainLoop(); });
   LOG(INFO) << "created @ " << self_;
 }
@@ -113,7 +113,7 @@ bool Engine::createRecvWorkers() {
   return true;
 }
 
-void Engine::acceptorLoop() {
+void Engine::tcpmgrLoop() {
   while (true) {
     {
       absl::MutexLock _(mu_);

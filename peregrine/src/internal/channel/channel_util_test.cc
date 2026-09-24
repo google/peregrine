@@ -15,8 +15,8 @@
 #include "peregrine/src/internal/rdma/rdma_device_context.h"
 #include "peregrine/src/internal/rdma/rdma_device_manager.h"
 #include "peregrine/src/internal/rdma/rdma_queue_pair.h"
-#include "peregrine/src/internal/socket/acceptor.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -38,7 +38,7 @@ class ChannelUtilTest : public TestWithParam<SocketTestParam> {
   ChannelUtilTest()
       : cfg_(GetParam()),
         self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
-        acceptor_(TcpAcceptor::Create(self_)),
+        acceptor_(TcpManager::Create(self_)),
         peers_(self_.data_plane_listeners) {
     CHECK(self_.IsValid());
     CHECK_NE(acceptor_, nullptr);
@@ -52,7 +52,7 @@ class ChannelUtilTest : public TestWithParam<SocketTestParam> {
  protected:
   const SocketTestConfig cfg_;
   HostInfo self_;
-  std::unique_ptr<TcpAcceptor> acceptor_;
+  std::unique_ptr<TcpManager> acceptor_;
   const std::vector<NicInfo> peers_;
 };
 

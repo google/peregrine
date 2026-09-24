@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_INTERNAL_SOCKET_ACCEPTOR_H_
-#define PEREGRINE_SRC_INTERNAL_SOCKET_ACCEPTOR_H_
+#ifndef PEREGRINE_SRC_INTERNAL_SOCKET_TCP_MANAGER_H_
+#define PEREGRINE_SRC_INTERNAL_SOCKET_TCP_MANAGER_H_
 
 #include <atomic>
 #include <memory>
@@ -21,20 +21,39 @@
 namespace peregrine::internal {
 
 // This class listens on a local endpoint, accepts incoming connections, and
-// creates a new tcp socket for each connection.
+// creates a new tcp socket for each connection. It can also create a tcp
+// socket and connects it to a peer endpoint which has a tcp listening socket.
 // It is thread-compatible but not thread-safe.
-class TcpAcceptor {
+class TcpManager {
   using OnAccept = absl::AnyInvocable<void(std::unique_ptr<TcpSocket>)>;
 
  public:
-  // Creates a tcp acceptor with per-NIC non-blocking listening sockets, and
-  // fills in `self.data_plane_listeners` with the listening endpoints.
-  static std::unique_ptr<TcpAcceptor> Create(HostInfo& self);
+  using PspTokenExchange = absl::AnyInvocable<absl::StatusOr<PspToken>(
+      const PspToken& self_token, const Endpoint& peer,
+      const Endpoint& peer_control)>;
 
-  // Starts running the acceptor.
+  // Creates a tcp manager with per-NIC non-blocking listening sockets, and
+  // fills in `self.data_plane_listeners` with the listening endpoints.
+  static std::unique_ptr<TcpManager> Create(HostInfo& self);
+
+  // Connects the `self` endpoint to the `peer` in blocking mode.
+  // If `self` has nonzero ip address, binds to it before connecting.
+  // Returns a connected tcp socket if successful, or null pointer otherwise.
+  static std::unique_ptr<TcpSocket> Connect(const Endpoint& self,
+                                            const Endpoint& peer);
+
+  // Connects the `self` endpoint to the `peer` in blocking mode, while
+  // exchanging PSP tokens with the `peer_control` endpoint. If `self` has
+  // nonzero ip address, binds to it before connecting. Returns a connected
+  // psp tcp socket if successful. Otherwise, returns a null pointer.
+  static std::unique_ptr<TcpSocket> ConnectPsp(
+      const Endpoint& self, const Endpoint& peer, const Endpoint& peer_control,
+      PspTokenExchange& psp_token_xchg);
+
+  // Starts running the manager.
   void Start(OnAccept on_accept, bool gen_blocking);
 
-  // Stops the acceptor.
+  // Stops the manager.
   void Stop();
 
   // Handles peer psp token exchange request for the `self_target` endpoint.
@@ -58,8 +77,8 @@ class TcpAcceptor {
 
  private:
   // Constructor with a set of non-blocking tcp listening sockets.
-  TcpAcceptor(const HostInfo& self, std::unique_ptr<Poller> poller,
-              absl::flat_hash_map<fd_t, Listener> sockets)
+  TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
+             absl::flat_hash_map<fd_t, Listener> sockets)
       : self_(self),
         stop_(false),
         poller_(std::move(poller)),
@@ -75,7 +94,7 @@ class TcpAcceptor {
   // Returns true iff the stop flag is true.
   bool isStopped() const { return stop_.load(std::memory_order_relaxed); }
 
-  // Returns true iff the acceptor is in a valid state.
+  // Returns true iff it is in a valid state.
   bool invariant() const;
 
  private:
@@ -87,4 +106,4 @@ class TcpAcceptor {
 
 }  // namespace peregrine::internal
 
-#endif  // PEREGRINE_SRC_INTERNAL_SOCKET_ACCEPTOR_H_
+#endif  // PEREGRINE_SRC_INTERNAL_SOCKET_TCP_MANAGER_H_

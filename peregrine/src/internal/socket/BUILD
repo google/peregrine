@@ -4,9 +4,9 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//peregrine/src/internal:internal_impl"])
 
 cc_library(
-    name = "acceptor",
-    srcs = ["acceptor.cc"],
-    hdrs = ["acceptor.h"],
+    name = "tcp_manager",
+    srcs = ["tcp_manager.cc"],
+    hdrs = ["tcp_manager.h"],
     deps = [
         ":socket_tcp",
         ":socket_util",
@@ -34,12 +34,12 @@ cc_library(
 )
 
 cc_test(
-    name = "acceptor_test",
-    srcs = ["acceptor_test.cc"],
+    name = "tcp_manager_test",
+    srcs = ["tcp_manager_test.cc"],
     shard_count = 8,
     deps = [
-        ":acceptor",
         ":socket_tcp",
+        ":tcp_manager",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/base:nicinfo",
@@ -49,51 +49,9 @@ cc_test(
         "//peregrine/src/internal/util:test_param",
         "//peregrine/src/internal/util:test_util",
         "//peregrine/src/util:thread",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:status_matchers",
-        "@abseil-cpp//absl/time",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "connector",
-    srcs = ["connector.cc"],
-    hdrs = ["connector.h"],
-    deps = [
-        ":socket_tcp",
-        "//peregrine/src/internal/base:endpoint",
-        "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/socket/psp",
-        "//peregrine/src/internal/socket/psp:psp_util",
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/functional:any_invocable",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/status:statusor",
-    ],
-)
-
-cc_test(
-    name = "connector_test",
-    srcs = ["connector_test.cc"],
-    shard_count = 8,
-    deps = [
-        ":acceptor",
-        ":connector",
-        ":socket_tcp",
-        "//peregrine/src/internal/base:endpoint",
-        "//peregrine/src/internal/base:hostinfo",
-        "//peregrine/src/internal/base:nicinfo",
-        "//peregrine/src/internal/socket/psp",
-        "//peregrine/src/internal/socket/psp:psp_mock",
-        "//peregrine/src/internal/socket/psp:psp_util",
-        "//peregrine/src/internal/util:test_param",
-        "//peregrine/src/internal/util:test_util",
-        "//peregrine/src/util:thread",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
@@ -238,10 +196,9 @@ cc_library(
     srcs = ["socket_test_util.cc"],
     hdrs = ["socket_test_util.h"],
     deps = [
-        ":acceptor",
-        ":connector",
         ":socket_tcp",
         ":socket_udp",
+        ":tcp_manager",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/util:test_util",

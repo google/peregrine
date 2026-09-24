@@ -16,8 +16,8 @@
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/rdma/rdma_acceptor.h"
-#include "peregrine/src/internal/socket/acceptor.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
 
@@ -58,12 +58,12 @@ class EngineHelper final {
  private:
   // Constructor.
   EngineHelper(const Config& config, const HostInfo& self, Control& control,
-               std::unique_ptr<TcpAcceptor> tcp_acceptor,
+               std::unique_ptr<TcpManager> tcp_mgr,
                std::unique_ptr<RdmaAcceptor> rdma_acceptor);
 
   // Returns true if the following invariants hold.
   bool invariant() const {
-    return config_.IsValid() && self_.IsValid() && tcp_acceptor_ != nullptr;
+    return config_.IsValid() && self_.IsValid() && tcp_mgr_ != nullptr;
   }
 
  private:
@@ -90,10 +90,10 @@ class EngineHelper final {
   absl::Mutex channels_mu_;
   Channels accepted_channels_ ABSL_GUARDED_BY(channels_mu_);
 
-  absl_nonnull std::unique_ptr<TcpAcceptor> tcp_acceptor_;
+  absl_nonnull std::unique_ptr<TcpManager> tcp_mgr_;
   absl_nullable std::unique_ptr<RdmaAcceptor> rdma_acceptor_;
 
-  util::Jthread tcp_acceptor_thread_;
+  util::Jthread tcpmgr_thread_;
 };
 
 }  // namespace peregrine::internal

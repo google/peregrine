@@ -9,10 +9,9 @@
 #include "absl/synchronization/notification.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
-#include "peregrine/src/internal/socket/acceptor.h"
-#include "peregrine/src/internal/socket/connector.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
+#include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/nic.h"
 #include "peregrine/src/util/thread.h"
@@ -37,29 +36,29 @@ Endpoint PickPeer(const HostInfo& peer_host) {
 std::pair<std::unique_ptr<TcpSocket>, std::unique_ptr<TcpSocket>>
 CreateTcpSocketPair(int family, bool blocking) {
   HostInfo a(TestOnly_LocalHostInfo(family, /*tcp=*/true));
-  std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(a);
-  CHECK_NE(acceptor, nullptr);
+  std::unique_ptr<TcpManager> mgr = TcpManager::Create(a);
+  CHECK_NE(mgr, nullptr);
 
   std::unique_ptr<TcpSocket> sa = nullptr;
-  absl::Notification acceptor_started;
+  absl::Notification mgr_started;
   absl::Notification socket_accepted;
   auto accept = [&](std::unique_ptr<TcpSocket> socket) {
     sa = std::move(socket);
     socket_accepted.Notify();
   };
-  util::Thread acceptor_thread([&]() {
-    acceptor_started.Notify();
-    acceptor->Start(accept, blocking);
+  util::Thread mgr_thread([&]() {
+    mgr_started.Notify();
+    mgr->Start(accept, blocking);
   });
 
-  acceptor_started.WaitForNotification();
+  mgr_started.WaitForNotification();
   const Endpoint self = {};
   const Endpoint peer = PickPeer(a);
-  std::unique_ptr<TcpSocket> sb = TcpConnector::Create(self, peer);
+  std::unique_ptr<TcpSocket> sb = TcpManager::Connect(self, peer);
 
   socket_accepted.WaitForNotification();
-  acceptor->Stop();
-  acceptor_thread.join();
+  mgr->Stop();
+  mgr_thread.join();
 
   CHECK_NE(sa, nullptr);
   CHECK_NE(sb, nullptr);

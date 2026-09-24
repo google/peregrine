@@ -118,8 +118,8 @@ class Engine final {
     return request.op == Op::kWrite ? metrics_.write : metrics_.read;
   }
 
-  // Runs in an acceptor thread to accept incoming channels.
-  void acceptorLoop();
+  // Runs in a tcp manager thread to create tcp channels.
+  void tcpmgrLoop();
 
   // Returns true iff there are pending requests or the destructor is called.
   bool hasWork() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
@@ -171,7 +171,7 @@ class Engine final {
   absl::flat_hash_map<Endpoint, Workers> send_workers_;
   absl::flat_hash_map<Endpoint, Workers> recv_workers_;
 
-  util::Jthread acceptor_thread_;
+  util::Jthread tcpmgr_thread_;
   util::Jthread main_thread_;
 };
 
