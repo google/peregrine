@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -15,6 +16,7 @@
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/types.h"
+#include "src/internal/util/test_param.h"
 #include "src/internal/util/test_util.h"
 #include "src/util/thread.h"
 #include "src/util/util.h"
@@ -22,23 +24,25 @@
 namespace peregrine::internal::testing {
 namespace {
 
+using ::testing::Combine;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
+using ::testing::TestParamInfo;
+using ::testing::TestWithParam;
+using ::testing::Values;
 
-// For non-blocking mode tests, see connector_test.cc.
-constexpr bool kBlocking = true;
+std::string ToString(const TestParamInfo<SocketTestParam>& info) {
+  return testing::ToString(info.param);
+}
 
-template <int kFamily>
-class TcpSocketTest : public ::testing::Test {
-  static_assert(kFamily == AF_INET || kFamily == AF_INET6);
-
+class TcpSocketTest : public TestWithParam<SocketTestParam> {
  protected:
   TcpSocketTest()
-      : local_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
-               TestOnly_FindFreeTcpPort(kFamily)),
-        listener_(TestOnly_CreateTcpSocket(kFamily, kBlocking)),
-        connector_(TestOnly_CreateTcpSocket(kFamily, kBlocking)) {
+      : cfg_(GetParam()),
+        local_(IpLocalhost(cfg_.family), TestOnly_FindFreeTcpPort(cfg_.family)),
+        listener_(TestOnly_CreateTcpSocket(cfg_.family, cfg_.blocking)),
+        connector_(TestOnly_CreateTcpSocket(cfg_.family, cfg_.blocking)) {
     DCHECK(listener_->IsValid());
     DCHECK(connector_->IsValid());
     DCHECK(!listener_->IsConnected());
@@ -47,15 +51,19 @@ class TcpSocketTest : public ::testing::Test {
   }
 
  protected:
+  const SocketTestConfig cfg_;
   const Endpoint local_;
   const std::unique_ptr<TcpSocket> listener_;
   const std::unique_ptr<TcpSocket> connector_;
 };
 
-using BlockingTcpIPv4SocketTest = TcpSocketTest<AF_INET>;
-using BlockingTcpIPv6SocketTest = TcpSocketTest<AF_INET6>;
+// For non-blocking tcp socket tests, see connector_test.cc.
+INSTANTIATE_TEST_SUITE_P(BlockingTcpSocketTest, TcpSocketTest,
+                         Combine(/*family=*/Values(AF_INET, AF_INET6),
+                                 /*blocking=*/Values(true)),
+                         ToString);
 
-TEST_F(BlockingTcpIPv4SocketTest, SmallMessage) {
+TEST_P(TcpSocketTest, SmallMessage) {
   // Create a small send message and a recv buffer.
   const std::vector<Byte> message = {'h', 'e', 'l', 'l', 'o'};
   const size_t kMsgSize = message.size();
@@ -68,10 +76,10 @@ TEST_F(BlockingTcpIPv4SocketTest, SmallMessage) {
     CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const fd_t new_fd = listener_->Accept(kBlocking);
+    const fd_t new_fd = listener_->Accept(cfg_.blocking);
 
     CHECK_GE(new_fd.value(), 0);
-    auto new_socket = TcpSocket::Create(new_fd, AF_INET);
+    auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
     CHECK_EQ(new_socket->Recv(recv_buf.data(), kMsgSize), kMsgSize);
@@ -94,7 +102,7 @@ TEST_F(BlockingTcpIPv4SocketTest, SmallMessage) {
   EXPECT_THAT(recv_buf, Pointwise(Eq(), message));
 }
 
-TEST_F(BlockingTcpIPv6SocketTest, BigData) {
+TEST_P(TcpSocketTest, BigData) {
   // Create a big chunk of data and a recv buffer.
   constexpr size_t kDataSize = 16UL << 20;
   std::vector<Byte> send_buf(kDataSize);
@@ -108,10 +116,10 @@ TEST_F(BlockingTcpIPv6SocketTest, BigData) {
     CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const fd_t new_fd = listener_->Accept(kBlocking);
+    const fd_t new_fd = listener_->Accept(cfg_.blocking);
 
     CHECK_GE(new_fd.value(), 0);
-    auto new_socket = TcpSocket::Create(new_fd, AF_INET6);
+    auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
     constexpr int kRN = 2;

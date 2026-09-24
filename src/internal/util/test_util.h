@@ -4,6 +4,7 @@
 #include <memory>
 #include <string_view>
 
+#include "absl/log/check.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/types.h"
@@ -41,6 +42,7 @@ inline util::IpAddr IPv6Localhost() {
 
 // Returns an ipv4 or ipv6 localhost address in the given address `family`.
 inline util::IpAddr IpLocalhost(int family) {
+  DCHECK(family == AF_INET || family == AF_INET6);
   return family == AF_INET ? IPv4Localhost() : IPv6Localhost();
 }
 

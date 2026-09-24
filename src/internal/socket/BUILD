@@ -118,9 +118,11 @@ cc_library(
 cc_test(
     name = "socket_util_test",
     srcs = ["socket_util_test.cc"],
+    shard_count = 4,
     deps = [
         ":socket_util",
         "//src/internal/base:types",
+        "//src/internal/util:test_param",
         "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],
@@ -136,6 +138,20 @@ cc_library(
         "//src/internal/base:types",
         "//src/util:macro",
         "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "socket_base_test",
+    srcs = ["socket_base_test.cc"],
+    shard_count = 4,
+    deps = [
+        ":socket_tcp",
+        ":socket_udp",
+        "//src/internal/base:types",
+        "//src/internal/util:test_param",
+        "@abseil-cpp//absl/log:check",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -162,11 +178,13 @@ cc_library(
 cc_test(
     name = "socket_tcp_test",
     srcs = ["socket_tcp_test.cc"],
+    shard_count = 2,
     deps = [
         ":socket_tcp",
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/base:types",
+        "//src/internal/util:test_param",
         "//src/internal/util:test_util",
         "//src/util",
         "//src/util:thread",
@@ -200,10 +218,12 @@ cc_library(
 cc_test(
     name = "socket_udp_test",
     srcs = ["socket_udp_test.cc"],
+    shard_count = 2,
     deps = [
         ":socket_udp",
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
+        "//src/internal/util:test_param",
         "//src/internal/util:test_util",
         "//src/util:thread",
         "@abseil-cpp//absl/log:check",
@@ -254,12 +274,14 @@ cc_library(
 cc_test(
     name = "tcp_socket_util_test",
     srcs = ["tcp_socket_util_test.cc"],
+    shard_count = 2,
     deps = [
         ":socket_tcp",
         ":tcp_socket_util",
         "//src/api:transport_types",
         "//src/internal/base:endpoint",
         "//src/internal/base:types",
+        "//src/internal/util:test_param",
         "//src/internal/util:test_util",
         "//src/util",
         "//src/util:thread",

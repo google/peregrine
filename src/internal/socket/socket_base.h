@@ -46,27 +46,12 @@ class SocketBase {
     DCHECK(invariant());
   }
 
-  // Disables copy since the socket owns OS resource.
+  // Disallows copy since the socket owns OS resource.
   DISALLOW_COPY(SocketBase);
 
-  // Move constructor.
-  SocketBase(SocketBase&& o) noexcept
-      : fd_(o.fd_), family_(o.family_), connected_(o.connected_) {
-    DCHECK(o.invariant());
-    o.fd_ = fd_t(-1);
-  }
-
-  // Move assignment operator.
-  SocketBase& operator=(SocketBase&& o) noexcept {
-    DCHECK(o.invariant());
-    if (this != &o) {
-      fd_ = o.fd_;
-      family_ = o.family_;
-      connected_ = o.connected_;
-      o.fd_ = fd_t(-1);
-    }
-    return *this;
-  }
+  // Disallows move to force the use of `std::unique_ptr<T>`, not `T`.
+  // TODO(yongx): should we allow move?
+  DISALLOW_MOVE(SocketBase);
 
   // Destructor.
   ~SocketBase() { DCHECK_LT(fd_.value(), 0); }

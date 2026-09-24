@@ -12,40 +12,61 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "src/internal/base/types.h"
+#include "src/internal/util/test_param.h"
 
 namespace peregrine::internal::testing {
 namespace {
 
-TEST(SocketUtilTest, Basic) {
+using ::testing::Combine;
+using ::testing::TestParamInfo;
+using ::testing::TestWithParam;
+using ::testing::Values;
+
+std::string ToString(const TestParamInfo<SocketTestParam>& info) {
+  return testing::ToString(info.param);
+}
+
+class SocketUtilTest : public TestWithParam<SocketTestParam> {
+ protected:
+  SocketUtilTest() : cfg_(GetParam()) {}
+
+ protected:
+  const SocketTestConfig cfg_;
+};
+
+INSTANTIATE_TEST_SUITE_P(, SocketUtilTest,
+                         Combine(/*family=*/Values(AF_INET, AF_INET6),
+                                 /*blocking=*/Values(true, false)),
+                         ToString);
+
+TEST_P(SocketUtilTest, Basic) {
   ASSERT_FALSE(IsValidSocket(fd_t(-1)));
   ASSERT_FALSE(IsValidSocket(fd_t(-2)));
 
-  for (int family : {AF_INET, AF_INET6}) {
     for (int type : {SOCK_STREAM, SOCK_DGRAM}) {
       const std::string proto = type == SOCK_STREAM ? "tcp" : "udp";
-      for (bool blocking : {true, false}) {
-        const fd_t fd = CreateSocket(family, type, blocking);
-        ASSERT_GE(fd.value(), 0);
-        ASSERT_TRUE(IsValidSocket(fd));
-        LOG(INFO) << SuccessMsg(proto, "created", fd);
+      const fd_t fd = CreateSocket(cfg_.family, type, cfg_.blocking);
+      ASSERT_GE(fd.value(), 0);
+      ASSERT_TRUE(IsValidSocket(fd));
+      LOG(INFO) << SuccessMsg(proto, "created", fd);
 
-        int on = 1, off = 0;
-        EXPECT_TRUE(SetOption(fd, SO_REUSEADDR, &on, sizeof(on)));
-        EXPECT_TRUE(SetOption(fd, SO_REUSEADDR, &off, sizeof(off)));
+      int on = 1, off = 0;
+      EXPECT_TRUE(SetOption(fd, SO_REUSEADDR, &on, sizeof(on)));
+      EXPECT_TRUE(SetOption(fd, SO_REUSEADDR, &off, sizeof(off)));
 
-        EXPECT_TRUE(SetBlockingMode(fd));
-        EXPECT_TRUE(IsBlockingMode(fd));
-        EXPECT_FALSE(IsNonBlockingMode(fd));
+      EXPECT_TRUE(SetBlockingMode(fd));
+      EXPECT_TRUE(IsBlockingMode(fd));
+      EXPECT_FALSE(IsNonBlockingMode(fd));
 
-        EXPECT_TRUE(SetNonBlockingMode(fd));
-        EXPECT_TRUE(IsNonBlockingMode(fd));
-        EXPECT_FALSE(IsBlockingMode(fd));
+      EXPECT_TRUE(SetNonBlockingMode(fd));
+      EXPECT_TRUE(IsNonBlockingMode(fd));
+      EXPECT_FALSE(IsBlockingMode(fd));
 
-        if (family == AF_INET) {
-          EXPECT_EQ(SelfAddrPort(fd), "0.0.0.0:0");
-        } else {
-          EXPECT_EQ(SelfAddrPort(fd), "[::]:0");
-        }
+      if (cfg_.family == AF_INET) {
+        EXPECT_EQ(SelfAddrPort(fd), "0.0.0.0:0");
+      } else {
+        EXPECT_EQ(SelfAddrPort(fd), "[::]:0");
+      }
         EXPECT_EQ(PeerAddrPort(fd), "*");  // not connected
 
         LOG(INFO) << "ip:port pair = " << AddrPortPair(fd);
@@ -53,12 +74,10 @@ TEST(SocketUtilTest, Basic) {
 
         ASSERT_TRUE(IsValidSocket(fd));
         ASSERT_EQ(::close(fd.value()), 0);
-      }
-    }
   }
 }
 
-TEST(SocketUtilTest, ToIPv4AddrPortString) {
+TEST(SocketUtilBasicTest, ToIPv4AddrPortString) {
   struct sockaddr_storage ss;
   struct sockaddr_in* sa_in = (struct sockaddr_in*)&ss;
   sa_in->sin_family = AF_INET;
@@ -67,7 +86,7 @@ TEST(SocketUtilTest, ToIPv4AddrPortString) {
   EXPECT_EQ(ToIpAddrPortString(ss), "127.0.0.1:23456");
 }
 
-TEST(SocketUtilTest, ToIPv6AddrPortString) {
+TEST(SocketUtilBasicTest, ToIPv6AddrPortString) {
   struct sockaddr_storage ss;
   struct sockaddr_in6* sa_in6 = (struct sockaddr_in6*)&ss;
   sa_in6->sin6_family = AF_INET6;

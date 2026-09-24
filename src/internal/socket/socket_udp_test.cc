@@ -5,6 +5,7 @@
 
 #include <cstring>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -12,24 +13,30 @@
 #include "absl/synchronization/notification.h"
 #include "src/api/transport_types.h"
 #include "src/internal/base/endpoint.h"
+#include "src/internal/util/test_param.h"
 #include "src/internal/util/test_util.h"
 #include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 namespace {
 
-constexpr bool kBlocking = true;
+using ::testing::Combine;
+using ::testing::TestParamInfo;
+using ::testing::TestWithParam;
+using ::testing::Values;
 
-template <int kFamily>
-class UdpSocketTest : public ::testing::Test {
+std::string ToString(const TestParamInfo<SocketTestParam>& info) {
+  return testing::ToString(info.param);
+}
+
+class UdpSocketTest : public TestWithParam<SocketTestParam> {
  protected:
   UdpSocketTest()
-      : sndr_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
-              TestOnly_FindFreeUdpPort(kFamily)),
-        rcvr_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
-              TestOnly_FindFreeUdpPort(kFamily)),
-        sskt_(TestOnly_CreateUdpSocket(kFamily, kBlocking)),
-        rskt_(TestOnly_CreateUdpSocket(kFamily, kBlocking)) {
+      : cfg_(GetParam()),
+        sndr_(IpLocalhost(cfg_.family), TestOnly_FindFreeUdpPort(cfg_.family)),
+        rcvr_(IpLocalhost(cfg_.family), TestOnly_FindFreeUdpPort(cfg_.family)),
+        sskt_(TestOnly_CreateUdpSocket(cfg_.family, cfg_.blocking)),
+        rskt_(TestOnly_CreateUdpSocket(cfg_.family, cfg_.blocking)) {
     CHECK_NE(sndr_.Port(), rcvr_.Port());
     DCHECK(sskt_->IsValid());
     DCHECK(rskt_->IsValid());
@@ -39,16 +46,19 @@ class UdpSocketTest : public ::testing::Test {
   }
 
  protected:
+  const SocketTestConfig cfg_;
   const Endpoint sndr_;
   const Endpoint rcvr_;
   const std::unique_ptr<UdpSocket> sskt_;
   const std::unique_ptr<UdpSocket> rskt_;
 };
 
-using BlockingUdpSocketIPv4Test = UdpSocketTest<AF_INET>;
-using BlockingUdpSocketIPv6Test = UdpSocketTest<AF_INET6>;
+INSTANTIATE_TEST_SUITE_P(BlockingUdpSocketTest, UdpSocketTest,
+                         Combine(/*family=*/Values(AF_INET, AF_INET6),
+                                 /*blocking=*/Values(true)),
+                         ToString);
 
-TEST_F(BlockingUdpSocketIPv4Test, SendRecv) {
+TEST_P(UdpSocketTest, SendRecv) {
   // Create a small send message and a recv buffer.
   const std::vector<Byte> message = {'h', 'e', 'l', 'l', 'o'};
   const size_t kMsgSize = message.size();
@@ -86,7 +96,7 @@ TEST_F(BlockingUdpSocketIPv4Test, SendRecv) {
   EXPECT_EQ(recv_buf, message);
 }
 
-TEST_F(BlockingUdpSocketIPv6Test, ScatterGather) {
+TEST_P(UdpSocketTest, ScatterGather) {
   // Create a small send message and a recv buffer.
   const std::vector<Byte> message = {'h', 'e', 'l', 'l', 'o'};
   const size_t kMsgSize = message.size();
