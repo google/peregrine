@@ -4,7 +4,6 @@
 
 #include <memory>
 #include <string>
-#include <tuple>
 #include <utility>
 
 #include "gmock/gmock.h"
@@ -12,7 +11,6 @@
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
-#include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/internal/base/endpoint.h"
@@ -22,6 +20,7 @@
 #include "src/internal/socket/psp/psp_mock.h"
 #include "src/internal/socket/psp/psp_util.h"
 #include "src/internal/socket/socket_tcp.h"
+#include "src/internal/util/test_param.h"
 #include "src/internal/util/test_util.h"
 #include "src/util/thread.h"
 
@@ -29,20 +28,19 @@ namespace peregrine::internal::testing {
 namespace {
 
 using ::testing::Combine;
+using ::testing::TestParamInfo;
+using ::testing::TestWithParam;
 using ::testing::Values;
 
-using Param = std::tuple</*family=*/int>;
-
-std::string ToString(const ::testing::TestParamInfo<Param>& info) {
-  const int family = std::get<0>(info.param);
-  return absl::StrFormat("IPv%d", family == AF_INET ? 4 : 6);
+std::string ToString(const TestParamInfo<SocketTestParam>& info) {
+  return testing::ToString(info.param);
 }
 
-class TcpAcceptorTest : public ::testing::TestWithParam<Param> {
+class TcpAcceptorTest : public TestWithParam<SocketTestParam> {
  protected:
   TcpAcceptorTest()
-      : family_(std::get<0>(GetParam())),
-        self_(TestOnly_LocalHostInfo(family_, /*tcp=*/true)),
+      : cfg_(GetParam()),
+        self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
         acceptor_(TcpAcceptor::Create(self_)) {
     CHECK(self_.IsValid());
     CHECK_NE(acceptor_, nullptr);
@@ -56,17 +54,18 @@ class TcpAcceptorTest : public ::testing::TestWithParam<Param> {
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(300)); }
 
  protected:
-  const int family_;
+  const SocketTestConfig cfg_;
   HostInfo self_;
   std::unique_ptr<TcpAcceptor> acceptor_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, TcpAcceptorTest,
-                         Combine(/*family=*/Values(AF_INET, AF_INET6)),
+                         Combine(/*family=*/Values(AF_INET, AF_INET6),
+                                 /*gen_blocking=*/Values(true, false)),
                          ToString);
 
 TEST_P(TcpAcceptorTest, StartThenStop) {
-  util::Thread ta([&]() { acceptor_->Start(OnAccept); });
+  util::Thread ta([&]() { acceptor_->Start(OnAccept, cfg_.blocking); });
 
   ShortSleep();
   acceptor_->Stop();
@@ -76,7 +75,7 @@ TEST_P(TcpAcceptorTest, StartThenStop) {
 TEST_P(TcpAcceptorTest, StopThenStart) {
   acceptor_->Stop();
 
-  util::Thread ta([&]() { acceptor_->Start(OnAccept); });
+  util::Thread ta([&]() { acceptor_->Start(OnAccept, cfg_.blocking); });
   ta.join();
 }
 
@@ -95,7 +94,8 @@ class PspTcpAcceptorTest : public TcpAcceptorTest {
 };
 
 INSTANTIATE_TEST_SUITE_P(, PspTcpAcceptorTest,
-                         Combine(/*family=*/Values(AF_INET, AF_INET6)),
+                         Combine(/*family=*/Values(AF_INET, AF_INET6),
+                                 /*gen_blocking=*/Values(true, false)),
                          ToString);
 
 TEST_P(PspTcpAcceptorTest, HandlePspTokenExchange) {

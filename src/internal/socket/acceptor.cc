@@ -124,7 +124,7 @@ std::unique_ptr<TcpAcceptor> TcpAcceptor::Create(HostInfo& self) {
       new TcpAcceptor(self, std::move(poller), std::move(listeners)));
 }
 
-void TcpAcceptor::Start(OnAccept on_accept) {
+void TcpAcceptor::Start(OnAccept on_accept, bool gen_blocking) {
   static_assert(assumptions::kOnlyTcpListeningSocketsAreNonBlocking);
   DCHECK(invariant());
   DCHECK_NE(on_accept, nullptr);
@@ -149,7 +149,7 @@ void TcpAcceptor::Start(OnAccept on_accept) {
       const TcpSocket* listener = it->second.socket.get();
       const int family = listener->family();
       while (true) {
-        const fd_t new_fd = listener->Accept();
+        const fd_t new_fd = listener->Accept(gen_blocking);
         const int ret = new_fd.value();
         if ABSL_PREDICT_FALSE (ret < 0) {
           if ABSL_PREDICT_FALSE (IsOutOfResource(ret)) {
@@ -163,7 +163,7 @@ void TcpAcceptor::Start(OnAccept on_accept) {
           break;
         }
         std::unique_ptr<TcpSocket> socket = TcpSocket::Create(new_fd, family);
-        DCHECK(socket->IsBlocking());
+        DCHECK_EQ(socket->IsBlocking(), gen_blocking);
         DCHECK(socket->IsConnected());
         LOG(INFO) << "made " << *socket;
         on_accept(std::move(socket));

@@ -32,7 +32,7 @@ class TcpAcceptor {
   static std::unique_ptr<TcpAcceptor> Create(HostInfo& self);
 
   // Starts running the acceptor.
-  void Start(OnAccept on_accept);
+  void Start(OnAccept on_accept, bool gen_blocking);
 
   // Stops the acceptor.
   void Stop();

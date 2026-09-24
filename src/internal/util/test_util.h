@@ -61,11 +61,11 @@ port_t TestOnly_FindFreeUdpPort(int family);
 
 // Creates a TCP socket.
 // Return a non-null socket if successful, otherwise crashes.
-std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family);
+std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family, bool blocking);
 
 // Creates a UDP socket.
 // Return a non-null socket if successful, otherwise crashes.
-std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family);
+std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family, bool blocking);
 
 }  // namespace peregrine::internal::testing
 

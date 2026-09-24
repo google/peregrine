@@ -4,14 +4,12 @@
 
 #include <memory>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-#include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "src/internal/base/endpoint.h"
@@ -22,6 +20,7 @@
 #include "src/internal/socket/psp/psp_mock.h"
 #include "src/internal/socket/psp/psp_util.h"
 #include "src/internal/socket/socket_tcp.h"
+#include "src/internal/util/test_param.h"
 #include "src/internal/util/test_util.h"
 #include "src/util/thread.h"
 
@@ -29,20 +28,19 @@ namespace peregrine::internal::testing {
 namespace {
 
 using ::testing::Combine;
+using ::testing::TestParamInfo;
+using ::testing::TestWithParam;
 using ::testing::Values;
 
-using Param = std::tuple</*family=*/int>;
-
-std::string ToString(const ::testing::TestParamInfo<Param>& info) {
-  const int family = std::get<0>(info.param);
-  return absl::StrFormat("IPv%d", family == AF_INET ? 4 : 6);
+std::string ToString(const TestParamInfo<SocketTestParam>& info) {
+  return testing::ToString(info.param);
 }
 
-class TcpConnectorTest : public ::testing::TestWithParam<Param> {
+class TcpConnectorTest : public TestWithParam<SocketTestParam> {
  protected:
   TcpConnectorTest()
-      : family_(std::get<0>(GetParam())),
-        self_(TestOnly_LocalHostInfo(family_, /*tcp=*/true)),
+      : cfg_(GetParam()),
+        self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
         acceptor_(TcpAcceptor::Create(self_)),
         peers_(self_.data_plane_listeners) {
     CHECK(self_.IsValid());
@@ -57,18 +55,19 @@ class TcpConnectorTest : public ::testing::TestWithParam<Param> {
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(100)); }
 
  protected:
-  const int family_;
+  const SocketTestConfig cfg_;
   HostInfo self_;
   std::unique_ptr<TcpAcceptor> acceptor_;
   const std::vector<NicInfo> peers_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, TcpConnectorTest,
-                         Combine(/*family=*/Values(AF_INET, AF_INET6)),
+                         Combine(/*family=*/Values(AF_INET, AF_INET6),
+                                 /*gen_blocking=*/Values(true, false)),
                          ToString);
 
 TEST_P(TcpConnectorTest, AcceptBeforeConnect) {
-  util::Thread ta([&]() { acceptor_->Start(OnAccept); });
+  util::Thread ta([&]() { acceptor_->Start(OnAccept, cfg_.blocking); });
 
   ShortSleep();
   util::Thread tc([&]() {
@@ -103,7 +102,7 @@ TEST_P(TcpConnectorTest, ConnectBeforeAccept) {
   });
 
   ShortSleep();
-  util::Thread ta([&]() { acceptor_->Start(OnAccept); });
+  util::Thread ta([&]() { acceptor_->Start(OnAccept, cfg_.blocking); });
 
   ShortSleep();
   acceptor_->Stop();
@@ -131,7 +130,8 @@ class PspTcpConnectorTest : public TcpConnectorTest {
 };
 
 INSTANTIATE_TEST_SUITE_P(, PspTcpConnectorTest,
-                         Combine(/*family=*/Values(AF_INET, AF_INET6)),
+                         Combine(/*family=*/Values(AF_INET, AF_INET6),
+                                 /*gen_blocking=*/Values(true, false)),
                          ToString);
 
 TEST_P(PspTcpConnectorTest, AcceptBeforeConnect) {
@@ -139,7 +139,7 @@ TEST_P(PspTcpConnectorTest, AcceptBeforeConnect) {
     GTEST_SKIP() << "psp not supported";
   }
 
-  util::Thread ta([&]() { acceptor_->Start(OnAccept); });
+  util::Thread ta([&]() { acceptor_->Start(OnAccept, cfg_.blocking); });
 
   ShortSleep();
   util::Thread tc([&]() {
@@ -182,7 +182,7 @@ TEST_P(PspTcpConnectorTest, ConnectBeforeAccept) {
   });
 
   ShortSleep();
-  util::Thread ta([&]() { acceptor_->Start(OnAccept); });
+  util::Thread ta([&]() { acceptor_->Start(OnAccept, cfg_.blocking); });
 
   ShortSleep();
   acceptor_->Stop();

@@ -15,15 +15,17 @@
 
 namespace peregrine::internal::testing {
 
-ConnectedChannelPair CreateTcpChannelPair(const int family) {
-  auto [sa, sb] = CreateTcpSocketPair(family);
+ConnectedChannelPair CreateTcpChannelPair(const int family,
+                                          const bool blocking) {
+  auto [sa, sb] = CreateTcpSocketPair(family, blocking);
   DCHECK_NE(sa, nullptr);
   DCHECK_NE(sb, nullptr);
   return {CreateTcpChannel(std::move(sa)), CreateTcpChannel(std::move(sb))};
 }
 
-ConnectedChannelPair CreateUdpChannelPair(const int family) {
-  auto [sa, sb] = CreateUdpSocketPair(family);
+ConnectedChannelPair CreateUdpChannelPair(const int family,
+                                          const bool blocking) {
+  auto [sa, sb] = CreateUdpSocketPair(family, blocking);
   DCHECK_NE(sa, nullptr);
   DCHECK_NE(sb, nullptr);
   return {CreateUdpChannel(std::move(sa)), CreateUdpChannel(std::move(sb))};
@@ -45,12 +47,13 @@ ConnectedChannelPair CreateMemMsgChannelPair(const int error_rate) {
 
 ConnectedChannelPair CreateTestChannelPair(const TestChannelType type,
                                            const int family,
+                                           const bool blocking,
                                            const int error_rate) {
   switch (type) {
     case TestChannelType::kTcp:
-      return CreateTcpChannelPair(family);
+      return CreateTcpChannelPair(family, blocking);
     case TestChannelType::kUdp:
-      return CreateUdpChannelPair(family);
+      return CreateUdpChannelPair(family, blocking);
     case TestChannelType::kMemStream:
       return CreateMemStreamChannelPair(error_rate);
     case TestChannelType::kMemMsg:

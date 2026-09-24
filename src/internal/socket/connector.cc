@@ -20,7 +20,7 @@ std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& self,
   DCHECK(peer.HasNonzeroIpPort());
 
   const int family = peer.GetIpAddr().AddressFamily();
-  std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family);
+  auto socket = TcpSocket::Create(family, /*blocking=*/true);
   if ABSL_PREDICT_FALSE (socket == nullptr) {
     return nullptr;
   }
@@ -30,7 +30,7 @@ std::unique_ptr<TcpSocket> TcpConnector::Create(const Endpoint& self,
   }
 
   DCHECK(socket->IsBlocking());
-  if (!socket->Connect(peer)) {
+  if (socket->Connect(peer) != 0) {
     return nullptr;
   }
 
@@ -47,7 +47,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
   DCHECK_NE(psp_exchange_func, nullptr);
 
   const int family = peer.GetIpAddr().AddressFamily();
-  std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family);
+  auto socket = TcpSocket::Create(family, /*blocking=*/true);
   if ABSL_PREDICT_FALSE (socket == nullptr) {
     return nullptr;
   }
@@ -77,7 +77,7 @@ std::unique_ptr<TcpSocket> TcpConnector::CreatePsp(
   }
 
   DCHECK(socket->IsBlocking());
-  if (!socket->Connect(peer)) {
+  if (socket->Connect(peer) != 0) {
     return nullptr;
   }
 

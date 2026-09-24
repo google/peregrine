@@ -27,6 +27,9 @@ class SocketBase {
   // Returns true iff the socket is up and running.
   bool IsValid() const { return IsValidSocket(fd_); }
 
+  // Sets the connected state to true.
+  void SetConnected() { connected_ = true; }
+
   // Returns true iff the socket is connected.
   bool IsConnected() const { return connected_; }
 

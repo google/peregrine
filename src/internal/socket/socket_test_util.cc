@@ -35,7 +35,7 @@ Endpoint PickPeer(const HostInfo& peer_host) {
 }  // namespace
 
 std::pair<std::unique_ptr<TcpSocket>, std::unique_ptr<TcpSocket>>
-CreateTcpSocketPair(int family) {
+CreateTcpSocketPair(int family, bool blocking) {
   HostInfo a(TestOnly_LocalHostInfo(family, /*tcp=*/true));
   std::unique_ptr<TcpAcceptor> acceptor = TcpAcceptor::Create(a);
   CHECK_NE(acceptor, nullptr);
@@ -49,7 +49,7 @@ CreateTcpSocketPair(int family) {
   };
   util::Thread acceptor_thread([&]() {
     acceptor_started.Notify();
-    acceptor->Start(accept);
+    acceptor->Start(accept, blocking);
   });
 
   acceptor_started.WaitForNotification();
@@ -67,12 +67,12 @@ CreateTcpSocketPair(int family) {
 }
 
 std::pair<std::unique_ptr<UdpSocket>, std::unique_ptr<UdpSocket>>
-CreateUdpSocketPair(int family) {
+CreateUdpSocketPair(int family, bool blocking) {
   const Endpoint a(TestOnly_LocalEndpoint(family, /*tcp=*/false));
   const Endpoint b(TestOnly_LocalEndpoint(family, /*tcp=*/false));
 
-  std::unique_ptr<UdpSocket> sa = TestOnly_CreateUdpSocket(family);
-  std::unique_ptr<UdpSocket> sb = TestOnly_CreateUdpSocket(family);
+  std::unique_ptr<UdpSocket> sa = TestOnly_CreateUdpSocket(family, blocking);
+  std::unique_ptr<UdpSocket> sb = TestOnly_CreateUdpSocket(family, blocking);
 
   CHECK(sa->Bind(a));
   CHECK(sb->Bind(b));

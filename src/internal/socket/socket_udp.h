@@ -27,7 +27,7 @@ namespace peregrine::internal {
 class UdpSocket final : public SocketBase {
  public:
   // Creates an unconnected udp socket.
-  static std::unique_ptr<UdpSocket> Create(int family);
+  static std::unique_ptr<UdpSocket> Create(int family, bool blocking);
 
   // Destructor closes the socket.
   ~UdpSocket();

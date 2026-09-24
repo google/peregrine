@@ -122,7 +122,8 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(TransferTest, SendRecv) {
   const auto p = GetParam();
-  const auto chs = CreateTestChannelPair(p.type, p.family, p.error_rate);
+  const auto chs =
+      CreateTestChannelPair(p.type, p.family, /*blocking=*/true, p.error_rate);
 
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));

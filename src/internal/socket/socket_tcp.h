@@ -27,7 +27,7 @@ namespace peregrine::internal {
 class TcpSocket final : public SocketBase {
  public:
   // Creates an unconnected tcp socket.
-  static std::unique_ptr<TcpSocket> Create(int family, bool blocking = true);
+  static std::unique_ptr<TcpSocket> Create(int family, bool blocking);
 
   // Creates a connected tcp socket.
   static std::unique_ptr<TcpSocket> Create(fd_t fd, int family);
@@ -44,13 +44,15 @@ class TcpSocket final : public SocketBase {
   // Listens on the `local` endpoint.
   bool Listen(const Endpoint& local) const;
 
-  // Accepts a new connection to this listening socket. Returns the new spawn
-  // socket file descriptor if successful. Return -2 if the socket is shut down.
-  // Otherwise, returns -1.
-  fd_t Accept() const;
+  // Accepts a new connection to this listening socket, using `gen_blocking`
+  // to set the blocking/non-blocking mode of the newly spawned socket.
+  // Returns the new socket file descriptor (>= 0) if successful.
+  // Return -2 if the listening socket is shut down. Otherwise, returns -1.
+  fd_t Accept(bool gen_blocking) const;
 
-  // Connects to the `peer` endpoint.
-  bool Connect(const Endpoint& peer);
+  // Connects to the `peer` endpoint. Returns 0 if the connection is
+  // established, 1 if the connection is in progress, and -1 on error.
+  int Connect(const Endpoint& peer);
 
   // Sends exactly `len` bytes of data from the `buf`.
   // Returns the number of bytes sent if successful. Zero byte means no data

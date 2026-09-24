@@ -18,6 +18,8 @@
 namespace peregrine::internal::testing {
 namespace {
 
+constexpr bool kBlocking = true;
+
 template <int kFamily>
 class UdpSocketTest : public ::testing::Test {
  protected:
@@ -26,8 +28,8 @@ class UdpSocketTest : public ::testing::Test {
               TestOnly_FindFreeUdpPort(kFamily)),
         rcvr_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
               TestOnly_FindFreeUdpPort(kFamily)),
-        sskt_(TestOnly_CreateUdpSocket(kFamily)),
-        rskt_(TestOnly_CreateUdpSocket(kFamily)) {
+        sskt_(TestOnly_CreateUdpSocket(kFamily, kBlocking)),
+        rskt_(TestOnly_CreateUdpSocket(kFamily, kBlocking)) {
     CHECK_NE(sndr_.Port(), rcvr_.Port());
     DCHECK(sskt_->IsValid());
     DCHECK(rskt_->IsValid());

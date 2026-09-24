@@ -24,15 +24,19 @@ TEST(TestUtilTest, UdpPort) {
 
 TEST(TestUtilTest, TcpSocket) {
   for (const int family : {AF_INET, AF_INET6}) {
-    const auto socket = TestOnly_CreateTcpSocket(family);
-    EXPECT_NE(socket, nullptr);
+    for (const bool blocking : {true, false}) {
+      const auto socket = TestOnly_CreateTcpSocket(family, blocking);
+      EXPECT_NE(socket, nullptr);
+    }
   }
 }
 
 TEST(TestUtilTest, UdpSocket) {
   for (const int family : {AF_INET, AF_INET6}) {
-    const auto socket = TestOnly_CreateUdpSocket(family);
-    EXPECT_NE(socket, nullptr);
+    for (const bool blocking : {true, false}) {
+      const auto socket = TestOnly_CreateUdpSocket(family, blocking);
+      EXPECT_NE(socket, nullptr);
+    }
   }
 }
 

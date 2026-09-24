@@ -2,13 +2,11 @@
 
 #include <memory>
 #include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
-#include "absl/strings/str_format.h"
 #include "src/internal/base/endpoint.h"
 #include "src/internal/base/hostinfo.h"
 #include "src/internal/base/nicinfo.h"
@@ -19,30 +17,27 @@
 #include "src/internal/rdma/rdma_queue_pair.h"
 #include "src/internal/socket/acceptor.h"
 #include "src/internal/socket/socket_tcp.h"
+#include "src/internal/util/test_param.h"
 #include "src/internal/util/test_util.h"
 #include "src/util/thread.h"
 
 namespace peregrine::internal::testing {
 namespace {
 
+using ::testing::Combine;
 using ::testing::TestParamInfo;
+using ::testing::TestWithParam;
 using ::testing::Values;
 
-using Param = std::tuple</*family=*/int>;
-
-std::string ToString(const TestParamInfo<Param>& info) {
-  const int family = std::get<0>(info.param);
-  DCHECK(family == AF_INET || family == AF_INET6);
-  return absl::StrFormat("IPv%d", family == AF_INET ? 4 : 6);
+std::string ToString(const TestParamInfo<SocketTestParam>& info) {
+  return testing::ToString(info.param);
 }
 
-constexpr bool kTcp = true;
-
-class ChannelUtilTest : public ::testing::TestWithParam<Param> {
+class ChannelUtilTest : public TestWithParam<SocketTestParam> {
  protected:
   ChannelUtilTest()
-      : family_(std::get<0>(GetParam())),
-        self_(TestOnly_LocalHostInfo(family_, kTcp)),
+      : cfg_(GetParam()),
+        self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
         acceptor_(TcpAcceptor::Create(self_)),
         peers_(self_.data_plane_listeners) {
     CHECK(self_.IsValid());
@@ -55,17 +50,19 @@ class ChannelUtilTest : public ::testing::TestWithParam<Param> {
   }
 
  protected:
-  const int family_;
+  const SocketTestConfig cfg_;
   HostInfo self_;
   std::unique_ptr<TcpAcceptor> acceptor_;
   const std::vector<NicInfo> peers_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
-                         /*family=*/Values(AF_INET, AF_INET6), ToString);
+                         Combine(/*family=*/Values(AF_INET, AF_INET6),
+                                 /*gen_blocking=*/Values(true)),
+                         ToString);
 
 TEST_P(ChannelUtilTest, Create) {
-  util::Thread ta([&]() { acceptor_->Start(Accept); });
+  util::Thread ta([&]() { acceptor_->Start(Accept, cfg_.blocking); });
 
   for (const NicInfo& nic : peers_) {
     for (const Endpoint& peer : nic.endpoints) {

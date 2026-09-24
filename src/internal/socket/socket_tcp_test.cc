@@ -26,6 +26,9 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
+// For non-blocking mode tests, see connector_test.cc.
+constexpr bool kBlocking = true;
+
 template <int kFamily>
 class TcpSocketTest : public ::testing::Test {
   static_assert(kFamily == AF_INET || kFamily == AF_INET6);
@@ -34,8 +37,8 @@ class TcpSocketTest : public ::testing::Test {
   TcpSocketTest()
       : local_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
                TestOnly_FindFreeTcpPort(kFamily)),
-        listener_(TestOnly_CreateTcpSocket(kFamily)),
-        connector_(TestOnly_CreateTcpSocket(kFamily)) {
+        listener_(TestOnly_CreateTcpSocket(kFamily, kBlocking)),
+        connector_(TestOnly_CreateTcpSocket(kFamily, kBlocking)) {
     DCHECK(listener_->IsValid());
     DCHECK(connector_->IsValid());
     DCHECK(!listener_->IsConnected());
@@ -65,7 +68,7 @@ TEST_F(BlockingTcpIPv4SocketTest, SmallMessage) {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const fd_t new_fd = listener_->Accept();
+    const fd_t new_fd = listener_->Accept(kBlocking);
 
     CHECK_GE(new_fd.value(), 0);
     auto new_socket = TcpSocket::Create(new_fd, AF_INET);
@@ -77,7 +80,7 @@ TEST_F(BlockingTcpIPv4SocketTest, SmallMessage) {
   // Second, create a client thread.
   util::Thread client([&]() {
     server_ready.WaitForNotification();
-    CHECK(connector_->Connect(local_));
+    CHECK(!connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
     CHECK_EQ(connector_->Send(message.data(), kMsgSize), kMsgSize);
@@ -105,7 +108,7 @@ TEST_F(BlockingTcpIPv6SocketTest, BigData) {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const fd_t new_fd = listener_->Accept();
+    const fd_t new_fd = listener_->Accept(kBlocking);
 
     CHECK_GE(new_fd.value(), 0);
     auto new_socket = TcpSocket::Create(new_fd, AF_INET6);
@@ -126,7 +129,7 @@ TEST_F(BlockingTcpIPv6SocketTest, BigData) {
     server_ready.WaitForNotification();
     const Endpoint local_ip(local_.GetIpAddr(), 0);
     CHECK(connector_->Bind(local_ip));
-    CHECK(connector_->Connect(local_));
+    CHECK(!connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
     constexpr int kSN = 3;

@@ -25,22 +25,22 @@ port_t TestOnly_FindFreeUdpPort(int family) {
   return port;
 }
 
-std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family) {
-  std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family);
+std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family, bool blocking) {
+  std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family, blocking);
   CHECK_NE(socket, nullptr);  // Crash OK
   DCHECK_EQ(socket->family(), family);
   DCHECK(socket->IsValid());
-  DCHECK(socket->IsBlocking());
+  DCHECK_EQ(socket->IsBlocking(), blocking);
   DCHECK(!socket->IsConnected());
   return socket;
 }
 
-std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family) {
-  std::unique_ptr<UdpSocket> socket = UdpSocket::Create(family);
+std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family, bool blocking) {
+  std::unique_ptr<UdpSocket> socket = UdpSocket::Create(family, blocking);
   CHECK_NE(socket, nullptr);  // Crash OK
   DCHECK_EQ(socket->family(), family);
   DCHECK(socket->IsValid());
-  DCHECK(socket->IsBlocking());
+  DCHECK_EQ(socket->IsBlocking(), blocking);
   DCHECK(!socket->IsConnected());
   return socket;
 }

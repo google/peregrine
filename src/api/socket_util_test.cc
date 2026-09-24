@@ -41,6 +41,8 @@ using ::testing::Pointwise;
 using ::testing::TestParamInfo;
 using ::testing::Values;
 
+constexpr bool kBlocking = true;
+
 using Param = std::tuple</*family=*/int, /*riov=*/bool, /*wiov=*/bool>;
 
 std::string ToString(const TestParamInfo<Param>& info) {
@@ -61,8 +63,8 @@ class SocketUtilTest : public ::testing::TestWithParam<Param> {
         local_(family_ == AF_INET ? IPv4Localhost() : IPv6Localhost(),
                TestOnly_FindFreeTcpPort(family_)),
         peer_(local_),
-        listener_(TestOnly_CreateTcpSocket(family_)),
-        connector_(TestOnly_CreateTcpSocket(family_)) {
+        listener_(TestOnly_CreateTcpSocket(family_, kBlocking)),
+        connector_(TestOnly_CreateTcpSocket(family_, kBlocking)) {
     DCHECK(listener_->IsValid());
     DCHECK(connector_->IsValid());
     DCHECK(!listener_->IsConnected());
@@ -100,7 +102,7 @@ TEST_P(SocketUtilTest, ReadWrite) {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const internal::fd_t new_fd = listener_->Accept();
+    const internal::fd_t new_fd = listener_->Accept(/*gen_blocking=*/true);
 
     CHECK_GE(new_fd.value(), 0);
     auto new_socket = TcpSocket::Create(new_fd, family_);
@@ -122,7 +124,7 @@ TEST_P(SocketUtilTest, ReadWrite) {
   // Second, create a client thread.
   util::Thread client([&]() {
     server_ready.WaitForNotification();
-    CHECK(connector_->Connect(peer_));
+    CHECK(!connector_->Connect(peer_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
 
@@ -147,7 +149,7 @@ TEST_P(SocketUtilTest, ReadWrite) {
 
 class SocketUtilIovTest : public ::testing::Test {
  protected:
-  SocketUtilIovTest() : socket_(TestOnly_CreateTcpSocket(AF_INET)) {
+  SocketUtilIovTest() : socket_(TestOnly_CreateTcpSocket(AF_INET, kBlocking)) {
     DCHECK(socket_->IsValid());
   }
 

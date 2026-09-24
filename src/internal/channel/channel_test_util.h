@@ -17,10 +17,10 @@ struct ConnectedChannelPair final {
 };
 
 // Creates a tcp channel pair.
-ConnectedChannelPair CreateTcpChannelPair(int family);
+ConnectedChannelPair CreateTcpChannelPair(int family, bool blocking);
 
 // Creates a udp channel pair.
-ConnectedChannelPair CreateUdpChannelPair(int family);
+ConnectedChannelPair CreateUdpChannelPair(int family, bool blocking);
 
 // Creates a memory stream channel pair.
 ConnectedChannelPair CreateMemStreamChannelPair(int error_rate);
@@ -28,9 +28,9 @@ ConnectedChannelPair CreateMemStreamChannelPair(int error_rate);
 // Creates a memory message channel pair.
 ConnectedChannelPair CreateMemMsgChannelPair(int error_rate);
 
-// Creates a test channel pair with the given type and error rate.
+// Creates a test channel pair.
 ConnectedChannelPair CreateTestChannelPair(TestChannelType type, int family,
-                                           int error_rate);
+                                           bool blocking, int error_rate);
 
 }  // namespace peregrine::internal::testing
 

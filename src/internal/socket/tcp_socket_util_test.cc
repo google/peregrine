@@ -27,6 +27,8 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 
+constexpr bool kBlocking = true;
+
 template <int kFamily>
 class TcpSocketUtilTest : public ::testing::Test {
   static_assert(kFamily == AF_INET || kFamily == AF_INET6);
@@ -35,8 +37,8 @@ class TcpSocketUtilTest : public ::testing::Test {
   TcpSocketUtilTest()
       : local_(kFamily == AF_INET ? IPv4Localhost() : IPv6Localhost(),
                TestOnly_FindFreeTcpPort(kFamily)),
-        listener_(TestOnly_CreateTcpSocket(kFamily)),
-        connector_(TestOnly_CreateTcpSocket(kFamily)) {
+        listener_(TestOnly_CreateTcpSocket(kFamily, kBlocking)),
+        connector_(TestOnly_CreateTcpSocket(kFamily, kBlocking)) {
     DCHECK(listener_->IsValid());
     DCHECK(connector_->IsValid());
     DCHECK(!listener_->IsConnected());
@@ -67,7 +69,7 @@ TEST_F(TcpIPv4SocketUtilTest, SmallMessage) {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const fd_t new_fd = listener_->Accept();
+    const fd_t new_fd = listener_->Accept(kBlocking);
 
     CHECK_GE(new_fd.value(), 0);
     auto new_socket = TcpSocket::Create(new_fd, AF_INET);
@@ -79,7 +81,7 @@ TEST_F(TcpIPv4SocketUtilTest, SmallMessage) {
   // Second, create a client thread.
   util::Thread client([&]() {
     server_ready.WaitForNotification();
-    CHECK(connector_->Connect(local_));
+    CHECK(!connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
     CHECK_OK(TcpSocketUtil::Send(connector_->fd(), message.data(), kMsgSize));
@@ -107,7 +109,7 @@ TEST_F(TcpIPv6SocketUtilTest, BigData) {
     CHECK(listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const fd_t new_fd = listener_->Accept();
+    const fd_t new_fd = listener_->Accept(kBlocking);
 
     CHECK_GE(new_fd.value(), 0);
     auto new_socket = TcpSocket::Create(new_fd, AF_INET6);
@@ -124,7 +126,7 @@ TEST_F(TcpIPv6SocketUtilTest, BigData) {
   // Second, create a client thread.
   util::Thread client([&]() {
     server_ready.WaitForNotification();
-    CHECK(connector_->Connect(local_));
+    CHECK(!connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
     const size_t kPartial = kDataSize / 3;

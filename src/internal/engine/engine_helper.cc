@@ -80,7 +80,7 @@ EngineHelper::EngineHelper(const Config& config, const HostInfo& self,
     auto onAccept = [this](std::unique_ptr<TcpSocket> socket) {
       accept(std::move(socket));
     };
-    tcp_acceptor_->Start(onAccept);
+    tcp_acceptor_->Start(onAccept, /*gen_blocking=*/true);
   });
   LOG(INFO) << "engine helper created @ " << self_;
 }

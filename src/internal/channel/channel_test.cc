@@ -80,7 +80,8 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(ChannelTest, ReadWrite) {
   const auto p = GetParam();
-  const auto chs = CreateTestChannelPair(p.type, p.family, /*error_rate=*/0);
+  const auto chs = CreateTestChannelPair(p.type, p.family, /*blocking=*/true,
+                                         /*error_rate=*/0);
   Channel* sndr = chs.sndr.get();
   Channel* rcvr = chs.rcvr.get();
 

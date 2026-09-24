@@ -24,17 +24,26 @@ std::string ToString(const TestChannelType t) {
 std::string FamilyToString(const int family) {
   if (family == AF_INET) return "IPv4";
   if (family == AF_INET6) return "IPv6";
-  return "";
+  return "FamilyUnknown";
 }
 
-std::string ToString(const TestChannelErrorParam& param) {
-  return absl::StrFormat("%s_%s_ErrorRate_%d", ToString(param.type),
-                         FamilyToString(param.family), param.error_rate);
+std::string BlockingToString(const bool blocking) {
+  return blocking ? "Blocking" : "NonBlocking";
 }
 
-std::string ToString(const TestChannelSizeParam& param) {
-  return absl::StrFormat("%s_%s_Size_%zu", ToString(param.type),
-                         FamilyToString(param.family), param.size);
+std::string SocketTestConfig::ToString() const {
+  return absl::StrFormat("%s_%sSocket", FamilyToString(family),
+                         BlockingToString(blocking));
+}
+
+std::string ToString(const TestChannelErrorParam& p) {
+  return absl::StrFormat("%s_%s_ErrorRate_%d", ToString(p.type),
+                         FamilyToString(p.family), p.error_rate);
+}
+
+std::string ToString(const TestChannelSizeParam& p) {
+  return absl::StrFormat("%s_%s_Size_%zu", ToString(p.type),
+                         FamilyToString(p.family), p.size);
 }
 
 }  // namespace peregrine::internal::testing
