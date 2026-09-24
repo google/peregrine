@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -24,7 +25,7 @@ void RandomNonZero(absl::Span<Byte> data) {
 }
 
 void RandomNonZero(absl::BitGenRef bitgen, absl::Span<Byte> data) {
-  for (int i = 0; i < data.size(); ++i) {
+  for (size_t i = 0; i < data.size(); ++i) {
     data[i] = Random<Byte>(bitgen, 0x01, 0xff);
     DCHECK_NE(data[i], 0);
   }
