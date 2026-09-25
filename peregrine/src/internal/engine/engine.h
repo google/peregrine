@@ -36,7 +36,6 @@
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
-#include "peregrine/src/util/util.h"
 
 namespace peregrine::internal {
 
@@ -96,16 +95,16 @@ class Engine final {
   Engine(const Config& config, const HostInfo& self,
          std::unique_ptr<EngineHelper> helper);
 
-  // Generates a random handle.
+  // Generates a unique handle.
   Handle genHandle() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     static_assert(std::is_same_v<Handle::ValueType, uint32_t>);
-    return Handle(util::Random<Handle::ValueType>(bitgen_));
+    return Handle(++next_handle_);
   }
 
-  // Generates a random request id.
+  // Generates a unique request id.
   ReqId genReqId() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     static_assert(std::is_same_v<ReqId::ValueType, uint32_t>);
-    return ReqId(util::Random<ReqId::ValueType>(bitgen_));
+    return ReqId(++next_reqid_);
   }
 
   // Returns the tracker for the request.
@@ -160,6 +159,8 @@ class Engine final {
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);
   absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
+  Handle::ValueType next_handle_ ABSL_GUARDED_BY(mu_);
+  ReqId::ValueType next_reqid_ ABSL_GUARDED_BY(mu_);
   std::deque<Entry> reqs_ ABSL_GUARDED_BY(mu_);
 
   RequestTracker outgoing_;

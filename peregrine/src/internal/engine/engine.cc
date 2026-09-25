@@ -34,6 +34,7 @@
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/util/thread.h"
+#include "peregrine/src/util/util.h"
 
 namespace peregrine::internal {
 
@@ -70,6 +71,8 @@ Engine::Engine(const Config& config, const HostInfo& self,
     : config_(config),
       self_(self),
       stop_(false),
+      next_handle_(util::Random<Handle::ValueType>(bitgen_)),
+      next_reqid_(util::Random<ReqId::ValueType>(bitgen_)),
       outgoing_(helper->Metrics()),
       incoming_(helper->Metrics()),
       metrics_(helper->Metrics()),

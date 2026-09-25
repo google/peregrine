@@ -50,7 +50,9 @@ bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids,
   req_map.reserve(reqids.size());
   for (const ReqId reqid : reqids) {
     // ChunkTracker can only be created after its #chunks is known.
-    req_map.emplace(reqid, /*chunk_tracker=*/nullptr);
+    if (!req_map.try_emplace(reqid, /*chunk_tracker=*/nullptr).second) {
+      return false;
+    }
   }
 
   ReqsTracker rt(std::move(req_map), start_time, std::move(on_complete));
