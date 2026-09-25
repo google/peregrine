@@ -1,3 +1,5 @@
+#include "peregrine/src/internal/socket/tcp_psp_manager.h"
+
 #include <sys/socket.h>
 
 #include <memory>
@@ -20,7 +22,6 @@
 #include "peregrine/src/internal/socket/psp/psp_mock.h"
 #include "peregrine/src/internal/socket/psp/psp_util.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
-#include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -44,7 +45,7 @@ class PspTcpManagerTest : public TestWithParam<SocketTestParam> {
   PspTcpManagerTest()
       : cfg_(GetParam()),
         self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
-        mgr_(TcpManager::Create(self_)),
+        mgr_(PspTcpManager::Create(self_)),
         peers_(self_.data_plane_listeners),
         psp_syscalls_(psp::testing::FakePspTcpSyscalls::Create()),
         psp_token_xchg_([this](const PspToken& self_token, const Endpoint& peer,
@@ -69,10 +70,10 @@ class PspTcpManagerTest : public TestWithParam<SocketTestParam> {
  protected:
   const SocketTestConfig cfg_;
   HostInfo self_;
-  std::unique_ptr<TcpManager> mgr_;
+  std::unique_ptr<PspTcpManager> mgr_;
   const std::vector<NicInfo> peers_;
   std::unique_ptr<psp::testing::FakePspTcpSyscalls> psp_syscalls_;
-  TcpManager::PspTokenExchange psp_token_xchg_;
+  PspTcpManager::PspTokenExchange psp_token_xchg_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, PspTcpManagerTest,
@@ -112,7 +113,7 @@ TEST_P(PspTcpManagerTest, AcceptBeforeConnect) {
     for (const NicInfo& ni : peers_) {
       const Endpoint& peer = ni.endpoints[0];
       std::unique_ptr<TcpSocket> socket =
-          TcpManager::ConnectPsp(self, peer, peer_control, psp_token_xchg_);
+          PspTcpManager::ConnectPsp(self, peer, peer_control, psp_token_xchg_);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());
@@ -137,7 +138,7 @@ TEST_P(PspTcpManagerTest, ConnectBeforeAccept) {
     for (const NicInfo& ni : peers_) {
       const Endpoint& peer = ni.endpoints[0];
       std::unique_ptr<TcpSocket> socket =
-          TcpManager::ConnectPsp(self, peer, peer_control, psp_token_xchg_);
+          PspTcpManager::ConnectPsp(self, peer, peer_control, psp_token_xchg_);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());
