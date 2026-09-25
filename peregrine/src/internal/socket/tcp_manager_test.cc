@@ -92,11 +92,12 @@ TEST_P(TcpManagerTest, AcceptBeforeConnect) {
   util::Thread tc([&]() {
     for (const NicInfo& ni : peers_) {
       for (const Endpoint& peer : ni.endpoints) {
-        std::unique_ptr<TcpSocket> socket =
-            TcpManager::Connect(/*self=*/{}, peer);
-        CHECK_NE(socket, nullptr);
-        DCHECK(socket->IsBlocking());
-        DCHECK(socket->IsConnected());
+        mgr_->Connect(/*self=*/{}, peer, /*blocking=*/true);
+        for (auto& socket : mgr_->GetConnected()) {
+          CHECK_NE(socket, nullptr);
+          DCHECK(socket->IsBlocking());
+          DCHECK(socket->IsConnected());
+        }
       }
     }
   });
@@ -111,11 +112,12 @@ TEST_P(TcpManagerTest, ConnectBeforeAccept) {
   util::Thread tc([&]() {
     for (const NicInfo& ni : peers_) {
       for (const Endpoint& peer : ni.endpoints) {
-        std::unique_ptr<TcpSocket> socket =
-            TcpManager::Connect(/*self=*/{}, peer);
-        CHECK_NE(socket, nullptr);
-        DCHECK(socket->IsBlocking());
-        DCHECK(socket->IsConnected());
+        mgr_->Connect(/*self=*/{}, peer, /*blocking=*/true);
+        for (auto& socket : mgr_->GetConnected()) {
+          CHECK_NE(socket, nullptr);
+          DCHECK(socket->IsBlocking());
+          DCHECK(socket->IsConnected());
+        }
       }
     }
   });

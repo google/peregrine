@@ -146,13 +146,12 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
   uint64_t failures = 0;
   for (int i = 0; chs.size() < n && i < 2 * n; ++i) {
     DCHECK(!config_.require_dataplane_encryption);
-    std::unique_ptr<TcpSocket> socket = TcpManager::Connect(self, peer);
-    if ABSL_PREDICT_FALSE (socket == nullptr) {
-      ++failures;
-      continue;
+    if (tcp_mgr_->Connect(self, peer, /*blocking=*/true)) ++failures;
+    for (auto& socket : tcp_mgr_->GetConnected()) {
+      DCHECK_NE(socket, nullptr);
+      std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
+      chs.push_back(std::move(ch));
     }
-    std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-    chs.push_back(std::move(ch));
   }
   if (failures > 0) metrics_.tcp_connect_failures.Add(failures);
   return chs;

@@ -38,10 +38,10 @@ class ChannelUtilTest : public TestWithParam<SocketTestParam> {
   ChannelUtilTest()
       : cfg_(GetParam()),
         self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
-        acceptor_(TcpManager::Create(self_)),
+        mgr_(TcpManager::Create(self_)),
         peers_(self_.data_plane_listeners) {
     CHECK(self_.IsValid());
-    CHECK_NE(acceptor_, nullptr);
+    CHECK_NE(mgr_, nullptr);
   }
 
   static void Accept(std::unique_ptr<TcpSocket> socket) {
@@ -52,7 +52,7 @@ class ChannelUtilTest : public TestWithParam<SocketTestParam> {
  protected:
   const SocketTestConfig cfg_;
   HostInfo self_;
-  std::unique_ptr<TcpManager> acceptor_;
+  std::unique_ptr<TcpManager> mgr_;
   const std::vector<NicInfo> peers_;
 };
 
@@ -62,19 +62,18 @@ INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
                          ToString);
 
 TEST_P(ChannelUtilTest, Create) {
-  util::Thread ta([&]() { acceptor_->Start(Accept, cfg_.blocking); });
+  util::Thread ta([&]() { mgr_->Start(Accept, cfg_.blocking); });
 
+  const Endpoint self = {};
+  constexpr int kNumChannels = 2;
   for (const NicInfo& nic : peers_) {
     for (const Endpoint& peer : nic.endpoints) {
-      const Endpoint self = {};
-      constexpr int kNumChannels = 2;
-      std::vector<std::unique_ptr<Channel>> chs =
-          Create(self, peer, kNumChannels);
+      auto chs = Create(*mgr_, self, peer, cfg_.blocking, kNumChannels);
       EXPECT_EQ(chs.size(), kNumChannels);
     }
   }
 
-  acceptor_->Stop();
+  mgr_->Stop();
   ta.join();
 }
 

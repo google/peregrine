@@ -34,8 +34,8 @@
 
 namespace peregrine::internal {
 
-std::unique_ptr<TcpSocket> TcpManager::createOne(Endpoint& endpoint,
-                                                 Poller& poller) {
+std::unique_ptr<TcpSocket> TcpManager::createListener(Endpoint& endpoint,
+                                                      Poller& poller) {
   DCHECK(!endpoint.HasZeroIpAddr());
 
   static_assert(assumptions::kOnlyTcpListeningSocketsAreNonBlocking);
@@ -56,7 +56,7 @@ std::unique_ptr<TcpSocket> TcpManager::createOne(Endpoint& endpoint,
     return nullptr;
   }
 
-  constexpr uint32_t kEvents = EPOLLIN | EPOLLRDHUP | EPOLLET;
+  constexpr uint32_t kEvents = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLET;
   if ABSL_PREDICT_FALSE (!poller.Register(socket->fd(), kEvents)) {
     return nullptr;
   }
@@ -99,8 +99,8 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
   absl::flat_hash_map<fd_t, Listener> listeners;
   for (auto& [_, ni] : candidates) {
     NicInfo nic(ni.name, ni.type, {});
-    for (auto& e : ni.endpoints) {  // `e` will be modified in createOne().
-      std::unique_ptr<TcpSocket> socket = createOne(e, *poller);
+    for (auto& e : ni.endpoints) {  // `e` will be modified below
+      std::unique_ptr<TcpSocket> socket = createListener(e, *poller);
       if ABSL_PREDICT_FALSE (socket == nullptr) {
         LOG(WARNING) << "failed to create tcp listening socket for " << e;
         continue;
@@ -124,28 +124,32 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
       new TcpManager(self, std::move(poller), std::move(listeners)));
 }
 
-std::unique_ptr<TcpSocket> TcpManager::Connect(const Endpoint& self,
-                                               const Endpoint& peer) {
+int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
+                        const bool blocking) {
   DCHECK(peer.HasNonzeroIpPort());
+
+  // TODO(yongx): non-blocking connect
+  if (!blocking) return -1;
 
   const int family = peer.GetIpAddr().AddressFamily();
   auto socket = TcpSocket::Create(family, /*blocking=*/true);
   if ABSL_PREDICT_FALSE (socket == nullptr) {
-    return nullptr;
+    return -1;
   }
 
   if (!self.HasZeroIpAddr() && socket->Bind(self)) {
-    return nullptr;
+    return -1;
   }
 
   DCHECK(socket->IsBlocking());
   if (socket->Connect(peer)) {
-    return nullptr;
+    return -1;
   }
 
   DCHECK(socket->IsConnected());
   LOG(INFO) << "made " << *socket;
-  return socket;
+  AddConnected(std::move(socket));
+  return 0;
 }
 
 void TcpManager::Start(OnAccept on_accept, bool gen_blocking) {
@@ -154,12 +158,13 @@ void TcpManager::Start(OnAccept on_accept, bool gen_blocking) {
   DCHECK_NE(on_accept, nullptr);
   LOG(INFO) << "starting, " << self_;
 
+  constexpr int kTimeoutMs = 100;
   constexpr int kMaxEvents = 64;
   epoll_event events[kMaxEvents];
   while (!isStopped() && !listeners_.empty()) {
-    const int nfds = poller_->BlockingWait(events, kMaxEvents);
-    if (nfds < 0) {
-      if (isStopped()) break;
+    const int nfds = poller_->BlockingWait(events, kMaxEvents, kTimeoutMs);
+    if ABSL_PREDICT_FALSE (nfds < 0) {
+      if (isStopped()) return;
       LOG(WARNING) << "poller wait failed";
       continue;
     }
@@ -206,12 +211,13 @@ void TcpManager::Stop() {
 }
 
 bool TcpManager::invariant() const {
-  const bool nonblocking =
+  const bool nonblocking_listeners =
       std::all_of(listeners_.begin(), listeners_.end(), [](const auto& pair) {
-        return pair.first == pair.second.socket->fd() &&
-               pair.second.socket->IsNonBlocking();
+        const TcpSocket* const socket = pair.second.socket.get();
+        return socket != nullptr && pair.first == socket->fd() &&
+               socket->IsNonBlocking();
       });
-  return self_.IsValid() && poller_ != nullptr && nonblocking;
+  return self_.IsValid() && poller_ != nullptr && nonblocking_listeners;
 }
 
 std::unique_ptr<TcpSocket> TcpManager::ConnectPsp(

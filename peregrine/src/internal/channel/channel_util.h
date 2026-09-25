@@ -14,6 +14,7 @@
 #include "peregrine/src/internal/rdma/rdma_queue_pair.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
+#include "peregrine/src/internal/socket/tcp_manager.h"
 
 namespace peregrine::internal {
 
@@ -35,9 +36,11 @@ inline std::unique_ptr<Channel> CreateRdmaChannel(
   return std::make_unique<RdmaChannel>(std::move(qp), lkey, rkey);
 }
 
-// Creates `n` channels connecting `self` to the `peer`.
-std::vector<std::unique_ptr<Channel>> Create(const Endpoint& self,
-                                             const Endpoint& peer, int n);
+// Creates `n` tcp channels connecting `self` to the `peer`.
+std::vector<std::unique_ptr<Channel>> Create(TcpManager& tcp_mgr,
+                                             const Endpoint& self,
+                                             const Endpoint& peer,
+                                             bool blocking, int n);
 
 }  // namespace peregrine::internal
 

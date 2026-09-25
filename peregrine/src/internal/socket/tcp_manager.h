@@ -1,10 +1,13 @@
 #ifndef PEREGRINE_SRC_INTERNAL_SOCKET_TCP_MANAGER_H_
 #define PEREGRINE_SRC_INTERNAL_SOCKET_TCP_MANAGER_H_
 
+#include <algorithm>
 #include <atomic>
 #include <memory>
 #include <utility>
+#include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
@@ -36,11 +39,20 @@ class TcpManager {
   // fills in `self.data_plane_listeners` with the listening endpoints.
   static std::unique_ptr<TcpManager> Create(HostInfo& self);
 
-  // Connects the `self` endpoint to the `peer` in blocking mode.
+  // Returns all the connected sockets.
+  std::vector<std::unique_ptr<TcpSocket>> GetConnected()
+      ABSL_LOCKS_EXCLUDED(connected_mu_) {
+    absl::MutexLock _(connected_mu_);
+    DCHECK(std::all_of(connected_.begin(), connected_.end(),
+                       [](const auto& socket) { return socket != nullptr; }));
+    return std::move(connected_);
+  }
+
+  // Connects the `self` endpoint to the `peer` in blocking/non-blocking mode.
   // If `self` has nonzero ip address, binds to it before connecting.
-  // Returns a connected tcp socket if successful, or null pointer otherwise.
-  static std::unique_ptr<TcpSocket> Connect(const Endpoint& self,
-                                            const Endpoint& peer);
+  // Returns 0 if successful, or -1 on error.
+  int Connect(const Endpoint& self, const Endpoint& peer, bool blocking)
+      ABSL_LOCKS_EXCLUDED(connected_mu_);
 
   // Connects the `self` endpoint to the `peer` in blocking mode, while
   // exchanging PSP tokens with the `peer_control` endpoint. If `self` has
@@ -72,9 +84,6 @@ class TcpManager {
           mu(std::make_unique<absl::Mutex>()) {}
   };
 
-  // Finds the listener matching the `target` endpoint.
-  const Listener* findListener(const Endpoint& target) const;
-
  private:
   // Constructor with a set of non-blocking tcp listening sockets.
   TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
@@ -86,10 +95,21 @@ class TcpManager {
     DCHECK(invariant());
   }
 
+  // Adds a connected socket.
+  void AddConnected(std::unique_ptr<TcpSocket> socket)
+      ABSL_LOCKS_EXCLUDED(connected_mu_) {
+    DCHECK_NE(socket, nullptr);
+    absl::MutexLock _(connected_mu_);
+    connected_.emplace_back(std::move(socket));
+  }
+
   // Creates a tcp non-blocking socket listening on the `endpoint`.
   // If `endpoint.port` is 0, an ephemeral port will be used and filled back in.
-  static std::unique_ptr<TcpSocket> createOne(Endpoint& endpoint,
-                                              Poller& poller);
+  static std::unique_ptr<TcpSocket> createListener(Endpoint& endpoint,
+                                                   Poller& poller);
+
+  // Finds the listener matching the `target` endpoint.
+  const Listener* findListener(const Endpoint& target) const;
 
   // Returns true iff the stop flag is true.
   bool isStopped() const { return stop_.load(std::memory_order_relaxed); }
@@ -100,6 +120,11 @@ class TcpManager {
  private:
   const HostInfo self_;
   std::atomic<bool> stop_;
+
+  absl::Mutex connected_mu_;
+  std::vector<std::unique_ptr<TcpSocket>> connected_
+      ABSL_GUARDED_BY(connected_mu_);
+
   std::unique_ptr<Poller> poller_;
   const absl::flat_hash_map<fd_t, Listener> listeners_;
 };

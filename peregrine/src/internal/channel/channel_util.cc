@@ -12,24 +12,24 @@
 
 namespace peregrine::internal {
 
-std::vector<std::unique_ptr<Channel>> Create(const Endpoint& self,
+std::vector<std::unique_ptr<Channel>> Create(TcpManager& tcp_mgr,
+                                             const Endpoint& self,
                                              const Endpoint& peer,
-                                             const int n) {
+                                             const bool blocking, const int n) {
   DCHECK(peer.HasNonzeroIpPort());
   DCHECK_GE(n, 1);
 
   std::vector<std::unique_ptr<Channel>> chs;
   chs.reserve(n);
   for (int i = 0; i < 2 * n; ++i) {
-    std::unique_ptr<TcpSocket> socket = TcpManager::Connect(self, peer);
-    if (socket == nullptr) continue;
-    DCHECK(socket->IsBlocking());
-
-    std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-    DCHECK_NE(ch, nullptr);
-
-    chs.emplace_back(std::move(ch));
-    if (chs.size() >= n) break;
+    tcp_mgr.Connect(self, peer, blocking);
+    for (auto& socket : tcp_mgr.GetConnected()) {
+      DCHECK_EQ(socket->IsBlocking(), blocking);
+      std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
+      DCHECK_NE(ch, nullptr);
+      chs.emplace_back(std::move(ch));
+      if (chs.size() >= n) return chs;
+    }
   }
   return chs;
 }

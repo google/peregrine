@@ -72,13 +72,12 @@ bool Poller::Unregister(const fd_t fd) {
   return true;
 }
 
-int Poller::BlockingWait(epoll_event* events, int max_events) {
+int Poller::BlockingWait(epoll_event* events, int max_events, int timeout_ms) {
   DCHECK_NE(events, nullptr);
   DCHECK_GE(max_events, 1);
 
   const int efd = epoll_fd_.value();
-  constexpr int kInfiniteTimeout = -1;
-  const int nfds = ::epoll_wait(efd, events, max_events, kInfiniteTimeout);
+  const int nfds = ::epoll_wait(efd, events, max_events, timeout_ms);
   if ABSL_PREDICT_FALSE (nfds < 0) {
     const int last_errno = errno;
     LOG(ERROR) << ErrMsg("blocking wait", last_errno);

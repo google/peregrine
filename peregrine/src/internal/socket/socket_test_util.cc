@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/random/random.h"
@@ -40,6 +41,7 @@ CreateTcpSocketPair(int family, bool blocking) {
   CHECK_NE(mgr, nullptr);
 
   std::unique_ptr<TcpSocket> sa = nullptr;
+  std::unique_ptr<TcpSocket> sb = nullptr;
   absl::Notification mgr_started;
   absl::Notification socket_accepted;
   auto accept = [&](std::unique_ptr<TcpSocket> socket) {
@@ -54,7 +56,10 @@ CreateTcpSocketPair(int family, bool blocking) {
   mgr_started.WaitForNotification();
   const Endpoint self = {};
   const Endpoint peer = PickPeer(a);
-  std::unique_ptr<TcpSocket> sb = TcpManager::Connect(self, peer);
+  mgr->Connect(self, peer, /*blocking=*/true);
+  std::vector<std::unique_ptr<TcpSocket>> connected = mgr->GetConnected();
+  CHECK_EQ(connected.size(), 1);
+  sb = std::move(connected[0]);
 
   socket_accepted.WaitForNotification();
   mgr->Stop();

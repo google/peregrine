@@ -26,7 +26,7 @@ class Poller {
 
   // Waits blockingly for events on the file descriptors registered.
   // Returns the number of file descriptors with events received.
-  int BlockingWait(epoll_event* events, int max_events);
+  int BlockingWait(epoll_event* events, int max_events, int timeout_ms);
 
   // Destructor closes the epoll file descriptor.
   ~Poller();
