@@ -5,10 +5,13 @@
 #include <cstdint>
 #include <memory>
 
+#include "absl/types/span.h"
+#include "peregrine/src/api/transport_types.h"
 #include "peregrine/test/integration/controlpath-host.h"
 #include "peregrine/test/integration/datapath-host.h"
 #include "peregrine/test/integration/flags.h"
 #include "peregrine/test/integration/settings.h"
+#include "peregrine/test/workloads/workload_generator.h"
 
 namespace peregrine::integration {
 
@@ -34,12 +37,15 @@ class PeregrineIntegration final {
  private:
   bool shouldContinue() const;
   void sendRequest();
+  void clearData(absl::Span<const Request> requests);
+  void verifyData(absl::Span<const Request> requests) const;
 
  private:
   Settings settings_;
   Flags flags_;
   std::atomic<bool> stop_{false};
 
+  std::unique_ptr<workloads::WorkloadGenerator> workload_;
   std::unique_ptr<ControlpathHost> controlpath_sndr_;
   std::unique_ptr<ControlpathHost> controlpath_rcvr_;
   std::unique_ptr<DatapathHost> datapath_sndr_;

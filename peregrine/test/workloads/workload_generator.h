@@ -5,15 +5,29 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/log/log.h"
+#include "absl/strings/match.h"
 #include "peregrine/src/api/transport_types.h"
 
-namespace peregrine {
+namespace peregrine::workloads {
 
 // Traffic workload type.
 enum class WorkloadType {
   kSerialFixedWrite,
   kKvCache,
 };
+
+// Parses the workload type from its string representation.
+inline WorkloadType ParseWorkloadType(std::string_view s) {
+  if (absl::EqualsIgnoreCase(s, "serial_fixed_write")) {
+    return WorkloadType::kSerialFixedWrite;
+  } else if (absl::EqualsIgnoreCase(s, "kv_cache")) {
+    return WorkloadType::kKvCache;
+  } else {
+    LOG(FATAL) << "invalid workload: " << s
+               << ". Expected 'serial_fixed_write' or 'kv_cache'.";
+  }
+}
 
 // Abstract interface for workload generators that map workloads into generic
 // Peregrine transfer requests.
@@ -33,6 +47,6 @@ class WorkloadGenerator {
       peregrine::Byte* base_laddr, peregrine::Byte* base_raddr) const = 0;
 };
 
-}  // namespace peregrine
+}  // namespace peregrine::workloads
 
 #endif  // PEREGRINE_TEST_WORKLOADS_WORKLOAD_GENERATOR_H_

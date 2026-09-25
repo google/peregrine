@@ -57,7 +57,7 @@ std::string ParsePeer();
 uint32_t ParseNumXfers();
 
 // Parses the workload type.
-WorkloadType ParseWorkloadType();
+workloads::WorkloadType ParseWorkloadType();
 
 }  // namespace peregrine::benchmark
 

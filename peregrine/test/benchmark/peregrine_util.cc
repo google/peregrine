@@ -44,6 +44,9 @@ using ::peregrine::Request;
 using ::peregrine::Status;
 using ::peregrine::util::FindFreePort;
 using ::peregrine::util::RandomNonZero;
+using ::peregrine::workloads::CreateWorkload;
+using ::peregrine::workloads::WorkloadGenerator;
+using ::peregrine::workloads::WorkloadType;
 
 std::string GenEndpoint(std::string_view ip, uint16_t port) {
   const bool ipv6 = absl::StrContains(ip, ':');
