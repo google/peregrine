@@ -10,16 +10,16 @@ transport library to serve machine learning workloads on TPU hosts.
 
 ## Code Organization
 
-- `src/`: the library and all the unit tests
-- `test/`: the integration tests and benchmarks
+- `peregrine/src/`: the library and all the unit tests
+- `peregrine/test/`: the integration tests and benchmarks
 - `ci/`: continuous integration in GitHub
 
 ## Quick Start
 
-- `run.sh` builds and tests all the code;
+- `run.sh` builds and tests all the code.
 
 - To start the integration test, run
 
 ```
-  $ bazelisk run //test/integration:main
+  $ bazelisk run //peregrine/test/integration:main
 ```

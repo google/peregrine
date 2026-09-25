@@ -12,6 +12,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "peregrine/src/internal/base/endpoint.h"
@@ -28,6 +29,8 @@
 namespace peregrine::internal::testing {
 namespace {
 
+using ::absl::StatusCode::kNotFound;
+using ::absl_testing::StatusIs;
 using ::testing::Combine;
 using ::testing::TestParamInfo;
 using ::testing::TestWithParam;
@@ -165,7 +168,7 @@ TEST_P(PspTcpManagerTest, HandlePspTokenExchange) {
 
   const Endpoint unknown_target = Endpoint::Create("127.0.0.1:9999");
   const auto status = mgr_->ExchangePspTokens(peer_token, unknown_target);
-  EXPECT_THAT(status, ::absl_testing::StatusIs(::absl::StatusCode::kNotFound));
+  EXPECT_THAT(status, StatusIs(kNotFound));
 }
 
 TEST_P(PspTcpManagerTest, AcceptBeforeConnect) {
