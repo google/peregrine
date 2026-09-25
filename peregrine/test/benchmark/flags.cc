@@ -135,15 +135,7 @@ uint32_t ParseNumXfers() {
 }
 
 WorkloadType ParseWorkloadType() {
-  const std::string s = absl::GetFlag(FLAGS_workload);
-  if (absl::EqualsIgnoreCase(s, "serial_fixed_write")) {
-    return WorkloadType::kSerialFixedWrite;
-  } else if (absl::EqualsIgnoreCase(s, "kv_cache")) {
-    return WorkloadType::kKvCache;
-  } else {
-    LOG(FATAL) << "invalid workload: " << s
-               << ". Expected 'serial_fixed_write' or 'kv_cache'.";
-  }
+  return peregrine::ParseWorkloadType(absl::GetFlag(FLAGS_workload));
 }
 
 }  // namespace peregrine::benchmark
