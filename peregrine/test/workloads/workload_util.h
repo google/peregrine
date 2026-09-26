@@ -9,7 +9,7 @@
 #include "peregrine/test/workloads/serial_fixed_write.h"
 #include "peregrine/test/workloads/workload_generator.h"
 
-namespace peregrine {
+namespace peregrine::workloads {
 
 // Factory function to instantiate the requested workload generator.
 inline std::unique_ptr<WorkloadGenerator> CreateWorkload(
@@ -28,6 +28,6 @@ inline uint64_t GetXferSize(WorkloadType workload) {
   return CreateWorkload(workload)->TotalSizeBytes();
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::workloads
 
 #endif  // PEREGRINE_TEST_WORKLOADS_WORKLOAD_UTIL_H_

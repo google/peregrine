@@ -9,7 +9,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/test/workloads/workload_generator.h"
 
-namespace peregrine {
+namespace peregrine::workloads {
 
 // Workload generator for KV-cache transfers.
 class KvCache : public WorkloadGenerator {
@@ -33,6 +33,6 @@ class KvCache : public WorkloadGenerator {
   const uint64_t xfer_size_;
 };
 
-}  // namespace peregrine
+}  // namespace peregrine::workloads
 
 #endif  // PEREGRINE_TEST_WORKLOADS_KV_CACHE_H_
