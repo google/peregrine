@@ -20,11 +20,12 @@
 
 namespace peregrine::internal {
 
-fd_t CreateSocket(int family, int type, bool blocking) {
+fd_t CreateSocket(const int family, const int type, const bool blocking) {
   DCHECK(family == AF_INET || family == AF_INET6);
   DCHECK(type == SOCK_STREAM || type == SOCK_DGRAM);
 
-  const int ret = ::socket(family, type | SOCK_CLOEXEC, /*protocol=*/0);
+  const int t = type | (blocking ? 0 : SOCK_NONBLOCK) | SOCK_CLOEXEC;
+  const int ret = ::socket(family, t, /*protocol=*/0);
   if ABSL_PREDICT_FALSE (ret < 0) {
     const int last_errno = errno;
     LOG(WARNING) << ErrorMsg("socket", last_errno);
@@ -32,28 +33,22 @@ fd_t CreateSocket(int family, int type, bool blocking) {
   }
 
   const fd_t fd(ret);
-  DCHECK(IsBlockingMode(fd));
-  if (blocking) return fd;
-
-  if (!SetNonBlockingMode(fd)) {
-    ::close(fd.value());  // release the socket resource.
-    return fd_t(-1);
-  }
-  DCHECK(IsNonBlockingMode(fd));
+  DCHECK((blocking && IsBlockingMode(fd)) ||
+         (!blocking && IsNonBlockingMode(fd)));
   return fd;
 }
 
-bool IsBlockingMode(fd_t fd) {
+bool IsBlockingMode(const fd_t fd) {
   const int flags = ::fcntl(fd.value(), F_GETFL);
   return flags >= 0 && !(flags & O_NONBLOCK);
 }
 
-bool IsNonBlockingMode(fd_t fd) {
+bool IsNonBlockingMode(const fd_t fd) {
   const int flags = ::fcntl(fd.value(), F_GETFL);
   return flags >= 0 && (flags & O_NONBLOCK);
 }
 
-bool __set_blocking_mode(fd_t fd, bool blocking) {
+bool __set_blocking_mode(const fd_t fd, const bool blocking) {
   const int flags = ::fcntl(fd.value(), F_GETFL);
   if ABSL_PREDICT_FALSE (flags < 0) return false;
   const int cmd = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
