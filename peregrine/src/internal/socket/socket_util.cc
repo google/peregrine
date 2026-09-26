@@ -33,8 +33,7 @@ fd_t CreateSocket(const int family, const int type, const bool blocking) {
   }
 
   const fd_t fd(ret);
-  DCHECK((blocking && IsBlockingMode(fd)) ||
-         (!blocking && IsNonBlockingMode(fd)));
+  DCHECK(CheckBlockingMode(fd, blocking));
   return fd;
 }
 

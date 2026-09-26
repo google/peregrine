@@ -48,19 +48,27 @@ TEST_P(SocketUtilTest, Basic) {
       const fd_t fd = CreateSocket(cfg_.family, type, cfg_.blocking);
       ASSERT_GE(fd.value(), 0);
       ASSERT_TRUE(IsValidSocket(fd));
+      ASSERT_TRUE(CheckBlockingMode(fd, cfg_.blocking));
       LOG(INFO) << SuccessMsg(proto, "created", fd);
 
       int on = 1, off = 0;
       EXPECT_TRUE(SetOption(fd, SO_REUSEADDR, &on, sizeof(on)));
       EXPECT_TRUE(SetOption(fd, SO_REUSEADDR, &off, sizeof(off)));
 
+      int err = -1;
+      socklen_t len = sizeof(err);
+      EXPECT_TRUE(GetOption(fd, SO_ERROR, &err, &len));
+      EXPECT_EQ(err, 0);
+
       EXPECT_TRUE(SetBlockingMode(fd));
       EXPECT_TRUE(IsBlockingMode(fd));
       EXPECT_FALSE(IsNonBlockingMode(fd));
+      EXPECT_TRUE(CheckBlockingMode(fd, true));
 
       EXPECT_TRUE(SetNonBlockingMode(fd));
       EXPECT_TRUE(IsNonBlockingMode(fd));
       EXPECT_FALSE(IsBlockingMode(fd));
+      EXPECT_TRUE(CheckBlockingMode(fd, false));
 
       if (cfg_.family == AF_INET) {
         EXPECT_EQ(SelfAddrPort(fd), "0.0.0.0:0");

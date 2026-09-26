@@ -39,6 +39,11 @@ class SocketBase {
   // Returns true iff the socket is in non-blocking mode.
   bool IsNonBlocking() const { return IsNonBlockingMode(fd_); }
 
+  // Returns true iff the socket is in the specified blocking mode.
+  bool CheckBlocking(bool blocking) const {
+    return blocking ? IsBlockingMode(fd_) : IsNonBlockingMode(fd_);
+  }
+
  protected:
   // Constructor.
   SocketBase(fd_t fd, int family, bool connected)

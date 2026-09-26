@@ -139,8 +139,7 @@ fd_t TcpSocket::Accept(bool gen_blocking) const {
     } else {
       const fd_t new_fd(ret);
       DCHECK_GE(new_fd.value(), 0);
-      DCHECK((gen_blocking && IsBlockingMode(new_fd)) ||
-             (!gen_blocking && IsNonBlockingMode(new_fd)));
+      DCHECK(CheckBlockingMode(new_fd, gen_blocking));
       LOG(INFO) << okMsg("accepted", new_fd);
       return new_fd;
     }

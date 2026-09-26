@@ -27,7 +27,7 @@ class SocketTest : public TestWithParam<SocketTestParam> {
   SocketTest() : cfg_(GetParam()) {}
 
   template <typename T>
-  static void Check(std::unique_ptr<T> s) {
+  static void Check(std::unique_ptr<T> s, bool blocking) {
     static_assert(std::is_same_v<T, TcpSocket> || std::is_same_v<T, UdpSocket>);
     static_assert(!std::is_copy_constructible_v<T>);
     static_assert(!std::is_copy_assignable_v<T>);
@@ -37,11 +37,13 @@ class SocketTest : public TestWithParam<SocketTestParam> {
     CHECK_NE(s, nullptr);
     const fd_t fd = s->fd();
     CHECK_GE(fd.value(), 0);
+    CHECK(s->CheckBlocking(blocking));
 
     auto s2 = std::move(s);
     EXPECT_EQ(s, nullptr);
     EXPECT_NE(s2, nullptr);
     EXPECT_EQ(s2->fd(), fd);
+    CHECK(s2->CheckBlocking(blocking));
   }
 
  protected:
@@ -55,12 +57,12 @@ INSTANTIATE_TEST_SUITE_P(, SocketTest,
 
 TEST_P(SocketTest, TcpCopyMove) {
   std::unique_ptr<TcpSocket> s = TcpSocket::Create(cfg_.family, cfg_.blocking);
-  Check(std::move(s));
+  Check(std::move(s), cfg_.blocking);
 }
 
 TEST_P(SocketTest, UdpCopyMove) {
   std::unique_ptr<UdpSocket> s = UdpSocket::Create(cfg_.family, cfg_.blocking);
-  Check(std::move(s));
+  Check(std::move(s), cfg_.blocking);
 }
 
 }  // namespace
