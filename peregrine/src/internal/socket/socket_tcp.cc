@@ -148,20 +148,19 @@ fd_t TcpSocket::Accept(bool gen_blocking) const {
 
 int TcpSocket::Connect(const Endpoint& peer) {
   DCHECK(invariant());
+  DCHECK(!connected_);
   DCHECK(IsNonBlocking() || IsBlocking());
 
-  while (true) {
-    if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
-      const int last_errno = errno;
-      if (Interrupted(last_errno)) continue;
-      if (InProgress(last_errno)) return 1;
-      LOG(WARNING) << errMsg("connect", last_errno);
-      return -1;
-    } else {
-      LOG(INFO) << okMsg("connected");
-      connected_ = true;
-      return 0;
-    }
+  // Treat EINTR as an error: do not reconnect the same socket.
+  if (SocketBase::Connect(fd_, peer) < 0) {
+    const int last_errno = errno;
+    if (InProgress(last_errno)) return 1;
+    LOG(WARNING) << errMsg("connect", last_errno);
+    return -1;
+  } else {
+    LOG(INFO) << okMsg("connected");
+    connected_ = true;
+    return 0;
   }
 }
 
