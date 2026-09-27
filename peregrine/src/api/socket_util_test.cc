@@ -102,9 +102,10 @@ TEST_P(SocketUtilTest, ReadWrite) {
     CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const internal::fd_t new_fd = listener_->Accept(/*gen_blocking=*/true);
+    const int ret = listener_->Accept(/*gen_blocking=*/true);
+    CHECK_GE(ret, 0);
 
-    CHECK_GE(new_fd.value(), 0);
+    const internal::fd_t new_fd(ret);
     auto new_socket = TcpSocket::Create(new_fd, family_);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());

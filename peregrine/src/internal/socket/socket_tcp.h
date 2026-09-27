@@ -47,8 +47,12 @@ class TcpSocket final : public SocketBase {
   // Accepts a new connection to this listening socket, using `gen_blocking`
   // to set the blocking/non-blocking mode of the newly spawned socket.
   // Returns the new socket file descriptor (>= 0) on success.
-  // Return -2 if the listening socket is shut down. Otherwise, returns -1.
-  fd_t Accept(bool gen_blocking) const;
+  // On failure, returns a negative value:
+  //   -2  if no pending connection is available
+  //   -10 if the listening socket has been shut down
+  //   -11 if out of resources
+  //   -1  on any other error.
+  int Accept(bool gen_blocking) const;
 
   // Connects to the `peer` endpoint. Returns 0 if the connection is
   // established, 1 if the connection is in progress, and -1 on error.

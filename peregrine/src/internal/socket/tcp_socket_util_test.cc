@@ -78,9 +78,10 @@ TEST_P(TcpSocketUtilTest, SmallMessage) {
     CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const fd_t new_fd = listener_->Accept(cfg_.blocking);
+    const int ret = listener_->Accept(cfg_.blocking);
+    CHECK_GE(ret, 0);
 
-    CHECK_GE(new_fd.value(), 0);
+    const fd_t new_fd(ret);
     auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
@@ -118,9 +119,10 @@ TEST_P(TcpSocketUtilTest, BigData) {
     CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     DCHECK(listener_->IsBlocking());
-    const fd_t new_fd = listener_->Accept(cfg_.blocking);
+    const int ret = listener_->Accept(cfg_.blocking);
+    CHECK_GE(ret, 0);
 
-    CHECK_GE(new_fd.value(), 0);
+    const fd_t new_fd(ret);
     auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());

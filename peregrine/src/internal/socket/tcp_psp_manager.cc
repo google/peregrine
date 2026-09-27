@@ -29,6 +29,7 @@
 #include "peregrine/src/internal/socket/psp/psp.h"
 #include "peregrine/src/internal/socket/psp/psp_util.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/socket/socket_tcp_util.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/util/nic.h"
 
@@ -178,8 +179,7 @@ void PspTcpManager::Start(OnAccept on_accept, bool gen_blocking) {
       const TcpSocket* listener = it->second.socket.get();
       const int family = listener->family();
       while (true) {
-        const fd_t new_fd = listener->Accept(gen_blocking);
-        const int ret = new_fd.value();
+        const int ret = listener->Accept(gen_blocking);
         if ABSL_PREDICT_FALSE (ret < 0) {
           if ABSL_PREDICT_FALSE (IsOutOfResource(ret)) {
             LOG_EVERY_N_SEC(ERROR, 3) << "out of resource, " << *listener;
@@ -191,6 +191,7 @@ void PspTcpManager::Start(OnAccept on_accept, bool gen_blocking) {
           }
           break;
         }
+        const fd_t new_fd(ret);
         std::unique_ptr<TcpSocket> socket = TcpSocket::Create(new_fd, family);
         DCHECK(socket->MatchesBlocking(gen_blocking));
         DCHECK(socket->IsConnected());

@@ -61,11 +61,17 @@ cc_test(
 )
 
 cc_library(
+    name = "socket_tcp_util",
+    hdrs = ["socket_tcp_util.h"],
+)
+
+cc_library(
     name = "socket_tcp",
     srcs = ["socket_tcp.cc"],
     hdrs = ["socket_tcp.h"],
     deps = [
         ":socket_base",
+        ":socket_tcp_util",
         ":socket_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
@@ -202,6 +208,7 @@ cc_library(
     hdrs = ["tcp_manager.h"],
     deps = [
         ":socket_tcp",
+        ":socket_tcp_util",
         ":socket_util",
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:endpoint",
@@ -247,6 +254,7 @@ cc_library(
     hdrs = ["tcp_psp_manager.h"],
     deps = [
         ":socket_tcp",
+        ":socket_tcp_util",
         ":socket_util",
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:endpoint",

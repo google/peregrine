@@ -64,16 +64,6 @@ inline int SetNonBlockingMode(fd_t fd) {
   return __set_blocking_mode(fd, /*blocking=*/false);
 }
 
-// Returns true iff the tcp listen socket Accept() call would block.
-inline bool IsWouldBlock(int ret) { return ret == -3; }
-
-// Returns true iff the tcp listen socket Accept() call was shut down.
-inline bool IsShutdown(int ret) { return ret == -2; }
-
-// Returns true iff the tcp listen socket Accept() call failed due to
-// resource exhaustion.
-inline bool IsOutOfResource(int ret) { return ret == -10; }
-
 // Returns true iff the last socket operation was interrupted by a signal.
 inline bool Interrupted(int last_errno) { return last_errno == EINTR; }
 

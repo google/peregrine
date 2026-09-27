@@ -24,6 +24,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_base.h"
+#include "peregrine/src/internal/socket/socket_tcp_util.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/util.h"
 
@@ -96,52 +97,33 @@ int TcpSocket::Listen(const Endpoint& local) const {
   }
 }
 
-namespace {
-int AcceptConn(const int family, const fd_t fd, const bool gen_blocking) {
-  const int flags = (gen_blocking ? 0 : SOCK_NONBLOCK) | SOCK_CLOEXEC;
-  if (family == AF_INET) {
-    struct sockaddr_in sa;
-    socklen_t len = sizeof(sa);
-    return ::accept4(fd.value(), (struct sockaddr*)&sa, &len, flags);
-  } else {
-    DCHECK_EQ(family, AF_INET6);
-    struct sockaddr_in6 sa;
-    socklen_t len = sizeof(sa);
-    return ::accept4(fd.value(), (struct sockaddr*)&sa, &len, flags);
-  }
-}
-}  // namespace
-
-fd_t TcpSocket::Accept(bool gen_blocking) const {
+int TcpSocket::Accept(bool gen_blocking) const {
   DCHECK(invariant());
   DCHECK(IsNonBlocking() || IsBlocking());
 
+  const int flags = (gen_blocking ? 0 : SOCK_NONBLOCK) | SOCK_CLOEXEC;
   while (true) {
-    const int ret = AcceptConn(family_, fd_, gen_blocking);
-    if ABSL_PREDICT_FALSE (ret < 0) {
-      // At this point, shutdown() is the only reason that can cause EINVAL.
+    const int ret = ::accept4(fd_.value(), nullptr, nullptr, flags);
+    if (ret < 0) {
       const int last_errno = errno;
       if (Interrupted(last_errno)) {
         continue;
       } else if (WouldBlock(last_errno)) {
-        return fd_t(-3);
-      } else if (last_errno == EINVAL) {
-        LOG(WARNING) << okMsg("accept shutdown");
-        DCHECK(IsShutdown(-2));
-        return fd_t(-2);
+        return kAcceptWouldBlock;
+      } else if (last_errno == EINVAL) {  // after shutdown()
+        LOG(INFO) << okMsg("accept shutdown");
+        return kAcceptShutdown;
       } else if (OutOfResource(last_errno)) {
-        DCHECK(IsOutOfResource(-10));
-        return fd_t(-10);
+        return kAcceptOutOfResource;
       } else {
         LOG(WARNING) << errMsg("accept", last_errno);
-        return fd_t(-1);
+        return kAcceptError;
       }
     } else {
       const fd_t new_fd(ret);
-      DCHECK_GE(new_fd.value(), 0);
       DCHECK(MatchesBlockingMode(new_fd, gen_blocking));
       LOG(INFO) << okMsg("accepted", new_fd);
-      return new_fd;
+      return ret;
     }
   }
 }
@@ -154,9 +136,9 @@ int TcpSocket::Connect(const Endpoint& peer) {
   // Treat EINTR as an error: do not reconnect the same socket.
   if (SocketBase::Connect(fd_, peer) < 0) {
     const int last_errno = errno;
-    if (InProgress(last_errno)) return 1;
+    if (InProgress(last_errno)) return kConnectInProgress;
     LOG(WARNING) << errMsg("connect", last_errno);
-    return -1;
+    return kConnectError;
   } else {
     LOG(INFO) << okMsg("connected");
     connected_ = true;
