@@ -183,7 +183,7 @@ ssize_t UdpSocket::RecvV(const absl::Span<const IoVec> iovecs) const {
 }
 
 std::string UdpSocket::ToString() const {
-  return absl::StrCat("udp socket: ", AddrPortPair(fd_));
+  return absl::StrCat("udp/", SocketBase::ToString());
 }
 
 }  // namespace peregrine::internal

@@ -187,7 +187,7 @@ void TcpManager::Start(OnAccept on_accept, bool gen_blocking) {
           break;
         }
         std::unique_ptr<TcpSocket> socket = TcpSocket::Create(new_fd, family);
-        DCHECK_EQ(socket->IsBlocking(), gen_blocking);
+        DCHECK(socket->MatchesBlocking(gen_blocking));
         DCHECK(socket->IsConnected());
         LOG(INFO) << "made " << *socket;
         on_accept(std::move(socket));

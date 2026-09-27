@@ -37,13 +37,13 @@ class SocketTest : public TestWithParam<SocketTestParam> {
     CHECK_NE(s, nullptr);
     const fd_t fd = s->fd();
     CHECK_GE(fd.value(), 0);
-    CHECK(s->CheckBlocking(blocking));
+    CHECK(s->MatchesBlocking(blocking));
 
     auto s2 = std::move(s);
-    EXPECT_EQ(s, nullptr);
-    EXPECT_NE(s2, nullptr);
-    EXPECT_EQ(s2->fd(), fd);
-    CHECK(s2->CheckBlocking(blocking));
+    CHECK_EQ(s, nullptr);
+    CHECK_NE(s2, nullptr);
+    CHECK_EQ(s2->fd(), fd);
+    CHECK(s2->MatchesBlocking(blocking));
   }
 
  protected:

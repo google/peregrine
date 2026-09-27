@@ -23,15 +23,18 @@ fd_t CreateSocket(int family, int type, bool blocking);
 // Returns true iff the socket `fd` is valid (not closed).
 inline bool IsValidSocket(fd_t fd) { return ::fcntl(fd.value(), F_GETFD) >= 0; }
 
-// Sets socket option. Returns true if successful, false otherwise.
-inline bool SetOption(fd_t fd, int opt, const void* val, socklen_t len) {
-  return ::setsockopt(fd.value(), SOL_SOCKET, opt, val, len) >= 0;
+// Sets socket option. Returns 0 on success, -1 otherwise.
+inline int SetSocketOption(fd_t fd, int opt, const void* val, socklen_t len) {
+  return ::setsockopt(fd.value(), SOL_SOCKET, opt, val, len);
 }
 
-// Gets socket option. Returns true if successful, false otherwise.
-inline bool GetOption(fd_t fd, int opt, void* val, socklen_t* len) {
-  return ::getsockopt(fd.value(), SOL_SOCKET, opt, val, len) >= 0;
+// Gets socket option. Returns 0 on success, -1 otherwise.
+inline int GetSocketOption(fd_t fd, int opt, void* val, socklen_t* len) {
+  return ::getsockopt(fd.value(), SOL_SOCKET, opt, val, len);
 }
+
+// Returns the last socket error code. Returns 0 if there is no error.
+int GetSocketError(fd_t fd);
 
 // Returns true iff the socket `fd` is in blocking mode.
 bool IsBlockingMode(fd_t fd);
@@ -40,24 +43,24 @@ bool IsBlockingMode(fd_t fd);
 bool IsNonBlockingMode(fd_t fd);
 
 // Returns true iff the socket `fd` is in the specified blocking mode.
-inline bool CheckBlockingMode(fd_t fd, bool blocking) {
+inline bool MatchesBlockingMode(fd_t fd, bool blocking) {
   return blocking ? IsBlockingMode(fd) : IsNonBlockingMode(fd);
 }
 
 // Sets the socket to the specified blocking mode.
-// Returns true if successful, false otherwise.
+// Returns 0 on success, -1 otherwise.
 // For internal use only.
-bool __set_blocking_mode(fd_t fd, bool blocking);
+int __set_blocking_mode(fd_t fd, bool blocking);
 
 // Sets the socket to blocking mode.
-// Returns true if successful, false otherwise.
-inline bool SetBlockingMode(fd_t fd) {
+// Returns 0 on success, -1 otherwise.
+inline int SetBlockingMode(fd_t fd) {
   return __set_blocking_mode(fd, /*blocking=*/true);
 }
 
 // Sets the socket to non-blocking mode.
-// Returns true if successful, false otherwise.
-inline bool SetNonBlockingMode(fd_t fd) {
+// Returns 0 on success, -1 otherwise.
+inline int SetNonBlockingMode(fd_t fd) {
   return __set_blocking_mode(fd, /*blocking=*/false);
 }
 
@@ -102,7 +105,7 @@ Endpoint PeerEndpoint(fd_t fd);
 
 // Returns a string of self/peer ip:port pair for the socket `fd`.
 inline std::string AddrPortPair(fd_t fd) {
-  return absl::StrCat(SelfAddrPort(fd), " <> ", PeerAddrPort(fd));
+  return absl::StrCat(SelfAddrPort(fd), "--", PeerAddrPort(fd));
 }
 
 // Returns a "ipv4:port" or "[ipv6]:port" string.

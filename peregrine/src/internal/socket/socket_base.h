@@ -4,7 +4,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include <string>
+
 #include "absl/log/check.h"
+#include "absl/strings/str_format.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_util.h"
@@ -18,11 +21,14 @@ namespace peregrine::internal {
 // This class is thread-compatible but not thread-safe.
 class SocketBase {
  public:
+  // Returns the socket file descriptor.
+  fd_t fd() const { return fd_; }
+
   // Returns AF_INET for IPv4 and AF_INET6 for IPv6.
   int family() const { return family_; }
 
-  // Returns the socket file descriptor.
-  fd_t fd() const { return fd_; }
+  // Returns true iff the socket is in the specified family.
+  bool MatchesFamily(int family) const { return family == family_; }
 
   // Returns true iff the socket is up and running.
   bool IsValid() const { return IsValidSocket(fd_); }
@@ -40,8 +46,16 @@ class SocketBase {
   bool IsNonBlocking() const { return IsNonBlockingMode(fd_); }
 
   // Returns true iff the socket is in the specified blocking mode.
-  bool CheckBlocking(bool blocking) const {
+  bool MatchesBlocking(bool blocking) const {
     return blocking ? IsBlockingMode(fd_) : IsNonBlockingMode(fd_);
+  }
+
+  // Returns a string representation of the socket.
+  std::string ToString() const {
+    DCHECK(invariant());
+    return absl::StrFormat("ipv%d socket fd=%d %s (connected=%d)",
+                           family_ == AF_INET ? 4 : 6, fd_.value(),
+                           AddrPortPair(fd_), connected_ ? 1 : 0);
   }
 
  protected:

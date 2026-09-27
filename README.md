@@ -8,6 +8,11 @@ transport library to serve machine learning workloads on TPU hosts.
 - Peregrine is still in experimental mode.
 - You must contact us to get our support.
 
+## Releases
+
+- Via [Bazel Central Registry](https://registry.bazel.build/modules/peregrine)
+- Via [GitHub](https://github.com/google/peregrine/releases/)
+
 ## Code Organization
 
 - `peregrine/src/`: the library and all the unit tests

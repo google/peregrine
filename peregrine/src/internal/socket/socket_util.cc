@@ -7,6 +7,7 @@
 #include <sys/types.h>
 
 #include <cerrno>
+#include <limits>
 #include <string>
 #include <string_view>
 
@@ -33,8 +34,21 @@ fd_t CreateSocket(const int family, const int type, const bool blocking) {
   }
 
   const fd_t fd(ret);
-  DCHECK(CheckBlockingMode(fd, blocking));
+  DCHECK(MatchesBlockingMode(fd, blocking));
   return fd;
+}
+
+int GetSocketError(const fd_t fd) {
+  int err = std::numeric_limits<int>::min();
+  DCHECK_LT(err, -1);
+  socklen_t len = sizeof(err);
+  const int ret = GetSocketOption(fd, SO_ERROR, &err, &len);
+  if ABSL_PREDICT_FALSE (ret < 0) {
+    const int last_errno = errno;
+    LOG(WARNING) << ErrorMsg("getsockopt", last_errno);
+    return last_errno;
+  }
+  return err;
 }
 
 bool IsBlockingMode(const fd_t fd) {
@@ -47,11 +61,11 @@ bool IsNonBlockingMode(const fd_t fd) {
   return flags >= 0 && (flags & O_NONBLOCK);
 }
 
-bool __set_blocking_mode(const fd_t fd, const bool blocking) {
+int __set_blocking_mode(const fd_t fd, const bool blocking) {
   const int flags = ::fcntl(fd.value(), F_GETFL);
-  if ABSL_PREDICT_FALSE (flags < 0) return false;
+  if ABSL_PREDICT_FALSE (flags < 0) return -1;
   const int cmd = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
-  return ::fcntl(fd.value(), F_SETFL, cmd) >= 0;
+  return ::fcntl(fd.value(), F_SETFL, cmd);
 }
 
 std::string SelfAddrPort(const fd_t fd) {

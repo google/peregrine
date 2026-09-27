@@ -77,7 +77,7 @@ int TcpSocket::Listen(const Endpoint& local) const {
   DCHECK(invariant());
 
   int on = 1;
-  if ABSL_PREDICT_FALSE (!SetOption(fd_, SO_REUSEADDR, &on, sizeof(on))) {
+  if ABSL_PREDICT_FALSE (SetSocketOption(fd_, SO_REUSEADDR, &on, sizeof(on))) {
     const int last_errno = errno;
     LOG(WARNING) << errMsg("set SO_REUSEADDR", last_errno);
     return -1;
@@ -139,7 +139,7 @@ fd_t TcpSocket::Accept(bool gen_blocking) const {
     } else {
       const fd_t new_fd(ret);
       DCHECK_GE(new_fd.value(), 0);
-      DCHECK(CheckBlockingMode(new_fd, gen_blocking));
+      DCHECK(MatchesBlockingMode(new_fd, gen_blocking));
       LOG(INFO) << okMsg("accepted", new_fd);
       return new_fd;
     }
@@ -329,7 +329,7 @@ ssize_t TcpSocket::RecvV(const absl::Span<const IoVec> iovecs) const {
 }
 
 std::string TcpSocket::ToString() const {
-  return absl::StrCat("tcp socket: ", AddrPortPair(fd_));
+  return absl::StrCat("tcp/", SocketBase::ToString());
 }
 
 }  // namespace peregrine::internal

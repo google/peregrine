@@ -1,6 +1,6 @@
 # Code Organization
 
-- This `/peregrine/src/` folder contains dev code and all their unit tests.
+- This `/peregrine/src/` folder contains src code and all the unit tests.
 - The integration tests are in the `/peregrine/test/` folder.
 
 | Subdirectory |        Namespace        |         Purpose             |

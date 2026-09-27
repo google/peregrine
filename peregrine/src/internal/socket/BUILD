@@ -42,6 +42,7 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
