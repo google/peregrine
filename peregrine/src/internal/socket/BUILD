@@ -203,6 +203,22 @@ cc_test(
 )
 
 cc_library(
+    name = "tcp_manager_base",
+    srcs = ["tcp_manager_base.cc"],
+    hdrs = ["tcp_manager_base.h"],
+    deps = [
+        ":socket_tcp",
+        "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:nullability",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:node_hash_map",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_library(
     name = "tcp_manager",
     srcs = ["tcp_manager.cc"],
     hdrs = ["tcp_manager.h"],
@@ -210,6 +226,7 @@ cc_library(
         ":socket_tcp",
         ":socket_tcp_util",
         ":socket_util",
+        ":tcp_manager_base",
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
@@ -219,11 +236,12 @@ cc_library(
         "//peregrine/src/util:nic",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:node_hash_map",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
-        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
     ],
 )

@@ -1,30 +1,27 @@
 #ifndef PEREGRINE_SRC_INTERNAL_SOCKET_TCP_MANAGER_H_
 #define PEREGRINE_SRC_INTERNAL_SOCKET_TCP_MANAGER_H_
 
-#include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <memory>
-#include <utility>
 #include <vector>
 
-#include "absl/base/thread_annotations.h"
-#include "absl/container/flat_hash_map.h"
+#include "absl/container/node_hash_map.h"
 #include "absl/functional/any_invocable.h"
-#include "absl/log/check.h"
-#include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/event/poller.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/socket/tcp_manager_base.h"
 
 namespace peregrine::internal {
 
-// This class listens on a local endpoint, accepts incoming connections, and
-// creates a new tcp socket for each connection. It can also create a tcp
-// socket and connects it to a peer endpoint which has a tcp listening socket.
-// It is thread-compatible but not thread-safe.
-class TcpManager {
+// This class manages the creation of tcp sockets, either passively listening
+// on a local endpoint and accepting incoming connections, or actively
+// connecting to a peer endpoint.
+// It is thread-safe.
+class TcpManager : public TcpManagerBase {
   using OnAccept = absl::AnyInvocable<void(std::unique_ptr<TcpSocket>)>;
 
  public:
@@ -33,19 +30,14 @@ class TcpManager {
   static std::unique_ptr<TcpManager> Create(HostInfo& self);
 
   // Returns all the connected sockets.
-  std::vector<std::unique_ptr<TcpSocket>> GetConnected()
-      ABSL_LOCKS_EXCLUDED(connected_mu_) {
-    absl::MutexLock _(connected_mu_);
-    DCHECK(std::all_of(connected_.begin(), connected_.end(),
-                       [](const auto& socket) { return socket != nullptr; }));
-    return std::move(connected_);
+  std::vector<std::unique_ptr<TcpSocket>> GetConnected() {
+    return connected_.MoveAll();
   }
 
   // Connects the `self` endpoint to the `peer` in blocking/non-blocking mode.
   // If `self` has nonzero ip address, binds to it before connecting.
   // Returns 0 if successful, or -1 on error.
-  int Connect(const Endpoint& self, const Endpoint& peer, bool blocking)
-      ABSL_LOCKS_EXCLUDED(connected_mu_);
+  int Connect(const Endpoint& self, const Endpoint& peer, bool blocking);
 
   // Starts running the manager.
   void Start(OnAccept on_accept, bool gen_blocking);
@@ -54,33 +46,18 @@ class TcpManager {
   void Stop();
 
  private:
-  struct Listener {
-    std::unique_ptr<TcpSocket> socket;
-  };
-
- private:
   // Constructor with a set of non-blocking tcp listening sockets.
   TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
-             absl::flat_hash_map<fd_t, Listener> sockets)
-      : self_(self),
-        stop_(false),
-        poller_(std::move(poller)),
-        listeners_(std::move(sockets)) {
-    DCHECK(invariant());
-  }
+             absl::node_hash_map<fd_t, Listener> sockets);
 
-  // Adds a connected socket.
-  void AddConnected(std::unique_ptr<TcpSocket> socket)
-      ABSL_LOCKS_EXCLUDED(connected_mu_) {
-    DCHECK_NE(socket, nullptr);
-    absl::MutexLock _(connected_mu_);
-    connected_.emplace_back(std::move(socket));
-  }
-
-  // Creates a tcp non-blocking socket listening on the `endpoint`.
-  // If `endpoint.port` is 0, an ephemeral port will be used and filled back in.
+  // Creates a non-blocking tcp listening socket on the `endpoint`.
+  // If `endpoint.port` is 0, an ephemeral port will be used and updates it.
   static std::unique_ptr<TcpSocket> createListener(Endpoint& endpoint,
                                                    Poller& poller);
+
+  // Handles all incoming connections on the socket `fd`.
+  bool handleAllIncoming(OnAccept& on_accept, bool gen_blocking, fd_t fd,
+                         uint32_t flag);
 
   // Returns true iff the stop flag is true.
   bool isStopped() const { return stop_.load(std::memory_order_relaxed); }
@@ -90,14 +67,12 @@ class TcpManager {
 
  private:
   const HostInfo self_;
+
   std::atomic<bool> stop_;
-
-  absl::Mutex connected_mu_;
-  std::vector<std::unique_ptr<TcpSocket>> connected_
-      ABSL_GUARDED_BY(connected_mu_);
-
   std::unique_ptr<Poller> poller_;
-  const absl::flat_hash_map<fd_t, Listener> listeners_;
+
+  Listeners listeners_;
+  Produced connected_;
 };
 
 }  // namespace peregrine::internal
