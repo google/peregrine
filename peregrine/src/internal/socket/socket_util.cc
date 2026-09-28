@@ -7,7 +7,6 @@
 #include <sys/types.h>
 
 #include <cerrno>
-#include <limits>
 #include <string>
 #include <string_view>
 
@@ -36,19 +35,6 @@ fd_t CreateSocket(const int family, const int type, const bool blocking) {
   const fd_t fd(ret);
   DCHECK(MatchesBlockingMode(fd, blocking));
   return fd;
-}
-
-int GetSocketError(const fd_t fd) {
-  int err = std::numeric_limits<int>::min();
-  DCHECK_LT(err, -1);
-  socklen_t len = sizeof(err);
-  const int ret = GetSocketOption(fd, SO_ERROR, &err, &len);
-  if ABSL_PREDICT_FALSE (ret < 0) {
-    const int last_errno = errno;
-    LOG(WARNING) << ErrorMsg("getsockopt", last_errno);
-    return last_errno;
-  }
-  return err;
 }
 
 bool IsBlockingMode(const fd_t fd) {

@@ -24,7 +24,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_base.h"
-#include "peregrine/src/internal/socket/socket_tcp_util.h"
+#include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/util.h"
 

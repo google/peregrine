@@ -12,6 +12,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/util/test_param.h"
 
 namespace peregrine::internal::testing {

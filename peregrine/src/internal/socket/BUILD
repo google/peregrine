@@ -4,6 +4,19 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//peregrine/src/internal:internal_impl"])
 
 cc_library(
+    name = "socket_error",
+    srcs = ["socket_error.cc"],
+    hdrs = ["socket_error.h"],
+    deps = [
+        ":socket_util",
+        "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_library(
     name = "socket_util",
     srcs = ["socket_util.cc"],
     hdrs = ["socket_util.h"],
@@ -24,6 +37,7 @@ cc_test(
     srcs = ["socket_util_test.cc"],
     shard_count = 4,
     deps = [
+        ":socket_error",
         ":socket_util",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/util:test_param",
@@ -61,17 +75,12 @@ cc_test(
 )
 
 cc_library(
-    name = "socket_tcp_util",
-    hdrs = ["socket_tcp_util.h"],
-)
-
-cc_library(
     name = "socket_tcp",
     srcs = ["socket_tcp.cc"],
     hdrs = ["socket_tcp.h"],
     deps = [
         ":socket_base",
-        ":socket_tcp_util",
+        ":socket_error",
         ":socket_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
@@ -112,6 +121,7 @@ cc_library(
     hdrs = ["socket_udp.h"],
     deps = [
         ":socket_base",
+        ":socket_error",
         ":socket_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
@@ -169,6 +179,7 @@ cc_library(
     srcs = ["tcp_socket_util.cc"],
     hdrs = ["tcp_socket_util.h"],
     deps = [
+        ":socket_error",
         ":socket_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
@@ -224,8 +235,8 @@ cc_library(
     srcs = ["tcp_manager.cc"],
     hdrs = ["tcp_manager.h"],
     deps = [
+        ":socket_error",
         ":socket_tcp",
-        ":socket_tcp_util",
         ":socket_util",
         ":tcp_manager_base",
         "//peregrine/src/internal:assumptions",
@@ -272,8 +283,8 @@ cc_library(
     srcs = ["tcp_psp_manager.cc"],
     hdrs = ["tcp_psp_manager.h"],
     deps = [
+        ":socket_error",
         ":socket_tcp",
-        ":socket_tcp_util",
         ":socket_util",
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:endpoint",

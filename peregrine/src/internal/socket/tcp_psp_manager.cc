@@ -28,8 +28,8 @@
 #include "peregrine/src/internal/event/poller.h"
 #include "peregrine/src/internal/socket/psp/psp.h"
 #include "peregrine/src/internal/socket/psp/psp_util.h"
+#include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
-#include "peregrine/src/internal/socket/socket_tcp_util.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/util/nic.h"
 

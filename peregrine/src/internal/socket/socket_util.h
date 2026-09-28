@@ -4,7 +4,6 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 
-#include <cerrno>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -33,9 +32,6 @@ inline int GetSocketOption(fd_t fd, int opt, void* val, socklen_t* len) {
   return ::getsockopt(fd.value(), SOL_SOCKET, opt, val, len);
 }
 
-// Returns the last socket error code. Returns 0 if there is no error.
-int GetSocketError(fd_t fd);
-
 // Returns true iff the socket `fd` is in blocking mode.
 bool IsBlockingMode(fd_t fd);
 
@@ -62,23 +58,6 @@ inline int SetBlockingMode(fd_t fd) {
 // Returns 0 on success, -1 otherwise.
 inline int SetNonBlockingMode(fd_t fd) {
   return __set_blocking_mode(fd, /*blocking=*/false);
-}
-
-// Returns true iff the last socket operation was interrupted by a signal.
-inline bool Interrupted(int last_errno) { return last_errno == EINTR; }
-
-// Returns true iff the last socket connect operation is in progress.
-inline bool InProgress(int last_errno) { return last_errno == EINPROGRESS; }
-
-// Returns true iff the last socket operation would block.
-inline bool WouldBlock(int last_errno) {
-  return last_errno == EAGAIN || last_errno == EWOULDBLOCK;
-}
-
-// Returns true iff the last socket operation failed due to resource exhaustion.
-inline bool OutOfResource(int last_errno) {
-  return last_errno == EMFILE || last_errno == ENFILE ||
-         last_errno == ENOBUFS || last_errno == ENOMEM;
 }
 
 // Returns the self ip:port string for the socket `fd`.

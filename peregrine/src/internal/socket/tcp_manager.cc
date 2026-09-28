@@ -27,8 +27,8 @@
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/event/poller.h"
+#include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
-#include "peregrine/src/internal/socket/socket_tcp_util.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/util/nic.h"
 
