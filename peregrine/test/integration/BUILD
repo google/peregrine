@@ -14,6 +14,7 @@ cc_library(
     srcs = ["flags.cc"],
     hdrs = ["flags.h"],
     deps = [
+        "//peregrine/test/workloads:workload_generator",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
@@ -93,10 +94,13 @@ cc_library(
         ":settings",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/util",
+        "//peregrine/test/workloads:workload_generator",
+        "//peregrine/test/workloads:workload_util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 

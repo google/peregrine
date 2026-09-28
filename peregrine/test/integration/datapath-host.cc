@@ -1,10 +1,12 @@
 #include "peregrine/test/integration/datapath-host.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <string_view>
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
+#include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/api/transport_util.h"
 #include "peregrine/src/util/util.h"
 #include "peregrine/test/integration/metrics.h"
@@ -25,6 +27,12 @@ DatapathHost::DatapathHost(Component c, std::string_view control_ep,
   DCHECK_GT(buf_size, 0);
   CHECK_NE(transport_, nullptr);
   Metrics::SetDatapathInfo(c, data_ep, peer_data_ep, "ACTIVE");
+}
+
+void DatapathHost::ClearData(Byte* addr, size_t len) {
+  DCHECK_GE(addr, data_.data());
+  DCHECK_LE(addr + len, data_.data() + data_.size());
+  std::fill_n(addr, len, 0);
 }
 
 void DatapathHost::GenData() { util::RandomNonZero(absl::MakeSpan(data_)); }

@@ -12,6 +12,8 @@ cc_library(
     hdrs = ["workload_generator.h"],
     deps = [
         "//peregrine/src/api:transport_types",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/strings",
     ],
 )
 

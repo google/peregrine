@@ -48,7 +48,8 @@ class DatapathHost final {
   absl::Span<const Byte> Data() const { return absl::MakeConstSpan(data_); }
   Byte* DataPtr() { return data_.data(); }
   size_t DataSize() const { return data_.size(); }
-  void ClearData() { std::fill(data_.begin(), data_.end(), 0); }
+  void ClearData() { ClearData(data_.data(), data_.size()); }
+  void ClearData(Byte* addr, size_t len);
   void GenData();
 
   const std::string& endpoint() const { return data_endpoint_; }
