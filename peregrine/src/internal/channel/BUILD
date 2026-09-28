@@ -180,7 +180,6 @@ cc_test(
         "//peregrine/src/internal/rdma:rdma_device_context",
         "//peregrine/src/internal/rdma:rdma_device_manager",
         "//peregrine/src/internal/rdma:rdma_queue_pair",
-        "//peregrine/src/internal/socket:socket_tcp",
         "//peregrine/src/internal/socket:tcp_manager",
         "//peregrine/src/internal/util:test_param",
         "//peregrine/src/internal/util:test_util",

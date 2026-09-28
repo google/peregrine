@@ -23,7 +23,7 @@ std::vector<std::unique_ptr<Channel>> Create(TcpManager& tcp_mgr,
   chs.reserve(n);
   for (int i = 0; i < 2 * n; ++i) {
     tcp_mgr.Connect(self, peer, blocking);
-    for (auto& socket : tcp_mgr.GetConnected()) {
+    for (auto& socket : tcp_mgr.GetOutgoingSockets()) {
       DCHECK(socket->MatchesBlocking(blocking));
       std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
       DCHECK_NE(ch, nullptr);

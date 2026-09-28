@@ -6,8 +6,15 @@
 
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
+#include "peregrine/src/internal/socket/tcp_manager.h"
 
 namespace peregrine::internal::testing {
+
+// Returns one incoming socket from the tcp manager.
+std::unique_ptr<TcpSocket> GetOneIncomingSocket(TcpManager& mgr);
+
+// Returns one outgoing socket from the tcp manager.
+std::unique_ptr<TcpSocket> GetOneOutgoingSocket(TcpManager& mgr);
 
 // Creates a connected tcp socket pair.
 std::pair<std::unique_ptr<TcpSocket>, std::unique_ptr<TcpSocket>>

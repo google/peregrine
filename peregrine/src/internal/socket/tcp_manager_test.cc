@@ -4,7 +4,6 @@
 
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -16,6 +15,7 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/socket/socket_test_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -43,12 +43,31 @@ class TcpManagerTest : public TestWithParam<SocketTestParam> {
     CHECK_NE(mgr_, nullptr);
   }
 
-  static void OnAccept(std::unique_ptr<TcpSocket> socket) {
-    auto x = std::move(socket);
-    CHECK_NE(x, nullptr);
+  static void ShortSleep() { absl::SleepFor(absl::Milliseconds(100)); }
+
+  void ConnectAll() {
+    for (const NicInfo& ni : peers_) {
+      for (const Endpoint& peer : ni.endpoints) {
+        const int ret = mgr_->Connect(/*self=*/{}, peer, cfg_.blocking);
+        CHECK_GE(ret, 0) << "failed to connect to " << peer;
+        CHECK(getConnected()) << "failed to get connected socket for " << peer;
+      }
+    }
   }
 
-  static void ShortSleep() { absl::SleepFor(absl::Milliseconds(100)); }
+ private:
+  bool getConnected() {
+    const absl::Time deadline = absl::Now() + absl::Seconds(10);
+    std::unique_ptr<TcpSocket> a = nullptr;
+    std::unique_ptr<TcpSocket> b = nullptr;
+    while (a == nullptr || b == nullptr) {
+      if (a == nullptr) a = GetOneIncomingSocket(*mgr_);
+      if (b == nullptr) b = GetOneOutgoingSocket(*mgr_);
+      absl::SleepFor(absl::Milliseconds(100));
+      if (absl::Now() > deadline) break;
+    }
+    return a != nullptr && b != nullptr;
+  }
 
  protected:
   const SocketTestConfig cfg_;
@@ -59,11 +78,11 @@ class TcpManagerTest : public TestWithParam<SocketTestParam> {
 
 INSTANTIATE_TEST_SUITE_P(, TcpManagerTest,
                          Combine(/*family=*/Values(AF_INET, AF_INET6),
-                                 /*gen_blocking=*/Values(true, false)),
+                                 /*blocking=*/Values(true, false)),
                          ToString);
 
 TEST_P(TcpManagerTest, StartThenStop) {
-  util::Thread ta([&]() { mgr_->Start(OnAccept, cfg_.blocking); });
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
 
   ShortSleep();
   mgr_->Stop();
@@ -73,53 +92,31 @@ TEST_P(TcpManagerTest, StartThenStop) {
 TEST_P(TcpManagerTest, StopThenStart) {
   mgr_->Stop();
 
-  util::Thread ta([&]() { mgr_->Start(OnAccept, cfg_.blocking); });
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
   ta.join();
 }
 
 TEST_P(TcpManagerTest, AcceptBeforeConnect) {
-  util::Thread ta([&]() { mgr_->Start(OnAccept, cfg_.blocking); });
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
 
   ShortSleep();
-  util::Thread tc([&]() {
-    for (const NicInfo& ni : peers_) {
-      for (const Endpoint& peer : ni.endpoints) {
-        mgr_->Connect(/*self=*/{}, peer, /*blocking=*/true);
-        for (auto& socket : mgr_->GetConnected()) {
-          CHECK_NE(socket, nullptr);
-          DCHECK(socket->IsBlocking());
-          DCHECK(socket->IsConnected());
-        }
-      }
-    }
-  });
+  util::Thread tc([&]() { ConnectAll(); });
 
-  ShortSleep();
+  // All connections must be done before stopping the manager.
+  tc.join();
   mgr_->Stop();
   ta.join();
-  tc.join();
 }
 
 TEST_P(TcpManagerTest, ConnectBeforeAccept) {
-  util::Thread tc([&]() {
-    for (const NicInfo& ni : peers_) {
-      for (const Endpoint& peer : ni.endpoints) {
-        mgr_->Connect(/*self=*/{}, peer, /*blocking=*/true);
-        for (auto& socket : mgr_->GetConnected()) {
-          CHECK_NE(socket, nullptr);
-          DCHECK(socket->IsBlocking());
-          DCHECK(socket->IsConnected());
-        }
-      }
-    }
-  });
+  util::Thread tc([&]() { ConnectAll(); });
 
   ShortSleep();
-  util::Thread ta([&]() { mgr_->Start(OnAccept, cfg_.blocking); });
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
 
-  ShortSleep();
-  mgr_->Stop();
+  // All connections must be done before stopping the manager.
   tc.join();
+  mgr_->Stop();
   ta.join();
 }
 

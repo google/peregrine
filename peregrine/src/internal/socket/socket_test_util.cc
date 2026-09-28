@@ -8,6 +8,8 @@
 #include "absl/log/check.h"
 #include "absl/random/random.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
@@ -32,7 +34,22 @@ Endpoint PickPeer(const HostInfo& peer_host) {
   }
   CHECK(false) << "no peer tcp endpoint found in " << peer_host;  // Crash OK
 }
+
+std::unique_ptr<TcpSocket> GetOneSocket(TcpManager& mgr, bool accepted) {
+  auto sockets = accepted ? mgr.GetIncomingSockets() : mgr.GetOutgoingSockets();
+  if (sockets.empty()) return nullptr;
+  DCHECK_EQ(sockets.size(), 1);
+  return std::move(sockets[0]);
+}
 }  // namespace
+
+std::unique_ptr<TcpSocket> GetOneIncomingSocket(TcpManager& mgr) {
+  return GetOneSocket(mgr, /*accepted=*/true);
+}
+
+std::unique_ptr<TcpSocket> GetOneOutgoingSocket(TcpManager& mgr) {
+  return GetOneSocket(mgr, /*accepted=*/false);
+}
 
 std::pair<std::unique_ptr<TcpSocket>, std::unique_ptr<TcpSocket>>
 CreateTcpSocketPair(int family, bool blocking) {
@@ -40,33 +57,40 @@ CreateTcpSocketPair(int family, bool blocking) {
   std::unique_ptr<TcpManager> mgr = TcpManager::Create(a);
   CHECK_NE(mgr, nullptr);
 
-  std::unique_ptr<TcpSocket> sa = nullptr;
-  std::unique_ptr<TcpSocket> sb = nullptr;
-  absl::Notification mgr_started;
-  absl::Notification socket_accepted;
-  auto accept = [&](std::unique_ptr<TcpSocket> socket) {
-    sa = std::move(socket);
-    socket_accepted.Notify();
-  };
-  util::Thread mgr_thread([&]() {
-    mgr_started.Notify();
-    mgr->Start(accept, blocking);
+  // Start an acceptor thread.
+  absl::Notification acceptor_started;
+  util::Thread acceptor_thread([&]() {
+    acceptor_started.Notify();
+    mgr->Start(blocking);
   });
 
-  mgr_started.WaitForNotification();
-  const Endpoint self = {};
-  const Endpoint peer = PickPeer(a);
-  mgr->Connect(self, peer, /*blocking=*/true);
-  std::vector<std::unique_ptr<TcpSocket>> connected = mgr->GetConnected();
-  CHECK_EQ(connected.size(), 1);
-  sb = std::move(connected[0]);
+  // Start a connector thread.
+  absl::Notification connector_started;
+  util::Thread connector_thread([&]() {
+    const Endpoint self = {};
+    const Endpoint peer = PickPeer(a);
+    connector_started.Notify();
+    mgr->Connect(self, peer, blocking);
+  });
 
-  socket_accepted.WaitForNotification();
+  acceptor_started.WaitForNotification();
+  connector_started.WaitForNotification();
+
+  // Main thread: wait for sockets to be connected.
+  std::unique_ptr<TcpSocket> sa = nullptr;
+  std::unique_ptr<TcpSocket> sb = nullptr;
+  while (sa == nullptr || sb == nullptr) {
+    if (sa == nullptr) sa = GetOneIncomingSocket(*mgr);
+    if (sb == nullptr) sb = GetOneOutgoingSocket(*mgr);
+    absl::SleepFor(absl::Milliseconds(10));
+  }
+
   mgr->Stop();
-  mgr_thread.join();
+  acceptor_thread.join();
+  connector_thread.join();
 
-  CHECK_NE(sa, nullptr);
-  CHECK_NE(sb, nullptr);
+  CHECK(sa->IsConnected());
+  CHECK(sb->IsConnected());
   return {std::move(sa), std::move(sb)};
 }
 
@@ -83,6 +107,8 @@ CreateUdpSocketPair(int family, bool blocking) {
   CHECK(!sa->Connect(b));
   CHECK(!sb->Connect(a));
 
+  CHECK(sa->IsConnected());
+  CHECK(sb->IsConnected());
   return {std::move(sa), std::move(sb)};
 }
 

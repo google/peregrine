@@ -1,6 +1,8 @@
 #include "peregrine/src/internal/socket/tcp_manager.h"
 
+#include <stdbool.h>
 #include <sys/epoll.h>
+#include <sys/stat.h>
 
 #include <atomic>
 #include <cstdint>
@@ -33,8 +35,9 @@
 namespace peregrine::internal {
 
 namespace {
-constexpr uint32_t kError = EPOLLERR | EPOLLHUP;
+constexpr uint32_t kError = EPOLLERR | EPOLLHUP | EPOLLRDHUP;
 constexpr uint32_t kIncomingEvents = EPOLLIN | kError;
+constexpr uint32_t kOutgoingEvents = EPOLLOUT | kError | EPOLLET;
 
 std::string EvtMsg(std::string_view what, const fd_t fd, const uint32_t flag) {
   return absl::StrFormat("%s fd=%d events=%d @ %s ", what, fd.value(), flag,
@@ -134,25 +137,53 @@ int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
                         const bool blocking) {
   DCHECK(peer.HasNonzeroIpPort());
 
-  // TODO(yongx): non-blocking connect
-  if (!blocking) return -1;
+  if ABSL_PREDICT_FALSE (isStopped()) return -1;
 
   const int family = peer.GetIpAddr().AddressFamily();
-  auto socket = TcpSocket::Create(family, /*blocking=*/true);
-  if ABSL_PREDICT_FALSE (socket == nullptr) {
-    return -1;
+  auto socket = TcpSocket::Create(family, blocking);
+  if ABSL_PREDICT_FALSE (socket == nullptr) return -1;
+  if (!self.HasZeroIpAddr() && socket->Bind(self)) return -1;
+
+  if (!blocking) {
+    DCHECK(socket->IsNonBlocking());
+    return connectNonBlocking(std::move(socket), peer, *poller_);
+  } else {
+    DCHECK(socket->IsBlocking());
+    if (socket->Connect(peer)) return -1;
+    DCHECK(socket->IsConnected());
+    LOG(INFO) << "made " << *socket;
+    outgoing_.Add(std::move(socket));
+    return 0;
   }
-  if (!self.HasZeroIpAddr() && socket->Bind(self)) {
-    return -1;
+}
+
+int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
+                                   const Endpoint& peer, Poller& poller) {
+  DCHECK_NE(socket, nullptr);
+  DCHECK(peer.HasNonzeroIpPort());
+
+  DCHECK(socket->IsNonBlocking());
+  switch (socket->Connect(peer)) {
+    case 0: {
+      DCHECK(socket->IsConnected());
+      LOG(INFO) << "made " << *socket;
+      outgoing_.Add(std::move(socket));
+      return 0;
+    }
+    case 1: {
+      DCHECK(!socket->IsConnected());
+      LOG(INFO) << "connecting " << *socket;
+      const fd_t fd = socket->fd();
+      connectors_.Add(fd, std::move(socket));
+      if ABSL_PREDICT_FALSE (poller.Register(fd, kOutgoingEvents)) {
+        connectors_.Remove(fd);
+        return -1;
+      }
+      return 1;
+    }
+    default:
+      return -1;
   }
-  DCHECK(socket->IsBlocking());
-  if (socket->Connect(peer)) {
-    return -1;
-  }
-  DCHECK(socket->IsConnected());
-  LOG(INFO) << "made " << *socket;
-  outgoing_.Add(std::move(socket));
-  return 0;
 }
 
 void TcpManager::removeListener(const fd_t fd) {
@@ -160,14 +191,15 @@ void TcpManager::removeListener(const fd_t fd) {
   listeners_.Remove(fd);
 }
 
-bool TcpManager::handleAllIncoming(OnAccept& on_accept, const bool gen_blocking,
-                                   const fd_t fd, const uint32_t flag) {
+bool TcpManager::handleAllIncoming(const fd_t fd, const uint32_t flag,
+                                   const bool gen_blocking) {
   const TcpSocket* listener = listeners_.Get(fd);
   if (listener == nullptr) return false;
 
   if ABSL_PREDICT_FALSE (flag & (EPOLLERR | EPOLLHUP)) {
-    // Triggered by the listener's Shutdown() call in Stop().
-    LOG(INFO) << EvtMsg("listening", fd, flag);
+    // A listening socket only reports HUP/ERR after leaving TCP_LISTEN,
+    // triggered by the Shutdown() call in Stop() below.
+    LOG(WARNING) << EvtMsg("listening", fd, flag);
     removeListener(fd);
 
   } else if (flag & EPOLLIN) {
@@ -196,16 +228,40 @@ bool TcpManager::handleAllIncoming(OnAccept& on_accept, const bool gen_blocking,
       DCHECK(socket->MatchesBlocking(gen_blocking));
       DCHECK(socket->IsConnected());
       LOG(INFO) << "made " << *socket;
-      on_accept(std::move(socket));
+      incoming_.Add(std::move(socket));
     }
   }
   return true;
 }
 
-void TcpManager::Start(OnAccept on_accept, bool gen_blocking) {
+bool TcpManager::handleOneOutgoing(const fd_t fd, const uint32_t flag) {
+  std::unique_ptr<TcpSocket> socket = connectors_.Remove(fd);
+  if (socket == nullptr) return false;
+
+  // Must precede closing `fd` at scope exit.
+  poller_->Unregister(fd);
+
+  if ABSL_PREDICT_FALSE (flag & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+    LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("connecting", fd, flag);
+  } else if (flag & EPOLLOUT) {
+    const int err = GetSocketError(fd);
+    if ABSL_PREDICT_FALSE (err != 0) {
+      LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("check connect", fd, err);
+    } else {
+      DCHECK(socket->IsNonBlocking());
+      DCHECK(!socket->IsConnected());
+      socket->SetConnected();
+      DCHECK(socket->IsConnected());
+      LOG(INFO) << "made " << *socket;
+      outgoing_.Add(std::move(socket));
+    }
+  }
+  return true;
+}
+
+void TcpManager::Start(bool gen_blocking) {
   static_assert(assumptions::kOnlyTcpListeningSocketsAreNonBlocking);
   DCHECK(invariant());
-  DCHECK_NE(on_accept, nullptr);
   LOG(INFO) << "starting, " << self_;
 
   constexpr int kTimeoutMs = 100;
@@ -218,7 +274,8 @@ void TcpManager::Start(OnAccept on_accept, bool gen_blocking) {
         const auto& e = events[i];
         const fd_t fd(e.data.fd);
         const uint32_t flag = e.events;
-        if (!handleAllIncoming(on_accept, gen_blocking, fd, flag)) {
+        if (!handleAllIncoming(fd, flag, gen_blocking) &&
+            !handleOneOutgoing(fd, flag)) {
           LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("unhandled", fd, flag);
         }
       }
@@ -228,18 +285,21 @@ void TcpManager::Start(OnAccept on_accept, bool gen_blocking) {
     }
   }
   listeners_.Clear();
+  connectors_.Clear();
 }
 
 void TcpManager::Stop() {
   DCHECK(invariant());
   stop_.store(true, std::memory_order_relaxed);
   listeners_.Shutdown();  // unblocks BlockingWait() above
+  incoming_.Clear();
   outgoing_.Clear();
   LOG(INFO) << "stopped, " << self_;
 }
 
 bool TcpManager::invariant() const {
   return self_.IsValid() && poller_ != nullptr && listeners_.Invariant() &&
+         connectors_.Invariant() && incoming_.Invariant() &&
          outgoing_.Invariant();
 }
 

@@ -160,6 +160,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -237,7 +238,6 @@ cc_library(
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:node_hash_map",
-        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
@@ -252,6 +252,7 @@ cc_test(
     shard_count = 4,
     deps = [
         ":socket_tcp",
+        ":socket_test_util",
         ":tcp_manager",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",

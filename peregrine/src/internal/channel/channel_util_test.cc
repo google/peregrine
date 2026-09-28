@@ -15,7 +15,6 @@
 #include "peregrine/src/internal/rdma/rdma_device_context.h"
 #include "peregrine/src/internal/rdma/rdma_device_manager.h"
 #include "peregrine/src/internal/rdma/rdma_queue_pair.h"
-#include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
@@ -44,11 +43,6 @@ class ChannelUtilTest : public TestWithParam<SocketTestParam> {
     CHECK_NE(mgr_, nullptr);
   }
 
-  static void Accept(std::unique_ptr<TcpSocket> socket) {
-    auto x = std::move(socket);
-    CHECK_NE(x, nullptr);
-  }
-
  protected:
   const SocketTestConfig cfg_;
   HostInfo self_;
@@ -62,7 +56,7 @@ INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
                          ToString);
 
 TEST_P(ChannelUtilTest, Create) {
-  util::Thread ta([&]() { mgr_->Start(Accept, cfg_.blocking); });
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
 
   const Endpoint self = {};
   constexpr int kNumChannels = 2;

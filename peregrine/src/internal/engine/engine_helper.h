@@ -6,9 +6,7 @@
 #include <vector>
 
 #include "absl/base/nullability.h"
-#include "absl/base/thread_annotations.h"
 #include "absl/log/check.h"
-#include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
@@ -16,7 +14,6 @@
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/rdma/rdma_acceptor.h"
-#include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
@@ -47,7 +44,7 @@ class EngineHelper final {
   Channels Connect(const Endpoint& peer_control);
 
   // Returns the accepted channels.
-  Channels GetAcceptedChannels() ABSL_LOCKS_EXCLUDED(channels_mu_);
+  Channels GetAcceptedChannels();
 
   // Registers a contiguous memory buffer for rdma.
   absl::Status RegisterMemory(void* addr, size_t length);
@@ -67,10 +64,6 @@ class EngineHelper final {
   }
 
  private:
-  // Accepts the incoming tcp `socket`.
-  void accept(std::unique_ptr<TcpSocket> socket)
-      ABSL_LOCKS_EXCLUDED(channels_mu_);
-
   // Creates `n` TCP channels that connect to the peer.
   Channels connectTcp(const Endpoint& peer_control, int n);
 
@@ -86,9 +79,6 @@ class EngineHelper final {
   Control& control_;
 
   EngineMetrics metrics_;
-
-  absl::Mutex channels_mu_;
-  Channels accepted_channels_ ABSL_GUARDED_BY(channels_mu_);
 
   absl_nonnull std::unique_ptr<TcpManager> tcp_mgr_;
   absl_nullable std::unique_ptr<RdmaAcceptor> rdma_acceptor_;

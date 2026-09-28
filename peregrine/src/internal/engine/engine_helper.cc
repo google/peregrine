@@ -12,7 +12,6 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "absl/synchronization/mutex.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/config.h"
@@ -75,10 +74,8 @@ EngineHelper::EngineHelper(const Config& config, const HostInfo& self,
       rdma_acceptor_(std::move(rdma_acceptor)) {
   DCHECK(invariant());
   tcpmgr_thread_ = util::Jthread([this]() {
-    auto onAccept = [this](std::unique_ptr<TcpSocket> socket) {
-      accept(std::move(socket));
-    };
-    tcp_mgr_->Start(onAccept, /*gen_blocking=*/true);
+    constexpr bool kGenBlocking = true;
+    tcp_mgr_->Start(kGenBlocking);
   });
   LOG(INFO) << "engine helper created @ " << self_;
 }
@@ -89,22 +86,18 @@ EngineHelper::~EngineHelper() {
   LOG(INFO) << "engine helper destroyed @ " << self_;
 }
 
-void EngineHelper::accept(std::unique_ptr<TcpSocket> socket) {
-  DCHECK_NE(socket, nullptr);
-
-  const Endpoint peer_target = PeerEndpoint(socket->fd());
-  if ABSL_PREDICT_FALSE (!peer_target.HasNonzeroIpPort()) {
-    LOG(WARNING) << "invalid peer endpoint for " << *socket;
-  } else {
-    std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
-    absl::MutexLock _(channels_mu_);
-    accepted_channels_.push_back(std::move(ch));
-  }
-}
-
 EngineHelper::Channels EngineHelper::GetAcceptedChannels() {
-  absl::MutexLock _(channels_mu_);
-  return std::move(accepted_channels_);
+  Channels chs;
+  for (auto& socket : tcp_mgr_->GetIncomingSockets()) {
+    const Endpoint peer_target = PeerEndpoint(socket->fd());
+    if ABSL_PREDICT_FALSE (!peer_target.HasNonzeroIpPort()) {
+      LOG(WARNING) << "invalid peer endpoint for " << *socket;
+    } else {
+      auto ch = CreateTcpChannel(std::move(socket));
+      chs.push_back(std::move(ch));
+    }
+  }
+  return chs;
 }
 
 EngineHelper::Channels EngineHelper::Connect(const Endpoint& peer_control) {
@@ -146,8 +139,8 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
   uint64_t failures = 0;
   for (int i = 0; chs.size() < n && i < 2 * n; ++i) {
     DCHECK(!config_.require_dataplane_encryption);
-    if (tcp_mgr_->Connect(self, peer, /*blocking=*/true)) ++failures;
-    for (auto& socket : tcp_mgr_->GetConnected()) {
+    if (tcp_mgr_->Connect(self, peer, /*blocking=*/true) < 0) ++failures;
+    for (auto& socket : tcp_mgr_->GetOutgoingSockets()) {
       DCHECK_NE(socket, nullptr);
       std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
       chs.push_back(std::move(ch));

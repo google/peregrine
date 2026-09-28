@@ -7,7 +7,6 @@
 #include <vector>
 
 #include "absl/container/node_hash_map.h"
-#include "absl/functional/any_invocable.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
@@ -22,25 +21,28 @@ namespace peregrine::internal {
 // connecting to a peer endpoint.
 // It is thread-safe.
 class TcpManager : public TcpManagerBase {
-  using OnAccept = absl::AnyInvocable<void(std::unique_ptr<TcpSocket>)>;
-
  public:
   // Creates a tcp manager with per-NIC non-blocking listening sockets, and
   // fills in `self.data_plane_listeners` with the listening endpoints.
   static std::unique_ptr<TcpManager> Create(HostInfo& self);
 
-  // Returns all the outgoing connected sockets.
-  std::vector<std::unique_ptr<TcpSocket>> GetConnected() {
+  // Returns all the accepted incoming sockets currently available.
+  std::vector<std::unique_ptr<TcpSocket>> GetIncomingSockets() {
+    return incoming_.MoveAll();
+  }
+
+  // Returns all the connected outgoing sockets currently available.
+  std::vector<std::unique_ptr<TcpSocket>> GetOutgoingSockets() {
     return outgoing_.MoveAll();
   }
 
   // Connects the `self` endpoint to the `peer` in blocking/non-blocking mode.
   // If `self` has nonzero ip address, binds to it before connecting.
-  // Returns 0 if successful, or -1 on error.
+  // Returns 0 on success, 1 on connect in progress, or -1 on error.
   int Connect(const Endpoint& self, const Endpoint& peer, bool blocking);
 
   // Starts running the manager.
-  void Start(OnAccept on_accept, bool gen_blocking);
+  void Start(bool gen_blocking);
 
   // Stops the manager.
   void Stop();
@@ -66,8 +68,15 @@ class TcpManager : public TcpManagerBase {
   void removeListener(fd_t fd);
 
   // Handles all incoming connections on the listening socket `fd`.
-  bool handleAllIncoming(OnAccept& on_accept, bool gen_blocking, fd_t fd,
-                         uint32_t flag);
+  bool handleAllIncoming(fd_t fd, uint32_t flag, bool gen_blocking);
+
+ private:
+  // Creates a non-blocking tcp connecting socket to the `peer` endpoint.
+  int connectNonBlocking(std::unique_ptr<TcpSocket> socket,
+                         const Endpoint& peer, Poller& poller);
+
+  // Handles one outgoing connection on the connecting socket `fd`.
+  bool handleOneOutgoing(fd_t fd, uint32_t flag);
 
  private:
   const HostInfo self_;
@@ -76,7 +85,9 @@ class TcpManager : public TcpManagerBase {
   std::unique_ptr<Poller> poller_;
 
   Listeners listeners_;
-  Produced outgoing_;
+  Connectors connectors_;
+  Produced incoming_;  // created by listeners_
+  Produced outgoing_;  // created by connectors_
 };
 
 }  // namespace peregrine::internal
