@@ -2,69 +2,118 @@
 #define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_TYPES_H_
 
 #include <cstdint>
+#include <ostream>
+#include <string>
 #include <type_traits>
 
 namespace peregrine::internal {
 
-// An enum that specifies the property of a channel.
-// Do not use outside of the channel/ folder.
-enum __ChannelProperty : uint8_t {
-  kLoss = 1 << 0,      // 0 for lossless, 1 for lossy
-  kBoundary = 1 << 1,  // 0 for stream, 1 for message
-  kSide = 1 << 2,      // 0 for one-sided, 1 for two-sided
+// This value class defines channel type.
+// It is thread-safe since it is immutable.
+class ChannelType {
+ private:
+  // A flag enum that specifies channel properties.
+  enum Property : uint8_t {
+    kLoss = 1 << 0,      // 0 for lossless, 1 for lossy
+    kBoundary = 1 << 1,  // 0 for stream, 1 for message
+    kSide = 1 << 2,      // 0 for one-sided, 1 for two-sided
+    kFake = 1 << 3,      // 0 for real, 1 for fake
+  };
+  using T = std::underlying_type<Property>::type;
+  constexpr T ToInt(Property p) const { return static_cast<T>(p); }
+
+ public:
+  static const ChannelType kTCP;
+  static const ChannelType kUDP;
+  static const ChannelType kRDMA;
+  static const ChannelType kMemMsg;
+  static const ChannelType kMemStream;
+
+  // Returns true iff the channel is lossless (e.g., TCP/RDMA).
+  constexpr bool IsLosslessChannel() const {
+    return (t_ & ToInt(Property::kLoss)) == 0;
+  }
+
+  // Returns true iff the channel is lossy (e.g., UDP).
+  constexpr bool IsLossyChannel() const { return !IsLosslessChannel(); }
+
+  // Returns true iff the channel is stream (e.g., TCP).
+  constexpr bool IsStreamChannel() const {
+    return (t_ & ToInt(Property::kBoundary)) == 0;
+  }
+
+  // Returns true iff the channel is message (e.g., UDP/RDMA).
+  constexpr bool IsMessageChannel() const { return !IsStreamChannel(); }
+
+  // Returns true iff the channel is one-sided (e.g., RDMA).
+  constexpr bool IsOneSidedChannel() const {
+    return (t_ & ToInt(Property::kSide)) == 0;
+  }
+
+  // Returns true iff the channel is two-sided (e.g., TCP/UDP).
+  constexpr bool IsTwoSidedChannel() const { return !IsOneSidedChannel(); }
+
+  // Returns true iff the channel is real (e.g., TCP/UDP/RDMA).
+  constexpr bool IsRealChannel() const {
+    return (t_ & ToInt(Property::kFake)) == 0;
+  }
+
+  // Returns true iff the channel is fake (e.g., MemMsg/MemStream for testing).
+  constexpr bool IsFakeChannel() const { return !IsRealChannel(); }
+
+  // Equality operator.
+  friend constexpr bool operator==(ChannelType a, ChannelType b) = default;
+
+  // Returns a string representation for the channel type.
+  std::string ToString() const;
+
+ private:
+  // Constructor.
+  constexpr explicit ChannelType(uint8_t type) : t_(type) {}
+
+ private:
+  const uint8_t t_;
 };
 
-// An enum that specifies the concreate channel type.
-enum class ChannelType : uint8_t {
-  kTCP = /*kLoss*/ 0 | /*kBoundary*/ 0 | /*kSide*/ 4,
-  kUDP = /*kLoss*/ 1 | /*kBoundary*/ 2 | /*kSide*/ 4,
-  kRDMA = /*kLoss*/ 0 | /*kBoundary*/ 2 | /*kSide*/ 0,
-  kMemMsg = kUDP,
-  kMemStream = kTCP,
-};
-
-using ChP = std::underlying_type<__ChannelProperty>::type;
-using ChT = std::underlying_type<ChannelType>::type;
-constexpr ChP ToInt(__ChannelProperty p) { return static_cast<ChP>(p); }
-constexpr ChT ToInt(ChannelType t) { return static_cast<ChT>(t); }
-
-// Returns true iff the channel is lossless.
-constexpr bool IsLosslessChannel(ChannelType t) {
-  return (ToInt(t) & ToInt(__ChannelProperty::kLoss)) == 0;
+inline std::ostream& operator<<(std::ostream& os, ChannelType t) {
+  return os << t.ToString();
 }
 
-// Returns true iff the channel is lossy.
-constexpr bool IsLossyChannel(ChannelType t) { return !IsLosslessChannel(t); }
+inline constexpr ChannelType ChannelType::kTCP(
+    /*kLoss*/ 0 | /*kBoundary*/ 0 | /*kSide*/ 4 | /*kFake*/ 0);
+inline constexpr ChannelType ChannelType::kUDP(
+    /*kLoss*/ 1 | /*kBoundary*/ 2 | /*kSide*/ 4 | /*kFake*/ 0);
+inline constexpr ChannelType ChannelType::kRDMA(
+    /*kLoss*/ 0 | /*kBoundary*/ 2 | /*kSide*/ 0 | /*kFake*/ 0);
+inline constexpr ChannelType ChannelType::kMemMsg(
+    /*kLoss*/ 1 | /*kBoundary*/ 2 | /*kSide*/ 4 | /*kFake*/ 8);
+inline constexpr ChannelType ChannelType::kMemStream(
+    /*kLoss*/ 0 | /*kBoundary*/ 0 | /*kSide*/ 4 | /*kFake*/ 8);
 
-// Returns true iff the channel is stream.
-constexpr bool IsStreamChannel(ChannelType t) {
-  return (ToInt(t) & ToInt(__ChannelProperty::kBoundary)) == 0;
-}
+static_assert(ChannelType::kTCP.IsLosslessChannel());
+static_assert(ChannelType::kTCP.IsStreamChannel());
+static_assert(ChannelType::kTCP.IsTwoSidedChannel());
+static_assert(ChannelType::kTCP.IsRealChannel());
 
-// Returns true iff the channel is message.
-constexpr bool IsMessageChannel(ChannelType t) { return !IsStreamChannel(t); }
+static_assert(ChannelType::kUDP.IsLossyChannel());
+static_assert(ChannelType::kUDP.IsMessageChannel());
+static_assert(ChannelType::kUDP.IsTwoSidedChannel());
+static_assert(ChannelType::kUDP.IsRealChannel());
 
-// Returns true iff the channel is one-sided (sender code only, like RDMA).
-constexpr bool IsOneSidedChannel(ChannelType t) {
-  return (ToInt(t) & ToInt(__ChannelProperty::kSide)) == 0;
-}
+static_assert(ChannelType::kRDMA.IsLosslessChannel());
+static_assert(ChannelType::kRDMA.IsMessageChannel());
+static_assert(ChannelType::kRDMA.IsOneSidedChannel());
+static_assert(ChannelType::kRDMA.IsRealChannel());
 
-// Returns true iff the channel is two-sided (sender/receiver, like TCP/UDP).
-constexpr bool IsTwoSidedChannel(ChannelType t) {
-  return !IsOneSidedChannel(t);
-}
+static_assert(ChannelType::kMemMsg.IsLossyChannel());
+static_assert(ChannelType::kMemMsg.IsMessageChannel());
+static_assert(ChannelType::kMemMsg.IsTwoSidedChannel());
+static_assert(ChannelType::kMemMsg.IsFakeChannel());
 
-static_assert(IsLosslessChannel(ChannelType::kTCP));
-static_assert(IsStreamChannel(ChannelType::kTCP));
-static_assert(IsTwoSidedChannel(ChannelType::kTCP));
-
-static_assert(IsLossyChannel(ChannelType::kUDP));
-static_assert(IsMessageChannel(ChannelType::kUDP));
-static_assert(IsTwoSidedChannel(ChannelType::kUDP));
-
-static_assert(IsLosslessChannel(ChannelType::kRDMA));
-static_assert(IsMessageChannel(ChannelType::kRDMA));
-static_assert(IsOneSidedChannel(ChannelType::kRDMA));
+static_assert(ChannelType::kMemStream.IsLosslessChannel());
+static_assert(ChannelType::kMemStream.IsStreamChannel());
+static_assert(ChannelType::kMemStream.IsTwoSidedChannel());
+static_assert(ChannelType::kMemStream.IsFakeChannel());
 
 }  // namespace peregrine::internal
 

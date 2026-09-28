@@ -83,7 +83,7 @@ void Worker::SendLoop() {
     DCHECK(chunk.IsValid());
     const auto payload = entry.GenPayload();
     if (!Transfer::SendChunk(channel_.get(), chunk, payload)) {
-      if (IsMessageChannel(channel_->Type())) {
+      if (channel_->Type().IsMessageChannel()) {
         absl::MutexLock _(mu_);
         if (!stop_) continue;
         LOG(INFO) << "send loop stopped";
@@ -96,7 +96,7 @@ void Worker::SendLoop() {
     }
     metrics_.write.bytes.Add(payload.size());
 
-    if (IsOneSidedChannel(channel_->Type())) {
+    if (channel_->Type().IsOneSidedChannel()) {
       // For one-sided RDMA channels, successful SendChunk completes the
       // transfer at the hardware level (confirmed via CQE), with no software
       // ACK chunk sent by the receiver.
@@ -109,7 +109,7 @@ void Worker::SendLoop() {
 
 void Worker::RecvLoop() {
   log("recv loop started");
-  if (IsOneSidedChannel(channel_->Type())) {
+  if (channel_->Type().IsOneSidedChannel()) {
     // One-sided channels like RDMA do not run software code on recv side.
     static_assert(
         assumptions::kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe);
@@ -128,7 +128,7 @@ void Worker::RecvLoop() {
       }
     }
     if (!Transfer::RecvChunk(channel_.get(), outgoing_, incoming_)) {
-      if (IsMessageChannel(channel_->Type())) {
+      if (channel_->Type().IsMessageChannel()) {
         absl::MutexLock _(mu_);
         if (!stop_) continue;
         LOG(INFO) << "recv loop stopped";

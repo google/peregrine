@@ -5,6 +5,7 @@ package(default_visibility = ["//peregrine/src/internal:internal_impl"])
 
 cc_library(
     name = "channel_types",
+    srcs = ["channel_types.cc"],
     hdrs = ["channel_types.h"],
 )
 
