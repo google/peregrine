@@ -172,3 +172,25 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "rdma_util",
+    srcs = ["rdma_util.cc"],
+    hdrs = ["rdma_util.h"],
+    deps = [
+        "//:libibverbs",  # buildcleaner: keep
+        "//peregrine/src/internal:assumptions",
+        "//peregrine/src/util:ipaddr",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "rdma_util_test",
+    srcs = ["rdma_util_test.cc"],
+    deps = [
+        ":rdma_util",
+        "//peregrine/src/util:ipaddr",
+        "@googletest//:gtest_main",
+    ],
+)

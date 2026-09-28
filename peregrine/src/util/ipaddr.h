@@ -1,7 +1,6 @@
 #ifndef PEREGRINE_SRC_UTIL_IPADDR_H_
 #define PEREGRINE_SRC_UTIL_IPADDR_H_
 
-#include <infiniband/verbs.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -84,9 +83,6 @@ class IpAddr final {
 
   // Returns true iff the ip address is a loopback address.
   bool IsLoopback() const;
-
-  // Returns the RDMA gid for the ipv6 address, or std::nullopt for ipv4.
-  std::optional<union ibv_gid> ToRdmaGid() const;
 
   // Equality operator.
   friend bool operator==(const IpAddr& a, const IpAddr& b);
