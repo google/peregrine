@@ -134,8 +134,8 @@ uint32_t ParseNumXfers() {
   return std::max(1U, v);
 }
 
-WorkloadType ParseWorkloadType() {
-  return peregrine::ParseWorkloadType(absl::GetFlag(FLAGS_workload));
+workloads::WorkloadType ParseWorkloadType() {
+  return workloads::ParseWorkloadType(absl::GetFlag(FLAGS_workload));
 }
 
 }  // namespace peregrine::benchmark

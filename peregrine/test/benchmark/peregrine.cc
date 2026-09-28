@@ -13,8 +13,6 @@
 #include "peregrine/test/workloads/workload_util.h"
 
 namespace {
-using ::peregrine::GetXferSize;
-using ::peregrine::WorkloadType;
 using ::peregrine::benchmark::ParseAppControlPort;
 using ::peregrine::benchmark::ParseIp;
 using ::peregrine::benchmark::ParseNumConns;
@@ -25,6 +23,8 @@ using ::peregrine::benchmark::ParseWorkloadType;
 using ::peregrine::benchmark::Role;
 using ::peregrine::benchmark::RunClient;
 using ::peregrine::benchmark::RunServer;
+using ::peregrine::workloads::GetXferSize;
+using ::peregrine::workloads::WorkloadType;
 }  // namespace
 
 int main(int argc, char* argv[]) {

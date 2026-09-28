@@ -32,7 +32,7 @@ Flags ReadFlags() {
   flags.test_duration =
       std::max(absl::Seconds(1), absl::GetFlag(FLAGS_test_duration));
   flags.enable_ncurses = absl::GetFlag(FLAGS_enable_ncurses);
-  flags.workload = ParseWorkloadType(absl::GetFlag(FLAGS_workload));
+  flags.workload = workloads::ParseWorkloadType(absl::GetFlag(FLAGS_workload));
 
   return flags;
 }

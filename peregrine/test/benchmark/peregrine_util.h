@@ -20,14 +20,15 @@ void RunServer(std::string_view ip, uint16_t peregrine_control_port,
 // Runs the benchmark loop for the specified workload.
 absl::Status RunBenchmark(Transport* transport, int app_control_fd,
                           std::string_view server_endpoint,
-                          const WorkloadGenerator& workload,
+                          const workloads::WorkloadGenerator& workload,
                           uint32_t num_xfers);
 
 // Runs peregrine as client.
 void RunClient(std::string_view ip, uint16_t peregrine_control_port,
                uint16_t app_control_port, int nconns, std::string_view peer,
                TransportType transport_type = TransportType::kTcp,
-               WorkloadType workload = WorkloadType::kSerialFixedWrite);
+               workloads::WorkloadType workload =
+                   workloads::WorkloadType::kSerialFixedWrite);
 
 }  // namespace peregrine::benchmark
 

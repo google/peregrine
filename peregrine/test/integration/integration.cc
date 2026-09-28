@@ -47,7 +47,7 @@ PeregrineIntegration::PeregrineIntegration() {
   flags_ = ReadFlags();
   settings_.test_begin = absl::Now();
 
-  workload_ = CreateWorkload(flags_.workload);
+  workload_ = workloads::CreateWorkload(flags_.workload);
   CHECK(workload_ != nullptr) << "Failed to create workload generator";
   const uint64_t buffer_size = workload_->TotalSizeBytes();
 

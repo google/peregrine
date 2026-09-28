@@ -20,7 +20,7 @@ struct Flags {
   bool enable_ncurses = false;
   bool verify_data = false;
   int conns_per_peer = 0;
-  WorkloadType workload = WorkloadType::kSerialFixedWrite;
+  workloads::WorkloadType workload = workloads::WorkloadType::kSerialFixedWrite;
 };
 
 Flags ReadFlags();

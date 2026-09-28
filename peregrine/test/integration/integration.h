@@ -45,7 +45,7 @@ class PeregrineIntegration final {
   Flags flags_;
   std::atomic<bool> stop_{false};
 
-  std::unique_ptr<WorkloadGenerator> workload_;
+  std::unique_ptr<workloads::WorkloadGenerator> workload_;
   std::unique_ptr<ControlpathHost> controlpath_sndr_;
   std::unique_ptr<ControlpathHost> controlpath_rcvr_;
   std::unique_ptr<DatapathHost> datapath_sndr_;

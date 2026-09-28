@@ -9,7 +9,7 @@
 #include "absl/strings/match.h"
 #include "peregrine/src/api/transport_types.h"
 
-namespace peregrine {
+namespace peregrine::workloads {
 
 // Traffic workload type.
 enum class WorkloadType {
@@ -47,6 +47,6 @@ class WorkloadGenerator {
       peregrine::Byte* base_laddr, peregrine::Byte* base_raddr) const = 0;
 };
 
-}  // namespace peregrine
+}  // namespace peregrine::workloads
 
 #endif  // PEREGRINE_TEST_WORKLOADS_WORKLOAD_GENERATOR_H_

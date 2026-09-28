@@ -9,7 +9,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/test/workloads/workload_generator.h"
 
-namespace peregrine {
+namespace peregrine::workloads {
 
 // Workload generator for a single contiguous fixed-size write request.
 class SerialFixedWrite : public WorkloadGenerator {
@@ -30,6 +30,6 @@ class SerialFixedWrite : public WorkloadGenerator {
   const uint64_t xfer_size_;
 };
 
-}  // namespace peregrine
+}  // namespace peregrine::workloads
 
 #endif  // PEREGRINE_TEST_WORKLOADS_SERIAL_FIXED_WRITE_H_

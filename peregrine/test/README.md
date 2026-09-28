@@ -9,7 +9,7 @@
 | :------------- | :--------------------------- | :------------------------- |
 | `benchmark/`   | `peregrine::benchmark`       | Benchmarks across hosts    |
 | `integration/` | `peregrine::integration`     | Tests in a single process  |
-| `workloads/`   | `peregrine`                  | Shared workload generators |
+| `workloads/`   | `peregrine::workloads`       | Shared workload generators |
 
 ## Running Integration Tests
 
