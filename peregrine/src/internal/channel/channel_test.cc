@@ -93,20 +93,20 @@ TEST_P(ChannelTest, ReadWrite) {
   // Precondition: dst is different from src_.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
-  // Send to one channel a number of times.
-  EXPECT_EQ(sndr->Write((Byte*)siovs_[0].iov_base, siovs_[0].iov_len), part_);
-  EXPECT_EQ(sndr->WriteV(absl::MakeSpan(&siovs_[1], kSrc - 1)), size_ - part_);
+  // Write to one channel.
+  EXPECT_EQ(sndr->Write(siovs_), size_);
 
-  // Receive from the other channel in a different way.
-  EXPECT_EQ(rcvr->Read((Byte*)diovs_[0].iov_base, diovs_[0].iov_len), part_);
-  EXPECT_EQ(rcvr->ReadV(absl::MakeSpan(&diovs_[1], kDst - 1)), size_ - part_);
+  // Read from the other channel in a different way.
+  EXPECT_EQ(rcvr->Read(absl::MakeSpan(diovs_)), size_);
 
   // Shutdown the channels and verify post-shutdown behavior.
   sndr->Shutdown();
   rcvr->Shutdown();
   constexpr size_t kLen = 1;
-  EXPECT_EQ(sndr->Write(src_.data(), kLen), -1);
-  EXPECT_EQ(rcvr->Read(dst_.data(), kLen), 0);
+  IoVec siovs[] = {{src_.data(), kLen}};
+  IoVec diovs[] = {{dst_.data(), kLen}};
+  EXPECT_EQ(sndr->Write(siovs), -1);
+  EXPECT_EQ(rcvr->Read(diovs), 0);
 
   // Check that the data read is the same as written.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));
@@ -125,16 +125,17 @@ TEST(UnreliableMessageChannelTest, ErrorRate) {
   constexpr size_t kMsgSize = 128;
   std::vector<Byte> src(kMsgSize, 1);
   std::vector<Byte> sink(kMsgSize, 0);
+  const IoVec siovs[] = {{src.data(), kMsgSize}};
+  IoVec diovs[] = {{sink.data(), kMsgSize}};
 
   int errors = 0;
   for (int i = 0; i < kNumMessages; ++i) {
-    ASSERT_EQ(sndr->Write(src.data(), kMsgSize), kMsgSize);
-    if (rcvr->Read(sink.data(), kMsgSize) != kMsgSize) ++errors;
+    ASSERT_EQ(sndr->Write(siovs), kMsgSize);
+    if (rcvr->Read(diovs) != kMsgSize) ++errors;
   }
   for (int i = 0; i < kNumMessages; ++i) {
-    ASSERT_EQ(sndr->WriteV({{src.data(), kMsgSize}}), kMsgSize);
-    IoVec iovs[] = {{sink.data(), kMsgSize}};
-    if (rcvr->ReadV(iovs) != kMsgSize) ++errors;
+    ASSERT_EQ(sndr->Write(siovs), kMsgSize);
+    if (rcvr->Read(diovs) != kMsgSize) ++errors;
   }
 
   const double actual = 100.0 * errors / (2 * kNumMessages);

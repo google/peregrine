@@ -1,14 +1,12 @@
 #ifndef PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_MSG_H_
 #define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_MSG_H_
 
-#include <cstddef>
 #include <memory>
 #include <string>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_types.h"
@@ -28,27 +26,15 @@ class MemMsgChannel final : public Channel {
     return ChannelType::kUnreliableMessage;
   }
 
-  // Writes a buffer of `len` bytes to the channel.
-  // Returns the number of bytes actually written if successful. Zero byte means
-  // no data has been written due to non-error reasons. Returns -1 on error.
-  ssize_t Write(const Byte* buf, size_t len) override {
-    return WriteV({{(void*)buf, len}});
-  }
-
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
   // no data has been written due to non-error reasons. Returns -1 on error.
-  ssize_t WriteV(absl::Span<const IoVec> iovecs) override;
-
-  // Reads one message of up to `len` bytes from the channel into the `buf`.
-  // Returns the number of bytes actually read if successful. Returns 0 if the
-  // received packet has no payload. Returns -1 on error.
-  ssize_t Read(Byte* buf, size_t len) override;
+  ssize_t Write(absl::Span<const IoVec> iovecs) override;
 
   // Reads one message of up to `length(iovecs)` bytes from the channel into
   // the buffers. Returns the number of bytes actually read if successful.
   // Returns 0 if the received packet has no payload. Returns -1 on error.
-  ssize_t ReadV(absl::Span<IoVec> iovecs) override;
+  ssize_t Read(absl::Span<IoVec> iovecs) override;
 
   // Shuts down the channel. After the channel is shutdown, write calls will
   // return -1, so no more data can be injected into the channel. Read calls

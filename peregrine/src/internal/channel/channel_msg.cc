@@ -27,7 +27,7 @@ MemMsgChannel::MemMsgChannel(const BidiPipe& bidi, const int error_rate)
   DCHECK_NE(out_pipe_, nullptr);
 }
 
-ssize_t MemMsgChannel::WriteV(const absl::Span<const IoVec> iovecs) {
+ssize_t MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
 
   const size_t len = TotalLength(iovecs);
@@ -44,34 +44,7 @@ ssize_t MemMsgChannel::WriteV(const absl::Span<const IoVec> iovecs) {
 
 bool MemMsgChannel::hasIncomingData() const { return in_pipe_->HasData(); }
 
-ssize_t MemMsgChannel::Read(Byte* const buf, const size_t len) {
-  DCHECK_NE(buf, nullptr);
-  DCHECK_GE(len, 1);
-
-  absl::MutexLock lock(in_pipe_->mu);
-  in_pipe_->mu.Await(absl::Condition(this, &MemMsgChannel::hasIncomingData));
-  if (in_pipe_->queue.empty()) {
-    DCHECK(in_pipe_->shutdown);
-    return 0;
-  }
-
-  OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
-  in_pipe_->queue.pop_front();
-  if (error()) return -1;
-
-  const size_t size = owned_iov.size;
-  if (size == 0) {
-    return 0;
-  } else if (size > len) {
-    return -1;
-  } else {
-    DCHECK(1 <= size && size <= len);
-    std::memcpy(buf, owned_iov.data.get(), size);
-    return size;
-  }
-}
-
-ssize_t MemMsgChannel::ReadV(absl::Span<IoVec> iovecs) {
+ssize_t MemMsgChannel::Read(absl::Span<IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
   DCHECK_GE(TotalLength(iovecs), 1);
 

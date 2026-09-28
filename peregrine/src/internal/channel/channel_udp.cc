@@ -11,7 +11,7 @@
 
 namespace peregrine::internal {
 
-ssize_t UdpChannel::WriteV(const absl::Span<const IoVec> iovecs) {
+ssize_t UdpChannel::Write(const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
   DCHECK_GE(iovecs.size(), 1);
   DCHECK_LE(iovecs.size(), IOV_MAX);
@@ -26,7 +26,7 @@ ssize_t UdpChannel::WriteV(const absl::Span<const IoVec> iovecs) {
   }
 }
 
-ssize_t UdpChannel::ReadV(absl::Span<IoVec> iovecs) {
+ssize_t UdpChannel::Read(absl::Span<IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
   DCHECK_GE(iovecs.size(), 1);
   DCHECK_LE(iovecs.size(), IOV_MAX);

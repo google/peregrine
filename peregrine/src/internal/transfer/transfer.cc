@@ -13,6 +13,7 @@
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
@@ -42,7 +43,7 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkHeader& chunk,
   };
 
   // Step 2: send them out.
-  return channel->WriteV(iovecs) == header.size() + payload.size();
+  return channel->Write(iovecs) == header.size() + payload.size();
 }
 
 bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
@@ -66,8 +67,8 @@ bool Transfer::sendAck(Channel* channel, ChunkHeader& chunk) {
   chunk.size = 0;
   DCHECK(chunk.IsAck());
   const std::string header = ChunkUtil::Serialize(chunk);
-  const Byte* const buf = reinterpret_cast<const Byte*>(header.data());
-  if ABSL_PREDICT_FALSE (channel->Write(buf, header.size()) != header.size()) {
+  const IoVec iov[] = {{(void*)header.data(), header.size()}};
+  if ABSL_PREDICT_FALSE (channel->Write(iov) != header.size()) {
     LOG(WARNING) << "failed to send ack: " << chunk;
     return false;
   }
@@ -80,7 +81,8 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
 
   // Step 1: read chunk header.
   Byte buf[ChunkUtil::kSize];
-  const ssize_t len = channel->Read(buf, sizeof(buf));
+  IoVec iov[] = {{buf, sizeof(buf)}};
+  const ssize_t len = channel->Read(iov);
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, sizeof(buf))) {
     // TODO(yongx): drop this channel.
     LOG(WARNING) << "failed to read chunk header: " << len;
@@ -114,7 +116,9 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
   const ChunkStatus s = tracker.Acquire(index);
   if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
     // Write permission granted, read payload and track data arrival.
-    const bool success = (channel->Read(chunk.DstAddr(), size) == size);
+    // TODO(yongx): check if chunk.DstAddr() is within a trust boundary.
+    IoVec payload[] = {{chunk.DstAddr(), size}};
+    const bool success = (channel->Read(payload) == size);
     tracker.Release(index, success);
     return success && sendAck(channel, chunk);
   } else {
@@ -138,7 +142,8 @@ bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
   // Step 1: read chunk header.
   Byte buf[kTmpBufSize];
   static_assert(ChunkUtil::kSize < kTmpBufSize);
-  const ssize_t len = channel->Read(buf, kTmpBufSize);
+  IoVec iov[] = {{buf, kTmpBufSize}};
+  const ssize_t len = channel->Read(iov);
   if ABSL_PREDICT_FALSE (std::cmp_less(len, ChunkUtil::kSize)) {
     LOG(WARNING) << "failed to read chunk header: " << len;
     return false;
@@ -195,7 +200,8 @@ bool Transfer::drainStream(Channel* const channel, const uint32_t chunk_size) {
   size_t left = chunk_size;
   while (left > 0) {
     const size_t len = std::min(left, kTmpBufSize);
-    if (channel->Read(buf, len) != len) return false;
+    IoVec iov[] = {{buf, len}};
+    if (channel->Read(iov) != len) return false;
     left -= len;
   }
   return left == 0;

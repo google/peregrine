@@ -29,7 +29,7 @@ MemStreamChannel::MemStreamChannel(const BidiPipe& bidi, const int error_rate)
   DCHECK_NE(out_pipe_, nullptr);
 }
 
-ssize_t MemStreamChannel::WriteV(const absl::Span<const IoVec> iovecs) {
+ssize_t MemStreamChannel::Write(const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
 
   const size_t len = TotalLength(iovecs);
@@ -48,7 +48,7 @@ ssize_t MemStreamChannel::WriteV(const absl::Span<const IoVec> iovecs) {
 
 bool MemStreamChannel::hasIncomingData() const { return in_pipe_->HasData(); }
 
-ssize_t MemStreamChannel::Read(Byte* const buf, const size_t len) {
+ssize_t MemStreamChannel::read(Byte* const buf, const size_t len) {
   DCHECK_NE(buf, nullptr);
   DCHECK_GE(len, 1);
 
@@ -92,7 +92,7 @@ ssize_t MemStreamChannel::Read(Byte* const buf, const size_t len) {
   return rcvd;
 }
 
-ssize_t MemStreamChannel::ReadV(absl::Span<IoVec> iovecs) {
+ssize_t MemStreamChannel::Read(absl::Span<IoVec> iovecs) {
   DCHECK(IsValid(iovecs));
   DCHECK_GE(TotalLength(iovecs), 1);
 
@@ -100,7 +100,7 @@ ssize_t MemStreamChannel::ReadV(absl::Span<IoVec> iovecs) {
   for (const auto& iov : iovecs) {
     Byte* buf = reinterpret_cast<Byte*>(iov.iov_base);
     const size_t len = iov.iov_len;
-    const ssize_t n = Read(buf, len);
+    const ssize_t n = read(buf, len);
     if (n <= 0) return total ?: n;
     total += n;
     if (static_cast<size_t>(n) < len) break;

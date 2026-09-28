@@ -13,7 +13,6 @@ cc_library(
     hdrs = ["channel.h"],
     deps = [
         ":channel_types",
-        "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "@abseil-cpp//absl/types:span",
     ],
@@ -43,7 +42,6 @@ cc_library(
     deps = [
         ":channel",
         ":channel_types",
-        "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/socket:socket_tcp",
         "//peregrine/src/internal/util",
@@ -61,7 +59,6 @@ cc_library(
     deps = [
         ":channel",
         ":channel_types",
-        "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/socket:socket_udp",
         "//peregrine/src/internal/util",
@@ -197,7 +194,6 @@ cc_library(
         ":channel",
         ":channel_types",
         "//:libibverbs",  # buildcleaner: keep
-        "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk",
         "//peregrine/src/internal/chunk:chunk_flatbuf",

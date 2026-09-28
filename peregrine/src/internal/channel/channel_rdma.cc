@@ -44,21 +44,18 @@ void RdmaChannel::Shutdown() {
   }
 }
 
-ssize_t RdmaChannel::ReadV(absl::Span<IoVec> /*iovecs*/) {
-  // TODO: Implement ReadV for RDMA.
-  LOG(ERROR) << "RdmaChannel::ReadV is not yet implemented";
+ssize_t RdmaChannel::Read(absl::Span<IoVec> /*iovecs*/) {
+  LOG(ERROR) << "not yet implemented";
   return -1;
 }
 
-ssize_t RdmaChannel::WriteV(absl::Span<const IoVec> iovecs) {
+ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
   if (is_shutdown_.load(std::memory_order_acquire)) return -1;
   if (qp_ == nullptr || qp_->GetQp() == nullptr) return -1;
 
   // One-sided RDMA requires exactly [ChunkHeader, Payload].
   if (iovecs.size() != 2) {
-    LOG(ERROR)
-        << "RdmaChannel::WriteV requires exactly 2 iovecs: [ChunkHeader, "
-           "Payload]";
+    LOG(ERROR) << "Requires exactly 2 iovecs: [ChunkHeader, Payload]";
     return -1;
   }
 
