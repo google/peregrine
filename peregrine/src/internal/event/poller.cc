@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/event/poller.h"
 
 #include <sys/epoll.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <cstdint>
@@ -48,7 +49,7 @@ Poller::~Poller() {
   LOG(INFO) << OkMsg("destroyed", epoll_fd_);
 }
 
-bool Poller::Register(const fd_t fd, const uint32_t events) {
+int Poller::Register(const fd_t fd, const uint32_t events) {
   struct epoll_event ev = {
       .events = events,
       .data = {.fd = fd.value()},
@@ -56,23 +57,24 @@ bool Poller::Register(const fd_t fd, const uint32_t events) {
   if (::epoll_ctl(epoll_fd_.value(), EPOLL_CTL_ADD, fd.value(), &ev) < 0) {
     const int last_errno = errno;
     LOG(ERROR) << ErrMsg("register", last_errno);
-    return false;
+    return -1;
   }
   LOG(INFO) << OkMsg("registered", fd);
-  return true;
+  return 0;
 }
 
-bool Poller::Unregister(const fd_t fd) {
+int Poller::Unregister(const fd_t fd) {
   if (::epoll_ctl(epoll_fd_.value(), EPOLL_CTL_DEL, fd.value(), nullptr) < 0) {
     const int last_errno = errno;
     LOG(ERROR) << ErrMsg("unregister", last_errno);
-    return false;
+    return -1;
   }
   LOG(INFO) << OkMsg("unregistered", fd);
-  return true;
+  return 0;
 }
 
-int Poller::BlockingWait(epoll_event* events, int max_events, int timeout_ms) {
+int Poller::BlockingWait(epoll_event* const events, const int max_events,
+                         const int timeout_ms) {
   DCHECK_NE(events, nullptr);
   DCHECK_GE(max_events, 1);
 
@@ -80,6 +82,7 @@ int Poller::BlockingWait(epoll_event* events, int max_events, int timeout_ms) {
   const int nfds = ::epoll_wait(efd, events, max_events, timeout_ms);
   if ABSL_PREDICT_FALSE (nfds < 0) {
     const int last_errno = errno;
+    if (last_errno == EINTR) return 0;
     LOG(ERROR) << ErrMsg("blocking wait", last_errno);
   }
   return nfds;

@@ -8,24 +8,32 @@
 
 #include "absl/log/check.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal {
 
 // This class implements an event poller using epoll.
-// It is thread-compatible but not thread-safe.
+// It is thread-safe since there is no mutable state.
 class Poller {
  public:
   // Creates an event poller.
   static std::unique_ptr<Poller> Create();
 
+  // Disallow copy and move.
+  DISALLOW_COPY(Poller);
+  DISALLOW_MOVE(Poller);
+
   // Adds a file descriptor to be watched.
-  bool Register(fd_t fd, uint32_t events);
+  // Returns 0 on success, -1 on error.
+  int Register(fd_t fd, uint32_t events);
 
   // Removes a file descriptor from being watched.
-  bool Unregister(fd_t fd);
+  // Returns 0 on success, -1 on error.
+  int Unregister(fd_t fd);
 
   // Waits blockingly for events on the file descriptors registered.
   // Returns the number of file descriptors with events received.
+  // Returns 0 on timeout or signal interruption, or -1 on error.
   int BlockingWait(epoll_event* events, int max_events, int timeout_ms);
 
   // Destructor closes the epoll file descriptor.

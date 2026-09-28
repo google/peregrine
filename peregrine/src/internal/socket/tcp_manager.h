@@ -29,9 +29,9 @@ class TcpManager : public TcpManagerBase {
   // fills in `self.data_plane_listeners` with the listening endpoints.
   static std::unique_ptr<TcpManager> Create(HostInfo& self);
 
-  // Returns all the connected sockets.
+  // Returns all the outgoing connected sockets.
   std::vector<std::unique_ptr<TcpSocket>> GetConnected() {
-    return connected_.MoveAll();
+    return outgoing_.MoveAll();
   }
 
   // Connects the `self` endpoint to the `peer` in blocking/non-blocking mode.
@@ -50,20 +50,24 @@ class TcpManager : public TcpManagerBase {
   TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
              absl::node_hash_map<fd_t, Listener> sockets);
 
-  // Creates a non-blocking tcp listening socket on the `endpoint`.
-  // If `endpoint.port` is 0, an ephemeral port will be used and updates it.
-  static std::unique_ptr<TcpSocket> createListener(Endpoint& endpoint,
-                                                   Poller& poller);
-
-  // Handles all incoming connections on the socket `fd`.
-  bool handleAllIncoming(OnAccept& on_accept, bool gen_blocking, fd_t fd,
-                         uint32_t flag);
-
   // Returns true iff the stop flag is true.
   bool isStopped() const { return stop_.load(std::memory_order_relaxed); }
 
   // Returns true iff it is in a valid state.
   bool invariant() const;
+
+ private:
+  // Creates a non-blocking tcp listening socket on the `endpoint`.
+  // If `endpoint.port` is 0, an ephemeral port will be used and updates it.
+  static std::unique_ptr<TcpSocket> createListener(Endpoint& endpoint,
+                                                   Poller& poller);
+
+  // Unregisters and removes the listening socket `fd`.
+  void removeListener(fd_t fd);
+
+  // Handles all incoming connections on the listening socket `fd`.
+  bool handleAllIncoming(OnAccept& on_accept, bool gen_blocking, fd_t fd,
+                         uint32_t flag);
 
  private:
   const HostInfo self_;
@@ -72,7 +76,7 @@ class TcpManager : public TcpManagerBase {
   std::unique_ptr<Poller> poller_;
 
   Listeners listeners_;
-  Produced connected_;
+  Produced outgoing_;
 };
 
 }  // namespace peregrine::internal

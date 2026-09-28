@@ -2,6 +2,7 @@
 
 #include <sys/epoll.h>
 
+#include <cstdint>
 #include <memory>
 
 #include "gtest/gtest.h"
@@ -15,7 +16,8 @@ TEST(PollerTest, Basic) {
   EXPECT_NE(poller, nullptr);
 
   const fd_t fd(0);
-  poller->Register(fd, EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP | EPOLLET);
+  constexpr uint32_t kEvents = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP;
+  poller->Register(fd, kEvents | EPOLLET);
   poller->Unregister(fd);
 }
 

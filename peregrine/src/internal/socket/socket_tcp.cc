@@ -106,7 +106,7 @@ int TcpSocket::Accept(bool gen_blocking) const {
     const int ret = ::accept4(fd_.value(), nullptr, nullptr, flags);
     if (ret < 0) {
       const int last_errno = errno;
-      if (Interrupted(last_errno)) {
+      if (Interrupted(last_errno) || last_errno == ECONNABORTED) {
         continue;
       } else if (WouldBlock(last_errno)) {
         return kAcceptWouldBlock;

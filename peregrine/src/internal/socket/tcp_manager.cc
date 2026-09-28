@@ -60,8 +60,8 @@ std::unique_ptr<TcpSocket> TcpManager::createListener(Endpoint& endpoint,
   if ABSL_PREDICT_FALSE (!e.HasNonzeroIpPort()) {
     return nullptr;
   }
-  DCHECK_EQ(kIncomingEvents & EPOLLET, 0);  // level-triggered
-  if ABSL_PREDICT_FALSE (!poller.Register(socket->fd(), kIncomingEvents)) {
+  static_assert((kIncomingEvents & EPOLLET) == 0);  // level-triggered
+  if ABSL_PREDICT_FALSE (poller.Register(socket->fd(), kIncomingEvents)) {
     return nullptr;
   }
   endpoint = e;
@@ -151,8 +151,13 @@ int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
   }
   DCHECK(socket->IsConnected());
   LOG(INFO) << "made " << *socket;
-  connected_.Add(std::move(socket));
+  outgoing_.Add(std::move(socket));
   return 0;
+}
+
+void TcpManager::removeListener(const fd_t fd) {
+  poller_->Unregister(fd);
+  listeners_.Remove(fd);
 }
 
 bool TcpManager::handleAllIncoming(OnAccept& on_accept, const bool gen_blocking,
@@ -161,11 +166,9 @@ bool TcpManager::handleAllIncoming(OnAccept& on_accept, const bool gen_blocking,
   if (listener == nullptr) return false;
 
   if ABSL_PREDICT_FALSE (flag & (EPOLLERR | EPOLLHUP)) {
-    // A listening socket only reports HUP/ERR after leaving TCP_LISTEN,
-    // triggered by the Shutdown() call in Stop() below.
-    LOG(WARNING) << EvtMsg("listening", fd, flag);
-    poller_->Unregister(fd);
-    listeners_.Remove(fd);
+    // Triggered by the listener's Shutdown() call in Stop().
+    LOG(INFO) << EvtMsg("listening", fd, flag);
+    removeListener(fd);
 
   } else if (flag & EPOLLIN) {
     // Listening sockets are level-triggered, not edge-triggered.
@@ -174,16 +177,22 @@ bool TcpManager::handleAllIncoming(OnAccept& on_accept, const bool gen_blocking,
     for (int i = 0; i < kMaxAcceptsPerEvent && !isStopped(); ++i) {
       const int ret = listener->Accept(gen_blocking);
       if ABSL_PREDICT_FALSE (ret < 0) {
-        if ABSL_PREDICT_FALSE (IsOutOfResource(ret)) {
-          LOG_EVERY_N_SEC(ERROR, 3) << "out of resource, " << *listener;
+        if (IsWouldBlock(ret)) {
+          // All incoming connections processed.
+        } else if (IsShutdown(ret)) {
+          LOG(INFO) << EvtMsg("listening", fd, flag);
+          removeListener(fd);
+        } else if (IsOutOfResource(ret)) {
+          LOG_EVERY_N_SEC(ERROR, 3) << "accept out of resource, " << *listener;
           absl::SleepFor(absl::Milliseconds(100));  // avoid busy-looping
-        } else if (!IsWouldBlock(ret) && !IsShutdown(ret)) {
+        } else {
           LOG_EVERY_N_SEC(ERROR, 1) << "accept failed, " << *listener;
+          absl::SleepFor(absl::Milliseconds(20));  // avoid busy-looping
         }
         break;
       }
       const fd_t new_fd(ret);
-      std::unique_ptr<TcpSocket> socket = TcpSocket::Create(new_fd, family);
+      auto socket = TcpSocket::Create(new_fd, family);
       DCHECK(socket->MatchesBlocking(gen_blocking));
       DCHECK(socket->IsConnected());
       LOG(INFO) << "made " << *socket;
@@ -204,18 +213,18 @@ void TcpManager::Start(OnAccept on_accept, bool gen_blocking) {
   epoll_event events[kMaxEvents];
   while (!isStopped()) {
     const int nfds = poller_->BlockingWait(events, kMaxEvents, kTimeoutMs);
-    if ABSL_PREDICT_FALSE (nfds < 0) {
+    if (nfds > 0) {
+      for (int i = 0; i < nfds; ++i) {
+        const auto& e = events[i];
+        const fd_t fd(e.data.fd);
+        const uint32_t flag = e.events;
+        if (!handleAllIncoming(on_accept, gen_blocking, fd, flag)) {
+          LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("unhandled", fd, flag);
+        }
+      }
+    } else if (nfds < 0) {
       if (isStopped()) break;
       LOG(ERROR) << "poller wait failed";
-      continue;
-    }
-    for (int i = 0; i < nfds; ++i) {
-      const auto& e = events[i];
-      const fd_t fd(e.data.fd);
-      const uint32_t flag = e.events;
-      if (!handleAllIncoming(on_accept, gen_blocking, fd, flag)) {
-        LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("unhandled", fd, flag);
-      }
     }
   }
   listeners_.Clear();
@@ -225,13 +234,13 @@ void TcpManager::Stop() {
   DCHECK(invariant());
   stop_.store(true, std::memory_order_relaxed);
   listeners_.Shutdown();  // unblocks BlockingWait() above
-  connected_.Clear();
+  outgoing_.Clear();
   LOG(INFO) << "stopped, " << self_;
 }
 
 bool TcpManager::invariant() const {
   return self_.IsValid() && poller_ != nullptr && listeners_.Invariant() &&
-         connected_.Invariant();
+         outgoing_.Invariant();
 }
 
 }  // namespace peregrine::internal

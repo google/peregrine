@@ -58,7 +58,7 @@ std::unique_ptr<TcpSocket> PspTcpManager::createListener(Endpoint& endpoint,
   }
 
   constexpr uint32_t kEvents = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLET;
-  if ABSL_PREDICT_FALSE (!poller.Register(socket->fd(), kEvents)) {
+  if ABSL_PREDICT_FALSE (poller.Register(socket->fd(), kEvents)) {
     return nullptr;
   }
 
