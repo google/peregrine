@@ -50,7 +50,7 @@ bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
                          RequestTracker& incoming) {
   static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
   const ChannelType t = channel->Type();
-  if ABSL_PREDICT_TRUE (IsReliableStream(t)) {
+  if ABSL_PREDICT_TRUE (IsStreamChannel(t)) {
     return recvChunkStream(channel, outgoing, incoming);
   } else {
     DCHECK(IsMessageChannel(t));
@@ -77,7 +77,8 @@ bool Transfer::sendAck(Channel* channel, ChunkHeader& chunk) {
 
 bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
                                RequestTracker& incoming) {
-  DCHECK(IsReliableStream(channel->Type()));
+  DCHECK(IsStreamChannel(channel->Type()));
+  DCHECK(IsLosslessChannel(channel->Type()));
 
   // Step 1: read chunk header.
   Byte buf[ChunkUtil::kSize];

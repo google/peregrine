@@ -96,11 +96,7 @@ void Worker::SendLoop() {
     }
     metrics_.write.bytes.Add(payload.size());
 
-    if (channel_->Type() == ChannelType::kReliableMessage) {
-      // TODO(mubashirq): Abstract one-sided vs two-sided transfer semantics
-      // (e.g. sender-side CQE tracking vs software ACKs) as a Channel property
-      // rather than branching on ChannelType.
-      //
+    if (IsOneSidedChannel(channel_->Type())) {
       // For one-sided RDMA channels, successful SendChunk completes the
       // transfer at the hardware level (confirmed via CQE), with no software
       // ACK chunk sent by the receiver.
@@ -113,13 +109,8 @@ void Worker::SendLoop() {
 
 void Worker::RecvLoop() {
   log("recv loop started");
-  if (channel_->Type() == ChannelType::kReliableMessage) {
-    // TODO(mubashirq): Abstract receiver polling requirements as a Channel
-    // property rather than branching on ChannelType.
-    //
-    // One-sided RDMA channels do not receive software chunks over the wire;
-    // remote memory is written directly by hardware DMA and completions are
-    // signaled to the sender via CQE.
+  if (IsOneSidedChannel(channel_->Type())) {
+    // One-sided channels like RDMA do not run software code on recv side.
     static_assert(
         assumptions::kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe);
     absl::MutexLock _(mu_);

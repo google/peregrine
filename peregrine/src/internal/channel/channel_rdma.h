@@ -26,9 +26,7 @@ class RdmaChannel final : public Channel {
   ~RdmaChannel() override;
 
   // Returns the channel type.
-  constexpr ChannelType Type() const override {
-    return ChannelType::kReliableMessage;
-  }
+  constexpr ChannelType Type() const override { return ChannelType::kRDMA; }
 
   // Writes a chunk via one-sided RDMA WRITE. Requires exactly 2 iovecs:
   // iovecs[0] is the serialized ChunkHeader containing the remote memory

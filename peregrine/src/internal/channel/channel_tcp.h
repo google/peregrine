@@ -29,9 +29,7 @@ class TcpChannel final : public Channel {
   }
 
   // Returns the channel type.
-  constexpr ChannelType Type() const override {
-    return ChannelType::kReliableStream;
-  }
+  constexpr ChannelType Type() const override { return ChannelType::kTCP; }
 
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means

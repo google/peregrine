@@ -22,9 +22,7 @@ class MemMsgChannel final : public Channel {
   explicit MemMsgChannel(const BidiPipe& bidi, int error_rate);
 
   // Returns the channel type.
-  constexpr ChannelType Type() const override {
-    return ChannelType::kUnreliableMessage;
-  }
+  constexpr ChannelType Type() const override { return ChannelType::kMemMsg; }
 
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means

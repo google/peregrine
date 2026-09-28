@@ -24,7 +24,7 @@ class MemStreamChannel final : public Channel {
 
   // Returns the channel type.
   constexpr ChannelType Type() const override {
-    return ChannelType::kReliableStream;
+    return ChannelType::kMemStream;
   }
 
   // Writes a number of buffers described by the `iovecs` to the channel.

@@ -81,7 +81,7 @@ TEST(ChannelUtilNonParamTest, CreateRdmaChannel) {
   ASSERT_TRUE(qp_or.ok());
   auto ch = CreateRdmaChannel(std::move(*qp_or), 0x1234, 0x5678);
   ASSERT_NE(ch, nullptr);
-  EXPECT_EQ(ch->Type(), ChannelType::kReliableMessage);
+  EXPECT_EQ(ch->Type(), ChannelType::kRDMA);
 }
 
 }  // namespace

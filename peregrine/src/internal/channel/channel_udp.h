@@ -29,9 +29,7 @@ class UdpChannel final : public Channel {
   }
 
   // Returns the channel type.
-  constexpr ChannelType Type() const override {
-    return ChannelType::kUnreliableMessage;
-  }
+  constexpr ChannelType Type() const override { return ChannelType::kUDP; }
 
   // Writes data from the `iovecs` buffers to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
