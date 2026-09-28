@@ -7,7 +7,7 @@
 
 ## Versions
 
-### [v0.1.1](https://github.com/google/peregrine/releases/tag/v0.1.1)
+### [v0.1.2](https://github.com/google/peregrine/releases/tag/v0.1.2)
 
 - Expose a minimal set of TCP socket read/write API.
 - Eliminate some redundant code in [TPU Sync](https://github.com/google/tpu-sync) transport.
