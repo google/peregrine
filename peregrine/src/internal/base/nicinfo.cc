@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -64,6 +66,25 @@ NicInfo NicInfo::Create(std::string_view s) {
   }
   const NicInfo nic(name, type, endpoints);
   return nic.IsValid() ? nic : invalid;
+}
+
+absl::flat_hash_map<std::string, NicInfo> NicInfo::GetTcpListenerCandidates(
+    const bool include_loopback) {
+  absl::flat_hash_map<std::string, NicInfo> candidates;
+  for (const auto& [ifc, nis] : util::FindRoutableIpAddrs()) {
+    if (nis.type == util::NicType::kIP) {
+      std::vector<Endpoint> es;
+      for (const auto& ip : nis.addrs) {
+        if (include_loopback || !ip.IsLoopback()) {
+          es.emplace_back(ip, /*port=*/0);
+        }
+      }
+      if (!es.empty()) {
+        candidates.emplace(ifc, NicInfo(ifc, nis.type, std::move(es)));
+      }
+    }
+  }
+  return candidates;
 }
 
 }  // namespace peregrine::internal

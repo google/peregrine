@@ -142,7 +142,7 @@ int TcpSocket::Connect(const Endpoint& peer) {
   } else {
     LOG(INFO) << okMsg("connected");
     connected_ = true;
-    return 0;
+    return kConnectSuccess;
   }
 }
 

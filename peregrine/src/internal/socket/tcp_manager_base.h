@@ -74,9 +74,9 @@ class TcpManagerBase {
     // returns false, closes the `socket` instead of adding it, and returns
     // false. `on_add` is called with the internal lock held, so it must not
     // call back into this object.
-    [[nodiscard]] bool Add(fd_t fd, std::unique_ptr<TcpSocket> socket,
-                           absl::FunctionRef<bool(fd_t)> on_add)
-        ABSL_LOCKS_EXCLUDED(mu_);
+    [[nodiscard("Must check if the socket was added successfully")]]
+    bool Add(fd_t fd, std::unique_ptr<TcpSocket> socket,
+             absl::FunctionRef<bool(fd_t)> on_add) ABSL_LOCKS_EXCLUDED(mu_);
 
     // Returns the connecting socket of the file descriptor `fd` and removes it
     // from the internal container. If `fd` does not exist, returns nullptr.
@@ -101,8 +101,8 @@ class TcpManagerBase {
 
     // Adds a connected socket and returns true. If `Close()` has been called,
     // closes the `socket` instead of adding it, and returns false.
-    [[nodiscard]] bool Add(std::unique_ptr<TcpSocket> socket)
-        ABSL_LOCKS_EXCLUDED(mu_);
+    [[nodiscard("Must check if the socket was added successfully")]]
+    bool Add(std::unique_ptr<TcpSocket> socket) ABSL_LOCKS_EXCLUDED(mu_);
 
     // Returns all the connected sockets and clears the internal container.
     // After this call, `Add()` might be called and refill the container,

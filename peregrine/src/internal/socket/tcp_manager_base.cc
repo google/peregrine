@@ -10,6 +10,7 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
@@ -74,10 +75,12 @@ bool TcpManagerBase::Connectors::Add(const fd_t fd,
   {
     absl::MutexLock _(mu_);
     if ABSL_PREDICT_TRUE (!closed_ && on_add(fd)) {
+      LOG(INFO) << "added connector " << *socket;
       fd2skts_.emplace(fd, Connector{std::move(socket)});
       return true;
     }
   }
+  LOG(WARNING) << "rejected connector " << *socket;
   return false;  // `socket` is closed outside the lock
 }
 
@@ -117,10 +120,12 @@ bool TcpManagerBase::Produced::Add(std::unique_ptr<TcpSocket> socket) {
   {
     absl::MutexLock _(mu_);
     if ABSL_PREDICT_TRUE (!closed_) {
+      LOG(INFO) << "added socket " << *socket;
       sockets_.emplace_back(std::move(socket));
       return true;
     }
   }
+  LOG(WARNING) << "rejected socket " << *socket;
   return false;
 }
 

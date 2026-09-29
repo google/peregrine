@@ -106,5 +106,14 @@ TEST(NicInfoTest, Equality) {
   EXPECT_NE(a, d);
 }
 
+TEST(NicInfoTest, TcpListenerCandidates) {
+  constexpr bool kIncludeLoopback = true;
+  const auto candidates = NicInfo::GetTcpListenerCandidates(kIncludeLoopback);
+  ASSERT_FALSE(candidates.empty());
+  for (const auto& [ifc, nic] : candidates) {
+    LOG(INFO) << "nic: " << nic;
+  }
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

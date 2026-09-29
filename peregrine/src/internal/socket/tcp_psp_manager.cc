@@ -6,7 +6,6 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -31,7 +30,6 @@
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_util.h"
-#include "peregrine/src/util/nic.h"
 
 namespace peregrine::internal {
 
@@ -66,23 +64,6 @@ std::unique_ptr<TcpSocket> PspTcpManager::createListener(Endpoint& endpoint,
   return socket;
 }
 
-namespace {
-auto GetTcpListenerCandidates(const bool loopback) {
-  absl::flat_hash_map<std::string, NicInfo> candidates;
-  for (const auto& [ifc, nis] : util::FindRoutableIpAddrs()) {
-    if (nis.type != util::NicType::kIP) continue;
-    std::vector<Endpoint> es;
-    for (const auto& ip : nis.addrs) {
-      if (!loopback && ip.IsLoopback()) continue;
-      es.emplace_back(ip, /*port=*/0);
-    }
-    if (es.empty()) continue;
-    candidates.emplace(ifc, NicInfo(ifc, nis.type, std::move(es)));
-  }
-  return candidates;
-}
-}  // namespace
-
 std::unique_ptr<PspTcpManager> PspTcpManager::Create(HostInfo& self) {
   std::unique_ptr<Poller> poller = Poller::Create();
   if ABSL_PREDICT_FALSE (poller == nullptr) {
@@ -91,7 +72,7 @@ std::unique_ptr<PspTcpManager> PspTcpManager::Create(HostInfo& self) {
   }
 
   const bool loopback = self.control_plane_listener.GetIpAddr().IsLoopback();
-  auto candidates = GetTcpListenerCandidates(loopback);
+  auto candidates = NicInfo::GetTcpListenerCandidates(loopback);
   if ABSL_PREDICT_FALSE (candidates.empty()) {
     LOG(ERROR) << "failed to find data plane tcp listener candidates";
     return nullptr;

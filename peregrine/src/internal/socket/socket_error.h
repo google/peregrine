@@ -39,6 +39,7 @@ inline constexpr int kAcceptOutOfResource = -11;
 
 // Return codes of the tcp socket Connect() call.
 inline constexpr int kConnectInProgress = 1;
+inline constexpr int kConnectSuccess = 0;
 inline constexpr int kConnectError = -1;
 
 // Returns true iff the tcp listen socket Accept() call would block.

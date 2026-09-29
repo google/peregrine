@@ -6,6 +6,7 @@
 #include <string_view>
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -31,6 +32,11 @@ struct NicInfo {
   // Parses and creates nic info from a string.
   // Returns invalid nic info if the string parsing fails.
   static NicInfo Create(std::string_view s);
+
+  // Returns a map of `interface -> nic info` for tcp listener candidates,
+  // including loopback interfaces iff `include_loopback` is true.
+  static absl::flat_hash_map<std::string, NicInfo> GetTcpListenerCandidates(
+      bool include_loopback);
 
   // Returns true iff the nic info is valid.
   bool IsValid() const;

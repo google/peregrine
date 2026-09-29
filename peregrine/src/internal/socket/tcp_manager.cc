@@ -28,7 +28,6 @@
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_util.h"
-#include "peregrine/src/util/nic.h"
 
 namespace peregrine::internal {
 
@@ -55,7 +54,7 @@ std::unique_ptr<TcpSocket> TcpManager::createListener(Endpoint& endpoint,
     return nullptr;
   }
   DCHECK(socket->IsNonBlocking());
-  if ABSL_PREDICT_FALSE (socket->Listen(endpoint)) {
+  if ABSL_PREDICT_FALSE (socket->Listen(endpoint) < 0) {
     return nullptr;
   }
   const Endpoint e = SelfEndpoint(socket->fd());
@@ -63,30 +62,13 @@ std::unique_ptr<TcpSocket> TcpManager::createListener(Endpoint& endpoint,
     return nullptr;
   }
   static_assert((kIncomingEvents & EPOLLET) == 0);
-  if ABSL_PREDICT_FALSE (poller.Register(socket->fd(), kIncomingEvents)) {
+  if ABSL_PREDICT_FALSE (poller.Register(socket->fd(), kIncomingEvents) < 0) {
     return nullptr;
   }
   endpoint = e;
   LOG(INFO) << "created, " << *socket;
   return socket;
 }
-
-namespace {
-auto GetTcpListenerCandidates(const bool loopback) {
-  absl::flat_hash_map<std::string, NicInfo> candidates;
-  for (const auto& [ifc, nis] : util::FindRoutableIpAddrs()) {
-    if (nis.type != util::NicType::kIP) continue;
-    std::vector<Endpoint> es;
-    for (const auto& ip : nis.addrs) {
-      if (!loopback && ip.IsLoopback()) continue;
-      es.emplace_back(ip, /*port=*/0);
-    }
-    if (es.empty()) continue;
-    candidates.emplace(ifc, NicInfo(ifc, nis.type, std::move(es)));
-  }
-  return candidates;
-}
-}  // namespace
 
 std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
   std::unique_ptr<Poller> poller = Poller::Create();
@@ -95,7 +77,7 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
     return nullptr;
   }
   const bool loopback = self.control_plane_listener.GetIpAddr().IsLoopback();
-  auto candidates = GetTcpListenerCandidates(loopback);
+  auto candidates = NicInfo::GetTcpListenerCandidates(loopback);
   if ABSL_PREDICT_FALSE (candidates.empty()) {
     LOG(ERROR) << "failed to find data plane tcp listener candidates";
     return nullptr;
@@ -136,22 +118,22 @@ int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
                         const bool blocking) {
   DCHECK(peer.HasNonzeroIpPort());
 
-  if ABSL_PREDICT_FALSE (isStopped()) return -1;
+  if ABSL_PREDICT_FALSE (isStopped()) return kConnectError;
 
   const int family = peer.GetIpAddr().AddressFamily();
   auto socket = TcpSocket::Create(family, blocking);
-  if ABSL_PREDICT_FALSE (socket == nullptr) return -1;
-  if (!self.HasZeroIpAddr() && socket->Bind(self)) return -1;
+  if ABSL_PREDICT_FALSE (socket == nullptr) return kConnectError;
+  if (!self.HasZeroIpAddr() && socket->Bind(self) < 0) return kConnectError;
 
   if (!blocking) {
     DCHECK(socket->IsNonBlocking());
     return connectNonBlocking(std::move(socket), peer);
   } else {
     DCHECK(socket->IsBlocking());
-    if (socket->Connect(peer)) return -1;
+    if (socket->Connect(peer) < 0) return kConnectError;
     DCHECK(socket->IsConnected());
     LOG(INFO) << "made " << *socket;
-    return outgoing_.Add(std::move(socket)) ? 0 : -1;
+    return outgoing_.Add(std::move(socket)) ? kConnectSuccess : kConnectError;
   }
 }
 
@@ -162,12 +144,12 @@ int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
 
   DCHECK(socket->IsNonBlocking());
   switch (socket->Connect(peer)) {
-    case 0: {
+    case kConnectSuccess: {
       DCHECK(socket->IsConnected());
       LOG(INFO) << "made " << *socket;
-      return outgoing_.Add(std::move(socket)) ? 0 : -1;
+      return outgoing_.Add(std::move(socket)) ? kConnectSuccess : kConnectError;
     }
-    case 1: {
+    case kConnectInProgress: {
       DCHECK(!socket->IsConnected());
       LOG(INFO) << "connecting " << *socket;
       // Registers under the connectors_ lock, so that Close() cannot close
@@ -178,15 +160,12 @@ int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
         static_assert((kOutgoingEvents & EPOLLET) == 0);
         return poller_->Register(added, kOutgoingEvents) == 0;
       };
-      if ABSL_PREDICT_FALSE (!connectors_.Add(fd, std::move(socket),
-                                              register_fd)) {
-        LOG(INFO) << "connector rejected, fd=" << fd;
-        return -1;  // stopped or failed to register
-      }
-      return 1;
+      return connectors_.Add(fd, std::move(socket), register_fd)
+                 ? kConnectInProgress
+                 : kConnectError;
     }
     default:
-      return -1;
+      return kConnectError;
   }
 }
 
