@@ -19,7 +19,6 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_base.h"
@@ -82,54 +81,7 @@ int UdpSocket::Connect(const Endpoint& peer) {
   }
 }
 
-ssize_t UdpSocket::Send(const Byte* const buf, const size_t len) const {
-  DCHECK(invariant());
-  DCHECK(IsBlocking());
-  DCHECK_GE(len, 1);
-  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
-
-  while (true) {
-    const ssize_t bytes = ::send(fd_.value(), buf, len, MSG_NOSIGNAL);
-    DCHECK(bytes == len || bytes < 0);
-    if ABSL_PREDICT_TRUE (bytes == len) {
-      VLOG(1) << ioMsg("send", bytes);
-      return bytes;
-    }
-    const int last_errno = errno;
-    if (Interrupted(last_errno)) continue;
-    DCHECK(!WouldBlock(last_errno));
-    LOG(WARNING) << errMsg("send", last_errno);
-    return -1;
-  }
-}
-
-ssize_t UdpSocket::Recv(Byte* const buf, const size_t len) const {
-  DCHECK(invariant());
-  DCHECK(IsBlocking());
-  DCHECK_GE(len, 1);
-  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
-
-  while (true) {
-    const ssize_t bytes = ::recv(fd_.value(), buf, len, /*flags=*/0);
-    DCHECK_LE(bytes, len);
-    if ABSL_PREDICT_TRUE (bytes > 0) {
-      VLOG(1) << ioMsg("recv", bytes);
-      return bytes;
-    } else if (bytes < 0) {
-      const int last_errno = errno;
-      if (Interrupted(last_errno)) continue;
-      DCHECK(!WouldBlock(last_errno));
-      LOG(WARNING) << errMsg("recv", last_errno);
-      return -1;
-    } else {
-      DCHECK_EQ(bytes, 0);
-      LOG(INFO) << ioMsg("recv no payload", 0);
-      return 0;
-    }
-  }
-}
-
-ssize_t UdpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
+ssize_t UdpSocket::Send(const absl::Span<const IoVec> iovecs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
   DCHECK_LE(iovecs.size(), IOV_MAX);
@@ -154,7 +106,7 @@ ssize_t UdpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
   }
 }
 
-ssize_t UdpSocket::RecvV(const absl::Span<const IoVec> iovecs) const {
+ssize_t UdpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
   DCHECK_LE(iovecs.size(), IOV_MAX);

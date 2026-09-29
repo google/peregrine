@@ -63,46 +63,6 @@ INSTANTIATE_TEST_SUITE_P(BlockingTcpSocketTest, TcpSocketTest,
                                  /*blocking=*/Values(true)),
                          ToString);
 
-TEST_P(TcpSocketTest, SmallMessage) {
-  // Create a small send message and a recv buffer.
-  const std::vector<Byte> message = {'h', 'e', 'l', 'l', 'o'};
-  const size_t kMsgSize = message.size();
-  std::vector<Byte> recv_buf(kMsgSize, 0);
-  ASSERT_THAT(recv_buf, Pointwise(Ne(), message));
-
-  // First, create a server thread.
-  absl::Notification server_ready;
-  util::Thread server([&]() {
-    CHECK(!listener_->Listen(local_));
-    server_ready.Notify();
-    DCHECK(listener_->IsBlocking());
-    const int ret = listener_->Accept(cfg_.blocking);
-    CHECK_GE(ret, 0);
-
-    const fd_t new_fd(ret);
-    auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
-    DCHECK(new_socket->IsBlocking());
-    DCHECK(new_socket->IsConnected());
-    CHECK_EQ(new_socket->Recv(recv_buf.data(), kMsgSize), kMsgSize);
-  });
-
-  // Second, create a client thread.
-  util::Thread client([&]() {
-    server_ready.WaitForNotification();
-    CHECK(!connector_->Connect(local_));
-    DCHECK(connector_->IsBlocking());
-    DCHECK(connector_->IsConnected());
-    CHECK_EQ(connector_->Send(message.data(), kMsgSize), kMsgSize);
-  });
-
-  // Wait for both threads to finish.
-  client.join();
-  server.join();
-
-  // Check that the server got the client's message.
-  EXPECT_THAT(recv_buf, Pointwise(Eq(), message));
-}
-
 TEST_P(TcpSocketTest, BigData) {
   // Create a big chunk of data and a recv buffer.
   constexpr size_t kDataSize = 16UL << 20;
@@ -131,7 +91,7 @@ TEST_P(TcpSocketTest, BigData) {
         {.iov_base = (void*)(recv_buf.data() + kPartial),
          .iov_len = kDataSize - kPartial},
     };
-    CHECK_EQ(new_socket->RecvV(recv_iov), kDataSize);
+    CHECK_EQ(new_socket->Recv(recv_iov), kDataSize);
   });
 
   // Second, create a client thread.
@@ -150,7 +110,7 @@ TEST_P(TcpSocketTest, BigData) {
         {.iov_base = (void*)(send_buf.data() + 2 * kPartial),
          .iov_len = kDataSize - 2 * kPartial},
     };
-    CHECK_EQ(connector_->SendV(send_iov), kDataSize);
+    CHECK_EQ(connector_->Send(send_iov), kDataSize);
   });
 
   // Wait for both threads to finish.

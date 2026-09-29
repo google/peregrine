@@ -13,7 +13,6 @@
 
 #include "absl/log/check.h"
 #include "absl/types/span.h"
-#include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_base.h"
@@ -41,25 +40,15 @@ class UdpSocket final : public SocketBase {
   // Connects to the `peer` endpoint. Returns 0 on success, -1 on error.
   int Connect(const Endpoint& peer);
 
-  // Sends exactly `len` bytes of data from the `buf`.
-  // Returns the number of bytes sent if successful. Zero byte means no data
-  // has been sent due to non-error reasons. Returns -1 on error.
-  ssize_t Send(const Byte* buf, size_t len) const;
-
-  // Receives at most `len` bytes of data into the `buf`.
-  // Returns the number of bytes received if successful. Zero byte means the
-  // received packet has no payload. Returns -1 on error.
-  ssize_t Recv(Byte* buf, size_t len) const;
-
   // Sends exactly `length(iovecs)` bytes of data from the buffers.
   // Returns the number of bytes sent if successful. Zero byte means no data
   // has been sent due to non-error reasons. Returns -1 on error.
-  ssize_t SendV(absl::Span<const IoVec> iovecs) const;
+  ssize_t Send(absl::Span<const IoVec> iovecs) const;
 
   // Receives at most `length(iovecs)` bytes of data into the buffers.
   // Returns the number of bytes received if successful. Zero byte means the
   // received packet has no payload. Returns -1 on error.
-  ssize_t RecvV(absl::Span<const IoVec> iovecs) const;
+  ssize_t Recv(absl::Span<const IoVec> iovecs) const;
 
   // Returns a self/peer address pair string of the socket.
   std::string ToString() const;

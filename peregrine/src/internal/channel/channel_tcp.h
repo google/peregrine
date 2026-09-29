@@ -13,6 +13,7 @@
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/util/util.h"
 
 namespace peregrine::internal {
 
@@ -41,12 +42,24 @@ class TcpChannel final : public Channel {
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
   // no data has been written due to non-error reasons. Returns -1 on error.
-  ssize_t Write(absl::Span<const IoVec> iovecs) override;
+  ssize_t Write(absl::Span<const IoVec> iovecs) override {
+    DCHECK(IsValid(iovecs));
+    DCHECK_GE(iovecs.size(), 1);
+    DCHECK_LE(iovecs.size(), IOV_MAX);
+    DCHECK_GE(TotalLength(iovecs), 1);
+    return socket_->Send(iovecs);
+  }
 
   // Reads exactly `length(iovecs)` bytes of data from the channel into the
   // buffers. Returns the number of bytes actually read if successful.
   // Returns 0 if the peer side has closed the connection. Returns -1 on error.
-  ssize_t Read(absl::Span<IoVec> iovecs) override;
+  ssize_t Read(absl::Span<IoVec> iovecs) override {
+    DCHECK(IsValid(iovecs));
+    DCHECK_GE(iovecs.size(), 1);
+    DCHECK_LE(iovecs.size(), IOV_MAX);
+    DCHECK_GE(TotalLength(iovecs), 1);
+    return socket_->Recv(iovecs);
+  }
 
   // Shuts down the channel. After the channel is shutdown, write calls will
   // return -1, so no more data can be injected into the channel. Read calls

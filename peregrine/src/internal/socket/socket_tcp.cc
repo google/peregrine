@@ -146,44 +146,7 @@ int TcpSocket::Connect(const Endpoint& peer) {
   }
 }
 
-ssize_t TcpSocket::Send(const Byte* const buf, const size_t len) const {
-  DCHECK(invariant());
-  DCHECK(IsBlocking());
-  DCHECK_GE(len, 1);
-  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
-
-  const Byte* ptr = buf;
-  size_t sent = 0;
-  ssize_t left = len;
-  while (left > 0) {
-    const ssize_t bytes = ::send(fd_.value(), ptr, left, MSG_NOSIGNAL);
-    if ABSL_PREDICT_TRUE (bytes > 0) {
-      DCHECK_LE(bytes, left);
-      ptr += bytes;
-      left -= bytes;
-      sent += bytes;
-      DCHECK_EQ(buf + len, ptr + left);
-      VLOG(1) << ioMsg("send", bytes);
-    } else {
-      const int last_errno = errno;
-      if ABSL_PREDICT_TRUE (bytes < 0) {
-        if (Interrupted(last_errno)) continue;
-        DCHECK(!WouldBlock(last_errno));
-        LOG(WARNING) << errMsg("send", last_errno);
-        return -1;
-      } else {  // rarely happens
-        DCHECK_EQ(bytes, 0);
-        LOG(WARNING) << errMsg("send zero", last_errno);
-        return 0;
-      }
-    }
-  }
-  DCHECK_EQ(left, 0);
-  DCHECK_EQ(sent, len);
-  return sent;
-}
-
-ssize_t TcpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
+ssize_t TcpSocket::Send(const absl::Span<const IoVec> iovecs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
   DCHECK_LE(iovecs.size(), IOV_MAX);
@@ -232,41 +195,7 @@ ssize_t TcpSocket::SendV(const absl::Span<const IoVec> iovecs) const {
   return sent;
 }
 
-ssize_t TcpSocket::Recv(Byte* const buf, const size_t len) const {
-  DCHECK(invariant());
-  DCHECK(IsBlocking());
-  DCHECK_GE(len, 1);
-  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
-
-  Byte* ptr = buf;
-  size_t rcvd = 0;
-  ssize_t left = len;
-  while (left > 0) {
-    const ssize_t bytes = ::recv(fd_.value(), ptr, left, /*flags=*/0);
-    if ABSL_PREDICT_TRUE (bytes > 0) {
-      DCHECK_LE(bytes, left);
-      ptr += bytes;
-      left -= bytes;
-      rcvd += bytes;
-      DCHECK_EQ(buf + len, ptr + left);
-      VLOG(1) << ioMsg("recv", bytes);
-    } else if (bytes == 0) {  // peer closed connection
-      LOG(INFO) << ioMsg("recv eof", 0);
-      return 0;
-    } else {
-      const int last_errno = errno;
-      if (Interrupted(last_errno)) continue;
-      DCHECK(!WouldBlock(last_errno));
-      LOG(WARNING) << errMsg("recv", last_errno);
-      return -1;
-    }
-  }
-  DCHECK_EQ(left, 0);
-  DCHECK_EQ(rcvd, len);
-  return rcvd;
-}
-
-ssize_t TcpSocket::RecvV(const absl::Span<const IoVec> iovecs) const {
+ssize_t TcpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
   DCHECK_LE(iovecs.size(), IOV_MAX);

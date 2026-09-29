@@ -123,7 +123,6 @@ cc_library(
         ":socket_base",
         ":socket_error",
         ":socket_util",
-        "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/util",
