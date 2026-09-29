@@ -62,7 +62,7 @@ std::unique_ptr<TcpSocket> TcpManager::createListener(Endpoint& endpoint,
   if ABSL_PREDICT_FALSE (!e.HasNonzeroIpPort()) {
     return nullptr;
   }
-  static_assert((kIncomingEvents & EPOLLET) == 0);  // level-triggered
+  static_assert((kIncomingEvents & EPOLLET) == 0);
   if ABSL_PREDICT_FALSE (poller.Register(socket->fd(), kIncomingEvents)) {
     return nullptr;
   }
@@ -170,14 +170,18 @@ int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
     case 1: {
       DCHECK(!socket->IsConnected());
       LOG(INFO) << "connecting " << *socket;
+      // Registers under the connectors_ lock, so that Close() cannot close
+      // (and the OS reuse) `fd` before registration, and the poller thread
+      // cannot see an event for `fd` before it is added.
       const fd_t fd = socket->fd();
-      if ABSL_PREDICT_FALSE (!connectors_.Add(fd, std::move(socket))) {
-        return -1;  // stopped
-      }
-      static_assert((kOutgoingEvents & EPOLLET) == 0);  // level-triggered
-      if ABSL_PREDICT_FALSE (poller_->Register(fd, kOutgoingEvents)) {
-        connectors_.Remove(fd);
-        return -1;
+      const auto register_fd = [this](const fd_t added) {
+        static_assert((kOutgoingEvents & EPOLLET) == 0);
+        return poller_->Register(added, kOutgoingEvents) == 0;
+      };
+      if ABSL_PREDICT_FALSE (!connectors_.Add(fd, std::move(socket),
+                                              register_fd)) {
+        LOG(INFO) << "connector rejected, fd=" << fd;
+        return -1;  // stopped or failed to register
       }
       return 1;
     }

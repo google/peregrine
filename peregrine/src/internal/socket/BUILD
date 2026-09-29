@@ -224,6 +224,7 @@ cc_library(
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:node_hash_map",
+        "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
     ],

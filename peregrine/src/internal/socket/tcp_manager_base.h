@@ -8,6 +8,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/types.h"
@@ -68,9 +69,13 @@ class TcpManagerBase {
     // Returns true iff all the sockets are valid.
     bool Invariant() const ABSL_LOCKS_EXCLUDED(mu_);
 
-    // Adds a connecting socket and returns true. If `Close()` has been called,
-    // closes the `socket` instead of adding it, and returns false.
-    [[nodiscard]] bool Add(fd_t fd, std::unique_ptr<TcpSocket> socket)
+    // Adds a connecting socket and calls `on_add(fd)` atomically with respect
+    // to `Close()`, and returns true. If `Close()` has been called or `on_add`
+    // returns false, closes the `socket` instead of adding it, and returns
+    // false. `on_add` is called with the internal lock held, so it must not
+    // call back into this object.
+    [[nodiscard]] bool Add(fd_t fd, std::unique_ptr<TcpSocket> socket,
+                           absl::FunctionRef<bool(fd_t)> on_add)
         ABSL_LOCKS_EXCLUDED(mu_);
 
     // Returns the connecting socket of the file descriptor `fd` and removes it

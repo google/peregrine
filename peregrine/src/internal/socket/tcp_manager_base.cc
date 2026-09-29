@@ -8,6 +8,7 @@
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/types.h"
@@ -48,7 +49,7 @@ void TcpManagerBase::Listeners::Close() {
     absl::MutexLock _(mu_);
     doomed.swap(fd2skts_);
   }
-  doomed.clear();
+  doomed.clear();  // sockets are closed outside the lock
 }
 
 void TcpManagerBase::Listeners::Shutdown() {
@@ -66,17 +67,18 @@ bool TcpManagerBase::Connectors::Invariant() const {
 }
 
 bool TcpManagerBase::Connectors::Add(const fd_t fd,
-                                     std::unique_ptr<TcpSocket> socket) {
+                                     std::unique_ptr<TcpSocket> socket,
+                                     absl::FunctionRef<bool(fd_t)> on_add) {
   DCHECK_EQ(fd, socket->fd());
   DCHECK(!socket->IsConnected());
   {
     absl::MutexLock _(mu_);
-    if ABSL_PREDICT_TRUE (!closed_) {
+    if ABSL_PREDICT_TRUE (!closed_ && on_add(fd)) {
       fd2skts_.emplace(fd, Connector{std::move(socket)});
       return true;
     }
   }
-  return false;
+  return false;  // `socket` is closed outside the lock
 }
 
 std::unique_ptr<TcpSocket> TcpManagerBase::Connectors::Remove(const fd_t fd) {
@@ -99,7 +101,7 @@ void TcpManagerBase::Connectors::Close() {
     closed_ = true;
     doomed.swap(fd2skts_);
   }
-  doomed.clear();
+  doomed.clear();  // sockets are closed outside the lock
 }
 
 bool TcpManagerBase::Produced::Invariant() const {
@@ -134,7 +136,7 @@ void TcpManagerBase::Produced::Close() {
     closed_ = true;
     doomed.swap(sockets_);
   }
-  doomed.clear();
+  doomed.clear();  // sockets are closed outside the lock
 }
 
 }  // namespace peregrine::internal
