@@ -6,6 +6,7 @@
 #include "absl/flags/flag.h"
 #include "absl/log/check.h"
 #include "absl/time/time.h"
+#include "peregrine/test/integration/error_inject/error_inject_util.h"
 #include "peregrine/test/workloads/workload_generator.h"
 
 ABSL_FLAG(absl::Duration, test_duration, absl::Seconds(30),
@@ -21,6 +22,9 @@ ABSL_FLAG(int, conns_per_peer, 1, "Number of connections per peer.");
 ABSL_FLAG(std::string, workload, "serial_fixed_write",
           "Workload type to run: 'serial_fixed_write', 'kv_cache'");
 
+ABSL_FLAG(std::string, error_inject, "none",
+          "Error injector to enable: 'none', 'mid_chunk_disconnect'");
+
 namespace peregrine::integration {
 
 Flags ReadFlags() {
@@ -33,6 +37,8 @@ Flags ReadFlags() {
       std::max(absl::Seconds(1), absl::GetFlag(FLAGS_test_duration));
   flags.enable_ncurses = absl::GetFlag(FLAGS_enable_ncurses);
   flags.workload = workloads::ParseWorkloadType(absl::GetFlag(FLAGS_workload));
+  flags.error_inject =
+      ParseErrorInjectorType(absl::GetFlag(FLAGS_error_inject));
 
   return flags;
 }

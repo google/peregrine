@@ -5,6 +5,7 @@
 
 #include "absl/flags/declare.h"
 #include "absl/time/time.h"
+#include "peregrine/test/integration/error_inject/error_injector.h"
 #include "peregrine/test/workloads/workload_generator.h"
 
 ABSL_DECLARE_FLAG(absl::Duration, test_duration);
@@ -12,6 +13,7 @@ ABSL_DECLARE_FLAG(bool, enable_ncurses);
 ABSL_DECLARE_FLAG(bool, verify_data);
 ABSL_DECLARE_FLAG(int, conns_per_peer);
 ABSL_DECLARE_FLAG(std::string, workload);
+ABSL_DECLARE_FLAG(std::string, error_inject);
 
 namespace peregrine::integration {
 
@@ -21,6 +23,7 @@ struct Flags {
   bool verify_data = false;
   int conns_per_peer = 0;
   workloads::WorkloadType workload = workloads::WorkloadType::kSerialFixedWrite;
+  ErrorInjectorType error_inject = ErrorInjectorType::kNone;
 };
 
 Flags ReadFlags();

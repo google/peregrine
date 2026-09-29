@@ -14,6 +14,8 @@ cc_library(
     srcs = ["flags.cc"],
     hdrs = ["flags.h"],
     deps = [
+        "//peregrine/test/integration/error_inject:error_inject_util",
+        "//peregrine/test/integration/error_inject:error_injector",
         "//peregrine/test/workloads:workload_generator",
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log:check",
@@ -94,6 +96,9 @@ cc_library(
         ":settings",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/util",
+        "//peregrine/test/integration/error_inject:error_inject_util",
+        "//peregrine/test/integration/error_inject:error_injector",
+        "//peregrine/test/integration/error_inject:syscall_wrap",
         "//peregrine/test/workloads:workload_generator",
         "//peregrine/test/workloads:workload_util",
         "@abseil-cpp//absl/log:check",

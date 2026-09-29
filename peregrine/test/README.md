@@ -40,3 +40,26 @@ $ bazelisk run -c opt //peregrine/test/integration:main -- \
     --num_blocks=64 \
     --block_size=1048576
 ```
+
+### Error Injection
+
+Inject a one-shot mid-payload TCP `EOF` (`SHUT_RDWR`) on chunk 5:
+
+```bash
+$ bazelisk run -c opt //peregrine/test/integration:main -- \
+    --error_inject=mid_chunk_disconnect \
+    --disconnect_mode=eof \
+    --disconnect_point=mid_payload \
+    --disconnect_on_chunk=5
+```
+
+Inject an abrupt TCP `RST` mid-header every 10 chunks:
+
+```bash
+$ bazelisk run -c opt //peregrine/test/integration:main -- \
+    --error_inject=mid_chunk_disconnect \
+    --disconnect_mode=rst \
+    --disconnect_point=mid_header \
+    --disconnect_on_chunk=0 \
+    --disconnect_every_n_chunks=10
+```

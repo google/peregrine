@@ -18,6 +18,8 @@
 #include "peregrine/src/util/util.h"
 #include "peregrine/test/integration/controlpath-host.h"
 #include "peregrine/test/integration/datapath-host.h"
+#include "peregrine/test/integration/error_inject/error_inject_util.h"
+#include "peregrine/test/integration/error_inject/syscall_wrap.h"
 #include "peregrine/test/integration/flags.h"
 #include "peregrine/test/integration/metrics.h"
 #include "peregrine/test/integration/settings.h"
@@ -51,6 +53,9 @@ PeregrineIntegration::PeregrineIntegration() {
   CHECK(workload_ != nullptr) << "Failed to create workload generator";
   const uint64_t buffer_size = workload_->TotalSizeBytes();
 
+  error_injector_ = CreateErrorInjector(flags_.error_inject);
+  SetActiveErrorInjector(error_injector_.get());
+
   const std::string sndr_ctrl = CreateEndpoint(AF_INET);
   const std::string sndr_data = CreateEndpoint(AF_INET);
   const std::string rcvr_ctrl = CreateEndpoint(AF_INET);
@@ -68,6 +73,14 @@ PeregrineIntegration::PeregrineIntegration() {
   datapath_rcvr_ = std::make_unique<DatapathHost>(
       Component::kReceiverDatapath, rcvr_ctrl, rcvr_data, "", "", buffer_size,
       flags_.conns_per_peer);
+}
+
+PeregrineIntegration::~PeregrineIntegration() {
+  datapath_sndr_.reset();
+  datapath_rcvr_.reset();
+  controlpath_sndr_.reset();
+  controlpath_rcvr_.reset();
+  SetActiveErrorInjector(nullptr);
 }
 
 void PeregrineIntegration::CollectMetrics() const {

@@ -9,6 +9,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/test/integration/controlpath-host.h"
 #include "peregrine/test/integration/datapath-host.h"
+#include "peregrine/test/integration/error_inject/error_injector.h"
 #include "peregrine/test/integration/flags.h"
 #include "peregrine/test/integration/settings.h"
 #include "peregrine/test/workloads/workload_generator.h"
@@ -25,6 +26,7 @@ class PeregrineIntegration final {
   };
 
   PeregrineIntegration();
+  ~PeregrineIntegration();
 
   void Run();
   void Stop() { stop_.store(true); }
@@ -46,6 +48,7 @@ class PeregrineIntegration final {
   std::atomic<bool> stop_{false};
 
   std::unique_ptr<workloads::WorkloadGenerator> workload_;
+  std::unique_ptr<ErrorInjector> error_injector_;
   std::unique_ptr<ControlpathHost> controlpath_sndr_;
   std::unique_ptr<ControlpathHost> controlpath_rcvr_;
   std::unique_ptr<DatapathHost> datapath_sndr_;
