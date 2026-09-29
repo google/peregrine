@@ -4,16 +4,16 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//peregrine/src/internal:internal_impl"])
 
 cc_library(
-    name = "channel_types",
-    srcs = ["channel_types.cc"],
-    hdrs = ["channel_types.h"],
+    name = "channel_type",
+    srcs = ["channel_type.cc"],
+    hdrs = ["channel_type.h"],
 )
 
 cc_library(
     name = "channel",
     hdrs = ["channel.h"],
     deps = [
-        ":channel_types",
+        ":channel_type",
         "//peregrine/src/internal/base:types",
         "@abseil-cpp//absl/types:span",
     ],
@@ -42,7 +42,7 @@ cc_library(
     hdrs = ["channel_tcp.h"],
     deps = [
         ":channel",
-        ":channel_types",
+        ":channel_type",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/socket:socket_tcp",
         "//peregrine/src/internal/util",
@@ -59,7 +59,7 @@ cc_library(
     hdrs = ["channel_udp.h"],
     deps = [
         ":channel",
-        ":channel_types",
+        ":channel_type",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/socket:socket_udp",
         "//peregrine/src/internal/util",
@@ -89,7 +89,7 @@ cc_library(
     hdrs = ["channel_msg.h"],
     deps = [
         ":channel",
-        ":channel_types",
+        ":channel_type",
         ":pipe",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
@@ -112,7 +112,7 @@ cc_library(
     hdrs = ["channel_stream.h"],
     deps = [
         ":channel",
-        ":channel_types",
+        ":channel_type",
         ":pipe",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
@@ -170,7 +170,7 @@ cc_test(
     shard_count = 2,
     deps = [
         ":channel",
-        ":channel_types",
+        ":channel_type",
         ":channel_util",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
@@ -193,7 +193,7 @@ cc_library(
     hdrs = ["channel_rdma.h"],
     deps = [
         ":channel",
-        ":channel_types",
+        ":channel_type",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk",
@@ -215,7 +215,7 @@ cc_test(
     ],
     deps = [
         ":channel_rdma",
-        ":channel_types",
+        ":channel_type",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",

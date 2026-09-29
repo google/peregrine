@@ -10,7 +10,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/channel/channel_types.h"
+#include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/channel/pipe.h"
 
 namespace peregrine::internal::testing {
@@ -24,7 +24,12 @@ class MemStreamChannel final : public Channel {
 
   // Returns the channel type.
   constexpr ChannelType Type() const override {
-    return ChannelType::kMemStream;
+    constexpr ChannelType t = ChannelType::kMemStream;
+    static_assert(t.IsLosslessChannel());
+    static_assert(t.IsStreamChannel());
+    static_assert(t.IsTwoSidedChannel());
+    static_assert(t.IsFakeChannel());
+    return t;
   }
 
   // Writes a number of buffers described by the `iovecs` to the channel.

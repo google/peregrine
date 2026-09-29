@@ -1,4 +1,4 @@
-#include "peregrine/src/internal/channel/channel_types.h"
+#include "peregrine/src/internal/channel/channel_type.h"
 
 #include <string>
 

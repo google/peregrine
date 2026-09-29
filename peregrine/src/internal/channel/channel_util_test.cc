@@ -11,7 +11,7 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/channel/channel_types.h"
+#include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/rdma/rdma_device_context.h"
 #include "peregrine/src/internal/rdma/rdma_device_manager.h"
 #include "peregrine/src/internal/rdma/rdma_queue_pair.h"

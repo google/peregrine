@@ -9,7 +9,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/channel/channel_types.h"
+#include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/channel/pipe.h"
 
 namespace peregrine::internal::testing {
@@ -22,7 +22,14 @@ class MemMsgChannel final : public Channel {
   explicit MemMsgChannel(const BidiPipe& bidi, int error_rate);
 
   // Returns the channel type.
-  constexpr ChannelType Type() const override { return ChannelType::kMemMsg; }
+  constexpr ChannelType Type() const override {
+    constexpr ChannelType t = ChannelType::kMemMsg;
+    static_assert(t.IsLossyChannel());
+    static_assert(t.IsMessageChannel());
+    static_assert(t.IsTwoSidedChannel());
+    static_assert(t.IsFakeChannel());
+    return t;
+  }
 
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means

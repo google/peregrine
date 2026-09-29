@@ -85,7 +85,7 @@ cc_library(
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/channel",
-        "//peregrine/src/internal/channel:channel_types",
+        "//peregrine/src/internal/channel:channel_type",
         "//peregrine/src/internal/chunk",
         "//peregrine/src/internal/metrics:engine_metrics",
         "//peregrine/src/internal/request:request_tracker",

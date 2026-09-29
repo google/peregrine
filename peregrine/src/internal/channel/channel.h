@@ -6,7 +6,7 @@
 
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
-#include "peregrine/src/internal/channel/channel_types.h"
+#include "peregrine/src/internal/channel/channel_type.h"
 
 namespace peregrine::internal {
 

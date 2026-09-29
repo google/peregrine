@@ -12,7 +12,7 @@ cc_library(
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/channel",
-        "//peregrine/src/internal/channel:channel_types",
+        "//peregrine/src/internal/channel:channel_type",
         "//peregrine/src/internal/chunk",
         "//peregrine/src/internal/chunk:chunk_flatbuf",
         "//peregrine/src/internal/chunk:chunk_tracker",

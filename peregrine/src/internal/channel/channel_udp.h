@@ -11,7 +11,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/channel/channel_types.h"
+#include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
 
 namespace peregrine::internal {
@@ -29,7 +29,14 @@ class UdpChannel final : public Channel {
   }
 
   // Returns the channel type.
-  constexpr ChannelType Type() const override { return ChannelType::kUDP; }
+  constexpr ChannelType Type() const override {
+    constexpr ChannelType t = ChannelType::kUDP;
+    static_assert(t.IsLossyChannel());
+    static_assert(t.IsMessageChannel());
+    static_assert(t.IsTwoSidedChannel());
+    static_assert(t.IsRealChannel());
+    return t;
+  }
 
   // Writes data from the `iovecs` buffers to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means

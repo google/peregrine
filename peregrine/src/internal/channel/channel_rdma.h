@@ -9,7 +9,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/channel/channel_types.h"
+#include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/rdma/rdma_queue_pair.h"
 
 namespace peregrine::internal {
@@ -26,7 +26,14 @@ class RdmaChannel final : public Channel {
   ~RdmaChannel() override;
 
   // Returns the channel type.
-  constexpr ChannelType Type() const override { return ChannelType::kRDMA; }
+  constexpr ChannelType Type() const override {
+    constexpr ChannelType t = ChannelType::kRDMA;
+    static_assert(t.IsLosslessChannel());
+    static_assert(t.IsMessageChannel());
+    static_assert(t.IsOneSidedChannel());
+    static_assert(t.IsRealChannel());
+    return t;
+  }
 
   // Writes a chunk via one-sided RDMA WRITE. Requires exactly 2 iovecs:
   // iovecs[0] is the serialized ChunkHeader containing the remote memory

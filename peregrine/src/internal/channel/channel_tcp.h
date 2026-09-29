@@ -11,7 +11,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/channel/channel_types.h"
+#include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 
 namespace peregrine::internal {
@@ -29,7 +29,14 @@ class TcpChannel final : public Channel {
   }
 
   // Returns the channel type.
-  constexpr ChannelType Type() const override { return ChannelType::kTCP; }
+  constexpr ChannelType Type() const override {
+    constexpr ChannelType t = ChannelType::kTCP;
+    static_assert(t.IsLosslessChannel());
+    static_assert(t.IsStreamChannel());
+    static_assert(t.IsTwoSidedChannel());
+    static_assert(t.IsRealChannel());
+    return t;
+  }
 
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means

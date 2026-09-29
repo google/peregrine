@@ -18,7 +18,7 @@
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/channel/channel_types.h"
+#include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_flatbuf.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
