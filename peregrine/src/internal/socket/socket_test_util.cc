@@ -38,8 +38,8 @@ Endpoint PickPeer(const HostInfo& peer_host) {
 std::unique_ptr<TcpSocket> GetOneSocket(TcpManager& mgr, bool accepted) {
   auto sockets = accepted ? mgr.GetIncomingSockets() : mgr.GetOutgoingSockets();
   if (sockets.empty()) return nullptr;
-  DCHECK_EQ(sockets.size(), 1);
-  return std::move(sockets[0]);
+  CHECK_EQ(sockets.size(), 1);
+  return std::move(sockets.front());
 }
 }  // namespace
 
