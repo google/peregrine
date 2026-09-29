@@ -41,7 +41,9 @@ class TcpManager : public TcpManagerBase {
   // Returns 0 on success, 1 on connect in progress, or -1 on error.
   int Connect(const Endpoint& self, const Endpoint& peer, bool blocking);
 
-  // Starts running the manager.
+  // Starts running the manager, blocking until `Stop()` is called. It must be
+  // called at most once. The caller thread must be joined before destroying
+  // the manager.
   void Start(bool gen_blocking);
 
   // Stops the manager.
@@ -73,7 +75,7 @@ class TcpManager : public TcpManagerBase {
  private:
   // Creates a non-blocking tcp connecting socket to the `peer` endpoint.
   int connectNonBlocking(std::unique_ptr<TcpSocket> socket,
-                         const Endpoint& peer, Poller& poller);
+                         const Endpoint& peer);
 
   // Handles one outgoing connection on the connecting socket `fd`.
   bool handleOneOutgoing(fd_t fd, uint32_t flag);

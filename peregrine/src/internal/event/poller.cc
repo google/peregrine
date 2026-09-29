@@ -83,7 +83,7 @@ int Poller::BlockingWait(epoll_event* const events, const int max_events,
   if ABSL_PREDICT_FALSE (nfds < 0) {
     const int last_errno = errno;
     if (last_errno == EINTR) return 0;
-    LOG(ERROR) << ErrMsg("blocking wait", last_errno);
+    LOG_EVERY_N_SEC(ERROR, 1) << ErrMsg("blocking wait", last_errno);
   }
   return nfds;
 }

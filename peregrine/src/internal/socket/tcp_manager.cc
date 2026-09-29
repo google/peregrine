@@ -1,8 +1,6 @@
 #include "peregrine/src/internal/socket/tcp_manager.h"
 
-#include <stdbool.h>
 #include <sys/epoll.h>
-#include <sys/stat.h>
 
 #include <atomic>
 #include <cstdint>
@@ -35,13 +33,14 @@
 namespace peregrine::internal {
 
 namespace {
-constexpr uint32_t kError = EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-constexpr uint32_t kIncomingEvents = EPOLLIN | kError;
-constexpr uint32_t kOutgoingEvents = EPOLLOUT | kError | EPOLLET;
+// ERR/HUP are always reported, but RDHUP must be requested.
+constexpr uint32_t kIncomingEvents = EPOLLIN;
+constexpr uint32_t kOutgoingEvents = EPOLLOUT | EPOLLRDHUP;
 
-std::string EvtMsg(std::string_view what, const fd_t fd, const uint32_t flag) {
-  return absl::StrFormat("%s fd=%d events=%d @ %s ", what, fd.value(), flag,
-                         AddrPortPair(fd));
+std::string EvtMsg(std::string_view what, const fd_t fd, const uint32_t flag,
+                   const int err = 0) {
+  return absl::StrFormat("%s fd=%d events=%#x errno=%d @ %s ", what, fd.value(),
+                         flag, err, AddrPortPair(fd));
 }
 }  // namespace
 
@@ -146,19 +145,18 @@ int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
 
   if (!blocking) {
     DCHECK(socket->IsNonBlocking());
-    return connectNonBlocking(std::move(socket), peer, *poller_);
+    return connectNonBlocking(std::move(socket), peer);
   } else {
     DCHECK(socket->IsBlocking());
     if (socket->Connect(peer)) return -1;
     DCHECK(socket->IsConnected());
     LOG(INFO) << "made " << *socket;
-    outgoing_.Add(std::move(socket));
-    return 0;
+    return outgoing_.Add(std::move(socket)) ? 0 : -1;
   }
 }
 
 int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
-                                   const Endpoint& peer, Poller& poller) {
+                                   const Endpoint& peer) {
   DCHECK_NE(socket, nullptr);
   DCHECK(peer.HasNonzeroIpPort());
 
@@ -167,15 +165,17 @@ int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
     case 0: {
       DCHECK(socket->IsConnected());
       LOG(INFO) << "made " << *socket;
-      outgoing_.Add(std::move(socket));
-      return 0;
+      return outgoing_.Add(std::move(socket)) ? 0 : -1;
     }
     case 1: {
       DCHECK(!socket->IsConnected());
       LOG(INFO) << "connecting " << *socket;
       const fd_t fd = socket->fd();
-      connectors_.Add(fd, std::move(socket));
-      if ABSL_PREDICT_FALSE (poller.Register(fd, kOutgoingEvents)) {
+      if ABSL_PREDICT_FALSE (!connectors_.Add(fd, std::move(socket))) {
+        return -1;  // stopped
+      }
+      static_assert((kOutgoingEvents & EPOLLET) == 0);  // level-triggered
+      if ABSL_PREDICT_FALSE (poller_->Register(fd, kOutgoingEvents)) {
         connectors_.Remove(fd);
         return -1;
       }
@@ -216,10 +216,10 @@ bool TcpManager::handleAllIncoming(const fd_t fd, const uint32_t flag,
           removeListener(fd);
         } else if (IsOutOfResource(ret)) {
           LOG_EVERY_N_SEC(ERROR, 3) << "accept out of resource, " << *listener;
-          absl::SleepFor(absl::Milliseconds(100));  // avoid busy-looping
+          absl::SleepFor(absl::Milliseconds(50));  // avoid busy-looping
         } else {
           LOG_EVERY_N_SEC(ERROR, 1) << "accept failed, " << *listener;
-          absl::SleepFor(absl::Milliseconds(20));  // avoid busy-looping
+          absl::SleepFor(absl::Milliseconds(10));  // avoid busy-looping
         }
         break;
       }
@@ -228,7 +228,7 @@ bool TcpManager::handleAllIncoming(const fd_t fd, const uint32_t flag,
       DCHECK(socket->MatchesBlocking(gen_blocking));
       DCHECK(socket->IsConnected());
       LOG(INFO) << "made " << *socket;
-      incoming_.Add(std::move(socket));
+      if (!incoming_.Add(std::move(socket))) break;
     }
   }
   return true;
@@ -241,20 +241,19 @@ bool TcpManager::handleOneOutgoing(const fd_t fd, const uint32_t flag) {
   // Must precede closing `fd` at scope exit.
   poller_->Unregister(fd);
 
-  if ABSL_PREDICT_FALSE (flag & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
-    LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("connecting", fd, flag);
-  } else if (flag & EPOLLOUT) {
-    const int err = GetSocketError(fd);
-    if ABSL_PREDICT_FALSE (err != 0) {
-      LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("check connect", fd, err);
-    } else {
-      DCHECK(socket->IsNonBlocking());
-      DCHECK(!socket->IsConnected());
-      socket->SetConnected();
-      DCHECK(socket->IsConnected());
-      LOG(INFO) << "made " << *socket;
-      outgoing_.Add(std::move(socket));
-    }
+  const int err = GetSocketError(fd);
+  if ABSL_PREDICT_FALSE (err != 0 || (flag & (EPOLLERR | EPOLLHUP)) ||
+                         !(flag & EPOLLOUT)) {
+    LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("connecting", fd, flag, err);
+  } else if ABSL_PREDICT_FALSE (flag & EPOLLRDHUP) {
+    LOG_EVERY_N_SEC(WARNING, 1) << EvtMsg("peer hung up", fd, flag, err);
+  } else {
+    DCHECK(socket->IsNonBlocking());
+    DCHECK(!socket->IsConnected());
+    socket->SetConnected();
+    DCHECK(socket->IsConnected());
+    LOG(INFO) << "made " << *socket;
+    (void)outgoing_.Add(std::move(socket));
   }
   return true;
 }
@@ -277,23 +276,25 @@ void TcpManager::Start(bool gen_blocking) {
         if (!handleAllIncoming(fd, flag, gen_blocking) &&
             !handleOneOutgoing(fd, flag)) {
           LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("unhandled", fd, flag);
+          poller_->Unregister(fd);  // stop it from firing again
         }
       }
     } else if (nfds < 0) {
       if (isStopped()) break;
-      LOG(ERROR) << "poller wait failed";
+      LOG_EVERY_N_SEC(ERROR, 1) << "poller wait failed";
+      absl::SleepFor(absl::Milliseconds(10));  // avoid busy-looping
     }
   }
-  listeners_.Clear();
-  connectors_.Clear();
+  listeners_.Close();
+  connectors_.Close();
 }
 
 void TcpManager::Stop() {
   DCHECK(invariant());
   stop_.store(true, std::memory_order_relaxed);
   listeners_.Shutdown();  // unblocks BlockingWait() above
-  incoming_.Clear();
-  outgoing_.Clear();
+  incoming_.Close();
+  outgoing_.Close();
   LOG(INFO) << "stopped, " << self_;
 }
 

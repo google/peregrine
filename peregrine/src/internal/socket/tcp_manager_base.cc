@@ -5,7 +5,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
@@ -43,9 +42,13 @@ void TcpManagerBase::Listeners::Remove(const fd_t fd) {
   fd2skts_.erase(fd);
 }
 
-void TcpManagerBase::Listeners::Clear() {
-  absl::MutexLock _(mu_);
-  fd2skts_.clear();
+void TcpManagerBase::Listeners::Close() {
+  absl::node_hash_map<fd_t, Listener> doomed;
+  {
+    absl::MutexLock _(mu_);
+    doomed.swap(fd2skts_);
+  }
+  doomed.clear();
 }
 
 void TcpManagerBase::Listeners::Shutdown() {
@@ -62,13 +65,18 @@ bool TcpManagerBase::Connectors::Invariant() const {
   });
 }
 
-void TcpManagerBase::Connectors::Add(
-    const fd_t fd, absl_nonnull std::unique_ptr<TcpSocket> socket) {
+bool TcpManagerBase::Connectors::Add(const fd_t fd,
+                                     std::unique_ptr<TcpSocket> socket) {
   DCHECK_EQ(fd, socket->fd());
   DCHECK(!socket->IsConnected());
-
-  absl::MutexLock _(mu_);
-  fd2skts_.emplace(fd, Connector{std::move(socket)});
+  {
+    absl::MutexLock _(mu_);
+    if ABSL_PREDICT_TRUE (!closed_) {
+      fd2skts_.emplace(fd, Connector{std::move(socket)});
+      return true;
+    }
+  }
+  return false;
 }
 
 std::unique_ptr<TcpSocket> TcpManagerBase::Connectors::Remove(const fd_t fd) {
@@ -84,9 +92,14 @@ std::unique_ptr<TcpSocket> TcpManagerBase::Connectors::Remove(const fd_t fd) {
   }
 }
 
-void TcpManagerBase::Connectors::Clear() {
-  absl::MutexLock _(mu_);
-  fd2skts_.clear();
+void TcpManagerBase::Connectors::Close() {
+  absl::flat_hash_map<fd_t, Connector> doomed;
+  {
+    absl::MutexLock _(mu_);
+    closed_ = true;
+    doomed.swap(fd2skts_);
+  }
+  doomed.clear();
 }
 
 bool TcpManagerBase::Produced::Invariant() const {
@@ -96,13 +109,17 @@ bool TcpManagerBase::Produced::Invariant() const {
   });
 }
 
-void TcpManagerBase::Produced::Add(
-    absl_nonnull std::unique_ptr<TcpSocket> socket) {
+bool TcpManagerBase::Produced::Add(std::unique_ptr<TcpSocket> socket) {
   DCHECK_NE(socket, nullptr);
   DCHECK(socket->IsConnected());
-
-  absl::MutexLock _(mu_);
-  sockets_.emplace_back(std::move(socket));
+  {
+    absl::MutexLock _(mu_);
+    if ABSL_PREDICT_TRUE (!closed_) {
+      sockets_.emplace_back(std::move(socket));
+      return true;
+    }
+  }
+  return false;
 }
 
 std::vector<std::unique_ptr<TcpSocket>> TcpManagerBase::Produced::MoveAll() {
@@ -110,9 +127,14 @@ std::vector<std::unique_ptr<TcpSocket>> TcpManagerBase::Produced::MoveAll() {
   return std::exchange(sockets_, {});
 }
 
-void TcpManagerBase::Produced::Clear() {
-  absl::MutexLock _(mu_);
-  sockets_.clear();
+void TcpManagerBase::Produced::Close() {
+  std::vector<std::unique_ptr<TcpSocket>> doomed;
+  {
+    absl::MutexLock _(mu_);
+    closed_ = true;
+    doomed.swap(sockets_);
+  }
+  doomed.clear();
 }
 
 }  // namespace peregrine::internal

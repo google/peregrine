@@ -5,7 +5,6 @@
 #include <utility>
 #include <vector>
 
-#include "absl/base/nullability.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
@@ -16,7 +15,7 @@
 
 namespace peregrine::internal {
 
-// This class exists to make `TcpManager` code simpler. It should not have
+// This class exists to make `TcpManager` code simpler. It must not have
 // any data members, but only defines data structures used by `TcpManager`.
 class TcpManagerBase {
  protected:
@@ -41,7 +40,7 @@ class TcpManagerBase {
     }
 
     // Returns true iff all the sockets are valid and non-blocking.
-    bool Invariant() const;
+    bool Invariant() const ABSL_LOCKS_EXCLUDED(mu_);
 
     // Returns a pointer (which is stable) to the listening socket of the
     // file descriptor `fd`. If it does not exist, returns nullptr.
@@ -54,7 +53,7 @@ class TcpManagerBase {
     void Shutdown() ABSL_LOCKS_EXCLUDED(mu_);
 
     // Removes and closes all the listening sockets.
-    void Clear() ABSL_LOCKS_EXCLUDED(mu_);
+    void Close() ABSL_LOCKS_EXCLUDED(mu_);
 
    private:
     mutable absl::Mutex mu_;
@@ -69,19 +68,22 @@ class TcpManagerBase {
     // Returns true iff all the sockets are valid.
     bool Invariant() const ABSL_LOCKS_EXCLUDED(mu_);
 
-    // Adds a connecting socket.
-    void Add(fd_t fd, absl_nonnull std::unique_ptr<TcpSocket> socket)
+    // Adds a connecting socket and returns true. If `Close()` has been called,
+    // closes the `socket` instead of adding it, and returns false.
+    [[nodiscard]] bool Add(fd_t fd, std::unique_ptr<TcpSocket> socket)
         ABSL_LOCKS_EXCLUDED(mu_);
 
     // Returns the connecting socket of the file descriptor `fd` and removes it
     // from the internal container. If `fd` does not exist, returns nullptr.
     std::unique_ptr<TcpSocket> Remove(fd_t fd) ABSL_LOCKS_EXCLUDED(mu_);
 
-    // Removes and closes all the connecting sockets.
-    void Clear() ABSL_LOCKS_EXCLUDED(mu_);
+    // Removes and closes all the connecting sockets. After this call, `Add()`
+    // closes the given socket instead of adding it.
+    void Close() ABSL_LOCKS_EXCLUDED(mu_);
 
    private:
     mutable absl::Mutex mu_;
+    bool closed_ ABSL_GUARDED_BY(mu_) = false;
     absl::flat_hash_map<fd_t, Connector> fd2skts_ ABSL_GUARDED_BY(mu_);
   };
 
@@ -92,19 +94,23 @@ class TcpManagerBase {
     // Returns true iff all the sockets are non-null and connected.
     bool Invariant() const ABSL_LOCKS_EXCLUDED(mu_);
 
-    // Adds a connected socket.
-    void Add(absl_nonnull std::unique_ptr<TcpSocket> socket)
+    // Adds a connected socket and returns true. If `Close()` has been called,
+    // closes the `socket` instead of adding it, and returns false.
+    [[nodiscard]] bool Add(std::unique_ptr<TcpSocket> socket)
         ABSL_LOCKS_EXCLUDED(mu_);
 
     // Returns all the connected sockets and clears the internal container.
-    // After this call, `Add()` might be called and refill the container.
+    // After this call, `Add()` might be called and refill the container,
+    // unless `Close()` has been called.
     std::vector<std::unique_ptr<TcpSocket>> MoveAll() ABSL_LOCKS_EXCLUDED(mu_);
 
-    // Removes and closes all the connected sockets.
-    void Clear() ABSL_LOCKS_EXCLUDED(mu_);
+    // Removes and closes all the connected sockets. After this call, `Add()`
+    // closes the given socket instead of adding it.
+    void Close() ABSL_LOCKS_EXCLUDED(mu_);
 
    private:
     mutable absl::Mutex mu_;
+    bool closed_ ABSL_GUARDED_BY(mu_) = false;
     std::vector<std::unique_ptr<TcpSocket>> sockets_ ABSL_GUARDED_BY(mu_);
   };
 };
