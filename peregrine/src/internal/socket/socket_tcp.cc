@@ -211,9 +211,9 @@ ssize_t TcpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
-  const int n = vecs.size();
+  const size_t n = vecs.size();
   size_t rcvd = 0;
-  int i = 0;
+  size_t i = 0;
   while (i < n) {
     const ssize_t bytes = ::readv(fd_.value(), &vecs[i], n - i);
     if ABSL_PREDICT_TRUE (bytes > 0) {
