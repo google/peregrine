@@ -161,18 +161,15 @@ ssize_t TcpSocket::Send(const absl::Span<const IoVec> iovecs) const {
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   IoVecView view{iovecs};
-  const size_t n = view.size();
   size_t sent = 0;
-  size_t i = 0;
   struct msghdr msg = {};
-  while (i < n) {
-    msg.msg_iov = view[i];
-    msg.msg_iovlen = n - i;
+  while (true) {
+    msg.msg_iov = const_cast<IoVec*>(view.Head());
+    msg.msg_iovlen = view.Remaining();
     const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
-      if ABSL_PREDICT_TRUE (sent >= len) break;
-      i = view.Advance(bytes);
+      if (view.Advance(bytes)) break;
     } else {
       const Errno err(errno);
       if ABSL_PREDICT_TRUE (bytes < 0) {
@@ -201,15 +198,12 @@ ssize_t TcpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   IoVecView view{iovecs};
-  const size_t n = view.size();
   size_t rcvd = 0;
-  size_t i = 0;
-  while (i < n) {
-    const ssize_t bytes = ::readv(fd_.value(), view[i], n - i);
+  while (true) {
+    const ssize_t bytes = ::readv(fd_.value(), view.Head(), view.Remaining());
     if ABSL_PREDICT_TRUE (bytes > 0) {
       rcvd += bytes;
-      if ABSL_PREDICT_TRUE (rcvd >= len) break;
-      i = view.Advance(bytes);
+      if (view.Advance(bytes)) break;
     } else if (bytes == 0) {  // peer closed connection
       LOG(INFO) << ioMsg("readv eof", 0);
       return 0;

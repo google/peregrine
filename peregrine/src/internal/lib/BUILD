@@ -33,6 +33,8 @@ cc_library(
     hdrs = ["iovec_view.h"],
     deps = [
         "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/util",
+        "@abseil-cpp//absl/container:inlined_vector",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/types:span",
     ],

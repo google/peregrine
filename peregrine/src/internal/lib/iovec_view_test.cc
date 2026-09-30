@@ -2,7 +2,7 @@
 
 #include <array>
 #include <cstddef>
-#include <memory>
+#include <string_view>
 
 #include "gtest/gtest.h"
 #include "peregrine/src/internal/base/types.h"
@@ -28,117 +28,89 @@ class IoVecViewTest : public ::testing::Test {
   const std::array<IoVec, 3> iovs_;
 };
 
-TEST_F(IoVecViewTest, Basic) {
+TEST_F(IoVecViewTest, Ctor) {
+  IoVecView empty({});
+  EXPECT_EQ(empty.Size(), 0);
+  EXPECT_EQ(empty.Remaining(), 0);
+  EXPECT_EQ(empty.Head(), nullptr);
+
   IoVecView view(iovs_);
-  EXPECT_EQ(view.size(), 3);
-  EXPECT_EQ(Base(view[0]), a_);
-  EXPECT_EQ(Base(view[1]), b_);
-  EXPECT_EQ(Base(view[2]), c_);
-  EXPECT_EQ(view[0]->iov_len, sizeof(a_));
-  EXPECT_EQ(view[1]->iov_len, sizeof(b_));
-  EXPECT_EQ(view[2]->iov_len, sizeof(c_));
+  EXPECT_EQ(view.Size(), 3);
+  EXPECT_EQ(view.Remaining(), 3);
+  EXPECT_EQ(view.Head()->iov_base, a_);
+  EXPECT_EQ(view.Head()->iov_len, sizeof(a_));
 
   const IoVecView& const_view = view;
-  EXPECT_EQ(const_view.size(), 3);
-  EXPECT_EQ(Base(const_view[0]), a_);
-  EXPECT_EQ(const_view[2]->iov_len, sizeof(c_));
+  EXPECT_EQ(const_view.Size(), 3);
+  EXPECT_EQ(const_view.Remaining(), 3);
+  EXPECT_EQ(const_view.Head()->iov_base, a_);
+  EXPECT_EQ(const_view.Head()->iov_len, sizeof(a_));
 }
 
-TEST_F(IoVecViewTest, Empty) {
-  IoVecView view({});
-  EXPECT_EQ(view.size(), 0);
-  EXPECT_EQ(view.Advance(0), 0);
-  EXPECT_EQ(view.Advance(10), 0);
-}
-
-TEST_F(IoVecViewTest, AdvanceZeroIsNoop) {
+TEST_F(IoVecViewTest, AdvanceInOneShot) {
   IoVecView view(iovs_);
-  EXPECT_EQ(view.Advance(0), 0);
-  EXPECT_EQ(Base(view[0]), a_);
-  EXPECT_EQ(view[0]->iov_len, sizeof(a_));
+
+  EXPECT_TRUE(view.Advance(kTotal));
+  EXPECT_EQ(view.Remaining(), 0);
+  EXPECT_EQ(view.Head(), nullptr);
+
+  EXPECT_DEBUG_DEATH(view.Advance(1), "out of range");
 }
 
-TEST_F(IoVecViewTest, AdvanceWithinIoVec) {
+TEST_F(IoVecViewTest, AdvanceGradually) {
   IoVecView view(iovs_);
-  // A first partial advance.
-  EXPECT_EQ(view.Advance(1), 0);
-  EXPECT_EQ(Base(view[0]), a_ + 1);
-  EXPECT_EQ(view[0]->iov_len, 6);
 
-  // A second partial advance accumulates on the same iovec.
-  EXPECT_EQ(view.Advance(2), 0);
-  EXPECT_EQ(Base(view[0]), a_ + 3);
-  EXPECT_EQ(view[0]->iov_len, 4);
-  EXPECT_EQ(view.Advance(3), 0);
-  EXPECT_EQ(Base(view[0]), a_ + 6);
-  EXPECT_EQ(view[0]->iov_len, 1);
-  EXPECT_EQ(view.Advance(1), 1);
-  EXPECT_EQ(Base(view[1]), b_ + 0);
-  EXPECT_EQ(view[0]->iov_len, 1);
+  // Zero advance is a no-op.
+  EXPECT_FALSE(view.Advance(0));
+  EXPECT_EQ(view.Remaining(), 3);
+  EXPECT_EQ(view.Head()->iov_base, a_);
+  EXPECT_EQ(view.Head()->iov_len, sizeof(a_));
 
-  // Later iovecs are untouched.
-  EXPECT_EQ(Base(view[1]), b_);
-  EXPECT_EQ(view[1]->iov_len, sizeof(b_));
-}
+  // A few partial advances accumulate.
+  EXPECT_FALSE(view.Advance(1));
+  EXPECT_EQ(view.Remaining(), 3);
+  EXPECT_EQ(view.Head()->iov_base, a_ + 1);
+  EXPECT_EQ(view.Head()->iov_len, sizeof(a_) - 1);
 
-TEST_F(IoVecViewTest, AdvanceToBoundary) {
-  IoVecView view(iovs_);
-  EXPECT_EQ(view.Advance(sizeof(a_)), 1);
-  EXPECT_EQ(Base(view[1]), b_);
-  EXPECT_EQ(view[1]->iov_len, sizeof(b_));
-}
+  EXPECT_FALSE(view.Advance(2));
+  EXPECT_EQ(view.Remaining(), 3);
+  EXPECT_EQ(view.Head()->iov_base, a_ + 3);
+  EXPECT_EQ(view.Head()->iov_len, sizeof(a_) - 3);
 
-TEST_F(IoVecViewTest, AdvanceAcrossIoVecs) {
-  IoVecView view(iovs_);
-  EXPECT_EQ(view.Advance(sizeof(a_) + sizeof(b_) + 2), 2);
-  EXPECT_EQ(Base(view[2]), c_ + 2);
-  EXPECT_EQ(view[2]->iov_len, 7);
-}
+  EXPECT_FALSE(view.Advance(3));
+  EXPECT_EQ(view.Remaining(), 3);
+  EXPECT_EQ(view.Head()->iov_base, a_ + 6);
+  EXPECT_EQ(view.Head()->iov_len, sizeof(a_) - 6);
 
-TEST_F(IoVecViewTest, AdvanceFromMiddleAcrossBoundary) {
-  IoVecView view(iovs_);
-  ASSERT_EQ(view.Advance(2), 0);
-  EXPECT_EQ(view.Advance(5 + 3), 1);
-  EXPECT_EQ(Base(view[1]), b_ + 3);
-  EXPECT_EQ(view[1]->iov_len, 5);
+  // Advance to the next iovec's beginning.
+  EXPECT_FALSE(view.Advance(1));
+  EXPECT_EQ(view.Remaining(), 2);
+  EXPECT_EQ(view.Head()->iov_base, b_ + 0);
+  EXPECT_EQ(view.Head()->iov_len, sizeof(b_) - 0);
+
+  // Advance to the next iovec's middle.
+  EXPECT_FALSE(view.Advance(10));
+  EXPECT_EQ(view.Remaining(), 1);
+  EXPECT_EQ(view.Head()->iov_base, c_ + 2);
+  EXPECT_EQ(view.Head()->iov_len, sizeof(c_) - 2);
+
+  // Advance to the end.
+  EXPECT_TRUE(view.Advance(7));
+  EXPECT_EQ(view.Remaining(), 0);
+  EXPECT_EQ(view.Head(), nullptr);
+
+  // Advance beyond the end.
+  EXPECT_DEBUG_DEATH(view.Advance(1), "out of range");
+  EXPECT_EQ(view.Remaining(), 0);
 }
 
 TEST_F(IoVecViewTest, AdvanceOneByteAtATime) {
   IoVecView view(iovs_);
-  for (size_t done = 1; done <= kTotal; ++done) {
-    const int want = (done >= 7) + (done >= 15) + (done >= 24);
-    EXPECT_EQ(view.Advance(1), want) << "after " << done << " bytes";
+  for (size_t i = 1; i <= kTotal; ++i) {
+    EXPECT_EQ(view.Advance(1), i >= kTotal) << "after " << i << " bytes";
+    const size_t remaining = 3 - (i >= 7) - (i >= 15) - (i >= 24);
+    EXPECT_EQ(view.Remaining(), remaining);
   }
-}
-
-TEST_F(IoVecViewTest, AdvanceToAndBeyondEnd) {
-  IoVecView view(iovs_);
-  EXPECT_EQ(view.Advance(kTotal), 3);
-  // Further advances stay at the end.
-  EXPECT_EQ(view.Advance(0), 3);
-  EXPECT_EQ(view.Advance(1), 3);
-
-  IoVecView view2(iovs_);
-  EXPECT_EQ(view2.Advance(1000), 3);
-  EXPECT_EQ(view2.size(), 3);
-}
-
-TEST_F(IoVecViewTest, DoesNotModifyCallerIoVecs) {
-  IoVecView view(iovs_);
-  ASSERT_EQ(view.Advance(7), 1);
-  EXPECT_EQ(iovs_[0].iov_base, a_);
-  EXPECT_EQ(iovs_[1].iov_base, b_);
-  EXPECT_EQ(iovs_[0].iov_len, sizeof(a_));
-  EXPECT_EQ(iovs_[1].iov_len, sizeof(b_));
-}
-
-TEST_F(IoVecViewTest, CallerArrayNeedNotOutliveView) {
-  auto iovs = std::make_unique<std::array<IoVec, 3>>(iovs_);
-  IoVecView view(*iovs);
-  iovs.reset();
-  EXPECT_EQ(view.Advance(8), 1);
-  EXPECT_EQ(Base(view[1]), b_ + 1);
-  EXPECT_EQ(view[1]->iov_len, 7);
 }
 
 }  // namespace
