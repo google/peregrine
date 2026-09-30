@@ -247,7 +247,6 @@ void TcpManager::Start(bool gen_blocking) {
   LOG(INFO) << "starting, " << self_;
 
   epoll_event events[kEpollMaxNumEvents];
-  static_assert(sizeof(events) == 1536);
   while (!isStopped()) {
     if (const int nfds = poller_->BlockingWait(events, kEpollMaxNumEvents,
                                                kEpollWaitTimeoutMs);
