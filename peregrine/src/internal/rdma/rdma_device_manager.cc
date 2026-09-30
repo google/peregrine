@@ -16,6 +16,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 #include "peregrine/src/internal/rdma/rdma_device_context.h"
 
 namespace peregrine::internal {

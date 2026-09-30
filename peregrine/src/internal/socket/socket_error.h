@@ -7,6 +7,7 @@
 #include <cerrno>
 
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
 
@@ -14,20 +15,20 @@ namespace peregrine::internal {
 int GetSocketError(fd_t fd);
 
 // Returns true iff the last socket operation was interrupted by a signal.
-inline bool Interrupted(int last_errno) { return last_errno == EINTR; }
+inline bool Interrupted(util::Errno err) { return err.value() == EINTR; }
 
 // Returns true iff the last socket connect operation is in progress.
-inline bool InProgress(int last_errno) { return last_errno == EINPROGRESS; }
+inline bool InProgress(util::Errno err) { return err.value() == EINPROGRESS; }
 
 // Returns true iff the last socket operation would block.
-inline bool WouldBlock(int last_errno) {
-  return last_errno == EAGAIN || last_errno == EWOULDBLOCK;
+inline bool WouldBlock(util::Errno err) {
+  return err.value() == EAGAIN || err.value() == EWOULDBLOCK;
 }
 
 // Returns true iff the last socket operation failed due to resource exhaustion.
-inline bool OutOfResource(int last_errno) {
-  return last_errno == EMFILE || last_errno == ENFILE ||
-         last_errno == ENOBUFS || last_errno == ENOMEM;
+inline bool OutOfResource(util::Errno err) {
+  return err.value() == EMFILE || err.value() == ENFILE ||
+         err.value() == ENOBUFS || err.value() == ENOMEM;
 }
 
 // Return codes of the tcp listen socket Accept() call.

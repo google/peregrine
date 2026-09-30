@@ -9,10 +9,10 @@ cc_library(
     srcs = ["chunk.cc"],
     hdrs = ["chunk.h"],
     deps = [
-        "//peregrine/src/api:strong_int",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:types",
+        "//peregrine/src/util:strong_int",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",

@@ -12,6 +12,7 @@
 #include "absl/strings/str_format.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
 
@@ -96,16 +97,16 @@ inline std::string SuccessMsg(std::string_view who, std::string_view what,
 
 // Returns an error message for the last socket operation.
 inline std::string ErrorMsg(std::string_view who, std::string_view what,
-                            fd_t fd, int last_errno) {
+                            fd_t fd, util::Errno last_errno) {
   return absl::StrFormat("%s socket %s failed: fd=%d %s errno=%d (%s)", who,
-                         what, fd.value(), AddrPortPair(fd), last_errno,
-                         std::strerror(last_errno));
+                         what, fd.value(), AddrPortPair(fd), last_errno.value(),
+                         std::strerror(last_errno.value()));
 }
 
 // Returns an error message for the last socket operation.
-inline std::string ErrorMsg(std::string_view what, int last_errno) {
-  return absl::StrFormat("socket %s failed: errno=%d (%s)", what, last_errno,
-                         std::strerror(last_errno));
+inline std::string ErrorMsg(std::string_view what, util::Errno last_errno) {
+  return absl::StrFormat("socket %s failed: errno=%d (%s)", what,
+                         last_errno.value(), std::strerror(last_errno.value()));
 }
 
 }  // namespace peregrine::internal

@@ -17,7 +17,7 @@ cc_library(
     name = "types",
     hdrs = ["types.h"],
     deps = [
-        "//peregrine/src/api:strong_int",
+        "//peregrine/src/util:strong_int",
     ],
 )
 

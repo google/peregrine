@@ -35,10 +35,39 @@ cc_test(
 )
 
 cc_library(
+    name = "strong_int",
+    hdrs = ["strong_int.h"],
+    deps = ["@abseil-cpp//absl/hash"],
+)
+
+cc_test(
+    name = "strong_int_test",
+    srcs = ["strong_int_test.cc"],
+    deps = [
+        ":strong_int",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "errno",
+    hdrs = ["errno.h"],
+    deps = [":strong_int"],
+)
+
+cc_library(
+    name = "macro",
+    hdrs = ["macro.h"],
+)
+
+cc_library(
     name = "ipaddr",
     srcs = ["ipaddr.cc"],
     hdrs = ["ipaddr.h"],
     deps = [
+        ":errno",
         ":macro",
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/log",
@@ -59,15 +88,11 @@ cc_test(
 )
 
 cc_library(
-    name = "macro",
-    hdrs = ["macro.h"],
-)
-
-cc_library(
     name = "nic",
     srcs = ["nic.cc"],
     hdrs = ["nic.h"],
     deps = [
+        ":errno",
         ":ipaddr",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",

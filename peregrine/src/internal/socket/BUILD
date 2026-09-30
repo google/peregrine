@@ -4,31 +4,33 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//peregrine/src/internal:internal_impl"])
 
 cc_library(
-    name = "socket_error",
-    srcs = ["socket_error.cc"],
-    hdrs = ["socket_error.h"],
-    deps = [
-        ":socket_util",
-        "//peregrine/src/internal/base:types",
-        "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-    ],
-)
-
-cc_library(
     name = "socket_util",
     srcs = ["socket_util.cc"],
     hdrs = ["socket_util.h"],
     deps = [
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
+        "//peregrine/src/util:errno",
         "//peregrine/src/util:ipaddr",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_library(
+    name = "socket_error",
+    srcs = ["socket_error.cc"],
+    hdrs = ["socket_error.h"],
+    deps = [
+        ":socket_util",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/util:errno",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 
@@ -86,6 +88,7 @@ cc_library(
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/util",
+        "//peregrine/src/util:errno",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -126,6 +129,7 @@ cc_library(
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/util",
+        "//peregrine/src/util:errno",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -183,6 +187,7 @@ cc_library(
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/util",
+        "//peregrine/src/util:errno",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

@@ -23,14 +23,15 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "peregrine/src/util/errno.h"
 #include "peregrine/src/util/ipaddr.h"
 
 namespace peregrine::util {
 
 namespace {
-std::string Error(std::string_view msg, int last_errno) {
-  return absl::StrFormat("%s errno=%d(%s)", msg, last_errno,
-                         std::strerror(last_errno));
+std::string Error(std::string_view msg, Errno last_errno) {
+  return absl::StrFormat("%s errno=%d(%s)", msg, last_errno.value(),
+                         std::strerror(last_errno.value()));
 }
 }  // namespace
 
@@ -40,7 +41,7 @@ absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics() {
   // Retrieve the interfaces list.
   struct ifaddrs* interfaces = nullptr;
   if (getifaddrs(&interfaces) < 0 || interfaces == nullptr) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << Error("getifaddrs", last_errno);
     return ifc_ips;
   }

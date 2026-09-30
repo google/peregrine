@@ -16,9 +16,14 @@
 #include "absl/strings/str_cat.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/util/errno.h"
 #include "peregrine/src/util/ipaddr.h"
 
 namespace peregrine::internal {
+
+namespace {
+using util::Errno;
+}  // namespace
 
 fd_t CreateSocket(const int family, const int type, const bool blocking) {
   DCHECK(family == AF_INET || family == AF_INET6);
@@ -27,7 +32,7 @@ fd_t CreateSocket(const int family, const int type, const bool blocking) {
   const int t = type | (blocking ? 0 : SOCK_NONBLOCK) | SOCK_CLOEXEC;
   const int ret = ::socket(family, t, /*protocol=*/0);
   if ABSL_PREDICT_FALSE (ret < 0) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << ErrorMsg("socket", last_errno);
     return fd_t(-1);
   }
@@ -60,7 +65,7 @@ std::string SelfAddrPort(const fd_t fd) {
   if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return ToIpAddrPortString(ss);
   } else {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << ErrorMsg("getsockname", last_errno);
     return "?";
   }
@@ -74,7 +79,7 @@ std::string PeerAddrPort(const fd_t fd) {
   } else if (errno == ENOTCONN) {
     return "*";
   } else {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << ErrorMsg("getpeername", last_errno);
     return "?";
   }
@@ -86,7 +91,7 @@ Endpoint SelfEndpoint(const fd_t fd) {
   if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return Endpoint::Create(ss);
   } else {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << ErrorMsg("getsockname", last_errno);
     return Endpoint();
   }
@@ -98,7 +103,7 @@ Endpoint PeerEndpoint(const fd_t fd) {
   if (::getpeername(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return Endpoint::Create(ss);
   } else {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << ErrorMsg("getpeername", last_errno);
     return Endpoint();
   }

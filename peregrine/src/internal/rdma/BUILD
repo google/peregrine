@@ -9,6 +9,7 @@ cc_library(
     hdrs = ["rdma_device_context.h"],
     deps = [
         "//:libibverbs",  # buildcleaner: keep
+        "//peregrine/src/util:errno",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -68,6 +69,7 @@ cc_library(
         ":rdma_device_manager",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/internal:assumptions",
+        "//peregrine/src/util:errno",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/container:btree",
         "@abseil-cpp//absl/container:flat_hash_map",

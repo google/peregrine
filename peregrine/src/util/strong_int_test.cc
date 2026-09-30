@@ -1,4 +1,4 @@
-#include "peregrine/src/api/strong_int.h"
+#include "peregrine/src/util/strong_int.h"
 
 #include <cstdint>
 #include <type_traits>
@@ -7,7 +7,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/log.h"
 
-namespace peregrine::internal::testing {
+namespace peregrine::util::testing {
 namespace {
 
 DEFINE_STRONG_INT_TYPE(Id, int16_t);
@@ -77,4 +77,4 @@ TEST(StrongIntTest, Range) {
 }
 
 }  // namespace
-}  // namespace peregrine::internal::testing
+}  // namespace peregrine::util::testing

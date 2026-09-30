@@ -27,8 +27,13 @@
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/util.h"
+#include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
+
+namespace {
+using util::Errno;
+}  // namespace
 
 std::unique_ptr<TcpSocket> TcpSocket::Create(int family, bool blocking) {
   const fd_t fd = CreateSocket(family, SOCK_STREAM, blocking);
@@ -65,7 +70,7 @@ void TcpSocket::Shutdown() {
 int TcpSocket::Bind(const Endpoint& local) const {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << errMsg("bind", last_errno);
     return -1;
   } else {
@@ -79,16 +84,16 @@ int TcpSocket::Listen(const Endpoint& local) const {
 
   int on = 1;
   if ABSL_PREDICT_FALSE (SetSocketOption(fd_, SO_REUSEADDR, &on, sizeof(on))) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << errMsg("set SO_REUSEADDR", last_errno);
     return -1;
   }
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << errMsg("bind", last_errno);
     return -1;
   } else if (ABSL_PREDICT_FALSE(::listen(fd_.value(), SOMAXCONN) < 0)) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << errMsg("listen", last_errno);
     return -1;
   } else {
@@ -105,12 +110,12 @@ int TcpSocket::Accept(bool gen_blocking) const {
   while (true) {
     const int ret = ::accept4(fd_.value(), nullptr, nullptr, flags);
     if (ret < 0) {
-      const int last_errno = errno;
-      if (Interrupted(last_errno) || last_errno == ECONNABORTED) {
+      const Errno last_errno(errno);
+      if (Interrupted(last_errno) || last_errno.value() == ECONNABORTED) {
         continue;
       } else if (WouldBlock(last_errno)) {
         return kAcceptWouldBlock;
-      } else if (last_errno == EINVAL) {  // after shutdown()
+      } else if (last_errno.value() == EINVAL) {  // after shutdown()
         LOG(INFO) << okMsg("accept shutdown");
         return kAcceptShutdown;
       } else if (OutOfResource(last_errno)) {
@@ -135,7 +140,7 @@ int TcpSocket::Connect(const Endpoint& peer) {
 
   // Treat EINTR as an error: do not reconnect the same socket.
   if (SocketBase::Connect(fd_, peer) < 0) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     if (InProgress(last_errno)) return kConnectInProgress;
     LOG(WARNING) << errMsg("connect", last_errno);
     return kConnectError;
@@ -178,7 +183,7 @@ ssize_t TcpSocket::Send(const absl::Span<const IoVec> iovecs) const {
         vecs[i].iov_len -= b;
       }
     } else {
-      const int last_errno = errno;
+      const Errno last_errno(errno);
       if ABSL_PREDICT_TRUE (bytes < 0) {
         if (Interrupted(last_errno)) continue;
         DCHECK(!WouldBlock(last_errno));
@@ -227,7 +232,7 @@ ssize_t TcpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
       LOG(INFO) << ioMsg("readv eof", 0);
       return 0;
     } else {
-      const int last_errno = errno;
+      const Errno last_errno(errno);
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       LOG(WARNING) << errMsg("readv", last_errno);

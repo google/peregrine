@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_API_STRONG_INT_H_
-#define PEREGRINE_SRC_API_STRONG_INT_H_
+#ifndef PEREGRINE_SRC_UTIL_STRONG_INT_H_
+#define PEREGRINE_SRC_UTIL_STRONG_INT_H_
 
 #include <algorithm>
 #include <cstddef>
@@ -18,9 +18,9 @@
 #define DEFINE_STRONG_INT_TYPE(type_name, value_type) \
   struct type_name##_strong_int_tag_ {};              \
   using type_name =                                   \
-      ::peregrine::StrongInt<type_name##_strong_int_tag_, value_type>;
+      ::peregrine::util::StrongInt<type_name##_strong_int_tag_, value_type>;
 
-namespace peregrine {
+namespace peregrine::util {
 
 // `StrongInt` is a wrapper around a native integer value type `T` with
 // a `Tag` to distinguish between different integer types.
@@ -92,6 +92,6 @@ std::ostream& operator<<(std::ostream& os, StrongInt<Tag, uint8_t> v) {
   return os << static_cast<unsigned int>(v.value());
 }
 
-}  // namespace peregrine
+}  // namespace peregrine::util
 
-#endif  // PEREGRINE_SRC_API_STRONG_INT_H_
+#endif  // PEREGRINE_SRC_UTIL_STRONG_INT_H_

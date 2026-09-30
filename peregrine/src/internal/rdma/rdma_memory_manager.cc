@@ -19,13 +19,16 @@
 #include "absl/strings/str_format.h"
 #include "peregrine/src/internal/rdma/rdma_device_context.h"
 #include "peregrine/src/internal/rdma/rdma_device_manager.h"
+#include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
 namespace {
 
-std::string ErrorMsg(std::string_view prefix, int last_errno) {
-  return absl::StrFormat("%s: errno=%d (%s)", prefix, last_errno,
-                         std::strerror(last_errno));
+using util::Errno;
+
+std::string ErrorMsg(std::string_view prefix, const Errno last_errno) {
+  return absl::StrFormat("%s: errno=%d (%s)", prefix, last_errno.value(),
+                         std::strerror(last_errno.value()));
 }
 
 void UnregisterMrs(
@@ -33,9 +36,10 @@ void UnregisterMrs(
   for (const auto& [device_name, mr] : mrs) {
     if (mr != nullptr) {
       if (ibv_dereg_mr(mr) != 0) {
+        const Errno last_errno(errno);
         LOG(WARNING) << ErrorMsg(
             absl::StrCat("failed to unregister MR on device ", device_name),
-            errno);
+            last_errno);
       }
     }
   }
@@ -93,15 +97,15 @@ absl::Status RdmaMemoryManager::RegisterMemory(void* addr, size_t length,
 
     struct ibv_mr* mr = ibv_reg_mr(pd, addr, length, access_flags);
     if (mr == nullptr) {
-      const int err = errno;
+      const Errno last_errno(errno);
       LOG(WARNING) << ErrorMsg(
           absl::StrFormat("ibv_reg_mr failed for device %s (addr=%p, len=%zu)",
                           dev_ctx->Name(), addr, length),
-          err);
+          last_errno);
       UnregisterMrs(memory_regions);
-      return absl::InternalError(
-          absl::StrFormat("ibv_reg_mr failed on device %s: errno=%d (%s)",
-                          dev_ctx->Name(), err, std::strerror(err)));
+      return absl::InternalError(absl::StrFormat(
+          "ibv_reg_mr failed on device %s: errno=%d (%s)", dev_ctx->Name(),
+          last_errno.value(), std::strerror(last_errno.value())));
     }
 
     memory_regions[std::string(dev_ctx->Name())] = mr;

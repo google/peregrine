@@ -13,18 +13,20 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
+#include "peregrine/src/util/errno.h"
 
 namespace peregrine::util {
 
 namespace {
-std::string PtonErrorMsg(std::string_view ip, int v, int last_errno) {
+std::string PtonErrorMsg(std::string_view ip, int v, Errno last_errno) {
   return absl::StrFormat("inet_pton failed: ipv%d_addr=%s, errno=%d (%s)", v,
-                         ip, last_errno, std::strerror(last_errno));
+                         ip, last_errno.value(),
+                         std::strerror(last_errno.value()));
 }
 
-std::string NtopErrorMsg(int last_errno) {
-  return absl::StrFormat("inet_ntop failed: errno=%d (%s)", last_errno,
-                         std::strerror(last_errno));
+std::string NtopErrorMsg(Errno last_errno) {
+  return absl::StrFormat("inet_ntop failed: errno=%d (%s)", last_errno.value(),
+                         std::strerror(last_errno.value()));
 }
 }  // namespace
 
@@ -60,7 +62,7 @@ std::optional<ipv4_t> ParseIPv4Addr(std::string_view ip) {
       LOG(WARNING) << "invalid ipv4 addr: " << ip;
       return std::nullopt;
     default:
-      const int last_errno = errno;
+      const Errno last_errno(errno);
       LOG(WARNING) << PtonErrorMsg(ip, 4, last_errno);
       return std::nullopt;
   }
@@ -75,7 +77,7 @@ std::optional<ipv6_t> ParseIPv6Addr(const std::string_view ip) {
       LOG(WARNING) << "invalid ipv6 addr: " << ip;
       return std::nullopt;
     default:
-      const int last_errno = errno;
+      const Errno last_errno(errno);
       LOG(WARNING) << PtonErrorMsg(ip, 6, last_errno);
       return std::nullopt;
   }
@@ -87,7 +89,7 @@ std::string ToIPv4String(const ipv4_t& ip4) {
   if (inet_ntop(AF_INET, &ip4, addr, kAddrLen) != nullptr) {
     return addr;
   } else {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << NtopErrorMsg(last_errno);
     return "invalid ipv4 addr";
   }
@@ -99,7 +101,7 @@ std::string ToIPv6String(const ipv6_t& ip6) {
   if (inet_ntop(AF_INET6, &ip6, addr, kAddrLen) != nullptr) {
     return addr;
   } else {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << NtopErrorMsg(last_errno);
     return "invalid ipv6 addr";
   }

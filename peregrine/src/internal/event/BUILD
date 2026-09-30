@@ -9,6 +9,7 @@ cc_library(
     hdrs = ["poller.h"],
     deps = [
         "//peregrine/src/internal/base:types",
+        "//peregrine/src/util:errno",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",

@@ -25,8 +25,13 @@
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/util.h"
+#include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
+
+namespace {
+using util::Errno;
+}  // namespace
 
 std::unique_ptr<UdpSocket> UdpSocket::Create(int family, bool blocking) {
   const fd_t fd = CreateSocket(family, SOCK_DGRAM, blocking);
@@ -59,7 +64,7 @@ void UdpSocket::Shutdown() {
 int UdpSocket::Bind(const Endpoint& local) const {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << errMsg("bind", last_errno);
     return -1;
   } else {
@@ -71,7 +76,7 @@ int UdpSocket::Bind(const Endpoint& local) const {
 int UdpSocket::Connect(const Endpoint& peer) {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << errMsg("connect", last_errno);
     return -1;
   } else {
@@ -98,7 +103,7 @@ ssize_t UdpSocket::Send(const absl::Span<const IoVec> iovecs) const {
       VLOG(1) << ioMsg("writev", bytes);
       return bytes;
     }
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     if (Interrupted(last_errno)) continue;
     DCHECK(!WouldBlock(last_errno));
     LOG(WARNING) << errMsg("writev", last_errno);
@@ -122,7 +127,7 @@ ssize_t UdpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
       VLOG(1) << ioMsg("readv", bytes);
       return bytes;
     } else if (bytes < 0) {
-      const int last_errno = errno;
+      const Errno last_errno(errno);
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       LOG(WARNING) << errMsg("readv", last_errno);

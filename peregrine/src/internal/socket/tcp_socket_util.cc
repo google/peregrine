@@ -24,14 +24,17 @@
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/util.h"
+#include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
 
 namespace {
-inline std::string ErrMsg(std::string_view what, fd_t fd, int last_errno) {
+using util::Errno;
+
+inline std::string ErrMsg(std::string_view what, fd_t fd, Errno last_errno) {
   return absl::StrFormat("tcp socket %s failed: fd=%d %s errno=%d (%s)", what,
-                         fd.value(), AddrPortPair(fd), last_errno,
-                         std::strerror(last_errno));
+                         fd.value(), AddrPortPair(fd), last_errno.value(),
+                         std::strerror(last_errno.value()));
 }
 }  // namespace
 
@@ -56,7 +59,7 @@ absl::Status TcpSocketUtil::Send(const fd_t fd, const Byte* const buf,
       DCHECK_EQ(buf + len, ptr + left);
     } else {
       if ABSL_PREDICT_TRUE (bytes < 0) {
-        const int last_errno = errno;
+        const Errno last_errno(errno);
         if (Interrupted(last_errno)) continue;
         DCHECK(!WouldBlock(last_errno));
         return absl::InternalError(ErrMsg("send", fd, last_errno));
@@ -93,7 +96,7 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd, Byte* const buf,
     } else if (bytes == 0) {  // peer closed connection
       return absl::InternalError("recv eof");
     } else {
-      const int last_errno = errno;
+      const Errno last_errno(errno);
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       return absl::InternalError(ErrMsg("recv", fd, last_errno));
@@ -138,7 +141,7 @@ absl::Status TcpSocketUtil::SendV(const fd_t fd,
       }
     } else {
       if ABSL_PREDICT_TRUE (bytes < 0) {
-        const int last_errno = errno;
+        const Errno last_errno(errno);
         if (Interrupted(last_errno)) continue;
         DCHECK(!WouldBlock(last_errno));
         return absl::InternalError(ErrMsg("sendmsg", fd, last_errno));
@@ -184,7 +187,7 @@ absl::Status TcpSocketUtil::RecvV(const fd_t fd,
     } else if (bytes == 0) {  // peer closed connection
       return absl::InternalError("readv eof");
     } else {
-      const int last_errno = errno;
+      const Errno last_errno(errno);
       if (Interrupted(last_errno)) continue;
       DCHECK(!WouldBlock(last_errno));
       return absl::InternalError(ErrMsg("readv", fd, last_errno));

@@ -11,7 +11,7 @@
 
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_format.h"
-#include "peregrine/src/api/strong_int.h"
+#include "peregrine/src/util/strong_int.h"
 
 namespace peregrine::internal {
 

@@ -15,8 +15,13 @@
 #include "absl/log/log.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_util.h"
+#include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
+
+namespace {
+using util::Errno;
+}  // namespace
 
 int GetSocketError(const fd_t fd) {
   int err = std::numeric_limits<int>::min();
@@ -24,9 +29,9 @@ int GetSocketError(const fd_t fd) {
   socklen_t len = sizeof(err);
   const int ret = GetSocketOption(fd, SO_ERROR, &err, &len);
   if ABSL_PREDICT_FALSE (ret < 0) {
-    const int last_errno = errno;
+    const Errno last_errno(errno);
     LOG(WARNING) << ErrorMsg("getsockopt", last_errno);
-    return last_errno;
+    return last_errno.value();
   }
   return err;
 }
