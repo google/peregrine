@@ -21,6 +21,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/constants.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_base.h"
@@ -92,7 +93,7 @@ int TcpSocket::Listen(const Endpoint& local) const {
     const Errno last_errno(errno);
     LOG(WARNING) << errMsg("bind", last_errno);
     return -1;
-  } else if (ABSL_PREDICT_FALSE(::listen(fd_.value(), SOMAXCONN) < 0)) {
+  } else if (ABSL_PREDICT_FALSE(::listen(fd_.value(), kTcpListenBacklog) < 0)) {
     const Errno last_errno(errno);
     LOG(WARNING) << errMsg("listen", last_errno);
     return -1;
