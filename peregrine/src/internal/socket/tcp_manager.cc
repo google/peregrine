@@ -20,7 +20,6 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "peregrine/src/internal/assumptions.h"
-#include "peregrine/src/internal/base/constants.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
@@ -188,8 +187,9 @@ bool TcpManager::handleAllIncoming(const fd_t fd, const uint32_t flag,
 
   } else if (flag & EPOLLIN) {
     // Listening sockets are level-triggered, not edge-triggered.
+    constexpr int kMaxAcceptsPerEvent = 64;
     const int family = listener->family();
-    for (int i = 0; i < kEpollMaxAcceptsPerEvent && !isStopped(); ++i) {
+    for (int i = 0; i < kMaxAcceptsPerEvent && !isStopped(); ++i) {
       const int ret = listener->Accept(gen_blocking);
       if ABSL_PREDICT_FALSE (ret < 0) {
         if (IsWouldBlock(ret)) {
@@ -246,20 +246,21 @@ void TcpManager::Start(bool gen_blocking) {
   DCHECK(invariant());
   LOG(INFO) << "starting, " << self_;
 
-  epoll_event events[kEpollMaxNumEvents];
-  static_assert(sizeof(events) == 1536);
+  constexpr int kTimeoutMs = 100;
+  constexpr int kMaxEvents = 64;
+  epoll_event events[kMaxEvents];
   while (!isStopped()) {
-    if (const int nfds = poller_->BlockingWait(events, kEpollMaxNumEvents,
-                                               kEpollWaitTimeoutMs);
-        nfds > 0) {
+    const int nfds = poller_->BlockingWait(events, kMaxEvents, kTimeoutMs);
+    if (nfds > 0) {
       for (int i = 0; i < nfds; ++i) {
         const auto& e = events[i];
         const fd_t fd(e.data.fd);
         const uint32_t flag = e.events;
-        if (handleAllIncoming(fd, flag, gen_blocking)) continue;
-        if (handleOneOutgoing(fd, flag)) continue;
-        LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("unhandled", fd, flag);
-        poller_->Unregister(fd);  // stop it from firing again
+        if (!handleAllIncoming(fd, flag, gen_blocking) &&
+            !handleOneOutgoing(fd, flag)) {
+          LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("unhandled", fd, flag);
+          poller_->Unregister(fd);  // stop it from firing again
+        }
       }
     } else if (nfds < 0) {
       if (isStopped()) break;
