@@ -19,7 +19,6 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "peregrine/src/internal/base/constants.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/lib/iovec_view.h"
@@ -92,7 +91,7 @@ int TcpSocket::Listen(const Endpoint& local) const {
     const Errno err(errno);
     LOG(WARNING) << errMsg("bind", err);
     return -1;
-  } else if (ABSL_PREDICT_FALSE(::listen(fd_.value(), kTcpListenBacklog) < 0)) {
+  } else if (ABSL_PREDICT_FALSE(::listen(fd_.value(), SOMAXCONN) < 0)) {
     const Errno err(errno);
     LOG(WARNING) << errMsg("listen", err);
     return -1;
