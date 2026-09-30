@@ -26,21 +26,18 @@ namespace {
 
 using util::Errno;
 
-std::string ErrorMsg(std::string_view prefix, const Errno last_errno) {
-  return absl::StrFormat("%s: errno=%d (%s)", prefix, last_errno.value(),
-                         std::strerror(last_errno.value()));
+std::string ErrMsg(const std::string_view prefix, const Errno err) {
+  return absl::StrFormat("%s: errno=%d (%s)", prefix, err.value(),
+                         std::strerror(err.value()));
 }
 
 void UnregisterMrs(
     const absl::flat_hash_map<std::string, struct ibv_mr*>& mrs) {
   for (const auto& [device_name, mr] : mrs) {
-    if (mr != nullptr) {
-      if (ibv_dereg_mr(mr) != 0) {
-        const Errno last_errno(errno);
-        LOG(WARNING) << ErrorMsg(
-            absl::StrCat("failed to unregister MR on device ", device_name),
-            last_errno);
-      }
+    if (mr != nullptr && ibv_dereg_mr(mr) != 0) {
+      const Errno err(errno);
+      LOG(WARNING) << ErrMsg(
+          absl::StrCat("failed to unregister MR on device ", device_name), err);
     }
   }
 }
@@ -97,15 +94,15 @@ absl::Status RdmaMemoryManager::RegisterMemory(void* addr, size_t length,
 
     struct ibv_mr* mr = ibv_reg_mr(pd, addr, length, access_flags);
     if (mr == nullptr) {
-      const Errno last_errno(errno);
-      LOG(WARNING) << ErrorMsg(
+      const Errno err(errno);
+      LOG(WARNING) << ErrMsg(
           absl::StrFormat("ibv_reg_mr failed for device %s (addr=%p, len=%zu)",
                           dev_ctx->Name(), addr, length),
-          last_errno);
+          err);
       UnregisterMrs(memory_regions);
       return absl::InternalError(absl::StrFormat(
           "ibv_reg_mr failed on device %s: errno=%d (%s)", dev_ctx->Name(),
-          last_errno.value(), std::strerror(last_errno.value())));
+          err.value(), std::strerror(err.value())));
     }
 
     memory_regions[std::string(dev_ctx->Name())] = mr;

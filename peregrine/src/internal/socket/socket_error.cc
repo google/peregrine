@@ -24,16 +24,16 @@ using util::Errno;
 }  // namespace
 
 int GetSocketError(const fd_t fd) {
-  int err = std::numeric_limits<int>::min();
-  DCHECK_LT(err, -1);
-  socklen_t len = sizeof(err);
-  const int ret = GetSocketOption(fd, SO_ERROR, &err, &len);
+  int error = std::numeric_limits<int>::min();
+  DCHECK_LT(error, -1);
+  socklen_t len = sizeof(error);
+  const int ret = GetSocketOption(fd, SO_ERROR, &error, &len);
   if ABSL_PREDICT_FALSE (ret < 0) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg("getsockopt", last_errno);
-    return last_errno.value();
+    const Errno err(errno);
+    LOG(WARNING) << ErrorMsg("getsockopt", err);
+    return err.value();
   }
-  return err;
+  return error;
 }
 
 }  // namespace peregrine::internal

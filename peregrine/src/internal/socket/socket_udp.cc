@@ -64,8 +64,8 @@ void UdpSocket::Shutdown() {
 int UdpSocket::Bind(const Endpoint& local) const {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << errMsg("bind", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << errMsg("bind", err);
     return -1;
   } else {
     LOG(INFO) << okMsg("bound");
@@ -76,8 +76,8 @@ int UdpSocket::Bind(const Endpoint& local) const {
 int UdpSocket::Connect(const Endpoint& peer) {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Connect(fd_, peer) < 0) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << errMsg("connect", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << errMsg("connect", err);
     return -1;
   } else {
     LOG(INFO) << okMsg("connected");
@@ -103,10 +103,10 @@ ssize_t UdpSocket::Send(const absl::Span<const IoVec> iovecs) const {
       VLOG(1) << ioMsg("writev", bytes);
       return bytes;
     }
-    const Errno last_errno(errno);
-    if (Interrupted(last_errno)) continue;
-    DCHECK(!WouldBlock(last_errno));
-    LOG(WARNING) << errMsg("writev", last_errno);
+    const Errno err(errno);
+    if (Interrupted(err)) continue;
+    DCHECK(!WouldBlock(err));
+    LOG(WARNING) << errMsg("writev", err);
     return -1;
   }
 }
@@ -127,10 +127,10 @@ ssize_t UdpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
       VLOG(1) << ioMsg("readv", bytes);
       return bytes;
     } else if (bytes < 0) {
-      const Errno last_errno(errno);
-      if (Interrupted(last_errno)) continue;
-      DCHECK(!WouldBlock(last_errno));
-      LOG(WARNING) << errMsg("readv", last_errno);
+      const Errno err(errno);
+      if (Interrupted(err)) continue;
+      DCHECK(!WouldBlock(err));
+      LOG(WARNING) << errMsg("readv", err);
       return -1;
     } else {
       DCHECK_EQ(bytes, 0);

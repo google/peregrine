@@ -32,8 +32,8 @@ fd_t CreateSocket(const int family, const int type, const bool blocking) {
   const int t = type | (blocking ? 0 : SOCK_NONBLOCK) | SOCK_CLOEXEC;
   const int ret = ::socket(family, t, /*protocol=*/0);
   if ABSL_PREDICT_FALSE (ret < 0) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg("socket", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << ErrorMsg("socket", err);
     return fd_t(-1);
   }
 
@@ -65,8 +65,8 @@ std::string SelfAddrPort(const fd_t fd) {
   if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return ToIpAddrPortString(ss);
   } else {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg("getsockname", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << ErrorMsg("getsockname", err);
     return "?";
   }
 }
@@ -79,8 +79,8 @@ std::string PeerAddrPort(const fd_t fd) {
   } else if (errno == ENOTCONN) {
     return "*";
   } else {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg("getpeername", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << ErrorMsg("getpeername", err);
     return "?";
   }
 }
@@ -91,8 +91,8 @@ Endpoint SelfEndpoint(const fd_t fd) {
   if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return Endpoint::Create(ss);
   } else {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg("getsockname", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << ErrorMsg("getsockname", err);
     return Endpoint();
   }
 }
@@ -103,8 +103,8 @@ Endpoint PeerEndpoint(const fd_t fd) {
   if (::getpeername(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
     return Endpoint::Create(ss);
   } else {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg("getpeername", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << ErrorMsg("getpeername", err);
     return Endpoint();
   }
 }

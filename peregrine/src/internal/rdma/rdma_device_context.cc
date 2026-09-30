@@ -23,9 +23,9 @@ using util::Errno;
 
 constexpr int kDefaultCqeSize = 1024;
 
-std::string ErrorMsg(std::string_view prefix, const Errno last_errno) {
-  return absl::StrFormat("%s: errno=%d (%s)", prefix, last_errno.value(),
-                         std::strerror(last_errno.value()));
+std::string ErrMsg(const std::string_view prefix, const Errno err) {
+  return absl::StrFormat("%s: errno=%d (%s)", prefix, err.value(),
+                         std::strerror(err.value()));
 }
 
 std::string_view getDeviceName(struct ibv_device* device) {
@@ -41,10 +41,10 @@ std::string_view getDeviceName(struct ibv_context* context) {
 struct ibv_context* openDevice(struct ibv_device* device) {
   struct ibv_context* context = ibv_open_device(device);
   if (context == nullptr) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg(
+    const Errno err(errno);
+    LOG(WARNING) << ErrMsg(
         absl::StrFormat("ibv_open_device failed for %s", getDeviceName(device)),
-        last_errno);
+        err);
   }
   return context;
 }
@@ -52,11 +52,11 @@ struct ibv_context* openDevice(struct ibv_device* device) {
 void queryDevice(struct ibv_context* context, struct ibv_device_attr& attr) {
   std::memset(&attr, 0, sizeof(attr));
   if (ibv_query_device(context, &attr) != 0) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg(
+    const Errno err(errno);
+    LOG(WARNING) << ErrMsg(
         absl::StrFormat("ibv_query_device failed for %s (using defaults)",
                         getDeviceName(context)),
-        last_errno);
+        err);
   }
 }
 
@@ -82,10 +82,10 @@ void checkPortStates(struct ibv_context* context,
 struct ibv_pd* allocPd(struct ibv_context* context) {
   struct ibv_pd* pd = ibv_alloc_pd(context);
   if (pd == nullptr) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg(
+    const Errno err(errno);
+    LOG(WARNING) << ErrMsg(
         absl::StrFormat("ibv_alloc_pd failed for %s", getDeviceName(context)),
-        last_errno);
+        err);
   }
   return pd;
 }
@@ -98,10 +98,10 @@ struct ibv_cq* createCq(struct ibv_context* context,
   struct ibv_cq* cq = ibv_create_cq(context, cqe, /*cq_context=*/nullptr,
                                     /*channel=*/nullptr, /*comp_vector=*/0);
   if (cq == nullptr) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg(
+    const Errno err(errno);
+    LOG(WARNING) << ErrMsg(
         absl::StrFormat("ibv_create_cq failed for %s", getDeviceName(context)),
-        last_errno);
+        err);
   }
   return cq;
 }
@@ -165,25 +165,23 @@ RdmaDeviceContext::RdmaDeviceContext(struct ibv_context* context,
 RdmaDeviceContext::~RdmaDeviceContext() {
   if (cq_ != nullptr) {
     if (ibv_destroy_cq(cq_) != 0) {
-      const Errno last_errno(errno);
-      LOG(WARNING) << ErrorMsg(
-          absl::StrFormat("failed to destroy CQ on device %s", name_),
-          last_errno);
+      const Errno err(errno);
+      LOG(WARNING) << ErrMsg(
+          absl::StrFormat("failed to destroy CQ on device %s", name_), err);
     }
   }
   if (pd_ != nullptr) {
     if (ibv_dealloc_pd(pd_) != 0) {
-      const Errno last_errno(errno);
-      LOG(WARNING) << ErrorMsg(
-          absl::StrFormat("failed to dealloc PD on device %s", name_),
-          last_errno);
+      const Errno err(errno);
+      LOG(WARNING) << ErrMsg(
+          absl::StrFormat("failed to dealloc PD on device %s", name_), err);
     }
   }
   if (context_ != nullptr) {
     if (ibv_close_device(context_) != 0) {
-      const Errno last_errno(errno);
-      LOG(WARNING) << ErrorMsg(
-          absl::StrFormat("failed to close device %s", name_), last_errno);
+      const Errno err(errno);
+      LOG(WARNING) << ErrMsg(
+          absl::StrFormat("failed to close device %s", name_), err);
     }
   }
   LOG(INFO) << "RDMA device context destroyed for: " << name_;
@@ -217,11 +215,11 @@ std::unique_ptr<RdmaDeviceContext> RdmaDeviceContext::Create(
   const int gid_index = findRoutableGid(context, kDefaultPort);
   union ibv_gid local_gid = {};
   if (ibv_query_gid(context, kDefaultPort, gid_index, &local_gid) != 0) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << ErrorMsg(
+    const Errno err(errno);
+    LOG(WARNING) << ErrMsg(
         absl::StrFormat("ibv_query_gid failed for %s on port %d, gid_index %d",
                         getDeviceName(context), kDefaultPort, gid_index),
-        last_errno);
+        err);
     ibv_destroy_cq(cq);
     ibv_dealloc_pd(pd);
     ibv_close_device(context);

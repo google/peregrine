@@ -29,9 +29,9 @@
 namespace peregrine::util {
 
 namespace {
-std::string Error(std::string_view msg, Errno last_errno) {
-  return absl::StrFormat("%s errno=%d(%s)", msg, last_errno.value(),
-                         std::strerror(last_errno.value()));
+std::string ErrMsg(const std::string_view msg, const Errno err) {
+  return absl::StrFormat("%s errno=%d(%s)", msg, err.value(),
+                         std::strerror(err.value()));
 }
 }  // namespace
 
@@ -41,8 +41,8 @@ absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics() {
   // Retrieve the interfaces list.
   struct ifaddrs* interfaces = nullptr;
   if (getifaddrs(&interfaces) < 0 || interfaces == nullptr) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << Error("getifaddrs", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << ErrMsg("getifaddrs", err);
     return ifc_ips;
   }
 

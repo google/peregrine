@@ -97,16 +97,16 @@ inline std::string SuccessMsg(std::string_view who, std::string_view what,
 
 // Returns an error message for the last socket operation.
 inline std::string ErrorMsg(std::string_view who, std::string_view what,
-                            fd_t fd, util::Errno last_errno) {
+                            fd_t fd, util::Errno err) {
   return absl::StrFormat("%s socket %s failed: fd=%d %s errno=%d (%s)", who,
-                         what, fd.value(), AddrPortPair(fd), last_errno.value(),
-                         std::strerror(last_errno.value()));
+                         what, fd.value(), AddrPortPair(fd), err.value(),
+                         std::strerror(err.value()));
 }
 
 // Returns an error message for the last socket operation.
-inline std::string ErrorMsg(std::string_view what, util::Errno last_errno) {
-  return absl::StrFormat("socket %s failed: errno=%d (%s)", what,
-                         last_errno.value(), std::strerror(last_errno.value()));
+inline std::string ErrorMsg(std::string_view what, util::Errno err) {
+  return absl::StrFormat("socket %s failed: errno=%d (%s)", what, err.value(),
+                         std::strerror(err.value()));
 }
 
 }  // namespace peregrine::internal

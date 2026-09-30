@@ -78,8 +78,8 @@ class UdpSocket final : public SocketBase {
   }
 
   // Returns an error message for the last socket operation.
-  std::string errMsg(std::string_view func, util::Errno last_errno) const {
-    return ErrorMsg(kUdp, func, fd_, last_errno);
+  std::string errMsg(std::string_view func, util::Errno err) const {
+    return ErrorMsg(kUdp, func, fd_, err);
   }
 
   static constexpr std::string_view kUdp = "udp";

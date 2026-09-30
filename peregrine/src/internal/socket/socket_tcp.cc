@@ -71,8 +71,8 @@ void TcpSocket::Shutdown() {
 int TcpSocket::Bind(const Endpoint& local) const {
   DCHECK(invariant());
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << errMsg("bind", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << errMsg("bind", err);
     return -1;
   } else {
     LOG(INFO) << okMsg("bound");
@@ -85,17 +85,17 @@ int TcpSocket::Listen(const Endpoint& local) const {
 
   int on = 1;
   if ABSL_PREDICT_FALSE (SetSocketOption(fd_, SO_REUSEADDR, &on, sizeof(on))) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << errMsg("set SO_REUSEADDR", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << errMsg("set SO_REUSEADDR", err);
     return -1;
   }
   if ABSL_PREDICT_FALSE (SocketBase::Bind(fd_, local) < 0) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << errMsg("bind", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << errMsg("bind", err);
     return -1;
   } else if (ABSL_PREDICT_FALSE(::listen(fd_.value(), kTcpListenBacklog) < 0)) {
-    const Errno last_errno(errno);
-    LOG(WARNING) << errMsg("listen", last_errno);
+    const Errno err(errno);
+    LOG(WARNING) << errMsg("listen", err);
     return -1;
   } else {
     LOG(INFO) << okMsg("listening");
@@ -111,18 +111,18 @@ int TcpSocket::Accept(bool gen_blocking) const {
   while (true) {
     const int ret = ::accept4(fd_.value(), nullptr, nullptr, flags);
     if (ret < 0) {
-      const Errno last_errno(errno);
-      if (Interrupted(last_errno) || last_errno.value() == ECONNABORTED) {
+      const Errno err(errno);
+      if (Interrupted(err) || err.value() == ECONNABORTED) {
         continue;
-      } else if (WouldBlock(last_errno)) {
+      } else if (WouldBlock(err)) {
         return kAcceptWouldBlock;
-      } else if (last_errno.value() == EINVAL) {  // after shutdown()
+      } else if (err.value() == EINVAL) {  // after shutdown()
         LOG(INFO) << okMsg("accept shutdown");
         return kAcceptShutdown;
-      } else if (OutOfResource(last_errno)) {
+      } else if (OutOfResource(err)) {
         return kAcceptOutOfResource;
       } else {
-        LOG(WARNING) << errMsg("accept", last_errno);
+        LOG(WARNING) << errMsg("accept", err);
         return kAcceptError;
       }
     } else {
@@ -141,9 +141,9 @@ int TcpSocket::Connect(const Endpoint& peer) {
 
   // Treat EINTR as an error: do not reconnect the same socket.
   if (SocketBase::Connect(fd_, peer) < 0) {
-    const Errno last_errno(errno);
-    if (InProgress(last_errno)) return kConnectInProgress;
-    LOG(WARNING) << errMsg("connect", last_errno);
+    const Errno err(errno);
+    if (InProgress(err)) return kConnectInProgress;
+    LOG(WARNING) << errMsg("connect", err);
     return kConnectError;
   } else {
     LOG(INFO) << okMsg("connected");
@@ -184,15 +184,15 @@ ssize_t TcpSocket::Send(const absl::Span<const IoVec> iovecs) const {
         vecs[i].iov_len -= b;
       }
     } else {
-      const Errno last_errno(errno);
+      const Errno err(errno);
       if ABSL_PREDICT_TRUE (bytes < 0) {
-        if (Interrupted(last_errno)) continue;
-        DCHECK(!WouldBlock(last_errno));
-        LOG(WARNING) << errMsg("sendmsg", last_errno);
+        if (Interrupted(err)) continue;
+        DCHECK(!WouldBlock(err));
+        LOG(WARNING) << errMsg("sendmsg", err);
         return -1;
       } else {  // rarely happens
         DCHECK_EQ(bytes, 0);
-        LOG(WARNING) << errMsg("sendmsg zero", last_errno);
+        LOG(WARNING) << errMsg("sendmsg zero", err);
         return 0;
       }
     }
@@ -233,10 +233,10 @@ ssize_t TcpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
       LOG(INFO) << ioMsg("readv eof", 0);
       return 0;
     } else {
-      const Errno last_errno(errno);
-      if (Interrupted(last_errno)) continue;
-      DCHECK(!WouldBlock(last_errno));
-      LOG(WARNING) << errMsg("readv", last_errno);
+      const Errno err(errno);
+      if (Interrupted(err)) continue;
+      DCHECK(!WouldBlock(err));
+      LOG(WARNING) << errMsg("readv", err);
       return -1;
     }
   }
