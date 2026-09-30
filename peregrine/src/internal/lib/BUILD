@@ -36,6 +36,7 @@ cc_library(
         "//peregrine/src/internal/util",
         "@abseil-cpp//absl/container:inlined_vector",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -46,6 +47,7 @@ cc_test(
     deps = [
         ":iovec_cursor",
         "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],
 )

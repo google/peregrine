@@ -2,9 +2,12 @@
 #define PEREGRINE_SRC_INTERNAL_LIB_IOVEC_CURSOR_H_
 
 #include <cstddef>
+#include <ostream>
+#include <string>
 
 #include "absl/container/inlined_vector.h"
 #include "absl/log/check.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/util/util.h"
@@ -20,15 +23,19 @@ class IoVecCursor {
   // Constructor.
   explicit IoVecCursor(absl::Span<const IoVec> iovs)
       : nvecs_(iovs.size()),
+        length_(TotalLength(iovs)),
         index_(0),
-        bytes_left_(TotalLength(iovs)),
+        bytes_left_(length_),
         iovs_(iovs.begin(), iovs.end()) {
     DCHECK(IsValid(iovs));
     DCHECK(invariant());
   }
 
-  // Returns the total number of iovecs.
+  // Returns the original total number of iovecs.
   size_t Size() const { return nvecs_; }
+
+  // Returns the original total number of bytes.
+  size_t Length() const { return length_; }
 
   // Returns the number of remaining iovecs.
   size_t Remaining() const { return nvecs_ - index_; }
@@ -72,6 +79,13 @@ class IoVecCursor {
     return nvecs_ <= index_;
   }
 
+  // Returns a string representation of the cursor.
+  std::string ToString() const {
+    return absl::StrFormat(
+        "IoVecCursor(index/nvecs: %u/%u, bytes_left/length: %u/%u)", index_,
+        nvecs_, bytes_left_, length_);
+  }
+
  private:
   // Returns true if the cursor is in a valid state.
   bool invariant() const {
@@ -80,10 +94,15 @@ class IoVecCursor {
 
  private:
   const size_t nvecs_;
+  const size_t length_;
   size_t index_;
   size_t bytes_left_;
   absl::InlinedVector<IoVec, 4> iovs_;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const IoVecCursor& c) {
+  return os << c.ToString();
+}
 
 }  // namespace peregrine::internal
 
