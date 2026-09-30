@@ -132,6 +132,7 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
     return {};
   }
 
+  static_assert(assumptions::kAllConnectedTcpSocketsAreStillBlocking);
   EngineHelper::Channels chs;
   // TODO(yongx): build connection locality group
   const Endpoint self = {};

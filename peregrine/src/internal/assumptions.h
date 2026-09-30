@@ -64,10 +64,14 @@ inline constexpr bool kHostInfoDependsOnControlAndDataPlanes = true;
 // ---------------------------------------------------------------------------
 //
 // TCP listening sockets are non-blocking. So we can use one thread to poll the
-// I/O events of multiple TCP listening sockets.
+// I/O events of multiple TCP listening sockets. TCP connecting sockets can be
+// either blocking or non-blocking.
 //
-// At this point, all other (data-plane) TCP sockets are blocking.
-inline constexpr bool kOnlyTcpListeningSocketsAreNonBlocking = true;
+// At this point, after being accepted or connected, all data-path TCP sockets
+// are still blocking.
+inline constexpr bool kTcpListeningSocketsAreNonBlocking = true;
+inline constexpr bool kTcpConnectingSocketsCanBeBlockingOrNonBlocking = true;
+inline constexpr bool kAllConnectedTcpSocketsAreStillBlocking = true;
 
 // Assumptions about control messages.
 // ---------------------------------------------------------------------------

@@ -26,6 +26,19 @@ class TcpManager : public TcpManagerBase {
   // fills in `self.data_plane_listeners` with the listening endpoints.
   static std::unique_ptr<TcpManager> Create(HostInfo& self);
 
+  // Starts running the manager, blocking until `Stop()` is called. It must be
+  // called at most once. The caller thread must be joined before destroying
+  // the manager.
+  void Start(bool gen_blocking);
+
+  // Stops the manager.
+  void Stop();
+
+  // Connects the `self` endpoint to the `peer` in blocking/non-blocking mode.
+  // If `self` has nonzero ip address, binds to it before connecting.
+  // Returns 0 on success, 1 on connect in progress, or -1 on error.
+  int Connect(const Endpoint& self, const Endpoint& peer, bool blocking);
+
   // Returns all the accepted incoming sockets currently available.
   std::vector<std::unique_ptr<TcpSocket>> GetIncomingSockets() {
     return incoming_.MoveAll();
@@ -35,19 +48,6 @@ class TcpManager : public TcpManagerBase {
   std::vector<std::unique_ptr<TcpSocket>> GetOutgoingSockets() {
     return outgoing_.MoveAll();
   }
-
-  // Connects the `self` endpoint to the `peer` in blocking/non-blocking mode.
-  // If `self` has nonzero ip address, binds to it before connecting.
-  // Returns 0 on success, 1 on connect in progress, or -1 on error.
-  int Connect(const Endpoint& self, const Endpoint& peer, bool blocking);
-
-  // Starts running the manager, blocking until `Stop()` is called. It must be
-  // called at most once. The caller thread must be joined before destroying
-  // the manager.
-  void Start(bool gen_blocking);
-
-  // Stops the manager.
-  void Stop();
 
  private:
   // Constructor with a set of non-blocking tcp listening sockets.

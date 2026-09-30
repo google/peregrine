@@ -35,9 +35,9 @@ namespace peregrine::internal {
 
 std::unique_ptr<TcpSocket> PspTcpManager::createListener(Endpoint& endpoint,
                                                          Poller& poller) {
+  static_assert(assumptions::kTcpListeningSocketsAreNonBlocking);
   DCHECK(!endpoint.HasZeroIpAddr());
 
-  static_assert(assumptions::kOnlyTcpListeningSocketsAreNonBlocking);
   const int family = endpoint.GetIpAddr().AddressFamily();
   constexpr bool kBlocking = false;
   std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family, kBlocking);
@@ -135,7 +135,7 @@ int PspTcpManager::Connect(const Endpoint& self, const Endpoint& peer,
 }
 
 void PspTcpManager::Start(OnAccept on_accept, bool gen_blocking) {
-  static_assert(assumptions::kOnlyTcpListeningSocketsAreNonBlocking);
+  static_assert(assumptions::kTcpListeningSocketsAreNonBlocking);
   DCHECK(invariant());
   DCHECK_NE(on_accept, nullptr);
   LOG(INFO) << "starting, " << self_;

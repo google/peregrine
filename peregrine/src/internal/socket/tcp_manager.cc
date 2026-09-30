@@ -34,6 +34,7 @@ namespace peregrine::internal {
 
 namespace {
 // ERR/HUP are always reported, but RDHUP must be requested.
+// Level-trigger is used for both listening and connecting sockets.
 constexpr uint32_t kIncomingEvents = EPOLLIN;
 constexpr uint32_t kOutgoingEvents = EPOLLOUT | EPOLLRDHUP;
 
@@ -46,9 +47,9 @@ std::string EvtMsg(std::string_view what, const fd_t fd, const uint32_t flag,
 
 std::unique_ptr<TcpSocket> TcpManager::createListener(Endpoint& endpoint,
                                                       Poller& poller) {
+  static_assert(assumptions::kTcpListeningSocketsAreNonBlocking);
   DCHECK(!endpoint.HasZeroIpAddr());
 
-  static_assert(assumptions::kOnlyTcpListeningSocketsAreNonBlocking);
   const int family = endpoint.GetIpAddr().AddressFamily();
   auto socket = TcpSocket::Create(family, /*blocking=*/false);
   if ABSL_PREDICT_FALSE (socket == nullptr) {
@@ -117,6 +118,7 @@ TcpManager::TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
 
 int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
                         const bool blocking) {
+  static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
   DCHECK(peer.HasNonzeroIpPort());
 
   if ABSL_PREDICT_FALSE (isStopped()) return kConnectError;
@@ -140,6 +142,7 @@ int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
 
 int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
                                    const Endpoint& peer) {
+  static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
   DCHECK_NE(socket, nullptr);
   DCHECK(peer.HasNonzeroIpPort());
 
@@ -242,7 +245,8 @@ bool TcpManager::handleOneOutgoing(const fd_t fd, const uint32_t flag) {
 }
 
 void TcpManager::Start(bool gen_blocking) {
-  static_assert(assumptions::kOnlyTcpListeningSocketsAreNonBlocking);
+  static_assert(assumptions::kTcpListeningSocketsAreNonBlocking);
+  static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
   DCHECK(invariant());
   LOG(INFO) << "starting, " << self_;
 
