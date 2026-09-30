@@ -29,8 +29,8 @@ cc_test(
 )
 
 cc_library(
-    name = "iovec_view",
-    hdrs = ["iovec_view.h"],
+    name = "iovec_cursor",
+    hdrs = ["iovec_cursor.h"],
     deps = [
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/util",
@@ -41,10 +41,10 @@ cc_library(
 )
 
 cc_test(
-    name = "iovec_view_test",
-    srcs = ["iovec_view_test.cc"],
+    name = "iovec_cursor_test",
+    srcs = ["iovec_cursor_test.cc"],
     deps = [
-        ":iovec_view",
+        ":iovec_cursor",
         "//peregrine/src/internal/base:types",
         "@googletest//:gtest_main",
     ],

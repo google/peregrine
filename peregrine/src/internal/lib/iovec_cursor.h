@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_INTERNAL_LIB_IOVEC_VIEW_H_
-#define PEREGRINE_SRC_INTERNAL_LIB_IOVEC_VIEW_H_
+#ifndef PEREGRINE_SRC_INTERNAL_LIB_IOVEC_CURSOR_H_
+#define PEREGRINE_SRC_INTERNAL_LIB_IOVEC_CURSOR_H_
 
 #include <cstddef>
 
@@ -11,18 +11,19 @@
 
 namespace peregrine::internal {
 
-// This class provides a writable view of a sequence of `IoVec`s. All provided
+// This class provides a cursor for a sequence of `IoVec`s. All the provided
 // iovecs must be valid: non-null base pointers and non-zero lengths.
 // No resizing is performed on the underlying container.
 // It is thread-compatible but not thread-safe.
-class IoVecView {
+class IoVecCursor {
  public:
   // Constructor.
-  explicit IoVecView(absl::Span<const IoVec> iovs)
+  explicit IoVecCursor(absl::Span<const IoVec> iovs)
       : nvecs_(iovs.size()),
         index_(0),
         bytes_left_(TotalLength(iovs)),
         iovs_(iovs.begin(), iovs.end()) {
+    DCHECK(IsValid(iovs));
     DCHECK(invariant());
   }
 
@@ -37,7 +38,7 @@ class IoVecView {
     return index_ < nvecs_ ? &iovs_[index_] : nullptr;
   }
 
-  // Advances the view by `bytes`, which must not go beyond the end of the view.
+  // Advances the cursor by `bytes`, which must not go beyond the end.
   // This call can update some iovec but won't delete any.
   // Returns true iff all the iovecs are exhausted.
   bool Advance(size_t bytes) {
@@ -72,7 +73,7 @@ class IoVecView {
   }
 
  private:
-  // Returns true if the view is in a valid state.
+  // Returns true if the cursor is in a valid state.
   bool invariant() const {
     return index_ <= nvecs_ && iovs_.size() == nvecs_ && IsValid(iovs_);
   }
@@ -86,4 +87,4 @@ class IoVecView {
 
 }  // namespace peregrine::internal
 
-#endif  // PEREGRINE_SRC_INTERNAL_LIB_IOVEC_VIEW_H_
+#endif  // PEREGRINE_SRC_INTERNAL_LIB_IOVEC_CURSOR_H_

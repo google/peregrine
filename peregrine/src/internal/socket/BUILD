@@ -87,7 +87,7 @@ cc_library(
         "//peregrine/src/internal/base:constants",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/lib:iovec_view",
+        "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/util",
         "//peregrine/src/util:errno",
         "@abseil-cpp//absl/base:core_headers",

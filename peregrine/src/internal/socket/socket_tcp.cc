@@ -22,7 +22,7 @@
 #include "peregrine/src/internal/base/constants.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
-#include "peregrine/src/internal/lib/iovec_view.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_base.h"
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_util.h"
@@ -160,16 +160,16 @@ ssize_t TcpSocket::Send(const absl::Span<const IoVec> iovecs) const {
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  IoVecView view{iovecs};
+  IoVecCursor cursor{iovecs};
   size_t sent = 0;
   struct msghdr msg = {};
   while (true) {
-    msg.msg_iov = const_cast<IoVec*>(view.Head());
-    msg.msg_iovlen = view.Remaining();
+    msg.msg_iov = const_cast<IoVec*>(cursor.Head());
+    msg.msg_iovlen = cursor.Remaining();
     const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
-      if (view.Advance(bytes)) break;
+      if (cursor.Advance(bytes)) break;
     } else {
       const Errno err(errno);
       if ABSL_PREDICT_TRUE (bytes < 0) {
@@ -197,13 +197,14 @@ ssize_t TcpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  IoVecView view{iovecs};
+  IoVecCursor cursor{iovecs};
   size_t rcvd = 0;
   while (true) {
-    const ssize_t bytes = ::readv(fd_.value(), view.Head(), view.Remaining());
+    const ssize_t bytes =
+        ::readv(fd_.value(), cursor.Head(), cursor.Remaining());
     if ABSL_PREDICT_TRUE (bytes > 0) {
       rcvd += bytes;
-      if (view.Advance(bytes)) break;
+      if (cursor.Advance(bytes)) break;
     } else if (bytes == 0) {  // peer closed connection
       LOG(INFO) << ioMsg("readv eof", 0);
       return 0;
