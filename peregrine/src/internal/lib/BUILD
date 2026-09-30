@@ -29,6 +29,26 @@ cc_test(
 )
 
 cc_library(
+    name = "iovec_view",
+    hdrs = ["iovec_view.h"],
+    deps = [
+        "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "iovec_view_test",
+    srcs = ["iovec_view_test.cc"],
+    deps = [
+        ":iovec_view",
+        "//peregrine/src/internal/base:types",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "metric_counter",
     hdrs = ["metric_counter.h"],
     deps = [

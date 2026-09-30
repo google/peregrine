@@ -12,7 +12,6 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
@@ -20,10 +19,10 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
-#include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/constants.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/lib/iovec_view.h"
 #include "peregrine/src/internal/socket/socket_base.h"
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_util.h"
@@ -161,28 +160,19 @@ ssize_t TcpSocket::Send(const absl::Span<const IoVec> iovecs) const {
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
-  const size_t n = vecs.size();
+  IoVecView view{iovecs};
+  const size_t n = view.size();
   size_t sent = 0;
   size_t i = 0;
   struct msghdr msg = {};
   while (i < n) {
-    msg.msg_iov = &vecs[i];
+    msg.msg_iov = view[i];
     msg.msg_iovlen = n - i;
     const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
       if ABSL_PREDICT_TRUE (sent >= len) break;
-      size_t b = static_cast<size_t>(bytes);
-      while (i < n && vecs[i].iov_len <= b) {  // advance iov index
-        b -= vecs[i].iov_len;
-        ++i;
-      }
-      if (i >= n) break;
-      if (b > 0) {  // adjust iov ptr/len
-        vecs[i].iov_base = static_cast<Byte*>(vecs[i].iov_base) + b;
-        vecs[i].iov_len -= b;
-      }
+      i = view.Advance(bytes);
     } else {
       const Errno err(errno);
       if ABSL_PREDICT_TRUE (bytes < 0) {
@@ -210,25 +200,16 @@ ssize_t TcpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
-  const size_t n = vecs.size();
+  IoVecView view{iovecs};
+  const size_t n = view.size();
   size_t rcvd = 0;
   size_t i = 0;
   while (i < n) {
-    const ssize_t bytes = ::readv(fd_.value(), &vecs[i], n - i);
+    const ssize_t bytes = ::readv(fd_.value(), view[i], n - i);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       rcvd += bytes;
       if ABSL_PREDICT_TRUE (rcvd >= len) break;
-      size_t b = static_cast<size_t>(bytes);
-      while (i < n && vecs[i].iov_len <= b) {  // advance iov index
-        b -= vecs[i].iov_len;
-        ++i;
-      }
-      if (i >= n) break;
-      if (b > 0) {  // adjust iov ptr/len
-        vecs[i].iov_base = static_cast<Byte*>(vecs[i].iov_base) + b;
-        vecs[i].iov_len -= b;
-      }
+      i = view.Advance(bytes);
     } else if (bytes == 0) {  // peer closed connection
       LOG(INFO) << ioMsg("readv eof", 0);
       return 0;
