@@ -58,17 +58,17 @@ TEST_F(IoVecCursorTest, AdvanceInOneShot) {
   EXPECT_EQ(c.Remaining(), 0);
   EXPECT_EQ(c.Head(), nullptr);
   EXPECT_EQ(c.Length(), kTotal);
-  LOG(INFO) << c;
 
   EXPECT_DEBUG_DEATH(c.Advance(1), "out of range");
+  LOG(INFO) << c;
 }
 
 TEST_F(IoVecCursorTest, AdvanceGradually) {
   IoVecCursor c(iovs_);
   LOG(INFO) << c;
 
-  // Zero advance is a no-op.
-  EXPECT_FALSE(c.Advance(0));
+  // Zero advance is not allowed.
+  EXPECT_DEBUG_DEATH(c.Advance(0), "zero byte");
   EXPECT_EQ(c.Remaining(), 3);
   EXPECT_EQ(c.Head()->iov_base, a_);
   EXPECT_EQ(c.Head()->iov_len, sizeof(a_));
