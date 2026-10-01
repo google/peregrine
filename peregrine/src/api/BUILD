@@ -90,7 +90,6 @@ cc_library(
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/rdma:rdma_device_manager",
-        "@abseil-cpp//absl/base:core_headers",
         "@grpc//:grpc++",
     ],
 )
