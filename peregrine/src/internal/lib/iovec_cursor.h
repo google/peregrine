@@ -2,6 +2,7 @@
 #define PEREGRINE_SRC_INTERNAL_LIB_IOVEC_CURSOR_H_
 
 #include <cstddef>
+#include <initializer_list>
 #include <ostream>
 #include <string>
 
@@ -30,6 +31,10 @@ class IoVecCursor {
     DCHECK(IsValid(iovs));
     DCHECK(invariant());
   }
+
+  // Constructor with an initializer list.
+  explicit IoVecCursor(std::initializer_list<const IoVec> iovs)
+      : IoVecCursor(absl::MakeSpan(iovs)) {}
 
   // Returns the original total number of iovecs.
   size_t Size() const { return nvecs_; }

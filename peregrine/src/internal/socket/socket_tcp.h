@@ -12,9 +12,9 @@
 #include <string_view>
 
 #include "absl/log/check.h"
-#include "absl/types/span.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_base.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/util/errno.h"
@@ -57,15 +57,15 @@ class TcpSocket final : public SocketBase {
   // established, 1 if the connection is in progress, and -1 on error.
   int Connect(const Endpoint& peer);
 
-  // Sends exactly `length(iovecs)` bytes of data from the buffers.
+  // Sends exactly `iovecs.Length()` bytes of data from the buffers.
   // Returns the number of bytes sent if successful. Zero byte means no data
   // has been sent due to non-error reasons. Returns -1 on error.
-  ssize_t Send(absl::Span<const IoVec> iovecs) const;
+  ssize_t Send(IoVecCursor& iovecs) const;
 
-  // Receives exactly `length(iovecs)` bytes of data into the buffers.
+  // Receives exactly `iovecs.Length()` bytes of data into the buffers.
   // Returns the number of bytes received if successful. Zero byte means the
   // peer side has closed the connection. Returns -1 on error.
-  ssize_t Recv(absl::Span<const IoVec> iovecs) const;
+  ssize_t Recv(IoVecCursor& iovecs) const;
 
   // Returns a self/peer address pair string of the socket.
   std::string ToString() const;

@@ -12,6 +12,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/util/util.h"
 
@@ -47,7 +48,8 @@ class TcpChannel final : public Channel {
     DCHECK_GE(iovecs.size(), 1);
     DCHECK_LE(iovecs.size(), IOV_MAX);
     DCHECK_GE(TotalLength(iovecs), 1);
-    return socket_->Send(iovecs);
+    IoVecCursor cursor(iovecs);
+    return socket_->Send(cursor);
   }
 
   // Reads exactly `length(iovecs)` bytes of data from the channel into the
@@ -58,7 +60,8 @@ class TcpChannel final : public Channel {
     DCHECK_GE(iovecs.size(), 1);
     DCHECK_LE(iovecs.size(), IOV_MAX);
     DCHECK_GE(TotalLength(iovecs), 1);
-    return socket_->Recv(iovecs);
+    IoVecCursor cursor(iovecs);
+    return socket_->Recv(cursor);
   }
 
   // Shuts down the channel. After the channel is shutdown, write calls will

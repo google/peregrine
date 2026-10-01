@@ -18,13 +18,12 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/span.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_base.h"
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_util.h"
-#include "peregrine/src/internal/util/util.h"
 #include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
@@ -86,18 +85,18 @@ int UdpSocket::Connect(const Endpoint& peer) {
   }
 }
 
-ssize_t UdpSocket::Send(const absl::Span<const IoVec> iovecs) const {
+ssize_t UdpSocket::Send(IoVecCursor& iovecs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovecs.size(), IOV_MAX);
+  DCHECK_LE(iovecs.Size(), IOV_MAX);
 
-  const size_t len = TotalLength(iovecs);
-  DCHECK_EQ(len, TotalLength(iovecs));
+  const size_t len = iovecs.Length();
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   while (true) {
-    const ssize_t bytes = ::writev(fd_.value(), iovecs.data(), iovecs.size());
+    const ssize_t bytes =
+        ::writev(fd_.value(), iovecs.Head(), iovecs.Remaining());
     DCHECK(bytes == len || bytes < 0);
     if ABSL_PREDICT_TRUE (bytes == len) {
       VLOG(1) << ioMsg("writev", bytes);
@@ -111,17 +110,18 @@ ssize_t UdpSocket::Send(const absl::Span<const IoVec> iovecs) const {
   }
 }
 
-ssize_t UdpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
+ssize_t UdpSocket::Recv(IoVecCursor& iovecs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovecs.size(), IOV_MAX);
+  DCHECK_LE(iovecs.Size(), IOV_MAX);
 
-  const size_t len = TotalLength(iovecs);
+  const size_t len = iovecs.Length();
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   while (true) {
-    const ssize_t bytes = ::readv(fd_.value(), iovecs.data(), iovecs.size());
+    const ssize_t bytes =
+        ::readv(fd_.value(), iovecs.Head(), iovecs.Remaining());
     DCHECK_LE(bytes, len);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       VLOG(1) << ioMsg("readv", bytes);

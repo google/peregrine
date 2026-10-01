@@ -18,7 +18,6 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
-#include "absl/types/span.h"
 #include "peregrine/src/internal/base/constants.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
@@ -26,7 +25,6 @@
 #include "peregrine/src/internal/socket/socket_base.h"
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_util.h"
-#include "peregrine/src/internal/util/util.h"
 #include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
@@ -151,25 +149,24 @@ int TcpSocket::Connect(const Endpoint& peer) {
   }
 }
 
-ssize_t TcpSocket::Send(const absl::Span<const IoVec> iovecs) const {
+ssize_t TcpSocket::Send(IoVecCursor& iovecs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovecs.size(), IOV_MAX);
+  DCHECK_LE(iovecs.Size(), IOV_MAX);
 
-  const size_t len = TotalLength(iovecs);
+  const size_t len = iovecs.Length();
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  IoVecCursor cursor{iovecs};
   size_t sent = 0;
   struct msghdr msg = {};
   while (true) {
-    msg.msg_iov = const_cast<IoVec*>(cursor.Head());
-    msg.msg_iovlen = cursor.Remaining();
+    msg.msg_iov = const_cast<IoVec*>(iovecs.Head());
+    msg.msg_iovlen = iovecs.Remaining();
     const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
-      if (cursor.Advance(bytes)) break;
+      if (iovecs.Advance(bytes)) break;
     } else {
       const Errno err(errno);
       if ABSL_PREDICT_TRUE (bytes < 0) {
@@ -188,23 +185,22 @@ ssize_t TcpSocket::Send(const absl::Span<const IoVec> iovecs) const {
   return sent;
 }
 
-ssize_t TcpSocket::Recv(const absl::Span<const IoVec> iovecs) const {
+ssize_t TcpSocket::Recv(IoVecCursor& iovecs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovecs.size(), IOV_MAX);
+  DCHECK_LE(iovecs.Size(), IOV_MAX);
 
-  const size_t len = TotalLength(iovecs);
+  const size_t len = iovecs.Length();
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  IoVecCursor cursor{iovecs};
   size_t rcvd = 0;
   while (true) {
     const ssize_t bytes =
-        ::readv(fd_.value(), cursor.Head(), cursor.Remaining());
+        ::readv(fd_.value(), iovecs.Head(), iovecs.Remaining());
     if ABSL_PREDICT_TRUE (bytes > 0) {
       rcvd += bytes;
-      if (cursor.Advance(bytes)) break;
+      if (iovecs.Advance(bytes)) break;
     } else if (bytes == 0) {  // peer closed connection
       LOG(INFO) << ioMsg("readv eof", 0);
       return 0;

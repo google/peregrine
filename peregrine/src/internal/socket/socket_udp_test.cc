@@ -13,6 +13,7 @@
 #include "absl/synchronization/notification.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -72,13 +73,12 @@ TEST_P(UdpSocketTest, ScatterGather) {
     CHECK(!rskt_->Connect(sndr_));
     DCHECK(rskt_->IsBlocking());
     DCHECK(rskt_->IsConnected());
-    constexpr int kRN = 2;
-    const struct iovec recv_iov[kRN] = {
+    IoVecCursor iovecs{
         {.iov_base = (void*)recv_buf.data(), .iov_len = 2},
         {.iov_base = (void*)(recv_buf.data() + 2), .iov_len = kMsgSize - 2},
     };
     rcvr_ready.Notify();
-    const ssize_t n = rskt_->Recv(recv_iov);
+    const ssize_t n = rskt_->Recv(iovecs);
     CHECK_GT(n, 0);
     CHECK_LE(n, kMsgSize);
   });
@@ -90,12 +90,11 @@ TEST_P(UdpSocketTest, ScatterGather) {
     CHECK(!sskt_->Connect(rcvr_));
     DCHECK(sskt_->IsBlocking());
     DCHECK(sskt_->IsConnected());
-    constexpr int kSN = 2;
-    const struct iovec send_iov[kSN] = {
+    IoVecCursor iovecs{
         {.iov_base = (void*)message.data(), .iov_len = 1},
         {.iov_base = (void*)(message.data() + 1), .iov_len = kMsgSize - 1},
     };
-    CHECK_EQ(sskt_->Send(send_iov), kMsgSize);
+    CHECK_EQ(sskt_->Send(iovecs), kMsgSize);
   });
 
   // Wait for both threads to finish.
