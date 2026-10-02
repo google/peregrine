@@ -6,7 +6,9 @@
 #include <memory>
 #include <vector>
 
+#include "absl/base/thread_annotations.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
@@ -50,6 +52,27 @@ class TcpManager : public TcpManagerBase {
     return outgoing_.MoveAll();
   }
 
+  // Returns the connected outgoing sockets currently available for `peer`.
+  std::vector<std::unique_ptr<TcpSocket>> GetOutgoingSockets(
+      const Endpoint& peer) {
+    return outgoing_.Move(peer);
+  }
+
+  // Returns the number of connecting or unretrieved connected outgoing sockets
+  // for `peer`.
+  int NumPendingOutgoing(const Endpoint& peer) const
+      ABSL_LOCKS_EXCLUDED(outgoing_mu_) {
+    absl::MutexLock _(outgoing_mu_);
+    const int connecting = connectors_.Count(peer);
+    const int connected = outgoing_.Count(peer);
+    return connecting + connected;
+  }
+
+  // Returns and resets the number of asynchronous outgoing connect failures.
+  uint64_t GetAndResetOutgoingFailures() {
+    return outgoing_failures_.exchange(0, std::memory_order_relaxed);
+  }
+
  private:
   // Constructor with a set of non-blocking tcp listening sockets.
   TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
@@ -82,17 +105,20 @@ class TcpManager : public TcpManagerBase {
                          const Endpoint& peer);
 
   // Handles one outgoing connection on the connecting socket `fd`.
-  bool handleOneOutgoing(fd_t fd, uint32_t flag);
+  bool handleOneOutgoing(fd_t fd, uint32_t flag)
+      ABSL_LOCKS_EXCLUDED(outgoing_mu_);
 
-  // Adds a connected socket to the outgoing sockets.
-  int addConnected(std::unique_ptr<TcpSocket> socket);
+  // Adds a connected socket for `peer` to the outgoing sockets.
+  int addConnected(std::unique_ptr<TcpSocket> socket, const Endpoint& peer);
 
  private:
   const HostInfo self_;
 
   std::atomic<bool> stop_;
+  std::atomic<uint64_t> outgoing_failures_;
   std::unique_ptr<Poller> poller_;
 
+  mutable absl::Mutex outgoing_mu_;
   Listeners listeners_;
   Connectors connectors_;
   Produced incoming_;  // created by listeners_

@@ -50,6 +50,12 @@ class SocketBase {
     return blocking ? IsBlockingMode(fd_) : IsNonBlockingMode(fd_);
   }
 
+  // Sets the socket to blocking mode. Returns 0 on success, -1 otherwise.
+  int SetBlocking() { return SetBlockingMode(fd_); }
+
+  // Sets the socket to non-blocking mode. Returns 0 on success, -1 otherwise.
+  int SetNonBlocking() { return SetNonBlockingMode(fd_); }
+
   // Returns a string representation of the socket.
   std::string ToString() const {
     DCHECK(invariant());

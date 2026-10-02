@@ -52,7 +52,7 @@ class ChannelUtilTest : public TestWithParam<SocketTestParam> {
 
 INSTANTIATE_TEST_SUITE_P(, ChannelUtilTest,
                          Combine(/*family=*/Values(AF_INET, AF_INET6),
-                                 /*gen_blocking=*/Values(true)),
+                                 /*blocking=*/Values(true, false)),
                          ToString);
 
 TEST_P(ChannelUtilTest, Create) {

@@ -44,6 +44,16 @@ class SocketTest : public TestWithParam<SocketTestParam> {
     CHECK_NE(s2, nullptr);
     CHECK_EQ(s2->fd(), fd);
     CHECK(s2->MatchesBlocking(blocking));
+
+    CHECK_EQ(s2->SetBlocking(), 0);
+    CHECK(s2->IsBlocking());
+    CHECK(!s2->IsNonBlocking());
+    CHECK(s2->MatchesBlocking(true));
+
+    CHECK_EQ(s2->SetNonBlocking(), 0);
+    CHECK(s2->IsNonBlocking());
+    CHECK(!s2->IsBlocking());
+    CHECK(s2->MatchesBlocking(false));
   }
 
  protected:

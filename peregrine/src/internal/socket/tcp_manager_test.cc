@@ -87,6 +87,34 @@ class TcpManagerTest : public TestWithParam<SocketTestParam> {
     for (auto& socket : from) to.push_back(std::move(socket));
   }
 
+  size_t DrainConnected() {
+    auto connected = mgr_->GetOutgoingSockets();
+    return connected.size();
+  }
+
+  size_t DrainConnected(const Endpoint& peer) {
+    auto connected = mgr_->GetOutgoingSockets(peer);
+    return connected.size();
+  }
+
+  void VerifyAllConnected() {
+    const absl::Time deadline = absl::Now() + absl::Seconds(5);
+    for (const NicInfo& ni : peers_) {
+      for (const Endpoint& peer : ni.endpoints) {
+        EXPECT_EQ(mgr_->NumPendingOutgoing(peer), 1);
+        size_t count = 0;
+        while (count == 0 && absl::Now() < deadline) {
+          count += DrainConnected(peer);
+          absl::SleepFor(absl::Milliseconds(1));
+        }
+        EXPECT_EQ(count, 1);
+        EXPECT_EQ(mgr_->NumPendingOutgoing(peer), 0);
+        EXPECT_EQ(DrainConnected(peer), 0);
+      }
+    }
+    EXPECT_EQ(DrainConnected(), 0);
+  }
+
  protected:
   const SocketTestConfig cfg_;
   HostInfo self_;
@@ -120,6 +148,7 @@ TEST_P(TcpManagerTest, AcceptBeforeConnect) {
 
   util::Thread tc([&]() { ConnectAll(/*rounds=*/1); });
   tc.join();
+  VerifyAllConnected();
 
   mgr_->Stop();
   ta.join();
@@ -131,6 +160,7 @@ TEST_P(TcpManagerTest, ConnectBeforeAccept) {
 
   util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
   tc.join();
+  VerifyAllConnected();
 
   mgr_->Stop();
   ta.join();
