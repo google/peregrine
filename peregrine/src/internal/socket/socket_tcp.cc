@@ -149,24 +149,24 @@ int TcpSocket::Connect(const Endpoint& peer) {
   }
 }
 
-ssize_t TcpSocket::Send(IoVecCursor& iovecs) const {
+ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovecs.Size(), IOV_MAX);
+  DCHECK_LE(iovs.Size(), IOV_MAX);
 
-  const size_t len = iovecs.Length();
+  const size_t len = iovs.Length();
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   size_t sent = 0;
   struct msghdr msg = {};
   while (true) {
-    msg.msg_iov = iovecs.Head();
-    msg.msg_iovlen = iovecs.Remaining();
+    msg.msg_iov = iovs.Head();
+    msg.msg_iovlen = iovs.Remaining();
     const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
-      if (iovecs.Advance(bytes)) break;
+      if (iovs.Advance(bytes)) break;
     } else {
       const Errno err(errno);
       if ABSL_PREDICT_TRUE (bytes < 0) {
@@ -185,22 +185,21 @@ ssize_t TcpSocket::Send(IoVecCursor& iovecs) const {
   return sent;
 }
 
-ssize_t TcpSocket::Recv(IoVecCursor& iovecs) const {
+ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovecs.Size(), IOV_MAX);
+  DCHECK_LE(iovs.Size(), IOV_MAX);
 
-  const size_t len = iovecs.Length();
+  const size_t len = iovs.Length();
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   size_t rcvd = 0;
   while (true) {
-    const ssize_t bytes =
-        ::readv(fd_.value(), iovecs.Head(), iovecs.Remaining());
+    const ssize_t bytes = ::readv(fd_.value(), iovs.Head(), iovs.Remaining());
     if ABSL_PREDICT_TRUE (bytes > 0) {
       rcvd += bytes;
-      if (iovecs.Advance(bytes)) break;
+      if (iovs.Advance(bytes)) break;
     } else if (bytes == 0) {  // peer closed connection
       LOG(INFO) << ioMsg("readv eof", 0);
       return 0;

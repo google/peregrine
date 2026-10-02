@@ -85,18 +85,17 @@ int UdpSocket::Connect(const Endpoint& peer) {
   }
 }
 
-ssize_t UdpSocket::Send(IoVecCursor& iovecs) const {
+ssize_t UdpSocket::Send(IoVecCursor& iovs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovecs.Size(), IOV_MAX);
+  DCHECK_LE(iovs.Size(), IOV_MAX);
 
-  const size_t len = iovecs.Length();
+  const size_t len = iovs.Length();
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   while (true) {
-    const ssize_t bytes =
-        ::writev(fd_.value(), iovecs.Head(), iovecs.Remaining());
+    const ssize_t bytes = ::writev(fd_.value(), iovs.Head(), iovs.Remaining());
     DCHECK(bytes == len || bytes < 0);
     if ABSL_PREDICT_TRUE (bytes == len) {
       VLOG(1) << ioMsg("writev", bytes);
@@ -110,18 +109,17 @@ ssize_t UdpSocket::Send(IoVecCursor& iovecs) const {
   }
 }
 
-ssize_t UdpSocket::Recv(IoVecCursor& iovecs) const {
+ssize_t UdpSocket::Recv(IoVecCursor& iovs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovecs.Size(), IOV_MAX);
+  DCHECK_LE(iovs.Size(), IOV_MAX);
 
-  const size_t len = iovecs.Length();
+  const size_t len = iovs.Length();
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
   while (true) {
-    const ssize_t bytes =
-        ::readv(fd_.value(), iovecs.Head(), iovecs.Remaining());
+    const ssize_t bytes = ::readv(fd_.value(), iovs.Head(), iovs.Remaining());
     DCHECK_LE(bytes, len);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       VLOG(1) << ioMsg("readv", bytes);

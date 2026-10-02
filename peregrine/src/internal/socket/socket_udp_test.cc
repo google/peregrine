@@ -73,12 +73,12 @@ TEST_P(UdpSocketTest, ScatterGather) {
     CHECK(!rskt_->Connect(sndr_));
     DCHECK(rskt_->IsBlocking());
     DCHECK(rskt_->IsConnected());
-    IoVecCursor iovecs{
+    IoVecCursor iovs{
         {.iov_base = (void*)recv_buf.data(), .iov_len = 2},
         {.iov_base = (void*)(recv_buf.data() + 2), .iov_len = kMsgSize - 2},
     };
     rcvr_ready.Notify();
-    const ssize_t n = rskt_->Recv(iovecs);
+    const ssize_t n = rskt_->Recv(iovs);
     CHECK_GT(n, 0);
     CHECK_LE(n, kMsgSize);
   });
@@ -90,11 +90,11 @@ TEST_P(UdpSocketTest, ScatterGather) {
     CHECK(!sskt_->Connect(rcvr_));
     DCHECK(sskt_->IsBlocking());
     DCHECK(sskt_->IsConnected());
-    IoVecCursor iovecs{
+    IoVecCursor iovs{
         {.iov_base = (void*)message.data(), .iov_len = 1},
         {.iov_base = (void*)(message.data() + 1), .iov_len = kMsgSize - 1},
     };
-    CHECK_EQ(sskt_->Send(iovecs), kMsgSize);
+    CHECK_EQ(sskt_->Send(iovs), kMsgSize);
   });
 
   // Wait for both threads to finish.

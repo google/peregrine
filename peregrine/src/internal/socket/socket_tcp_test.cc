@@ -87,12 +87,12 @@ TEST_P(TcpSocketTest, BigData) {
     DCHECK(new_socket->IsConnected());
     constexpr int kRN = 2;
     constexpr size_t kPartial = kDataSize / kRN;
-    IoVecCursor iovecs{
+    IoVecCursor iovs{
         {.iov_base = (void*)recv_buf.data(), .iov_len = kPartial},
         {.iov_base = (void*)(recv_buf.data() + kPartial),
          .iov_len = kDataSize - kPartial},
     };
-    CHECK_EQ(new_socket->Recv(iovecs), kDataSize);
+    CHECK_EQ(new_socket->Recv(iovs), kDataSize);
   });
 
   // Second, create a client thread.
@@ -105,13 +105,13 @@ TEST_P(TcpSocketTest, BigData) {
     DCHECK(connector_->IsConnected());
     constexpr int kSN = 3;
     constexpr size_t kPartial = kDataSize / kSN;
-    IoVecCursor iovecs{
+    IoVecCursor iovs{
         {.iov_base = (void*)send_buf.data(), .iov_len = kPartial},
         {.iov_base = (void*)(send_buf.data() + kPartial), .iov_len = kPartial},
         {.iov_base = (void*)(send_buf.data() + 2 * kPartial),
          .iov_len = kDataSize - 2 * kPartial},
     };
-    CHECK_EQ(connector_->Send(iovecs), kDataSize);
+    CHECK_EQ(connector_->Send(iovs), kDataSize);
   });
 
   // Wait for both threads to finish.
