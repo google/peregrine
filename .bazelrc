@@ -11,10 +11,10 @@ build --copt=-Wconversion
 build --linkopt=-libverbs
 
 # Bypass ccache read-only sandbox issues
-build --repo_env=CC=/usr/bin/gcc
-build --repo_env=CXX=/usr/bin/g++
-build --action_env=CC=/usr/bin/gcc
-build --action_env=CXX=/usr/bin/g++
+build --repo_env=CC=/usr/bin/clang
+build --repo_env=CXX=/usr/bin/clang++
+build --action_env=CC=/usr/bin/clang
+build --action_env=CXX=/usr/bin/clang++
 
 # ==============================
 # Dependency & Bzlmod Settings
