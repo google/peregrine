@@ -34,6 +34,7 @@ cc_library(
     deps = [
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/util",
+        "//peregrine/src/util:macro",
         "@abseil-cpp//absl/container:inlined_vector",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",

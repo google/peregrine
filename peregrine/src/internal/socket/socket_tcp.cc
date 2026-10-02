@@ -161,7 +161,7 @@ ssize_t TcpSocket::Send(IoVecCursor& iovecs) const {
   size_t sent = 0;
   struct msghdr msg = {};
   while (true) {
-    msg.msg_iov = const_cast<IoVec*>(iovecs.Head());
+    msg.msg_iov = iovecs.Head();
     msg.msg_iovlen = iovecs.Remaining();
     const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
