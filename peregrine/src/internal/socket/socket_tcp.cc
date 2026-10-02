@@ -152,17 +152,18 @@ int TcpSocket::Connect(const Endpoint& peer) {
 ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovs.Size(), IOV_MAX);
+  DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
-  const size_t len = iovs.Length();
-  DCHECK_GE(len, 1);
-  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  const size_t all = iovs.RemainingBytes();
+  DCHECK_GE(all, 1);
+  DCHECK_LE(all, std::numeric_limits<ssize_t>::max());
 
   size_t sent = 0;
   struct msghdr msg = {};
   while (true) {
+    DCHECK_GE(iovs.RemainingBytes(), 1);
     msg.msg_iov = iovs.Head();
-    msg.msg_iovlen = iovs.Remaining();
+    msg.msg_iovlen = iovs.RemainingItems();
     const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
@@ -181,22 +182,24 @@ ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
       }
     }
   }
-  DCHECK_EQ(sent, len);
+  DCHECK_EQ(sent, all);
   return sent;
 }
 
 ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
   DCHECK(invariant());
   DCHECK(IsBlocking());
-  DCHECK_LE(iovs.Size(), IOV_MAX);
+  DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
-  const size_t len = iovs.Length();
-  DCHECK_GE(len, 1);
-  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
+  const size_t all = iovs.RemainingBytes();
+  DCHECK_GE(all, 1);
+  DCHECK_LE(all, std::numeric_limits<ssize_t>::max());
 
   size_t rcvd = 0;
   while (true) {
-    const ssize_t bytes = ::readv(fd_.value(), iovs.Head(), iovs.Remaining());
+    DCHECK_GE(iovs.RemainingBytes(), 1);
+    const ssize_t bytes =
+        ::readv(fd_.value(), iovs.Head(), iovs.RemainingItems());
     if ABSL_PREDICT_TRUE (bytes > 0) {
       rcvd += bytes;
       if (iovs.Advance(bytes)) break;
@@ -211,7 +214,7 @@ ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
       return -1;
     }
   }
-  DCHECK_EQ(rcvd, len);
+  DCHECK_EQ(rcvd, all);
   return rcvd;
 }
 

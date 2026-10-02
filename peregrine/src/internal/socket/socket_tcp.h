@@ -57,12 +57,12 @@ class TcpSocket final : public SocketBase {
   // established, 1 if the connection is in progress, and -1 on error.
   int Connect(const Endpoint& peer);
 
-  // Sends exactly `iovs.Length()` bytes of data from the buffers.
+  // Sends exactly `iovs.RemainingBytes()` bytes of data from the buffers.
   // Returns the number of bytes sent if successful. Zero byte means no data
   // has been sent due to non-error reasons. Returns -1 on error.
   ssize_t Send(IoVecCursor& iovs) const;
 
-  // Receives exactly `iovs.Length()` bytes of data into the buffers.
+  // Receives exactly `iovs.RemainingBytes()` bytes of data into the buffers.
   // Returns the number of bytes received if successful. Zero byte means the
   // peer side has closed the connection. Returns -1 on error.
   ssize_t Recv(IoVecCursor& iovs) const;

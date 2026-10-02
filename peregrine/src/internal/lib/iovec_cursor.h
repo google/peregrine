@@ -30,7 +30,7 @@ class IoVecCursor {
         cur_(iovs_.data()),
         end_(cur_ + iovs_.size()),
         bytes_left_(TotalLength(iovs)),
-        length_(bytes_left_) {
+        bytes_total_(bytes_left_) {
     DCHECK(IsValid(iovs));
     DCHECK(invariant());
   }
@@ -46,14 +46,17 @@ class IoVecCursor {
   // Destructor.
   ~IoVecCursor() = default;
 
-  // Returns the original total number of iovecs.
-  size_t Size() const { return iovs_.size(); }
+  // Returns the original total number of iovec items.
+  size_t TotalItems() const { return iovs_.size(); }
 
-  // Returns the original total number of bytes.
-  size_t Length() const { return length_; }
+  // Returns the original total number of bytes spanned by the iovec items.
+  size_t TotalBytes() const { return bytes_total_; }
 
-  // Returns the number of remaining iovecs.
-  size_t Remaining() const { return static_cast<size_t>(end_ - cur_); }
+  // Returns the number of remaining bytes to be advanced.
+  size_t RemainingBytes() const { return bytes_left_; }
+
+  // Returns the number of remaining iovec items to be advanced.
+  size_t RemainingItems() const { return static_cast<size_t>(end_ - cur_); }
 
   // Returns a const pointer to the current first iovec.
   const IoVec* Head() const { return cur_ < end_ ? cur_ : nullptr; }
@@ -98,15 +101,15 @@ class IoVecCursor {
   // Returns a string representation of the cursor.
   std::string ToString() const {
     return absl::StrFormat(
-        "IoVecCursor(index/size: %v/%v, bytes_left/length: %v/%v)",
-        cur_ - iovs_.data(), iovs_.size(), bytes_left_, length_);
+        "IoVecCursor(index/size: %v/%v, bytes_left/total: %v/%v)",
+        cur_ - iovs_.data(), iovs_.size(), bytes_left_, bytes_total_);
   }
 
  private:
   // Returns true if the cursor is in a valid state.
   bool invariant() const {
-    return iovs_.data() <= cur_ && cur_ <= end_ && bytes_left_ <= length_ &&
-           end_ == iovs_.data() + iovs_.size() && IsValid(iovs_) &&
+    return IsValid(iovs_) && iovs_.data() <= cur_ && cur_ <= end_ &&
+           end_ == iovs_.data() + iovs_.size() && bytes_left_ <= bytes_total_ &&
            bytes_left_ == TotalLength(absl::MakeConstSpan(cur_, end_));
   }
 
@@ -115,7 +118,7 @@ class IoVecCursor {
   IoVec* cur_;
   IoVec* const end_;
   size_t bytes_left_;
-  const size_t length_;
+  const size_t bytes_total_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const IoVecCursor& c) {

@@ -3,7 +3,11 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
+#include "absl/types/span.h"
+#include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
@@ -23,6 +27,18 @@ CreateTcpSocketPair(int family, bool blocking);
 // Creates a connected udp socket pair.
 std::pair<std::unique_ptr<UdpSocket>, std::unique_ptr<UdpSocket>>
 CreateUdpSocketPair(int family, bool blocking);
+
+// Creates an IoVecCursor by splitting the given data into `n` parts.
+std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data, int n);
+
+// Creates an IoVecCursor by splitting the given data into `n` parts.
+inline std::unique_ptr<IoVecCursor> CreateIoVecCursor(std::vector<Byte>& data,
+                                                      int n) {
+  return CreateIoVecCursor(absl::MakeSpan(data), n);
+}
+
+std::unique_ptr<IoVecCursor> CreateIoVecCursor(std::vector<Byte>&& data,
+                                               int n) = delete;
 
 }  // namespace peregrine::internal::testing
 

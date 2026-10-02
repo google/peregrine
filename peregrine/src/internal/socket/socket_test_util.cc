@@ -10,8 +10,12 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
+#include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
+#include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
@@ -110,6 +114,25 @@ CreateUdpSocketPair(int family, bool blocking) {
   CHECK(sa->IsConnected());
   CHECK(sb->IsConnected());
   return {std::move(sa), std::move(sb)};
+}
+
+std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data, int n) {
+  DCHECK_GE(n, 1);
+  DCHECK_LE(n, data.size());
+
+  Byte* const ptr = (Byte* const)data.data();
+  const size_t seg = data.size() / n;
+  DCHECK_GE(seg, 1);
+
+  std::vector<IoVec> iovecs;
+  iovecs.reserve(n);
+  for (int i = 0; i < n - 1; ++i) {
+    iovecs.emplace_back(ptr + i * seg, seg);
+  }
+  const size_t past = (n - 1) * seg;
+  iovecs.push_back({ptr + past, data.size() - past});
+
+  return std::make_unique<IoVecCursor>(iovecs);
 }
 
 }  // namespace peregrine::internal::testing

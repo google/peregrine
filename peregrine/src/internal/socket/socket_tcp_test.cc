@@ -3,7 +3,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <cstring>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,6 +16,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
+#include "peregrine/src/internal/socket/socket_test_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -37,13 +37,15 @@ std::string ToString(const TestParamInfo<SocketTestParam>& info) {
   return testing::ToString(info.param);
 }
 
+// Connection establishment is always blocking to make the code simpler.
+// After that, socket blocking mode is set according to `cfg_.blocking`.
 class TcpSocketTest : public TestWithParam<SocketTestParam> {
  protected:
   TcpSocketTest()
       : cfg_(GetParam()),
         local_(IpLocalhost(cfg_.family), TestOnly_FindFreeTcpPort(cfg_.family)),
-        listener_(TestOnly_CreateTcpSocket(cfg_.family, cfg_.blocking)),
-        connector_(TestOnly_CreateTcpSocket(cfg_.family, cfg_.blocking)) {
+        listener_(TestOnly_CreateTcpSocket(cfg_.family, /*blocking=*/true)),
+        connector_(TestOnly_CreateTcpSocket(cfg_.family, /*blocking=*/true)) {
     DCHECK(listener_->IsValid());
     DCHECK(connector_->IsValid());
     DCHECK(!listener_->IsConnected());
@@ -66,7 +68,7 @@ INSTANTIATE_TEST_SUITE_P(BlockingTcpSocketTest, TcpSocketTest,
 
 TEST_P(TcpSocketTest, BigData) {
   // Create a big chunk of data and a recv buffer.
-  constexpr size_t kDataSize = 16UL << 20;
+  constexpr ssize_t kDataSize = 16UL << 20;
   std::vector<Byte> send_buf(kDataSize);
   std::vector<Byte> recv_buf(kDataSize, 0x00);
   util::RandomNonZero(absl::MakeSpan(send_buf));
@@ -83,16 +85,14 @@ TEST_P(TcpSocketTest, BigData) {
 
     const fd_t new_fd(ret);
     auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
-    DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
-    constexpr int kRN = 2;
-    constexpr size_t kPartial = kDataSize / kRN;
-    IoVecCursor iovs{
-        {.iov_base = (void*)recv_buf.data(), .iov_len = kPartial},
-        {.iov_base = (void*)(recv_buf.data() + kPartial),
-         .iov_len = kDataSize - kPartial},
-    };
-    CHECK_EQ(new_socket->Recv(iovs), kDataSize);
+    std::unique_ptr<IoVecCursor> iovs = CreateIoVecCursor(recv_buf, 2);
+    if (cfg_.blocking) {
+      CHECK(new_socket->IsBlocking());
+      CHECK_EQ(new_socket->Recv(*iovs), kDataSize);
+    } else {
+      // TODO(yongx): add non-blocking test.
+    }
   });
 
   // Second, create a client thread.
@@ -101,17 +101,14 @@ TEST_P(TcpSocketTest, BigData) {
     const Endpoint local_ip(local_.GetIpAddr(), 0);
     CHECK(!connector_->Bind(local_ip));
     CHECK(!connector_->Connect(local_));
-    DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
-    constexpr int kSN = 3;
-    constexpr size_t kPartial = kDataSize / kSN;
-    IoVecCursor iovs{
-        {.iov_base = (void*)send_buf.data(), .iov_len = kPartial},
-        {.iov_base = (void*)(send_buf.data() + kPartial), .iov_len = kPartial},
-        {.iov_base = (void*)(send_buf.data() + 2 * kPartial),
-         .iov_len = kDataSize - 2 * kPartial},
-    };
-    CHECK_EQ(connector_->Send(iovs), kDataSize);
+    std::unique_ptr<IoVecCursor> iovs = CreateIoVecCursor(send_buf, 3);
+    if (cfg_.blocking) {
+      CHECK(connector_->IsBlocking());
+      CHECK_EQ(connector_->Send(*iovs), kDataSize);
+    } else {
+      // TODO(yongx): add non-blocking test.
+    }
   });
 
   // Wait for both threads to finish.

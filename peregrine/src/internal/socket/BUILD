@@ -103,6 +103,7 @@ cc_test(
     shard_count = 2,
     deps = [
         ":socket_tcp",
+        ":socket_test_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
@@ -143,15 +144,18 @@ cc_test(
     srcs = ["socket_udp_test.cc"],
     shard_count = 2,
     deps = [
+        ":socket_test_util",
         ":socket_udp",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/util:test_param",
         "//peregrine/src/internal/util:test_util",
+        "//peregrine/src/util",
         "//peregrine/src/util:thread",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )
@@ -165,8 +169,11 @@ cc_library(
         ":socket_tcp",
         ":socket_udp",
         ":tcp_manager",
+        "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/util:test_util",
         "//peregrine/src/util:nic",
         "//peregrine/src/util:thread",
@@ -174,6 +181,7 @@ cc_library(
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
