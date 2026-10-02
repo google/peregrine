@@ -235,6 +235,7 @@ cc_library(
     hdrs = ["tcp_manager_base.h"],
     deps = [
         ":socket_tcp",
+        "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",

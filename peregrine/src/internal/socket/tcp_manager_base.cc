@@ -12,6 +12,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 
@@ -63,7 +64,8 @@ void TcpManagerBase::Listeners::Shutdown() {
 bool TcpManagerBase::Connectors::Invariant() const {
   absl::MutexLock _(mu_);
   return std::all_of(fd2skts_.begin(), fd2skts_.end(), [](const auto& pair) {
-    return IsPairAndNonBlocking(pair.first, pair.second.socket.get());
+    return IsPairAndNonBlocking(pair.first, pair.second.socket.get()) &&
+           pair.second.peer.HasNonzeroIpPort();
   });
 }
 
@@ -74,14 +76,16 @@ void TcpManagerBase::Connectors::Seal() {
 
 bool TcpManagerBase::Connectors::Add(const fd_t fd,
                                      std::unique_ptr<TcpSocket> socket,
+                                     const Endpoint& peer,
                                      absl::FunctionRef<bool(fd_t)> on_add) {
   DCHECK_EQ(fd, socket->fd());
   DCHECK(!socket->IsConnected());
+  DCHECK(peer.HasNonzeroIpPort());
   {
     absl::MutexLock _(mu_);
     if ABSL_PREDICT_TRUE (!sealed_ && !fd2skts_.contains(fd) && on_add(fd)) {
-      LOG(INFO) << "added socket " << *socket;
-      fd2skts_.emplace(fd, Connector{std::move(socket)});
+      LOG(INFO) << "added connector " << *socket;
+      fd2skts_.emplace(fd, Connector{std::move(socket), peer});
       return true;
     }
   }
@@ -89,16 +93,16 @@ bool TcpManagerBase::Connectors::Add(const fd_t fd,
   return false;  // `socket` is closed outside the lock
 }
 
-std::unique_ptr<TcpSocket> TcpManagerBase::Connectors::Remove(const fd_t fd) {
+TcpManagerBase::Connector TcpManagerBase::Connectors::Remove(const fd_t fd) {
   absl::MutexLock _(mu_);
   const auto it = fd2skts_.find(fd);
   if ABSL_PREDICT_FALSE (it == fd2skts_.end()) {
-    return nullptr;
+    return {};
   } else {
-    std::unique_ptr<TcpSocket> socket = std::move(it->second.socket);
+    Connector conn = std::move(it->second);
     fd2skts_.erase(it);
-    DCHECK(!socket->IsConnected());
-    return socket;
+    DCHECK(!conn.socket->IsConnected());
+    return conn;
   }
 }
 
@@ -114,8 +118,11 @@ void TcpManagerBase::Connectors::Close() {
 
 bool TcpManagerBase::Produced::Invariant() const {
   absl::MutexLock _(mu_);
-  return std::all_of(sockets_.begin(), sockets_.end(), [](const auto& s) {
-    return s != nullptr && s->IsConnected();
+  return std::all_of(sockets_.begin(), sockets_.end(), [](const auto& pair) {
+    const auto& vec = pair.second;
+    return std::all_of(vec.begin(), vec.end(), [](const auto& s) {
+      return s != nullptr && s->IsConnected();
+    });
   });
 }
 
@@ -124,14 +131,15 @@ void TcpManagerBase::Produced::Seal() {
   sealed_ = true;
 }
 
-bool TcpManagerBase::Produced::Add(std::unique_ptr<TcpSocket> socket) {
+bool TcpManagerBase::Produced::Add(std::unique_ptr<TcpSocket> socket,
+                                   const Endpoint& peer) {
   DCHECK_NE(socket, nullptr);
   DCHECK(socket->IsConnected());
   {
     absl::MutexLock _(mu_);
     if ABSL_PREDICT_TRUE (!sealed_) {
       LOG(INFO) << "added socket " << *socket;
-      sockets_.emplace_back(std::move(socket));
+      sockets_[peer].emplace_back(std::move(socket));
       return true;
     }
   }
@@ -139,13 +147,30 @@ bool TcpManagerBase::Produced::Add(std::unique_ptr<TcpSocket> socket) {
   return false;
 }
 
+std::vector<std::unique_ptr<TcpSocket>> TcpManagerBase::Produced::Move(
+    const Endpoint& peer) {
+  absl::MutexLock _(mu_);
+  const auto it = sockets_.find(peer);
+  if (it == sockets_.end()) return {};
+  auto res = std::move(it->second);
+  sockets_.erase(it);
+  return res;
+}
+
 std::vector<std::unique_ptr<TcpSocket>> TcpManagerBase::Produced::MoveAll() {
   absl::MutexLock _(mu_);
-  return std::exchange(sockets_, {});
+  std::vector<std::unique_ptr<TcpSocket>> all;
+  for (auto& [_, vec] : sockets_) {
+    for (auto& s : vec) {
+      all.push_back(std::move(s));
+    }
+  }
+  sockets_.clear();
+  return all;
 }
 
 void TcpManagerBase::Produced::Close() {
-  std::vector<std::unique_ptr<TcpSocket>> doomed;
+  absl::flat_hash_map<Endpoint, std::vector<std::unique_ptr<TcpSocket>>> doomed;
   {
     absl::MutexLock _(mu_);
     DCHECK(sealed_);

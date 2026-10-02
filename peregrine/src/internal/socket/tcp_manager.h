@@ -50,6 +50,12 @@ class TcpManager : public TcpManagerBase {
     return outgoing_.MoveAll();
   }
 
+  // Returns the connected outgoing sockets currently available for `peer`.
+  std::vector<std::unique_ptr<TcpSocket>> GetOutgoingSockets(
+      const Endpoint& peer) {
+    return outgoing_.Move(peer);
+  }
+
  private:
   // Constructor with a set of non-blocking tcp listening sockets.
   TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
@@ -84,8 +90,8 @@ class TcpManager : public TcpManagerBase {
   // Handles one outgoing connection on the connecting socket `fd`.
   bool handleOneOutgoing(fd_t fd, uint32_t flag);
 
-  // Adds a connected socket to the outgoing sockets.
-  int addConnected(std::unique_ptr<TcpSocket> socket);
+  // Adds a connected socket for `peer` to the outgoing sockets.
+  int addConnected(std::unique_ptr<TcpSocket> socket, const Endpoint& peer);
 
  private:
   const HostInfo self_;
