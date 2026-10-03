@@ -24,13 +24,14 @@ namespace peregrine::internal {
 // It is thread-compatible but not thread-safe.
 class IoVecCursor {
  public:
-  // Constructor.
+  // Constructor (empty input is not allowed).
   explicit IoVecCursor(absl::Span<const IoVec> iovs)
       : iovs_(iovs.begin(), iovs.end()),
         cur_(iovs_.data()),
         end_(cur_ + iovs_.size()),
         bytes_left_(TotalLength(iovs)),
         bytes_total_(bytes_left_) {
+    DCHECK(!iovs.empty()) << "empty input";
     DCHECK(IsValid(iovs));
     DCHECK(invariant());
   }

@@ -183,7 +183,7 @@ ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
       }
     }
   }
-  DCHECK(std::cmp_equal(sent, all));
+  DCHECK(std::cmp_equal(sent, all)) << "sent=" << sent << ", all=" << all;
   return sent;
 }
 
@@ -206,7 +206,7 @@ ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
       if (iovs.Advance(bytes)) break;
     } else if (bytes == 0) {  // peer closed connection
       LOG(INFO) << ioMsg("readv eof", 0);
-      return 0;
+      return rcvd;
     } else {
       const Errno err(errno);
       if (Interrupted(err)) continue;
@@ -215,7 +215,7 @@ ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
       return -1;
     }
   }
-  DCHECK(std::cmp_equal(rcvd, all));
+  DCHECK(std::cmp_equal(rcvd, all)) << "rcvd=" << rcvd << ", all=" << all;
   return rcvd;
 }
 

@@ -30,12 +30,7 @@ class IoVecCursorTest : public ::testing::Test {
 };
 
 TEST_F(IoVecCursorTest, Ctor) {
-  IoVecCursor empty({});
-  EXPECT_EQ(empty.TotalItems(), 0);
-  EXPECT_EQ(empty.TotalBytes(), 0);
-  EXPECT_EQ(empty.RemainingItems(), 0);
-  EXPECT_EQ(empty.RemainingBytes(), 0);
-  EXPECT_EQ(empty.Head(), nullptr);
+  EXPECT_DEBUG_DEATH(IoVecCursor empty({}), "empty input");
 
   IoVecCursor c(iovs_);
   EXPECT_EQ(c.TotalItems(), kTotalItems);
