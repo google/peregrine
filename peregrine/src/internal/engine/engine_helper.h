@@ -7,6 +7,7 @@
 
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
@@ -40,8 +41,12 @@ class EngineHelper final {
   // Returns a mutable reference to engine metrics.
   EngineMetrics& Metrics() { return metrics_; }
 
-  // Creates a number of channels connected to the peer.
+  // Creates channels connected to the peer.
   Channels Connect(const Endpoint& peer_control);
+
+  // Returns the number of connecting or unretrieved connected outgoing channels
+  // for `peer_control`.
+  int NumPendingConnections(const Endpoint& peer_control) const;
 
   // Returns the accepted channels.
   Channels GetAcceptedChannels();
@@ -64,8 +69,15 @@ class EngineHelper final {
   }
 
  private:
-  // Creates `n` TCP channels that connect to the peer.
-  Channels connectTcp(const Endpoint& peer_control, int n);
+  // Creates or initiates `n` TCP channels that connect to the peer.
+  Channels connectTcp(const Endpoint& peer_control, int n, bool blocking);
+
+  // Returns the newly connected outgoing TCP channels across `peers`.
+  Channels getConnectedTcpChannels(absl::Span<const Endpoint> peers);
+
+  // Returns the number of connecting or unretrieved connected outgoing TCP
+  // channels across `peers`.
+  int numPendingTcpConnections(absl::Span<const Endpoint> peers) const;
 
   // Creates `n` RDMA channels that connect to the peer.
   Channels connectRdma(const Endpoint& peer_control, int n);

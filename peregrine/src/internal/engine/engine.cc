@@ -145,8 +145,17 @@ void Engine::mainLoop() {
     }
 
     // step 2: create send workers if needed.
-    if (send_workers_[entry.peer].size() < config_.num_conns_per_peer) {
+    Workers& workers = send_workers_[entry.peer];
+    if (workers.size() < config_.num_conns_per_peer) {
       createSendWorkers(entry.peer);
+    }
+    // Note: Re-enqueuing at the back avoids stalling other peers, but may
+    // reorder requests destined for this peer.
+    // TODO: Avoid busy-spinning while waiting for connections to finish.
+    if (workers.empty() && helper_->NumPendingConnections(entry.peer) > 0) {
+      absl::MutexLock _(mu_);
+      reqs_.push_back(std::move(entry));
+      continue;
     }
 
     // step 3: process the entry.

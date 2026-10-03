@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -12,6 +11,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/config.h"
@@ -102,53 +102,94 @@ EngineHelper::Channels EngineHelper::GetAcceptedChannels() {
 
 EngineHelper::Channels EngineHelper::Connect(const Endpoint& peer_control) {
   const int n = config_.num_conns_per_peer;
+  const bool blocking = true;
   if (config_.transport_type == TransportType::kRdma) {
     return connectRdma(peer_control, n);
   } else {
-    return connectTcp(peer_control, n);
+    return connectTcp(peer_control, n, blocking);
   }
 }
 
 namespace {
-std::optional<NicInfo> GetTcpListener(const HostInfo& peer_info) {
-  for (const auto& nic : peer_info.data_plane_listeners) {
-    if (nic.type == util::NicType::kIP) return nic;
-  }
-  return std::nullopt;
-}
-}  // namespace
-
-EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
-                                                const int n) {
-  const auto peer_info = control_.GetPeerHostInfo(peer_control);
+std::vector<Endpoint> GetTcpEndpoints(Control& control,
+                                      const Endpoint& peer_control) {
+  const auto peer_info = control.GetPeerHostInfo(peer_control);
   if (!peer_info.ok()) {
     LOG(WARNING) << "failed to get host info for peer " << peer_control << ": "
                  << peer_info.status();
     return {};
   }
-  const auto nic = GetTcpListener(*peer_info);
-  if (!nic.has_value()) {
-    LOG(WARNING) << "no tcp listener found for peer " << peer_control;
-    return {};
+  std::vector<Endpoint> endpoints;
+  for (const auto& nic : peer_info->data_plane_listeners) {
+    if (nic.type == util::NicType::kIP) {
+      endpoints.insert(endpoints.end(), nic.endpoints.begin(),
+                       nic.endpoints.end());
+    }
   }
+  if (endpoints.empty()) {
+    LOG(WARNING) << "no tcp listener found for peer " << peer_control;
+  }
+  return endpoints;
+}
+}  // namespace
 
+EngineHelper::Channels EngineHelper::getConnectedTcpChannels(
+    const absl::Span<const Endpoint> peers) {
   static_assert(assumptions::kAllConnectedTcpSocketsAreStillBlocking);
-  EngineHelper::Channels chs;
-  // TODO(yongx): build connection locality group
-  const Endpoint self = {};
-  const Endpoint& peer = nic.value().endpoints[0];
+  Channels chs;
   uint64_t failures = 0;
-  for (int i = 0; chs.size() < n && i < 2 * n; ++i) {
-    DCHECK(!config_.require_dataplane_encryption);
-    if (tcp_mgr_->Connect(self, peer, /*blocking=*/true) < 0) ++failures;
-    for (auto& socket : tcp_mgr_->GetOutgoingSockets()) {
+  for (const Endpoint& peer : peers) {
+    for (auto& socket : tcp_mgr_->GetOutgoingSockets(peer)) {
       DCHECK_NE(socket, nullptr);
+      if (socket->IsNonBlocking() && socket->SetBlocking() < 0) {
+        LOG(WARNING) << "failed to set blocking mode for " << *socket;
+        ++failures;
+        continue;
+      }
       std::unique_ptr<Channel> ch = CreateTcpChannel(std::move(socket));
       chs.push_back(std::move(ch));
     }
   }
   if (failures > 0) metrics_.tcp_connect_failures.Add(failures);
   return chs;
+}
+
+int EngineHelper::numPendingTcpConnections(
+    const absl::Span<const Endpoint> peers) const {
+  int pending = 0;
+  for (const Endpoint& peer : peers) {
+    pending += tcp_mgr_->NumPendingOutgoing(peer);
+  }
+  return pending;
+}
+
+int EngineHelper::NumPendingConnections(const Endpoint& peer_control) const {
+  const std::vector<Endpoint> peers = GetTcpEndpoints(control_, peer_control);
+  return numPendingTcpConnections(peers);
+}
+
+EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
+                                                const int n,
+                                                const bool blocking) {
+  const std::vector<Endpoint> peers = GetTcpEndpoints(control_, peer_control);
+  if (peers.empty()) return {};
+
+  static_assert(assumptions::kAllConnectedTcpSocketsAreStillBlocking);
+  // TODO(yongx): build connection locality group
+  const Endpoint self = {};
+  const Endpoint& peer = peers[0];
+  uint64_t failures = tcp_mgr_->GetAndResetOutgoingFailures();
+  const int to_connect = n - numPendingTcpConnections(peers);
+  for (int i = 0, count = 0; count < to_connect && i < 2 * to_connect; ++i) {
+    DCHECK(!config_.require_dataplane_encryption);
+    if (tcp_mgr_->Connect(self, peer, blocking) < 0) {
+      ++failures;
+    } else {
+      ++count;
+    }
+  }
+  if (failures > 0) metrics_.tcp_connect_failures.Add(failures);
+  return getConnectedTcpChannels(peers);
 }
 
 EngineHelper::Channels EngineHelper::connectRdma(const Endpoint& peer_control,

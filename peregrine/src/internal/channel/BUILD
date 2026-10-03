@@ -155,12 +155,14 @@ cc_library(
         ":channel_rdma",
         ":channel_tcp",
         ":channel_udp",
+        "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/rdma:rdma_queue_pair",
         "//peregrine/src/internal/socket:socket_tcp",
         "//peregrine/src/internal/socket:socket_udp",
         "//peregrine/src/internal/socket:tcp_manager",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
     ],
 )
 

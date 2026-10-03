@@ -16,6 +16,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/str_format.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -117,6 +118,7 @@ TcpManager::TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
                        absl::node_hash_map<fd_t, Listener> sockets)
     : self_(self),
       stop_(false),
+      outgoing_failures_(0),
       poller_(std::move(poller)),
       listeners_(std::move(sockets)),
       connectors_(),
@@ -144,17 +146,19 @@ int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
   }
 }
 
-int TcpManager::addConnected(std::unique_ptr<TcpSocket> socket) {
+int TcpManager::addConnected(std::unique_ptr<TcpSocket> socket,
+                             const Endpoint& peer) {
   DCHECK(socket->IsConnected());
   LOG(INFO) << "made " << *socket;
-  return outgoing_.Add(std::move(socket)) ? kConnectSuccess : kConnectError;
+  return outgoing_.Add(std::move(socket), peer) ? kConnectSuccess
+                                                : kConnectError;
 }
 
 int TcpManager::connectBlocking(std::unique_ptr<TcpSocket> socket,
                                 const Endpoint& peer) {
   DCHECK(socket->IsBlocking());
   if (socket->Connect(peer) < 0) return kConnectError;
-  return addConnected(std::move(socket));
+  return addConnected(std::move(socket), peer);
 }
 
 int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
@@ -162,7 +166,7 @@ int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
   DCHECK(socket->IsNonBlocking());
   switch (const int ret = socket->Connect(peer); ret) {
     case kConnectSuccess:
-      return addConnected(std::move(socket));
+      return addConnected(std::move(socket), peer);
     case kConnectInProgress: {
       DCHECK(!socket->IsConnected());
       LOG(INFO) << "connecting " << *socket;
@@ -174,7 +178,7 @@ int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
         static_assert((kOutgoingEvents & EPOLLET) == 0);
         return poller_->Register(added, kOutgoingEvents) == 0;
       };
-      return connectors_.Add(fd, std::move(socket), register_fd)
+      return connectors_.Add(fd, std::move(socket), peer, register_fd)
                  ? kConnectInProgress
                  : kConnectError;
     }
@@ -231,24 +235,27 @@ bool TcpManager::handleAllIncoming(const fd_t fd, const uint32_t flag,
 }
 
 bool TcpManager::handleOneOutgoing(const fd_t fd, const uint32_t flag) {
-  std::unique_ptr<TcpSocket> socket = connectors_.Remove(fd);
-  if (socket == nullptr) return false;
+  absl::MutexLock _(outgoing_mu_);
+  Connector conn = connectors_.Remove(fd);
+  if (conn.socket == nullptr) return false;
 
   // Must precede closing `fd` at scope exit.
   poller_->Unregister(fd);
 
   const int err = GetSocketError(fd);
-  if ABSL_PREDICT_FALSE (err != 0 || (flag & (EPOLLERR | EPOLLHUP)) ||
-                         !(flag & EPOLLOUT)) {
+  if (ABSL_PREDICT_FALSE(err != 0 || (flag & (EPOLLERR | EPOLLHUP)) ||
+                         !(flag & EPOLLOUT))) {
     LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("connecting", fd, flag, err);
-  } else if ABSL_PREDICT_FALSE (flag & EPOLLRDHUP) {
+    outgoing_failures_.fetch_add(1, std::memory_order_relaxed);
+  } else if (ABSL_PREDICT_FALSE(flag & EPOLLRDHUP)) {
     LOG_EVERY_N_SEC(WARNING, 1) << EvtMsg("peer hung up", fd, flag, err);
+    outgoing_failures_.fetch_add(1, std::memory_order_relaxed);
   } else {
-    DCHECK(socket->IsNonBlocking());
-    DCHECK(!socket->IsConnected());
-    socket->SetConnected();
-    DCHECK(socket->IsConnected());
-    (void)addConnected(std::move(socket));
+    DCHECK(conn.socket->IsNonBlocking());
+    DCHECK(!conn.socket->IsConnected());
+    conn.socket->SetConnected();
+    DCHECK(conn.socket->IsConnected());
+    (void)addConnected(std::move(conn.socket), conn.peer);
   }
   return true;
 }
