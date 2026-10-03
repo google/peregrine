@@ -3,7 +3,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -15,7 +14,6 @@
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
-#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_test_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
@@ -67,8 +65,8 @@ INSTANTIATE_TEST_SUITE_P(BlockingUdpSocketTest, UdpSocketTest,
                          ToString);
 
 TEST_P(UdpSocketTest, ScatterGather) {
-  // Create a small chunk of data and a recv buffer.
-  constexpr size_t kDataSize = 16UL << 10;
+  // Create some data to send and a buffer to receive it.
+  constexpr ssize_t kDataSize = 16UL << 10;
   std::vector<Byte> send_buf(kDataSize);
   std::vector<Byte> recv_buf(kDataSize, 0x00);
   util::RandomNonZero(absl::MakeSpan(send_buf));
@@ -80,13 +78,13 @@ TEST_P(UdpSocketTest, ScatterGather) {
     CHECK(!rskt_->Bind(rcvr_));
     CHECK(!rskt_->Connect(sndr_));
     DCHECK(rskt_->IsConnected());
-    std::unique_ptr<IoVecCursor> iovs = CreateIoVecCursor(recv_buf, 2);
+    auto iovs = CreateIoVecCursor(recv_buf, /*splits=*/2);
     rcvr_ready.Notify();
     if (cfg_.blocking) {
       DCHECK(rskt_->IsBlocking());
-      const ssize_t n = rskt_->Recv(*iovs);
-      CHECK_GT(n, 0);
-      CHECK_LE(n, kDataSize);
+      const ssize_t len = rskt_->Recv(*iovs);
+      CHECK_GT(len, 0);
+      CHECK_LE(len, kDataSize);
     } else {
       // TODO(yongx): add non-blocking test.
     }
@@ -98,7 +96,7 @@ TEST_P(UdpSocketTest, ScatterGather) {
     CHECK(!sskt_->Bind(sndr_));
     CHECK(!sskt_->Connect(rcvr_));
     DCHECK(sskt_->IsConnected());
-    std::unique_ptr<IoVecCursor> iovs = CreateIoVecCursor(send_buf, 3);
+    auto iovs = CreateIoVecCursor(send_buf, /*splits=*/3);
     if (cfg_.blocking) {
       DCHECK(sskt_->IsBlocking());
       CHECK_EQ(sskt_->Send(*iovs), kDataSize);
@@ -111,7 +109,7 @@ TEST_P(UdpSocketTest, ScatterGather) {
   sender.join();
   receiver.join();
 
-  // Check that the server got the client's message.
+  // Check that the recv buffer matches the send buffer.
   EXPECT_THAT(recv_buf, Pointwise(Eq(), send_buf));
 }
 

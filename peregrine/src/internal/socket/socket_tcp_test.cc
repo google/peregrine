@@ -15,7 +15,6 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
-#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_test_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
@@ -67,7 +66,7 @@ INSTANTIATE_TEST_SUITE_P(BlockingTcpSocketTest, TcpSocketTest,
                          ToString);
 
 TEST_P(TcpSocketTest, BigData) {
-  // Create a big chunk of data and a recv buffer.
+  // Create some data to send and a buffer to receive it.
   constexpr ssize_t kDataSize = 16UL << 20;
   std::vector<Byte> send_buf(kDataSize);
   std::vector<Byte> recv_buf(kDataSize, 0x00);
@@ -86,7 +85,7 @@ TEST_P(TcpSocketTest, BigData) {
     const fd_t new_fd(ret);
     auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
     DCHECK(new_socket->IsConnected());
-    std::unique_ptr<IoVecCursor> iovs = CreateIoVecCursor(recv_buf, 2);
+    auto iovs = CreateIoVecCursor(recv_buf, /*splits=*/2);
     if (cfg_.blocking) {
       CHECK(new_socket->IsBlocking());
       CHECK_EQ(new_socket->Recv(*iovs), kDataSize);
@@ -102,7 +101,7 @@ TEST_P(TcpSocketTest, BigData) {
     CHECK(!connector_->Bind(local_ip));
     CHECK(!connector_->Connect(local_));
     DCHECK(connector_->IsConnected());
-    std::unique_ptr<IoVecCursor> iovs = CreateIoVecCursor(send_buf, 3);
+    auto iovs = CreateIoVecCursor(send_buf, /*splits=*/3);
     if (cfg_.blocking) {
       CHECK(connector_->IsBlocking());
       CHECK_EQ(connector_->Send(*iovs), kDataSize);
@@ -115,7 +114,7 @@ TEST_P(TcpSocketTest, BigData) {
   client.join();
   server.join();
 
-  // Check that the server got the client's data.
+  // Check that the recv buffer matches the send buffer.
   EXPECT_THAT(recv_buf, Pointwise(Eq(), send_buf));
 }
 

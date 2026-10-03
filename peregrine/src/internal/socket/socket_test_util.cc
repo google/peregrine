@@ -116,20 +116,21 @@ CreateUdpSocketPair(int family, bool blocking) {
   return {std::move(sa), std::move(sb)};
 }
 
-std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data, int n) {
-  DCHECK_GE(n, 1);
-  DCHECK_LE(n, data.size());
+std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data,
+                                               int splits) {
+  DCHECK_GE(splits, 1);
+  DCHECK_LE(splits, data.size());
 
   Byte* const ptr = (Byte* const)data.data();
-  const size_t seg = data.size() / n;
+  const size_t seg = data.size() / splits;
   DCHECK_GE(seg, 1);
 
   std::vector<IoVec> iovecs;
-  iovecs.reserve(n);
-  for (int i = 0; i < n - 1; ++i) {
+  iovecs.reserve(splits);
+  for (int i = 0; i < splits - 1; ++i) {
     iovecs.emplace_back(ptr + i * seg, seg);
   }
-  const size_t past = (n - 1) * seg;
+  const size_t past = (splits - 1) * seg;
   iovecs.push_back({ptr + past, data.size() - past});
 
   return std::make_unique<IoVecCursor>(iovecs);

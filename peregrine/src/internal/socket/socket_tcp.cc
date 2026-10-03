@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
@@ -158,7 +159,7 @@ ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
   DCHECK_GE(all, 1);
   DCHECK_LE(all, std::numeric_limits<ssize_t>::max());
 
-  size_t sent = 0;
+  ssize_t sent = 0;
   struct msghdr msg = {};
   while (true) {
     DCHECK_GE(iovs.RemainingBytes(), 1);
@@ -175,14 +176,14 @@ ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
         DCHECK(!WouldBlock(err));
         LOG(WARNING) << errMsg("sendmsg", err);
         return -1;
-      } else {  // rarely happens
+      } else {  // won't happen
         DCHECK_EQ(bytes, 0);
         LOG(WARNING) << errMsg("sendmsg zero", err);
         return 0;
       }
     }
   }
-  DCHECK_EQ(sent, all);
+  DCHECK(std::cmp_equal(sent, all));
   return sent;
 }
 
@@ -195,7 +196,7 @@ ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
   DCHECK_GE(all, 1);
   DCHECK_LE(all, std::numeric_limits<ssize_t>::max());
 
-  size_t rcvd = 0;
+  ssize_t rcvd = 0;
   while (true) {
     DCHECK_GE(iovs.RemainingBytes(), 1);
     const ssize_t bytes =
@@ -214,7 +215,7 @@ ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
       return -1;
     }
   }
-  DCHECK_EQ(rcvd, all);
+  DCHECK(std::cmp_equal(rcvd, all));
   return rcvd;
 }
 

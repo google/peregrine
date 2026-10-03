@@ -47,7 +47,7 @@ class TcpManagerTest : public TestWithParam<SocketTestParam> {
   static void LongSleep() { absl::SleepFor(absl::Seconds(1)); }
 
   size_t NumPeers() {
-    return std::accumulate(peers_.begin(), peers_.end(), 0,
+    return std::accumulate(peers_.begin(), peers_.end(), size_t{0},
                            [](size_t sum, const NicInfo& ni) {
                              return sum + ni.endpoints.size();
                            });

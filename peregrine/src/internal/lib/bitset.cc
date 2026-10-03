@@ -14,7 +14,7 @@ namespace peregrine::internal {
 
 uint32_t Bitset::Count() const {
   return std::accumulate(
-      units_.begin(), units_.end(), 0,
+      units_.begin(), units_.end(), uint32_t{0},
       [](uint32_t sum, const Unit& u) { return sum + u.bits.count(); });
 }
 

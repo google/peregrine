@@ -43,7 +43,7 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkHeader& chunk,
   };
 
   // Step 2: send them out.
-  return channel->Write(iovecs) == header.size() + payload.size();
+  return std::cmp_equal(channel->Write(iovecs), header.size() + payload.size());
 }
 
 bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
@@ -119,7 +119,8 @@ bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
     // Write permission granted, read payload and track data arrival.
     // TODO(yongx): check if chunk.DstAddr() is within a trust boundary.
     IoVec payload[] = {{chunk.DstAddr(), size}};
-    const bool success = (channel->Read(payload) == size);
+    const ssize_t len = channel->Read(payload);
+    const bool success = std::cmp_equal(len, size);
     tracker.Release(index, success);
     return success && sendAck(channel, chunk);
   } else {
@@ -200,10 +201,11 @@ bool Transfer::drainStream(Channel* const channel, const uint32_t chunk_size) {
   Byte buf[kTmpBufSize];
   size_t left = chunk_size;
   while (left > 0) {
-    const size_t len = std::min(left, kTmpBufSize);
-    IoVec iov[] = {{buf, len}};
-    if (channel->Read(iov) != len) return false;
-    left -= len;
+    const size_t size = std::min(left, kTmpBufSize);
+    IoVec iov[] = {{buf, size}};
+    const ssize_t len = channel->Read(iov);
+    if (std::cmp_not_equal(len, size)) return false;
+    left -= size;
   }
   return left == 0;
 }

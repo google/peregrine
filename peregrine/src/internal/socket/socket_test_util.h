@@ -33,12 +33,12 @@ std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data, int n);
 
 // Creates an IoVecCursor by splitting the given data into `n` parts.
 inline std::unique_ptr<IoVecCursor> CreateIoVecCursor(std::vector<Byte>& data,
-                                                      int n) {
-  return CreateIoVecCursor(absl::MakeSpan(data), n);
+                                                      int splits) {
+  return CreateIoVecCursor(absl::MakeSpan(data), splits);
 }
 
 std::unique_ptr<IoVecCursor> CreateIoVecCursor(std::vector<Byte>&& data,
-                                               int n) = delete;
+                                               int splits) = delete;
 
 }  // namespace peregrine::internal::testing
 
