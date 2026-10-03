@@ -104,6 +104,7 @@ cc_test(
     deps = [
         ":socket_tcp",
         ":socket_test_util",
+        ":socket_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
@@ -113,6 +114,7 @@ cc_test(
         "//peregrine/src/util:thread",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
@@ -145,6 +147,7 @@ cc_test(
     deps = [
         ":socket_test_util",
         ":socket_udp",
+        ":socket_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/util:test_param",
@@ -153,6 +156,7 @@ cc_test(
         "//peregrine/src/util:thread",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],

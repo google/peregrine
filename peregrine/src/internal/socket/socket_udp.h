@@ -40,14 +40,16 @@ class UdpSocket final : public SocketBase {
   // Connects to the `peer` endpoint. Returns 0 on success, -1 on error.
   int Connect(const Endpoint& peer);
 
-  // Sends exactly `iovs.RemainingBytes()` bytes of data from the buffers.
-  // Returns the number of bytes sent if successful. Zero byte means no data
-  // has been sent due to non-error reasons. Returns -1 on error.
+  // Sends the data remaining in `iovs`, advancing it by the bytes sent.
+  // Returns the number of sent bytes (>= 0) on success, or -1 on error.
+  // In all cases, `iovs` reflects how far the send has gone, so the next
+  // `Send()` can continue from where the previous call left off.
   ssize_t Send(IoVecCursor& iovs) const;
 
-  // Receives at most `iovs.RemainingBytes()` bytes of data into the buffers.
-  // Returns the number of bytes received if successful. Zero byte means the
-  // received packet has no payload. Returns -1 on error.
+  // Receives data into the remaining `iovs`, advancing it by the bytes read.
+  // Returns the number of received bytes (>= 0) on success, or -1 on error.
+  // In all cases, `iovs` reflects how far the receive has gone, so the next
+  // `Recv()` can continue from where the previous call left off.
   ssize_t Recv(IoVecCursor& iovs) const;
 
   // Returns a self/peer address pair string of the socket.

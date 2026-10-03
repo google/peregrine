@@ -12,7 +12,6 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
@@ -152,7 +151,7 @@ int TcpSocket::Connect(const Endpoint& peer) {
 
 ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
   DCHECK(invariant());
-  DCHECK(IsBlocking());
+  DCHECK(IsNonBlocking() || IsBlocking());
   DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
   const size_t all = iovs.RemainingBytes();
@@ -173,23 +172,24 @@ ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
       const Errno err(errno);
       if ABSL_PREDICT_TRUE (bytes < 0) {
         if (Interrupted(err)) continue;
-        DCHECK(!WouldBlock(err));
+        if (WouldBlock(err)) break;
         LOG(WARNING) << errMsg("sendmsg", err);
         return -1;
       } else {  // won't happen
         DCHECK_EQ(bytes, 0);
-        LOG(WARNING) << errMsg("sendmsg zero", err);
+        LOG(ERROR) << errMsg("sendmsg zero", err);
         return 0;
       }
     }
   }
-  DCHECK(std::cmp_equal(sent, all)) << "sent=" << sent << ", all=" << all;
+  DCHECK((IsBlocking() && sent == all) ||
+         (IsNonBlocking() && 0 <= sent && sent <= all));
   return sent;
 }
 
 ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
   DCHECK(invariant());
-  DCHECK(IsBlocking());
+  DCHECK(IsNonBlocking() || IsBlocking());
   DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
   const size_t all = iovs.RemainingBytes();
@@ -210,12 +210,13 @@ ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
     } else {
       const Errno err(errno);
       if (Interrupted(err)) continue;
-      DCHECK(!WouldBlock(err));
+      if (WouldBlock(err)) break;
       LOG(WARNING) << errMsg("readv", err);
       return -1;
     }
   }
-  DCHECK(std::cmp_equal(rcvd, all)) << "rcvd=" << rcvd << ", all=" << all;
+  DCHECK((IsBlocking() && rcvd == all) ||
+         (IsNonBlocking() && 0 <= rcvd && rcvd <= all));
   return rcvd;
 }
 

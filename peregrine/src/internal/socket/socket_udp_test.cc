@@ -11,10 +11,13 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/socket/socket_test_util.h"
+#include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -59,9 +62,9 @@ class UdpSocketTest : public TestWithParam<SocketTestParam> {
   const std::unique_ptr<UdpSocket> rskt_;
 };
 
-INSTANTIATE_TEST_SUITE_P(BlockingUdpSocketTest, UdpSocketTest,
+INSTANTIATE_TEST_SUITE_P(, UdpSocketTest,
                          Combine(/*family=*/Values(AF_INET, AF_INET6),
-                                 /*blocking=*/Values(true)),
+                                 /*blocking=*/Values(true, false)),
                          ToString);
 
 TEST_P(UdpSocketTest, ScatterGather) {
@@ -86,7 +89,16 @@ TEST_P(UdpSocketTest, ScatterGather) {
       CHECK_GT(len, 0);
       CHECK_LE(len, kDataSize);
     } else {
-      // TODO(yongx): add non-blocking test.
+      SetNonBlockingMode(rskt_->fd());
+      CHECK(rskt_->IsNonBlocking());
+      ssize_t rcvd = 0;
+      while (true) {
+        const ssize_t bytes = rskt_->Recv(*iovs);
+        if (bytes < 0) break;
+        if (rcvd += bytes; rcvd >= kDataSize) break;
+        if (bytes == 0) absl::SleepFor(absl::Milliseconds(10));
+      }
+      CHECK_EQ(rcvd, kDataSize);
     }
   });
 
@@ -101,7 +113,16 @@ TEST_P(UdpSocketTest, ScatterGather) {
       DCHECK(sskt_->IsBlocking());
       CHECK_EQ(sskt_->Send(*iovs), kDataSize);
     } else {
-      // TODO(yongx): add non-blocking test.
+      SetNonBlockingMode(sskt_->fd());
+      CHECK(sskt_->IsNonBlocking());
+      ssize_t sent = 0;
+      while (true) {
+        const ssize_t bytes = sskt_->Send(*iovs);
+        if (bytes < 0) break;
+        if (sent += bytes; sent >= kDataSize) break;
+        if (bytes == 0) absl::SleepFor(absl::Milliseconds(10));
+      }
+      CHECK_EQ(sent, kDataSize);
     }
   });
 

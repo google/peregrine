@@ -87,7 +87,7 @@ int UdpSocket::Connect(const Endpoint& peer) {
 
 ssize_t UdpSocket::Send(IoVecCursor& iovs) const {
   DCHECK(invariant());
-  DCHECK(IsBlocking());
+  DCHECK(IsNonBlocking() || IsBlocking());
   DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
   const size_t all = iovs.RemainingBytes();
@@ -97,15 +97,15 @@ ssize_t UdpSocket::Send(IoVecCursor& iovs) const {
   while (true) {
     const ssize_t bytes =
         ::writev(fd_.value(), iovs.Head(), iovs.RemainingItems());
-    DCHECK(bytes == all || bytes < 0);
-    if ABSL_PREDICT_TRUE (bytes == all) {
+    if ABSL_PREDICT_TRUE (bytes > 0) {
+      DCHECK_EQ(bytes, all);
       VLOG(1) << ioMsg("writev", bytes);
       iovs.Advance(bytes);
       return bytes;
     }
     const Errno err(errno);
     if (Interrupted(err)) continue;
-    DCHECK(!WouldBlock(err));
+    if (WouldBlock(err)) return 0;
     LOG(WARNING) << errMsg("writev", err);
     return -1;
   }
@@ -113,7 +113,7 @@ ssize_t UdpSocket::Send(IoVecCursor& iovs) const {
 
 ssize_t UdpSocket::Recv(IoVecCursor& iovs) const {
   DCHECK(invariant());
-  DCHECK(IsBlocking());
+  DCHECK(IsNonBlocking() || IsBlocking());
   DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
   const size_t all = iovs.RemainingBytes();
@@ -130,7 +130,7 @@ ssize_t UdpSocket::Recv(IoVecCursor& iovs) const {
     } else if (bytes < 0) {
       const Errno err(errno);
       if (Interrupted(err)) continue;
-      DCHECK(!WouldBlock(err));
+      if (WouldBlock(err)) return 0;
       LOG(WARNING) << errMsg("readv", err);
       return -1;
     } else {

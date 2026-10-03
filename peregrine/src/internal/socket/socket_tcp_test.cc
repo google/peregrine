@@ -11,11 +11,14 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_test_util.h"
+#include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -59,10 +62,9 @@ class TcpSocketTest : public TestWithParam<SocketTestParam> {
   const std::unique_ptr<TcpSocket> connector_;
 };
 
-// For non-blocking tcp socket tests, see connector_test.cc.
-INSTANTIATE_TEST_SUITE_P(BlockingTcpSocketTest, TcpSocketTest,
+INSTANTIATE_TEST_SUITE_P(, TcpSocketTest,
                          Combine(/*family=*/Values(AF_INET, AF_INET6),
-                                 /*blocking=*/Values(true)),
+                                 /*blocking=*/Values(true, false)),
                          ToString);
 
 TEST_P(TcpSocketTest, ScatterGather) {
@@ -90,7 +92,16 @@ TEST_P(TcpSocketTest, ScatterGather) {
       CHECK(new_socket->IsBlocking());
       CHECK_EQ(new_socket->Recv(*iovs), kDataSize);
     } else {
-      // TODO(yongx): add non-blocking test.
+      SetNonBlockingMode(new_socket->fd());
+      CHECK(new_socket->IsNonBlocking());
+      ssize_t rcvd = 0;
+      while (true) {
+        const ssize_t bytes = new_socket->Recv(*iovs);
+        if (bytes < 0) break;
+        if (rcvd += bytes; rcvd >= kDataSize) break;
+        if (bytes == 0) absl::SleepFor(absl::Milliseconds(10));
+      }
+      CHECK_EQ(rcvd, kDataSize);
     }
   });
 
@@ -106,7 +117,16 @@ TEST_P(TcpSocketTest, ScatterGather) {
       CHECK(connector_->IsBlocking());
       CHECK_EQ(connector_->Send(*iovs), kDataSize);
     } else {
-      // TODO(yongx): add non-blocking test.
+      SetNonBlockingMode(connector_->fd());
+      CHECK(connector_->IsNonBlocking());
+      ssize_t sent = 0;
+      while (true) {
+        const ssize_t bytes = connector_->Send(*iovs);
+        if (bytes < 0) break;
+        if (sent += bytes; sent >= kDataSize) break;
+        if (bytes == 0) absl::SleepFor(absl::Milliseconds(10));
+      }
+      CHECK_EQ(sent, kDataSize);
     }
   });
 
