@@ -36,6 +36,8 @@ TEST_F(IoVecCursorTest, Ctor) {
   EXPECT_EQ(empty.RemainingItems(), 0);
   EXPECT_EQ(empty.RemainingBytes(), 0);
   EXPECT_EQ(empty.Head(), nullptr);
+  EXPECT_EQ(empty.ToString(),
+            "IoVecCursor(index/size: 0/0, bytes_left/total: 0/0)");
 
   IoVecCursor c(iovs_);
   EXPECT_EQ(c.TotalItems(), kTotalItems);

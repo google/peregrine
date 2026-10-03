@@ -27,8 +27,8 @@ class IoVecCursor {
   // Constructor.
   explicit IoVecCursor(absl::Span<const IoVec> iovs)
       : iovs_(iovs.begin(), iovs.end()),
-        cur_(iovs_.data()),
-        end_(cur_ + iovs_.size()),
+        cur_(iovs_.empty() ? nullptr : iovs_.data()),
+        end_(iovs_.empty() ? nullptr : cur_ + iovs_.size()),
         bytes_left_(TotalLength(iovs)),
         bytes_total_(bytes_left_) {
     DCHECK(IsValid(iovs));
@@ -56,10 +56,14 @@ class IoVecCursor {
   size_t RemainingBytes() const { return bytes_left_; }
 
   // Returns the number of remaining iovec items to be advanced.
-  size_t RemainingItems() const { return static_cast<size_t>(end_ - cur_); }
+  size_t RemainingItems() const {
+    return iovs_.empty() ? 0 : static_cast<size_t>(end_ - cur_);
+  }
 
   // Returns a const pointer to the current first iovec.
-  const IoVec* Head() const { return cur_ < end_ ? cur_ : nullptr; }
+  const IoVec* Head() const {
+    return !iovs_.empty() && cur_ < end_ ? cur_ : nullptr;
+  }
 
   // Returns a pointer to the current first iovec.
   IoVec* Head() { return const_cast<IoVec*>(std::as_const(*this).Head()); }
@@ -102,12 +106,17 @@ class IoVecCursor {
   std::string ToString() const {
     return absl::StrFormat(
         "IoVecCursor(index/size: %v/%v, bytes_left/total: %v/%v)",
-        cur_ - iovs_.data(), iovs_.size(), bytes_left_, bytes_total_);
+        iovs_.empty() ? 0 : cur_ - iovs_.data(), iovs_.size(), bytes_left_,
+        bytes_total_);
   }
 
  private:
   // Returns true if the cursor is in a valid state.
   bool invariant() const {
+    if (iovs_.empty()) {
+      return cur_ == nullptr && end_ == nullptr && bytes_left_ == 0 &&
+             bytes_total_ == 0;
+    }
     return IsValid(iovs_) && iovs_.data() <= cur_ && cur_ <= end_ &&
            end_ == iovs_.data() + iovs_.size() && bytes_left_ <= bytes_total_ &&
            bytes_left_ == TotalLength(absl::MakeConstSpan(cur_, end_));
