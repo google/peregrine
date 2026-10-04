@@ -17,7 +17,9 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
+#include "peregrine/src/internal/lib/metric_counter.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/socket/socket_test_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -65,6 +67,15 @@ class TcpManagerTest : public TestWithParam<SocketTestParam> {
       }
     }
     return count;
+  }
+
+  void ConnectAll(MetricCounter<int>& counter) {
+    for (const NicInfo& ni : peers_) {
+      for (const Endpoint& peer : ni.endpoints) {
+        (void)mgr_->Connect(/*self=*/{}, peer, cfg_.blocking);  // may fail
+      }
+    }
+    counter.Add(1);
   }
 
   static void Migrate(std::vector<std::unique_ptr<TcpSocket>> from,
@@ -162,6 +173,50 @@ TEST_P(TcpManagerTest, ConcurrentConnects) {
   for (auto& tc : threads) tc.join();
   mgr_->Stop();
   ta.join();
+}
+
+TEST_P(TcpManagerTest, StopWhileConnecting) {
+  const size_t sockets_before = CountOpenSocketFds();
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
+  ShortSleep();
+
+  // Hammer Connect() from many threads and call Stop() in the middle of it, so
+  // that connects are in flight before, during and after Stop(). Every socket
+  // they create must end up either handed out by Get*Sockets() or closed.
+  const size_t num_peers = NumPeers();
+  constexpr int kNumThreads = 8;
+  constexpr int kRoundsPerThread = 100;
+  MetricCounter<int> rounds_done;
+  std::vector<util::Thread> threads;
+  threads.reserve(kNumThreads);
+  for (int i = 0; i < kNumThreads; ++i) {
+    threads.emplace_back([&]() {
+      for (int n = 0; n < kRoundsPerThread; ++n) {
+        ConnectAll(rounds_done);
+      }
+    });
+  }
+
+  // Drain (and close) until a quarter of the rounds are done, then stop while
+  // the rest are still connecting.
+  constexpr int kStopAfterRounds = kNumThreads * kRoundsPerThread / 4;
+  while (rounds_done.Value() < kStopAfterRounds) {
+    (void)mgr_->GetIncomingSockets();
+    (void)mgr_->GetOutgoingSockets();
+    absl::SleepFor(absl::Milliseconds(1));
+  }
+
+  mgr_->Stop();
+  for (auto& tc : threads) tc.join();
+  ta.join();
+
+  // Stop() emptied the containers and rejected everything added afterwards.
+  EXPECT_TRUE(mgr_->GetIncomingSockets().empty());
+  EXPECT_TRUE(mgr_->GetOutgoingSockets().empty());
+
+  // Besides the listeners closed by Start(), no socket may remain open.
+  const size_t sockets_after = CountOpenSocketFds();
+  EXPECT_EQ(sockets_after, sockets_before - num_peers);
 }
 
 }  // namespace

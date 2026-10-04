@@ -1,12 +1,19 @@
 #include "peregrine/src/internal/socket/socket_test_util.h"
 
+#include <dirent.h>
+#include <unistd.h>
+
 #include <cstddef>
+#include <cstdio>
+#include <cstring>
 #include <memory>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "absl/log/check.h"
 #include "absl/random/random.h"
+#include "absl/strings/match.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -114,6 +121,27 @@ CreateUdpSocketPair(int family, bool blocking) {
   CHECK(sa->IsConnected());
   CHECK(sb->IsConnected());
   return {std::move(sa), std::move(sb)};
+}
+
+size_t CountOpenSocketFds() {
+  // Linux exposes sockets as symbolic links like:
+  // /proc/self/fd/42 -> socket:[12345]
+  DIR* dir = ::opendir("/proc/self/fd");
+  if (dir == nullptr) return 0;
+
+  size_t count = 0;
+  struct dirent* entry;
+  while ((entry = ::readdir(dir)) != nullptr) {
+    if (entry->d_name[0] == '.') continue;
+    char path[64];
+    ::snprintf(path, sizeof(path), "/proc/self/fd/%s", entry->d_name);
+    char target[128];
+    const ssize_t len = ::readlink(path, target, sizeof(target));
+    if (len <= 0) continue;
+    if (absl::StartsWith(std::string_view(target, len), "socket:[")) ++count;
+  }
+  ::closedir(dir);
+  return count;
 }
 
 std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data,

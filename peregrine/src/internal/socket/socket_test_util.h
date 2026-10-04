@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_TEST_UTIL_H_
 #define PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_TEST_UTIL_H_
 
+#include <cstddef>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -27,6 +28,9 @@ CreateTcpSocketPair(int family, bool blocking);
 // Creates a connected udp socket pair.
 std::pair<std::unique_ptr<UdpSocket>, std::unique_ptr<UdpSocket>>
 CreateUdpSocketPair(int family, bool blocking);
+
+// Returns the number of open socket file descriptors in the current process.
+size_t CountOpenSocketFds();
 
 // Creates an IoVecCursor by splitting the given data into `n` parts.
 std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data,
