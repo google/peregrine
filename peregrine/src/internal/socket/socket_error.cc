@@ -1,14 +1,7 @@
 #include "peregrine/src/internal/socket/socket_error.h"
 
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-
 #include <cerrno>
 #include <limits>
-#include <string_view>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"

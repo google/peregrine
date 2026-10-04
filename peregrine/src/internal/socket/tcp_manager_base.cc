@@ -63,7 +63,7 @@ void TcpManagerBase::Listeners::Shutdown() {
 bool TcpManagerBase::Connectors::Invariant() const {
   absl::MutexLock _(mu_);
   return std::all_of(fd2skts_.begin(), fd2skts_.end(), [](const auto& pair) {
-    return IsPair(pair.first, pair.second.socket.get());
+    return IsPairAndNonBlocking(pair.first, pair.second.socket.get());
   });
 }
 

@@ -6,9 +6,6 @@
 #include <sys/socket.h>
 
 #include <cerrno>
-#include <cstddef>
-#include <cstring>
-#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -154,10 +151,8 @@ ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
   DCHECK(IsNonBlocking() || IsBlocking());
   DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
-  const size_t all = iovs.RemainingBytes();
+  const ssize_t all = iovs.RemainingBytes();
   DCHECK_GE(all, 1);
-  DCHECK_LE(all, std::numeric_limits<ssize_t>::max());
-
   ssize_t sent = 0;
   struct msghdr msg = {};
   while (true) {
@@ -169,17 +164,12 @@ ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
       sent += bytes;
       if (iovs.Advance(bytes)) break;
     } else {
+      DCHECK_LT(bytes, 0);
       const Errno err(errno);
-      if ABSL_PREDICT_TRUE (bytes < 0) {
-        if (Interrupted(err)) continue;
-        if (WouldBlock(err)) break;
-        LOG(WARNING) << errMsg("sendmsg", err);
-        return -1;
-      } else {  // won't happen
-        DCHECK_EQ(bytes, 0);
-        LOG(ERROR) << errMsg("sendmsg zero", err);
-        return 0;
-      }
+      if (Interrupted(err)) continue;
+      if (WouldBlock(err)) break;
+      LOG(WARNING) << errMsg("sendmsg", err);
+      return -1;
     }
   }
   DCHECK((IsBlocking() && sent == all) ||
@@ -192,10 +182,8 @@ ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
   DCHECK(IsNonBlocking() || IsBlocking());
   DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
-  const size_t all = iovs.RemainingBytes();
+  const ssize_t all = iovs.RemainingBytes();
   DCHECK_GE(all, 1);
-  DCHECK_LE(all, std::numeric_limits<ssize_t>::max());
-
   ssize_t rcvd = 0;
   while (true) {
     DCHECK_GE(iovs.RemainingBytes(), 1);

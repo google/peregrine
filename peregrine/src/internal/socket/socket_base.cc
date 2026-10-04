@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/socket/socket_base.h"
 
 #include <netinet/in.h>
+#include <sys/socket.h>
 
 #include "absl/log/check.h"
 #include "peregrine/src/internal/base/endpoint.h"

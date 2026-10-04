@@ -1,9 +1,6 @@
 #ifndef PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_ERROR_H_
 #define PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_ERROR_H_
 
-#include <fcntl.h>
-#include <sys/socket.h>
-
 #include <cerrno>
 
 #include "peregrine/src/internal/base/types.h"

@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
-#include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -40,7 +39,7 @@ constexpr uint32_t kOutgoingEvents = EPOLLOUT | EPOLLRDHUP;
 
 std::string EvtMsg(std::string_view what, const fd_t fd, const uint32_t flag,
                    const int err = 0) {
-  return absl::StrFormat("%s fd=%d events=%#x errno=%d @ %s ", what, fd.value(),
+  return absl::StrFormat("%s fd=%d events=%#x errno=%d @ %s", what, fd.value(),
                          flag, err, AddrPortPair(fd));
 }
 }  // namespace
@@ -84,7 +83,6 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
     LOG(ERROR) << "failed to find data plane tcp listener candidates";
     return nullptr;
   }
-  // Pointer stability is required.
   absl::node_hash_map<fd_t, Listener> listeners;
   for (auto& [_, ni] : candidates) {
     NicInfo nic(ni.name, ni.type, {});
@@ -98,6 +96,10 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
       }
     }
     if (nic.IsValid()) self.data_plane_listeners.push_back(nic);
+  }
+  if ABSL_PREDICT_FALSE (listeners.empty()) {
+    LOG(ERROR) << "failed to create data plane tcp listening sockets";
+    return nullptr;
   }
   if ABSL_PREDICT_FALSE (!self.IsValid()) {
     LOG(ERROR) << "invalid self host info " << self;
@@ -125,34 +127,35 @@ int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
 
   const int family = peer.GetIpAddr().AddressFamily();
   auto socket = TcpSocket::Create(family, blocking);
-  if ABSL_PREDICT_FALSE (socket == nullptr) return kConnectError;
-  if (!self.HasZeroIpAddr() && socket->Bind(self) < 0) return kConnectError;
-
-  if (!blocking) {
-    DCHECK(socket->IsNonBlocking());
-    return connectNonBlocking(std::move(socket), peer);
+  if ABSL_PREDICT_FALSE (socket == nullptr) {
+    return kConnectError;
+  } else if (!self.HasZeroIpAddr() && socket->Bind(self) < 0) {
+    return kConnectError;
   } else {
-    DCHECK(socket->IsBlocking());
-    if (socket->Connect(peer) < 0) return kConnectError;
-    DCHECK(socket->IsConnected());
-    LOG(INFO) << "made " << *socket;
-    return outgoing_.Add(std::move(socket)) ? kConnectSuccess : kConnectError;
+    return blocking ? connectBlocking(std::move(socket), peer)
+                    : connectNonBlocking(std::move(socket), peer);
   }
+}
+
+int TcpManager::addConnected(std::unique_ptr<TcpSocket> socket) {
+  DCHECK(socket->IsConnected());
+  LOG(INFO) << "made " << *socket;
+  return outgoing_.Add(std::move(socket)) ? kConnectSuccess : kConnectError;
+}
+
+int TcpManager::connectBlocking(std::unique_ptr<TcpSocket> socket,
+                                const Endpoint& peer) {
+  DCHECK(socket->IsBlocking());
+  if (socket->Connect(peer) < 0) return kConnectError;
+  return addConnected(std::move(socket));
 }
 
 int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
                                    const Endpoint& peer) {
-  static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
-  DCHECK_NE(socket, nullptr);
-  DCHECK(peer.HasNonzeroIpPort());
-
   DCHECK(socket->IsNonBlocking());
-  switch (socket->Connect(peer)) {
-    case kConnectSuccess: {
-      DCHECK(socket->IsConnected());
-      LOG(INFO) << "made " << *socket;
-      return outgoing_.Add(std::move(socket)) ? kConnectSuccess : kConnectError;
-    }
+  switch (const int ret = socket->Connect(peer); ret) {
+    case kConnectSuccess:
+      return addConnected(std::move(socket));
     case kConnectInProgress: {
       DCHECK(!socket->IsConnected());
       LOG(INFO) << "connecting " << *socket;
@@ -238,8 +241,7 @@ bool TcpManager::handleOneOutgoing(const fd_t fd, const uint32_t flag) {
     DCHECK(!socket->IsConnected());
     socket->SetConnected();
     DCHECK(socket->IsConnected());
-    LOG(INFO) << "made " << *socket;
-    (void)outgoing_.Add(std::move(socket));
+    (void)addConnected(std::move(socket));
   }
   return true;
 }
@@ -252,9 +254,10 @@ void TcpManager::Start(bool gen_blocking) {
 
   epoll_event events[kEpollMaxNumEvents];
   while (!isStopped()) {
-    if (const int nfds = poller_->BlockingWait(events, kEpollMaxNumEvents,
-                                               kEpollWaitTimeoutMs);
-        nfds > 0) {
+    const int nfds =
+        poller_->BlockingWait(events, kEpollMaxNumEvents, kEpollWaitTimeoutMs);
+    if (isStopped()) break;
+    if (nfds > 0) {
       for (int i = 0; i < nfds; ++i) {
         const auto& e = events[i];
         const fd_t fd(e.data.fd);
@@ -265,7 +268,6 @@ void TcpManager::Start(bool gen_blocking) {
         poller_->Unregister(fd);  // stop it from firing again
       }
     } else if (nfds < 0) {
-      if (isStopped()) break;
       LOG_EVERY_N_SEC(ERROR, 1) << "poller wait failed";
       absl::SleepFor(absl::Milliseconds(10));  // avoid busy-looping
     }

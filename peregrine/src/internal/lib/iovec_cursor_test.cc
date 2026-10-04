@@ -30,7 +30,8 @@ class IoVecCursorTest : public ::testing::Test {
 };
 
 TEST_F(IoVecCursorTest, Ctor) {
-  EXPECT_DEBUG_DEATH(IoVecCursor empty({}), "empty input");
+  EXPECT_DEBUG_DEATH(IoVecCursor empty({}), "");
+  EXPECT_DEBUG_DEATH(IoVecCursor too_big({IoVec{a_, 1ULL << 63}}), "");
 
   IoVecCursor c(iovs_);
   EXPECT_EQ(c.TotalItems(), kTotalItems);

@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 
+#include <cstddef>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -46,19 +47,18 @@ inline bool MatchesBlockingMode(fd_t fd, bool blocking) {
 
 // Sets the socket to the specified blocking mode.
 // Returns 0 on success, -1 otherwise.
-// For internal use only.
-int __set_blocking_mode(fd_t fd, bool blocking);
+int SetSocketBlockingMode(fd_t fd, bool blocking);
 
 // Sets the socket to blocking mode.
 // Returns 0 on success, -1 otherwise.
 inline int SetBlockingMode(fd_t fd) {
-  return __set_blocking_mode(fd, /*blocking=*/true);
+  return SetSocketBlockingMode(fd, /*blocking=*/true);
 }
 
 // Sets the socket to non-blocking mode.
 // Returns 0 on success, -1 otherwise.
 inline int SetNonBlockingMode(fd_t fd) {
-  return __set_blocking_mode(fd, /*blocking=*/false);
+  return SetSocketBlockingMode(fd, /*blocking=*/false);
 }
 
 // Returns the self ip:port string for the socket `fd`.

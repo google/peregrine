@@ -88,7 +88,7 @@ TEST_P(SocketUtilTest, Basic) {
 }
 
 TEST(SocketUtilBasicTest, ToIPv4AddrPortString) {
-  struct sockaddr_storage ss;
+  struct sockaddr_storage ss = {};
   struct sockaddr_in* sa_in = (struct sockaddr_in*)&ss;
   sa_in->sin_family = AF_INET;
   sa_in->sin_port = htons(23456);
@@ -97,7 +97,7 @@ TEST(SocketUtilBasicTest, ToIPv4AddrPortString) {
 }
 
 TEST(SocketUtilBasicTest, ToIPv6AddrPortString) {
-  struct sockaddr_storage ss;
+  struct sockaddr_storage ss = {};
   struct sockaddr_in6* sa_in6 = (struct sockaddr_in6*)&ss;
   sa_in6->sin6_family = AF_INET6;
   sa_in6->sin6_port = htons(34567);

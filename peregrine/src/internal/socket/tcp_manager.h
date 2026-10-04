@@ -73,12 +73,18 @@ class TcpManager : public TcpManagerBase {
   bool handleAllIncoming(fd_t fd, uint32_t flag, bool gen_blocking);
 
  private:
+  // Creates a blocking tcp connecting socket to the `peer` endpoint.
+  int connectBlocking(std::unique_ptr<TcpSocket> socket, const Endpoint& peer);
+
   // Creates a non-blocking tcp connecting socket to the `peer` endpoint.
   int connectNonBlocking(std::unique_ptr<TcpSocket> socket,
                          const Endpoint& peer);
 
   // Handles one outgoing connection on the connecting socket `fd`.
   bool handleOneOutgoing(fd_t fd, uint32_t flag);
+
+  // Adds a connected socket to the outgoing sockets.
+  int addConnected(std::unique_ptr<TcpSocket> socket);
 
  private:
   const HostInfo self_;

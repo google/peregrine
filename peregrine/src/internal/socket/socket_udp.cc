@@ -6,9 +6,6 @@
 #include <sys/socket.h>
 
 #include <cerrno>
-#include <cstddef>
-#include <cstring>
-#include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -90,10 +87,8 @@ ssize_t UdpSocket::Send(IoVecCursor& iovs) const {
   DCHECK(IsNonBlocking() || IsBlocking());
   DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
-  const size_t all = iovs.RemainingBytes();
+  const ssize_t all = iovs.RemainingBytes();
   DCHECK_GE(all, 1);
-  DCHECK_LE(all, std::numeric_limits<ssize_t>::max());
-
   while (true) {
     const ssize_t bytes =
         ::writev(fd_.value(), iovs.Head(), iovs.RemainingItems());
@@ -102,12 +97,14 @@ ssize_t UdpSocket::Send(IoVecCursor& iovs) const {
       VLOG(1) << ioMsg("writev", bytes);
       iovs.Advance(bytes);
       return bytes;
+    } else {
+      DCHECK_LT(bytes, 0);
+      const Errno err(errno);
+      if (Interrupted(err)) continue;
+      if (WouldBlock(err)) return 0;
+      LOG(WARNING) << errMsg("writev", err);
+      return -1;
     }
-    const Errno err(errno);
-    if (Interrupted(err)) continue;
-    if (WouldBlock(err)) return 0;
-    LOG(WARNING) << errMsg("writev", err);
-    return -1;
   }
 }
 
@@ -116,14 +113,13 @@ ssize_t UdpSocket::Recv(IoVecCursor& iovs) const {
   DCHECK(IsNonBlocking() || IsBlocking());
   DCHECK_LE(iovs.TotalItems(), IOV_MAX);
 
-  const size_t all = iovs.RemainingBytes();
+  const ssize_t all = iovs.RemainingBytes();
   DCHECK_GE(all, 1);
-  DCHECK_LE(all, std::numeric_limits<ssize_t>::max());
-
   while (true) {
     const ssize_t bytes =
         ::readv(fd_.value(), iovs.Head(), iovs.RemainingItems());
     if ABSL_PREDICT_TRUE (bytes > 0) {
+      DCHECK_LE(bytes, all);
       VLOG(1) << ioMsg("readv", bytes);
       iovs.Advance(bytes);
       return bytes;

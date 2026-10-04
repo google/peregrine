@@ -262,7 +262,6 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/event:poller",
         "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:node_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",

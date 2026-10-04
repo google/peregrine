@@ -4,11 +4,9 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include <sys/types.h>
 
 #include <cerrno>
 #include <string>
-#include <string_view>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
@@ -52,7 +50,7 @@ bool IsNonBlockingMode(const fd_t fd) {
   return flags >= 0 && (flags & O_NONBLOCK);
 }
 
-int __set_blocking_mode(const fd_t fd, const bool blocking) {
+int SetSocketBlockingMode(const fd_t fd, const bool blocking) {
   const int flags = ::fcntl(fd.value(), F_GETFL);
   if ABSL_PREDICT_FALSE (flags < 0) return -1;
   const int cmd = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);

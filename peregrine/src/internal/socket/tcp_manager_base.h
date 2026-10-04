@@ -58,7 +58,6 @@ class TcpManagerBase {
 
    private:
     mutable absl::Mutex mu_;
-    // Pointer stability is required.
     absl::node_hash_map<fd_t, Listener> fd2skts_ ABSL_GUARDED_BY(mu_);
   };
 

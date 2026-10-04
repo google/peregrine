@@ -31,7 +31,7 @@ inline std::pair<Byte*, size_t> BufLen(const IoVec& iov) {
 
 // Returns true iff the `IoVec` is valid.
 inline bool IsValid(const IoVec& v) {
-  return v.iov_base != nullptr && v.iov_len > 0;
+  return v.iov_base != nullptr && v.iov_len >= 1;
 }
 
 // Returns true iff all the `iovecs` are valid.

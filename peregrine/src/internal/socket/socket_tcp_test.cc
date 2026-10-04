@@ -92,7 +92,6 @@ TEST_P(TcpSocketTest, ScatterGather) {
       CHECK(new_socket->IsBlocking());
       CHECK_EQ(new_socket->Recv(*iovs), kDataSize);
     } else {
-      SetNonBlockingMode(new_socket->fd());
       CHECK(new_socket->IsNonBlocking());
       ssize_t rcvd = 0;
       while (true) {

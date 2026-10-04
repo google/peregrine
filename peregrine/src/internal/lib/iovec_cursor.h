@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <initializer_list>
+#include <limits>
 #include <ostream>
 #include <string>
 #include <utility>
@@ -24,15 +25,15 @@ namespace peregrine::internal {
 // It is thread-compatible but not thread-safe.
 class IoVecCursor {
  public:
-  // Constructor (empty input is not allowed).
+  // Constructor (with input span in [1, 2^63 - 1] bytes).
   explicit IoVecCursor(absl::Span<const IoVec> iovs)
       : iovs_(iovs.begin(), iovs.end()),
         cur_(iovs_.data()),
         end_(cur_ + iovs_.size()),
         bytes_left_(TotalLength(iovs)),
         bytes_total_(bytes_left_) {
-    DCHECK(!iovs.empty()) << "empty input";
-    DCHECK(IsValid(iovs));
+    DCHECK_GE(TotalLength(iovs), 1);
+    DCHECK_LT(TotalLength(iovs), 1ULL << 63);
     DCHECK(invariant());
   }
 
@@ -111,7 +112,8 @@ class IoVecCursor {
   bool invariant() const {
     return IsValid(iovs_) && iovs_.data() <= cur_ && cur_ <= end_ &&
            end_ == iovs_.data() + iovs_.size() && bytes_left_ <= bytes_total_ &&
-           bytes_left_ == TotalLength(absl::MakeConstSpan(cur_, end_));
+           bytes_left_ == TotalLength(absl::MakeConstSpan(cur_, end_)) &&
+           bytes_left_ <= std::numeric_limits<ssize_t>::max();
   }
 
  private:
