@@ -276,6 +276,7 @@ cc_test(
     srcs = ["tcp_manager_test.cc"],
     shard_count = 4,
     deps = [
+        ":socket_tcp",
         ":tcp_manager",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",

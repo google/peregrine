@@ -67,6 +67,11 @@ bool TcpManagerBase::Connectors::Invariant() const {
   });
 }
 
+void TcpManagerBase::Connectors::Seal() {
+  absl::MutexLock _(mu_);
+  sealed_ = true;
+}
+
 bool TcpManagerBase::Connectors::Add(const fd_t fd,
                                      std::unique_ptr<TcpSocket> socket,
                                      absl::FunctionRef<bool(fd_t)> on_add) {
@@ -74,7 +79,7 @@ bool TcpManagerBase::Connectors::Add(const fd_t fd,
   DCHECK(!socket->IsConnected());
   {
     absl::MutexLock _(mu_);
-    if ABSL_PREDICT_TRUE (!closed_ && on_add(fd)) {
+    if ABSL_PREDICT_TRUE (!sealed_ && on_add(fd)) {
       LOG(INFO) << "added connector " << *socket;
       fd2skts_.emplace(fd, Connector{std::move(socket)});
       return true;
@@ -101,7 +106,7 @@ void TcpManagerBase::Connectors::Close() {
   absl::flat_hash_map<fd_t, Connector> doomed;
   {
     absl::MutexLock _(mu_);
-    closed_ = true;
+    DCHECK(sealed_);
     doomed.swap(fd2skts_);
   }
   doomed.clear();  // sockets are closed outside the lock
@@ -114,12 +119,17 @@ bool TcpManagerBase::Produced::Invariant() const {
   });
 }
 
+void TcpManagerBase::Produced::Seal() {
+  absl::MutexLock _(mu_);
+  sealed_ = true;
+}
+
 bool TcpManagerBase::Produced::Add(std::unique_ptr<TcpSocket> socket) {
   DCHECK_NE(socket, nullptr);
   DCHECK(socket->IsConnected());
   {
     absl::MutexLock _(mu_);
-    if ABSL_PREDICT_TRUE (!closed_) {
+    if ABSL_PREDICT_TRUE (!sealed_) {
       LOG(INFO) << "added socket " << *socket;
       sockets_.emplace_back(std::move(socket));
       return true;
@@ -138,7 +148,7 @@ void TcpManagerBase::Produced::Close() {
   std::vector<std::unique_ptr<TcpSocket>> doomed;
   {
     absl::MutexLock _(mu_);
-    closed_ = true;
+    DCHECK(sealed_);
     doomed.swap(sockets_);
   }
   doomed.clear();  // sockets are closed outside the lock

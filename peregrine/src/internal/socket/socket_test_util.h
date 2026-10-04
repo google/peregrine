@@ -29,7 +29,8 @@ std::pair<std::unique_ptr<UdpSocket>, std::unique_ptr<UdpSocket>>
 CreateUdpSocketPair(int family, bool blocking);
 
 // Creates an IoVecCursor by splitting the given data into `n` parts.
-std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data, int n);
+std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data,
+                                               int splits);
 
 // Creates an IoVecCursor by splitting the given data into `n` parts.
 inline std::unique_ptr<IoVecCursor> CreateIoVecCursor(std::vector<Byte>& data,

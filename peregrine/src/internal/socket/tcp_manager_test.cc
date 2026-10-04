@@ -6,6 +6,7 @@
 #include <memory>
 #include <numeric>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -16,6 +17,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
+#include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -65,14 +67,9 @@ class TcpManagerTest : public TestWithParam<SocketTestParam> {
     return count;
   }
 
-  size_t DrainAccepted() {
-    auto accepted = mgr_->GetIncomingSockets();
-    return accepted.size();
-  }
-
-  size_t DrainConnected() {
-    auto connected = mgr_->GetOutgoingSockets();
-    return connected.size();
+  static void Migrate(std::vector<std::unique_ptr<TcpSocket>> from,
+                      std::vector<std::unique_ptr<TcpSocket>>& to) {
+    for (auto& socket : from) to.push_back(std::move(socket));
   }
 
  protected:
@@ -141,22 +138,26 @@ TEST_P(TcpManagerTest, ConcurrentConnects) {
   }
   LongSleep();  // Give threads some time to connect.
 
-  // Drain sockets concurrently with the connecting threads.
-  // Each connect produces one accepted and one connected socket.
-  size_t count = 0;
+  // Drain sockets concurrently with the connecting threads, keeping them open
+  // until the end so that closing one side cannot make the other side hang up
+  // before it is produced. Each connect produces one accepted and one
+  // connected socket.
   const size_t expected = 2 * num_connects;
-  const absl::Time deadline = absl::Now() + absl::Seconds(10);
-  while (count < expected && absl::Now() < deadline) {
-    count += DrainAccepted();
-    count += DrainConnected();
+  const absl::Time deadline = absl::Now() + absl::Seconds(60);
+  std::vector<std::unique_ptr<TcpSocket>> all_sockets;
+  all_sockets.reserve(expected);
+  while (all_sockets.size() < expected && absl::Now() < deadline) {
+    Migrate(mgr_->GetIncomingSockets(), all_sockets);
+    Migrate(mgr_->GetOutgoingSockets(), all_sockets);
     absl::SleepFor(absl::Milliseconds(1));
   }
-  // Draining one side closes the sockets, which might cause the other side
-  // to be closed and missed in the subsequent drain operation. Together with
-  // potential listen backlog overflows under high concurrency, this race
-  // condition justifies a non-100% threshold even on loopback.
+  const size_t count = all_sockets.size();
+  all_sockets.clear();
+
+  // Potential listen backlog overflows under high concurrency justifies
+  // a non-100% threshold even on loopback.
   LOG(INFO) << "accepted/connected=" << count << ", expected=" << expected;
-  EXPECT_GT(count, expected * 95 / 100);
+  EXPECT_GE(count, expected * 99 / 100);
 
   for (auto& tc : threads) tc.join();
   mgr_->Stop();

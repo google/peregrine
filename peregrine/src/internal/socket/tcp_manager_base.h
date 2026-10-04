@@ -68,6 +68,10 @@ class TcpManagerBase {
     // Returns true iff all the sockets are valid.
     bool Invariant() const ABSL_LOCKS_EXCLUDED(mu_);
 
+    // Disallows adding new sockets. It must be called before `Close()`.
+    // After this call, `Add()` closes the given socket instead of adding it.
+    void Seal() ABSL_LOCKS_EXCLUDED(mu_);
+
     // Adds a connecting socket and calls `on_add(fd)` atomically with respect
     // to `Close()`, and returns true. If `Close()` has been called or `on_add`
     // returns false, closes the `socket` instead of adding it, and returns
@@ -81,13 +85,12 @@ class TcpManagerBase {
     // from the internal container. If `fd` does not exist, returns nullptr.
     std::unique_ptr<TcpSocket> Remove(fd_t fd) ABSL_LOCKS_EXCLUDED(mu_);
 
-    // Removes and closes all the connecting sockets. After this call, `Add()`
-    // closes the given socket instead of adding it.
+    // Removes and closes all the connecting sockets.
     void Close() ABSL_LOCKS_EXCLUDED(mu_);
 
    private:
     mutable absl::Mutex mu_;
-    bool closed_ ABSL_GUARDED_BY(mu_) = false;
+    bool sealed_ ABSL_GUARDED_BY(mu_) = false;
     absl::flat_hash_map<fd_t, Connector> fd2skts_ ABSL_GUARDED_BY(mu_);
   };
 
@@ -97,6 +100,10 @@ class TcpManagerBase {
    public:
     // Returns true iff all the sockets are non-null and connected.
     bool Invariant() const ABSL_LOCKS_EXCLUDED(mu_);
+
+    // Disallows adding new sockets. It must be called before `Close()`.
+    // After this call, `Add()` closes the given socket instead of adding it.
+    void Seal() ABSL_LOCKS_EXCLUDED(mu_);
 
     // Adds a connected socket and returns true. If `Close()` has been called,
     // closes the `socket` instead of adding it, and returns false.
@@ -108,13 +115,12 @@ class TcpManagerBase {
     // unless `Close()` has been called.
     std::vector<std::unique_ptr<TcpSocket>> MoveAll() ABSL_LOCKS_EXCLUDED(mu_);
 
-    // Removes and closes all the connected sockets. After this call, `Add()`
-    // closes the given socket instead of adding it.
+    // Removes and closes all the connected sockets.
     void Close() ABSL_LOCKS_EXCLUDED(mu_);
 
    private:
     mutable absl::Mutex mu_;
-    bool closed_ ABSL_GUARDED_BY(mu_) = false;
+    bool sealed_ ABSL_GUARDED_BY(mu_) = false;
     std::vector<std::unique_ptr<TcpSocket>> sockets_ ABSL_GUARDED_BY(mu_);
   };
 };

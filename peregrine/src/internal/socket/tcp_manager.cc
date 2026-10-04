@@ -114,7 +114,10 @@ TcpManager::TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
     : self_(self),
       stop_(false),
       poller_(std::move(poller)),
-      listeners_(std::move(sockets)) {
+      listeners_(std::move(sockets)),
+      connectors_(),
+      incoming_(),
+      outgoing_() {
   DCHECK(invariant());
 }
 
@@ -204,10 +207,10 @@ bool TcpManager::handleAllIncoming(const fd_t fd, const uint32_t flag,
           LOG(INFO) << EvtMsg("listening", fd, flag);
           removeListener(fd);
         } else if (IsOutOfResource(ret)) {
-          LOG_EVERY_N_SEC(ERROR, 3) << "accept out of resource, " << *listener;
+          LOG_EVERY_N_SEC(ERROR, 3) << EvtMsg("out of resource", fd, flag);
           absl::SleepFor(absl::Milliseconds(50));  // avoid busy-looping
         } else {
-          LOG_EVERY_N_SEC(ERROR, 1) << "accept failed, " << *listener;
+          LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("accept failed", fd, flag);
           absl::SleepFor(absl::Milliseconds(10));  // avoid busy-looping
         }
         break;
@@ -264,8 +267,7 @@ void TcpManager::Start(bool gen_blocking) {
         const uint32_t flag = e.events;
         if (handleAllIncoming(fd, flag, gen_blocking)) continue;
         if (handleOneOutgoing(fd, flag)) continue;
-        LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("unhandled", fd, flag);
-        poller_->Unregister(fd);  // stop it from firing again
+        DCHECK(false) << EvtMsg("unhandled", fd, flag);
       }
     } else if (nfds < 0) {
       LOG_EVERY_N_SEC(ERROR, 1) << "poller wait failed";
@@ -278,7 +280,11 @@ void TcpManager::Start(bool gen_blocking) {
 
 void TcpManager::Stop() {
   DCHECK(invariant());
-  stop_.store(true, std::memory_order_relaxed);
+
+  connectors_.Seal();
+  incoming_.Seal();
+  outgoing_.Seal();
+  stop_.store(true, std::memory_order_release);
   listeners_.Shutdown();  // unblocks BlockingWait() above
   incoming_.Close();
   outgoing_.Close();

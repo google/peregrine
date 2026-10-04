@@ -31,7 +31,8 @@ class TcpManager : public TcpManagerBase {
   // the manager.
   void Start(bool gen_blocking);
 
-  // Stops the manager.
+  // Stops the manager. No further `Connect()` succeeds, no new sockets will be
+  // produced, and `Start()` returns promptly.
   void Stop();
 
   // Connects the `self` endpoint to the `peer` in blocking/non-blocking mode.
@@ -55,7 +56,7 @@ class TcpManager : public TcpManagerBase {
              absl::node_hash_map<fd_t, Listener> sockets);
 
   // Returns true iff the stop flag is true.
-  bool isStopped() const { return stop_.load(std::memory_order_relaxed); }
+  bool isStopped() const { return stop_.load(std::memory_order_acquire); }
 
   // Returns true iff it is in a valid state.
   bool invariant() const;
