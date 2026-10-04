@@ -42,7 +42,8 @@ class TcpManagerTest : public TestWithParam<SocketTestParam> {
       : cfg_(GetParam()),
         self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
         mgr_(TcpManager::Create(self_)),
-        peers_(self_.data_plane_listeners) {
+        peers_(self_.data_plane_listeners),
+        num_peer_endpoints_(NumPeerEndpoints()) {
     CHECK(self_.IsValid());
     CHECK_NE(mgr_, nullptr);
   }
@@ -50,32 +51,35 @@ class TcpManagerTest : public TestWithParam<SocketTestParam> {
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(100)); }
   static void LongSleep() { absl::SleepFor(absl::Seconds(1)); }
 
-  size_t NumPeers() {
+  size_t NumPeerEndpoints() {
     return std::accumulate(peers_.begin(), peers_.end(), size_t{0},
                            [](size_t sum, const NicInfo& ni) {
                              return sum + ni.endpoints.size();
                            });
   }
 
-  size_t ConnectAll() {
+  size_t ConnectAll(int rounds) {
     size_t count = 0;
     for (const NicInfo& ni : peers_) {
       for (const Endpoint& peer : ni.endpoints) {
-        const int ret = mgr_->Connect(/*self=*/{}, peer, cfg_.blocking);
-        CHECK_GE(ret, 0) << "failed to connect to " << peer;
-        ++count;
+        for (int i = 0; i < rounds; ++i) {
+          const int ret = mgr_->Connect(/*self=*/{}, peer, cfg_.blocking);
+          CHECK_GE(ret, 0) << "failed to connect to " << peer;
+          ++count;
+        }
       }
     }
     return count;
   }
 
-  void ConnectAll(MetricCounter<int>& counter) {
-    for (const NicInfo& ni : peers_) {
-      for (const Endpoint& peer : ni.endpoints) {
-        (void)mgr_->Connect(/*self=*/{}, peer, cfg_.blocking);  // may fail
+  void ConnectAll(MetricCounter<int>& rounds_done, int rounds) {
+    for (int i = 0; i < rounds; ++i) {
+      for (const NicInfo& ni : peers_) {
+        for (const Endpoint& peer : ni.endpoints)
+          (void)mgr_->Connect(/*self=*/{}, peer, cfg_.blocking);  // may fail
       }
+      rounds_done.Add(1);
     }
-    counter.Add(1);
   }
 
   static void Migrate(std::vector<std::unique_ptr<TcpSocket>> from,
@@ -88,6 +92,7 @@ class TcpManagerTest : public TestWithParam<SocketTestParam> {
   HostInfo self_;
   std::unique_ptr<TcpManager> mgr_;
   const std::vector<NicInfo> peers_;
+  const size_t num_peer_endpoints_;
 };
 
 INSTANTIATE_TEST_SUITE_P(, TcpManagerTest,
@@ -113,7 +118,7 @@ TEST_P(TcpManagerTest, AcceptBeforeConnect) {
   util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
   ShortSleep();
 
-  util::Thread tc([&]() { ConnectAll(); });
+  util::Thread tc([&]() { ConnectAll(/*rounds=*/1); });
   tc.join();
 
   mgr_->Stop();
@@ -121,7 +126,7 @@ TEST_P(TcpManagerTest, AcceptBeforeConnect) {
 }
 
 TEST_P(TcpManagerTest, ConnectBeforeAccept) {
-  util::Thread tc([&]() { ConnectAll(); });
+  util::Thread tc([&]() { ConnectAll(/*rounds=*/1); });
   ShortSleep();
 
   util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
@@ -136,15 +141,15 @@ TEST_P(TcpManagerTest, ConcurrentConnects) {
   ShortSleep();
 
   constexpr size_t kNumThreads = 100;
-  const size_t num_peers = NumPeers();
-  const size_t num_connects = kNumThreads * num_peers;
+  constexpr int kRoundsPerThread = 10;
+  constexpr int kRounds = kNumThreads * kRoundsPerThread;
 
   std::vector<util::Thread> threads;
   threads.reserve(kNumThreads);
   for (size_t i = 0; i < kNumThreads; ++i) {
     threads.emplace_back([&, i]() {
       LOG(INFO) << "connecting thread #" << i << "...";
-      ConnectAll();
+      ConnectAll(kRoundsPerThread);
     });
   }
   LongSleep();  // Give threads some time to connect.
@@ -153,7 +158,7 @@ TEST_P(TcpManagerTest, ConcurrentConnects) {
   // until the end so that closing one side cannot make the other side hang up
   // before it is produced. Each connect produces one accepted and one
   // connected socket.
-  const size_t expected = 2 * num_connects;
+  const size_t expected = 2 * kRounds * num_peer_endpoints_;
   const absl::Time deadline = absl::Now() + absl::Seconds(60);
   std::vector<std::unique_ptr<TcpSocket>> all_sockets;
   all_sockets.reserve(expected);
@@ -183,17 +188,15 @@ TEST_P(TcpManagerTest, StopWhileConnecting) {
   // Hammer Connect() from many threads and call Stop() in the middle of it, so
   // that connects are in flight before, during and after Stop(). Every socket
   // they create must end up either handed out by Get*Sockets() or closed.
-  const size_t num_peers = NumPeers();
-  constexpr int kNumThreads = 8;
+  constexpr int kNumThreads = 10;
   constexpr int kRoundsPerThread = 100;
   MetricCounter<int> rounds_done;
   std::vector<util::Thread> threads;
   threads.reserve(kNumThreads);
   for (int i = 0; i < kNumThreads; ++i) {
-    threads.emplace_back([&]() {
-      for (int n = 0; n < kRoundsPerThread; ++n) {
-        ConnectAll(rounds_done);
-      }
+    threads.emplace_back([&, i]() {
+      LOG(INFO) << "connecting thread #" << i << "...";
+      ConnectAll(rounds_done, kRoundsPerThread);
     });
   }
 
@@ -216,7 +219,7 @@ TEST_P(TcpManagerTest, StopWhileConnecting) {
 
   // Besides the listeners closed by Start(), no socket may remain open.
   const size_t sockets_after = CountOpenSocketFds();
-  EXPECT_EQ(sockets_after, sockets_before - num_peers);
+  EXPECT_EQ(sockets_after, sockets_before - num_peer_endpoints_);
 }
 
 }  // namespace
