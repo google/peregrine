@@ -81,7 +81,7 @@ CreateTcpSocketPair(int family, bool blocking) {
     const Endpoint self = {};
     const Endpoint peer = PickPeer(a);
     connector_started.Notify();
-    mgr->Connect(self, peer, blocking);
+    CHECK_GE(mgr->Connect(self, peer, blocking), 0);
   });
 
   acceptor_started.WaitForNotification();
@@ -154,7 +154,7 @@ std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data,
   DCHECK_GE(splits, 1);
   DCHECK_LE(splits, data.size());
 
-  Byte* const ptr = (Byte* const)data.data();
+  Byte* const ptr = data.data();
   const size_t seg = data.size() / splits;
   DCHECK_GE(seg, 1);
 

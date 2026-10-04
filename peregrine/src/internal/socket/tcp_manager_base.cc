@@ -79,8 +79,8 @@ bool TcpManagerBase::Connectors::Add(const fd_t fd,
   DCHECK(!socket->IsConnected());
   {
     absl::MutexLock _(mu_);
-    if ABSL_PREDICT_TRUE (!sealed_ && on_add(fd)) {
-      LOG(INFO) << "added connector " << *socket;
+    if ABSL_PREDICT_TRUE (!sealed_ && !fd2skts_.contains(fd) && on_add(fd)) {
+      LOG(INFO) << "added socket " << *socket;
       fd2skts_.emplace(fd, Connector{std::move(socket)});
       return true;
     }

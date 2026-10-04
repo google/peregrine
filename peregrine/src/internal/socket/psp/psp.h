@@ -7,9 +7,7 @@
 #include <cstring>
 #include <ostream>
 #include <string>
-#include <string_view>
 
-#include "absl/strings/escaping.h"
 #include "absl/strings/str_format.h"
 #include "peregrine/src/util/strong_int.h"
 
@@ -35,10 +33,10 @@ struct PspToken final {
   bool IsValid() const { return spi.value() != 0; }
 
   // Returns a string representation of the psp token.
+  // The key is deliberately redacted, since this is used for logging.
   std::string ToString() const {
-    const std::string_view kv{(const char*)key.data(), key.size()};
-    return absl::StrFormat("PspToken(spi=%u, gen=%u, key=0x%s)", spi.value(),
-                           gen.value(), absl::BytesToHexString(kv));
+    return absl::StrFormat("PspToken(spi=%u, gen=%u, key=<redacted>)",
+                           spi.value(), gen.value());
   }
 };
 static_assert(sizeof(PspToken) == 24);

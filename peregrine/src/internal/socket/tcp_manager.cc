@@ -83,6 +83,7 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
     LOG(ERROR) << "failed to find data plane tcp listener candidates";
     return nullptr;
   }
+  HostInfo host = self;  // only update `self` on success
   absl::node_hash_map<fd_t, Listener> listeners;
   for (auto& [_, ni] : candidates) {
     NicInfo nic(ni.name, ni.type, {});
@@ -91,20 +92,23 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
         const fd_t fd = socket->fd();
         DCHECK(e.HasNonzeroIpPort());
         DCHECK_EQ(e, SelfEndpoint(fd));
-        listeners.emplace(fd, Listener{std::move(socket)});
+        const bool inserted =
+            listeners.emplace(fd, Listener{std::move(socket)}).second;
+        DCHECK(inserted) << "duplicate listener fd=" << fd;
         nic.endpoints.push_back(e);
       }
     }
-    if (nic.IsValid()) self.data_plane_listeners.push_back(nic);
+    if (nic.IsValid()) host.data_plane_listeners.push_back(nic);
   }
   if ABSL_PREDICT_FALSE (listeners.empty()) {
     LOG(ERROR) << "failed to create data plane tcp listening sockets";
     return nullptr;
   }
-  if ABSL_PREDICT_FALSE (!self.IsValid()) {
-    LOG(ERROR) << "invalid self host info " << self;
+  if ABSL_PREDICT_FALSE (!host.IsValid()) {
+    LOG(ERROR) << "invalid self host info " << host;
     return nullptr;
   }
+  self = host;
   auto m = new TcpManager(self, std::move(poller), std::move(listeners));
   return absl::WrapUnique(m);
 }

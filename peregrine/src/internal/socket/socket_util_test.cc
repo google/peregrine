@@ -44,46 +44,46 @@ TEST_P(SocketUtilTest, Basic) {
   ASSERT_FALSE(IsValidSocket(fd_t(-1)));
   ASSERT_FALSE(IsValidSocket(fd_t(-2)));
 
-    for (int type : {SOCK_STREAM, SOCK_DGRAM}) {
-      const std::string proto = type == SOCK_STREAM ? "tcp" : "udp";
-      const fd_t fd = CreateSocket(cfg_.family, type, cfg_.blocking);
-      ASSERT_GE(fd.value(), 0);
-      ASSERT_TRUE(IsValidSocket(fd));
-      ASSERT_TRUE(MatchesBlockingMode(fd, cfg_.blocking));
-      LOG(INFO) << SuccessMsg(proto, "created", fd);
+  for (int type : {SOCK_STREAM, SOCK_DGRAM}) {
+    const std::string proto = type == SOCK_STREAM ? "tcp" : "udp";
+    const fd_t fd = CreateSocket(cfg_.family, type, cfg_.blocking);
+    ASSERT_GE(fd.value(), 0);
+    ASSERT_TRUE(IsValidSocket(fd));
+    ASSERT_TRUE(MatchesBlockingMode(fd, cfg_.blocking));
+    LOG(INFO) << SuccessMsg(proto, "created", fd);
 
-      int on = 1, off = 0;
-      EXPECT_TRUE(!SetSocketOption(fd, SO_REUSEADDR, &on, sizeof(on)));
-      EXPECT_TRUE(!SetSocketOption(fd, SO_REUSEADDR, &off, sizeof(off)));
+    int on = 1, off = 0;
+    EXPECT_TRUE(!SetSocketOption(fd, SO_REUSEADDR, &on, sizeof(on)));
+    EXPECT_TRUE(!SetSocketOption(fd, SO_REUSEADDR, &off, sizeof(off)));
 
-      int err = -3;
-      socklen_t len = sizeof(err);
-      EXPECT_TRUE(!GetSocketOption(fd, SO_ERROR, &err, &len));
-      EXPECT_EQ(err, 0);
-      EXPECT_EQ(GetSocketError(fd), 0);
+    int err = -3;
+    socklen_t len = sizeof(err);
+    EXPECT_TRUE(!GetSocketOption(fd, SO_ERROR, &err, &len));
+    EXPECT_EQ(err, 0);
+    EXPECT_EQ(GetSocketError(fd), 0);
 
-      EXPECT_TRUE(!SetBlockingMode(fd));
-      EXPECT_TRUE(IsBlockingMode(fd));
-      EXPECT_FALSE(IsNonBlockingMode(fd));
-      EXPECT_TRUE(MatchesBlockingMode(fd, true));
+    EXPECT_TRUE(!SetBlockingMode(fd));
+    EXPECT_TRUE(IsBlockingMode(fd));
+    EXPECT_FALSE(IsNonBlockingMode(fd));
+    EXPECT_TRUE(MatchesBlockingMode(fd, true));
 
-      EXPECT_TRUE(!SetNonBlockingMode(fd));
-      EXPECT_TRUE(IsNonBlockingMode(fd));
-      EXPECT_FALSE(IsBlockingMode(fd));
-      EXPECT_TRUE(MatchesBlockingMode(fd, false));
+    EXPECT_TRUE(!SetNonBlockingMode(fd));
+    EXPECT_TRUE(IsNonBlockingMode(fd));
+    EXPECT_FALSE(IsBlockingMode(fd));
+    EXPECT_TRUE(MatchesBlockingMode(fd, false));
 
-      if (cfg_.family == AF_INET) {
-        EXPECT_EQ(SelfAddrPort(fd), "0.0.0.0:0");
-      } else {
-        EXPECT_EQ(SelfAddrPort(fd), "[::]:0");
-      }
-        EXPECT_EQ(PeerAddrPort(fd), "*");  // not connected
+    if (cfg_.family == AF_INET) {
+      EXPECT_EQ(SelfAddrPort(fd), "0.0.0.0:0");
+    } else {
+      EXPECT_EQ(SelfAddrPort(fd), "[::]:0");
+    }
+    EXPECT_EQ(PeerAddrPort(fd), "*");  // not connected
 
-        LOG(INFO) << "ip:port pair = " << AddrPortPair(fd);
-        LOG(INFO) << SuccessMsg(proto, "close", fd);
+    LOG(INFO) << "ip:port pair = " << AddrPortPair(fd);
+    LOG(INFO) << SuccessMsg(proto, "close", fd);
 
-        ASSERT_TRUE(IsValidSocket(fd));
-        ASSERT_EQ(::close(fd.value()), 0);
+    ASSERT_TRUE(IsValidSocket(fd));
+    ASSERT_EQ(::close(fd.value()), 0);
   }
 }
 
