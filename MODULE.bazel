@@ -1,5 +1,5 @@
 # Keep the dependencies up to date with their latest stable versions.
-# Search Bazel Central Registry (BCR): https://registry.bazel.build/
+# Search Bazel Central Registry (BCR): https://registry.bazel.build
 
 module(
     name = "peregrine",
@@ -13,7 +13,7 @@ bazel_dep(name = "bazel_features", version = "1.51.0")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.25")
 bazel_dep(name = "rules_proto", version = "7.1.0")
-bazel_dep(name = "rules_python", version = "2.3.3")
+bazel_dep(name = "rules_python", version = "2.3.4")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 
 # C++ Libraries
@@ -24,8 +24,8 @@ bazel_dep(name = "xxhash", version = "0.8.3.bcr.1")
 
 # Python Bindings
 bazel_dep(name = "abseil-py", version = "2.4.0")
-bazel_dep(name = "nanobind", version = "3.0.1")
-bazel_dep(name = "nanobind_bazel", version = "2.12.0")
+bazel_dep(name = "nanobind", version = "3.1.0")
+bazel_dep(name = "nanobind_bazel", version = "3.1.0")
 
 # Serialization
 bazel_dep(name = "flatbuffers", version = "25.12.19.bcr.1")
