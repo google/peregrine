@@ -126,20 +126,25 @@ CreateUdpSocketPair(int family, bool blocking) {
 size_t CountOpenSocketFds() {
   // Linux exposes sockets as symbolic links like:
   // /proc/self/fd/42 -> socket:[12345]
-  DIR* dir = ::opendir("/proc/self/fd");
-  if (dir == nullptr) return 0;
+  constexpr char kProcSelfFd[] = "/proc/self/fd";
+  constexpr char kProcSelfFdFmt[] = "/proc/self/fd/%s";
+  constexpr char kSocketPrefix[] = "socket:[";
 
-  size_t count = 0;
+  DIR* dir = ::opendir(kProcSelfFd);
+  CHECK_NE(dir, nullptr);  // Crash OK
+
+  char path[128];
+  char target[128];
   struct dirent* entry;
+  size_t count = 0;
   while ((entry = ::readdir(dir)) != nullptr) {
     if (entry->d_name[0] == '.') continue;
-    char path[64];
-    ::snprintf(path, sizeof(path), "/proc/self/fd/%s", entry->d_name);
-    char target[128];
+    ::snprintf(path, sizeof(path), kProcSelfFdFmt, entry->d_name);
     const ssize_t len = ::readlink(path, target, sizeof(target));
-    if (len <= 0) continue;
-    if (absl::StartsWith(std::string_view(target, len), "socket:[")) ++count;
+    if (len < 0) continue;
+    if (absl::StartsWith(std::string_view(target, len), kSocketPrefix)) ++count;
   }
+
   ::closedir(dir);
   return count;
 }
