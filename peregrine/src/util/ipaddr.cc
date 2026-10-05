@@ -12,6 +12,7 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "peregrine/src/util/errno.h"
 
@@ -108,13 +109,15 @@ std::string ToIPv6String(const ipv6_t& ip6) {
 }
 
 std::optional<IpAddr> IpAddr::Create(std::string_view ip) {
-  if (auto v4 = ParseIPv4Addr(ip); v4.has_value()) {
-    return IpAddr(v4.value());
-  } else if (auto v6 = ParseIPv6Addr(ip); v6.has_value()) {
-    return IpAddr(v6.value());
+  // IPv6 literals always contain ':' while IPv4 literals never do.
+  if (absl::StrContains(ip, ':')) {
+    const auto v6 = ParseIPv6Addr(ip);
+    if (v6.has_value()) return IpAddr(v6.value());
   } else {
-    return std::nullopt;
+    const auto v4 = ParseIPv4Addr(ip);
+    if (v4.has_value()) return IpAddr(v4.value());
   }
+  return std::nullopt;
 }
 
 bool operator==(const IpAddr& a, const IpAddr& b) {
