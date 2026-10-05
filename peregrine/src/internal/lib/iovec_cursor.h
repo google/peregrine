@@ -1,6 +1,8 @@
 #ifndef PEREGRINE_SRC_INTERNAL_LIB_IOVEC_CURSOR_H_
 #define PEREGRINE_SRC_INTERNAL_LIB_IOVEC_CURSOR_H_
 
+#include <sys/types.h>
+
 #include <cstddef>
 #include <initializer_list>
 #include <limits>

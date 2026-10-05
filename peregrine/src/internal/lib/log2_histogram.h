@@ -79,6 +79,7 @@ class Log2Histogram {
   }
 
   // Sets all counters to zero.
+  // Not atomic across counters, may race with concurrent updates.
   void Clear() {
     sum_.Clear();
     for (auto& b : buckets_) b.Clear();

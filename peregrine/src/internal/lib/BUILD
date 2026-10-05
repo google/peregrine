@@ -8,7 +8,6 @@ cc_library(
     srcs = ["bitset.cc"],
     hdrs = ["bitset.h"],
     deps = [
-        "//peregrine/src/internal/util",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",

@@ -1,6 +1,8 @@
 #ifndef PEREGRINE_SRC_INTERNAL_UTIL_TEST_UTIL_H_
 #define PEREGRINE_SRC_INTERNAL_UTIL_TEST_UTIL_H_
 
+#include <sys/socket.h>
+
 #include <memory>
 #include <string_view>
 

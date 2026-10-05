@@ -14,13 +14,13 @@
 namespace peregrine::internal::testing {
 
 port_t TestOnly_FindFreeTcpPort(int family) {
-  const port_t port = util::FindFreePort(family, /*kTcp=*/true);
+  const port_t port = util::FindFreePort(family, /*tcp=*/true);
   CHECK_GT(port, 0);  // Crash OK
   return port;
 }
 
 port_t TestOnly_FindFreeUdpPort(int family) {
-  const port_t port = util::FindFreePort(family, /*kTcp=*/false);
+  const port_t port = util::FindFreePort(family, /*tcp=*/false);
   CHECK_GT(port, 0);  // Crash OK
   return port;
 }

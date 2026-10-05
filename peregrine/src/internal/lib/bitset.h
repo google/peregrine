@@ -5,12 +5,12 @@
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <ostream>
 #include <string>
 #include <vector>
 
 #include "absl/log/check.h"
-#include "peregrine/src/internal/util/util.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal {
@@ -74,10 +74,10 @@ class Bitset final {
   }
 
  private:
-  static constexpr uint32_t kUnitSize = sizeof(size_t) * 8U;
+  static constexpr uint32_t kUnitSize = std::numeric_limits<size_t>::digits;
   static constexpr uint32_t kUnitShift = std::bit_width(kUnitSize) - 1;
   static constexpr uint32_t kUnitBitMask = kUnitSize - 1;
-  static_assert(IsPowerOfTwo(kUnitBitMask + 1));
+  static_assert(std::has_single_bit(kUnitBitMask + 1));
   static_assert((1U << kUnitShift) == kUnitSize);
 
  private:

@@ -12,6 +12,8 @@ namespace peregrine::internal {
 template <typename T>
 class MetricCounter {
   static_assert(std::is_integral_v<T>);
+  static_assert(!std::is_same_v<T, bool>);
+  static_assert(std::atomic<T>::is_always_lock_free);
 
  public:
   // Constructor.

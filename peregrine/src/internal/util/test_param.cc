@@ -18,6 +18,8 @@ std::string ChannelTypeToString(const TestChannelType t) {
       return "MemStreamChannel";
     case TestChannelType::kMemMsg:
       return "MemMessageChannel";
+    default:
+      return "ChannelTypeUnknown";
   }
 }
 
