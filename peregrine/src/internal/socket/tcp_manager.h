@@ -6,7 +6,7 @@
 #include <memory>
 #include <vector>
 
-#include "absl/container/node_hash_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
@@ -53,7 +53,7 @@ class TcpManager : public TcpManagerBase {
  private:
   // Constructor with a set of non-blocking tcp listening sockets.
   TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
-             absl::node_hash_map<fd_t, Listener> sockets);
+             absl::flat_hash_map<fd_t, Listener> sockets);
 
   // Returns true iff the stop flag is true.
   bool isStopped() const { return stop_.load(std::memory_order_acquire); }

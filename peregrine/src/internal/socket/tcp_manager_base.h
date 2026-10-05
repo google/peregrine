@@ -7,7 +7,6 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/node_hash_map.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
@@ -35,7 +34,7 @@ class TcpManagerBase {
   class Listeners {
    public:
     // Constructor with a set of non-blocking tcp listening sockets.
-    explicit Listeners(absl::node_hash_map<fd_t, Listener> sockets)
+    explicit Listeners(absl::flat_hash_map<fd_t, Listener> sockets)
         : fd2skts_(std::move(sockets)) {
       DCHECK(Invariant());
     }
@@ -58,7 +57,7 @@ class TcpManagerBase {
 
    private:
     mutable absl::Mutex mu_;
-    absl::node_hash_map<fd_t, Listener> fd2skts_ ABSL_GUARDED_BY(mu_);
+    absl::flat_hash_map<fd_t, Listener> fd2skts_ ABSL_GUARDED_BY(mu_);
   };
 
   // A map of non-blocking tcp connecting sockets, each keyed by its file

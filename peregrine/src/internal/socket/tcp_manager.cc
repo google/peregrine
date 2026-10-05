@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
-#include "absl/container/node_hash_map.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
@@ -84,7 +84,7 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
     return nullptr;
   }
   HostInfo host = self;  // only update `self` on success
-  absl::node_hash_map<fd_t, Listener> listeners;
+  absl::flat_hash_map<fd_t, Listener> listeners;
   for (auto& [_, ni] : candidates) {
     NicInfo nic(ni.name, ni.type, {});
     for (auto& e : ni.endpoints) {  // `e` will be modified below
@@ -114,7 +114,7 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
 }
 
 TcpManager::TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
-                       absl::node_hash_map<fd_t, Listener> sockets)
+                       absl::flat_hash_map<fd_t, Listener> sockets)
     : self_(self),
       stop_(false),
       poller_(std::move(poller)),

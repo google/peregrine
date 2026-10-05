@@ -7,7 +7,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/node_hash_map.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
@@ -45,7 +44,7 @@ void TcpManagerBase::Listeners::Remove(const fd_t fd) {
 }
 
 void TcpManagerBase::Listeners::Close() {
-  absl::node_hash_map<fd_t, Listener> doomed;
+  absl::flat_hash_map<fd_t, Listener> doomed;
   {
     absl::MutexLock _(mu_);
     doomed.swap(fd2skts_);
