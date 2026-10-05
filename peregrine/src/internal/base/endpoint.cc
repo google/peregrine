@@ -1,5 +1,9 @@
 #include "peregrine/src/internal/base/endpoint.h"
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+
 #include <optional>
 #include <string>
 #include <string_view>
@@ -103,6 +107,6 @@ std::string Endpoint::ToString() const {
     DCHECK(ipaddr_.IsIPv6());
     return absl::StrCat("[", addr, "]:", port_);
   }
-};
+}
 
 }  // namespace peregrine::internal

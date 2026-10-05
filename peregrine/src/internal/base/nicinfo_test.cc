@@ -80,6 +80,9 @@ TEST(NicInfoTest, CreateValid) {
   ASSERT_EQ(rdma.endpoints.size(), 1);
   EXPECT_EQ(rdma.endpoints[0], Endpoint::Create("[2202::]:1"));
   EXPECT_EQ(rdma.ToString(), "irdma0/rdma/[2202::]:1");
+
+  // A trailing separator followed by whitespace is tolerated.
+  EXPECT_EQ(NicInfo::Create("eth0/ip/10.0.0.1:4351,10.0.0.2:519, "), eth);
 }
 
 TEST(NicInfoTest, CreateInvalid) {

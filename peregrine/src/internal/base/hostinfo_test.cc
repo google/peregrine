@@ -110,6 +110,9 @@ TEST(HostInfoTest, CreateValid) {
   EXPECT_EQ(host.data_plane_listeners[2],
             NicInfo::Create("irdma0/rdma/[2202:a05:7901:1000::]:1"));
   LOG(INFO) << host;
+
+  // A trailing separator followed by whitespace is tolerated.
+  EXPECT_EQ(HostInfo::Create(std::string(kInput) + ";\n"), host);
 }
 
 TEST(HostInfoTest, CreateInvalid) {

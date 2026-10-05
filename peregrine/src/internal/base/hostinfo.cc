@@ -53,7 +53,7 @@ HostInfo HostInfo::Create(std::string_view s) {
   //   irdma0/rdma/[2202:a05:7901:1000::]:1"
   HostInfo host;
   int i = 0;
-  const auto parts = absl::StrSplit(s, ';', absl::SkipEmpty());
+  const auto parts = absl::StrSplit(s, ';', absl::SkipWhitespace());
   for (const auto p : parts) {
     const std::string_view ss = absl::StripAsciiWhitespace(p);
     if (i++ == 0) {

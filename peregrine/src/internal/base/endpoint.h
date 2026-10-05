@@ -1,10 +1,14 @@
 #ifndef PEREGRINE_SRC_INTERNAL_BASE_ENDPOINT_H_
 #define PEREGRINE_SRC_INTERNAL_BASE_ENDPOINT_H_
 
+#include <netinet/in.h>
+#include <sys/socket.h>
+
 #include <cstddef>
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/hash/hash.h"
 #include "absl/log/check.h"
@@ -61,7 +65,7 @@ class Endpoint final {
   bool HasNonzeroIpPort() const { return port_ != 0 && !ipaddr_.IsZero(); }
 
   // Returns the ip address of the endpoint.
-  const util::IpAddr& GetIpAddr() const { return ipaddr_; };
+  const util::IpAddr& GetIpAddr() const { return ipaddr_; }
 
   // Returns true iff the endpoint has an ipv4 address.
   bool IsIPv4() const { return ipaddr_.IsIPv4(); }
@@ -82,7 +86,7 @@ class Endpoint final {
   }
 
   // Returns the port of the endpoint.
-  port_t Port() const { return port_; };
+  port_t Port() const { return port_; }
 
   // Builds a `sockaddr_in` struct for the ipv4 endpoint.
   struct sockaddr_in BuildIPv4Sockaddr() const;

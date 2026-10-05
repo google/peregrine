@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
@@ -55,13 +54,14 @@ NicInfo NicInfo::Create(std::string_view s) {
 
   constexpr int kNumParts = 3;
   const std::vector<std::string_view> p = absl::StrSplit(
-      s, absl::MaxSplits(kNicInfoSep, kNumParts - 1), absl::SkipEmpty());
+      s, absl::MaxSplits(kNicInfoSep, kNumParts - 1), absl::SkipWhitespace());
   if (p.size() != kNumParts) return invalid;
 
   const std::string name = std::string(p[0]);
   const util::NicType type = util::FromString(p[1]);
   std::vector<Endpoint> endpoints;
-  for (const auto e : absl::StrSplit(p[2], kEndpointSep, absl::SkipEmpty())) {
+  for (const auto e :
+       absl::StrSplit(p[2], kEndpointSep, absl::SkipWhitespace())) {
     endpoints.push_back(Endpoint::Create(absl::StripAsciiWhitespace(e)));
   }
   const NicInfo nic(name, type, endpoints);
@@ -80,7 +80,7 @@ absl::flat_hash_map<std::string, NicInfo> NicInfo::GetTcpListenerCandidates(
         }
       }
       if (!es.empty()) {
-        candidates.emplace(ifc, NicInfo(ifc, nis.type, std::move(es)));
+        candidates.emplace(ifc, NicInfo(ifc, nis.type, es));
       }
     }
   }
