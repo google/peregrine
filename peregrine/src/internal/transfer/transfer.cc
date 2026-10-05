@@ -1,6 +1,6 @@
 #include "peregrine/src/internal/transfer/transfer.h"
 
-#include <sys/stat.h>
+#include <sys/types.h>
 
 #include <algorithm>
 #include <array>
@@ -43,7 +43,8 @@ bool Transfer::SendChunk(Channel* const channel, const ChunkHeader& chunk,
   };
 
   // Step 2: send them out.
-  return std::cmp_equal(channel->Write(iovecs), header.size() + payload.size());
+  const ssize_t len = channel->Write(iovecs);
+  return std::cmp_equal(len, header.size() + payload.size());
 }
 
 bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
@@ -58,7 +59,7 @@ bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
   }
 }
 
-bool Transfer::deserialize(Byte* header, ChunkHeader& chunk) {
+bool Transfer::deserialize(const Byte* header, ChunkHeader& chunk) {
   std::string_view s(reinterpret_cast<const char*>(header), ChunkUtil::kSize);
   return ChunkUtil::Deserialize(s, chunk) && chunk.IsValid();
 }
@@ -68,7 +69,8 @@ bool Transfer::sendAck(Channel* channel, ChunkHeader& chunk) {
   DCHECK(chunk.IsAck());
   const std::string header = ChunkUtil::Serialize(chunk);
   const IoVec iov[] = {{(void*)header.data(), header.size()}};
-  if ABSL_PREDICT_FALSE (channel->Write(iov) != header.size()) {
+  const ssize_t len = channel->Write(iov);
+  if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, header.size())) {
     LOG(WARNING) << "failed to send ack: " << chunk;
     return false;
   }

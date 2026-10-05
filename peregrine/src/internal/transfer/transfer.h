@@ -29,7 +29,7 @@ class Transfer final {
 
  private:
   // Deserializes chunk header and returns true iff the chunk is valid.
-  static bool deserialize(Byte* header, ChunkHeader& chunk);
+  static bool deserialize(const Byte* header, ChunkHeader& chunk);
 
   // Sends an ack chunk with no payload to the channel.
   static bool sendAck(Channel* channel, ChunkHeader& chunk);

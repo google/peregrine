@@ -59,7 +59,7 @@ std::string ToString(const ::testing::TestParamInfo<Param>& info) {
 class TransferTest : public ::testing::TestWithParam<Param> {
  protected:
   TransferTest() : p_(GetParam()), src_(kBufSize), dst_(kBufSize), a_(), b_() {
-    for (int i = 0; i < kBufSize; ++i) {
+    for (size_t i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = static_cast<Byte>(0);
     }
