@@ -1,3 +1,4 @@
+#test
 # Keep the dependencies up to date with their latest stable versions.
 # Search Bazel Central Registry (BCR): https://registry.bazel.build
 
