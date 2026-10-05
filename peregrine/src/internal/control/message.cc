@@ -139,10 +139,9 @@ bool Message::serialize(const Request& req, proto::Request& proto) {
 
 bool Message::deserialize(const proto::Request& proto, Request& req) {
   const proto::Request::Op op = proto.op();
-  if (op == proto::Request::INVALID) return false;
+  if (op != proto::Request::READ && op != proto::Request::WRITE) return false;
 
-  DCHECK(op == proto::Request::READ || op == proto::Request::WRITE);
-  req.op = op == proto::Request::READ ? Op::kRead : Op::kWrite;
+  req.op = static_cast<Op>(op);
   req.laddr = reinterpret_cast<Byte*>(proto.laddr());
   req.raddr = reinterpret_cast<Byte*>(proto.raddr());
   req.len = proto.len();
@@ -179,9 +178,11 @@ bool Message::serialize(const NicInfo& nic, proto::NicInfo& proto) {
 bool Message::deserialize(const proto::NicInfo& proto, NicInfo& nic) {
   if (!proto.has_name()) return false;
   if (!proto.has_type()) return false;
+  const proto::NicInfo::Type type = proto.type();
+  if (type != proto::NicInfo::IP && type != proto::NicInfo::RDMA) return false;
 
   nic.name = proto.name();
-  nic.type = static_cast<util::NicType>(proto.type());
+  nic.type = static_cast<util::NicType>(type);
   nic.endpoints.clear();
   nic.endpoints.reserve(proto.endpoints_size());
   Endpoint e;

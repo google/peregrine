@@ -274,7 +274,7 @@ absl::StatusOr<proto::RdmaConnResp> Control::ConnectRdmaPeer(
   if (auto* rdma = req_msg.mutable_rdma_conn_req(); rdma == nullptr) {
     return absl::InternalError("null rdma conn proto in req msg");
   } else {
-    // TOOD(mubashirq): revise this code following psp tcp above.
+    // TODO(mubashirq): revise this code following psp tcp above.
     rdma->set_device_name(device_name);
     rdma->set_qpn(qpn);
     const char* gid_data = reinterpret_cast<const char*>(gid.data());
@@ -288,7 +288,7 @@ absl::StatusOr<proto::RdmaConnResp> Control::ConnectRdmaPeer(
   } else if (!resp->has_rdma_conn_resp()) {
     return absl::InternalError("null rdma conn proto in resp msg");
   } else {
-    // TOOD(mubashirq): use Deserialize(...), do not return proto.
+    // TODO(mubashirq): use Deserialize(...), do not return proto.
     return resp->rdma_conn_resp();
   }
 }

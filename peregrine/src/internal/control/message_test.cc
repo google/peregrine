@@ -10,6 +10,7 @@
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/control/message.pb.h"
 #include "peregrine/src/internal/control/message_internal.pb.h"
+#include "peregrine/src/util/nic.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -24,6 +25,14 @@ TEST(MessageTest, RequestOp) {
             static_cast<int>(Op::kRead));
   EXPECT_EQ(static_cast<int>(proto::Request::WRITE),
             static_cast<int>(Op::kWrite));
+}
+
+TEST(MessageTest, NicType) {
+  EXPECT_EQ(static_cast<int>(proto::NicInfo::INVALID), 0);
+  EXPECT_EQ(static_cast<int>(proto::NicInfo::IP),
+            static_cast<int>(util::NicType::kIP));
+  EXPECT_EQ(static_cast<int>(proto::NicInfo::RDMA),
+            static_cast<int>(util::NicType::kRDMA));
 }
 
 TEST(MessageTest, Serialization) {
@@ -82,6 +91,47 @@ TEST(MessageTest, HostInfoExchange) {
   EXPECT_EQ(host.data_plane_listeners[1], ipv4);
   EXPECT_EQ(host.data_plane_listeners[2], ipv6);
   EXPECT_EQ(host.data_plane_listeners[3], rdma);
+}
+
+TEST(MessageTest, RejectsUnknownRequestOp) {
+  const Endpoint c = Endpoint::Create("127.0.0.1:10000");
+  const NicInfo lo = NicInfo::Create("lo/ip/127.0.0.1:35247");
+  const HostInfo host = {.control_plane_listener = c,
+                         .data_plane_listeners = {lo}};
+  const Request req = {
+      .op = Op::kRead,
+      .laddr = reinterpret_cast<Byte*>(kLaddr),
+      .raddr = reinterpret_cast<Byte*>(kRaddr),
+      .len = kLen,
+  };
+  proto::ReqMsg msg;
+  ASSERT_TRUE(Message::Serialize(host, {req}, msg));
+
+  // The proto enum is open, so a newer peer can send an op we don't know.
+  for (const int unknown : {0, 3, 255}) {
+    msg.mutable_peer_req()->mutable_reqs(0)->set_op(
+        static_cast<proto::Request::Op>(unknown));
+    const auto [h, reqs] = Message::Deserialize(msg);
+    EXPECT_FALSE(h.IsValid()) << "op=" << unknown;
+    EXPECT_TRUE(reqs.empty()) << "op=" << unknown;
+  }
+}
+
+TEST(MessageTest, RejectsUnknownNicType) {
+  const Endpoint c = Endpoint::Create("10.0.0.1:10000");
+  const NicInfo lo = NicInfo::Create("lo/ip/127.0.0.1:35247");
+  const HostInfo input = {.control_plane_listener = c,
+                          .data_plane_listeners = {lo}};
+  proto::HostInfo proto;
+  ASSERT_TRUE(Message::Serialize(input, proto));
+
+  // The proto enum is open, so a newer peer can send a type we don't know.
+  for (const int unknown : {0, 3, 255}) {
+    proto.mutable_data_plane_listeners(0)->set_type(
+        static_cast<proto::NicInfo::Type>(unknown));
+    HostInfo host;
+    EXPECT_FALSE(Message::Deserialize(proto, host)) << "type=" << unknown;
+  }
 }
 
 TEST(MessageTest, RdmaConnectMessages) {

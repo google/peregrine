@@ -75,6 +75,7 @@ cc_test(
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/base:nicinfo",
+        "//peregrine/src/util:nic",
         "@googletest//:gtest_main",
     ],
 )
