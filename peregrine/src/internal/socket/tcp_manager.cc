@@ -202,7 +202,7 @@ bool TcpManager::handleAllIncoming(const fd_t fd, const uint32_t flag,
   } else if (flag & EPOLLIN) {
     // Listening sockets are level-triggered, not edge-triggered.
     const int family = listener->family();
-    for (int i = 0; i < kEpollMaxAcceptsPerEvent && !isStopped(); ++i) {
+    while (!isStopped()) {
       const int ret = listener->Accept(gen_blocking);
       if ABSL_PREDICT_FALSE (ret < 0) {
         if (IsWouldBlock(ret)) {
@@ -215,7 +215,6 @@ bool TcpManager::handleAllIncoming(const fd_t fd, const uint32_t flag,
           absl::SleepFor(absl::Milliseconds(50));  // avoid busy-looping
         } else {
           LOG_EVERY_N_SEC(ERROR, 1) << EvtMsg("accept failed", fd, flag);
-          absl::SleepFor(absl::Milliseconds(10));  // avoid busy-looping
         }
         break;
       }
@@ -275,7 +274,6 @@ void TcpManager::Start(bool gen_blocking) {
       }
     } else if (nfds < 0) {
       LOG_EVERY_N_SEC(ERROR, 1) << "poller wait failed";
-      absl::SleepFor(absl::Milliseconds(10));  // avoid busy-looping
     }
   }
   listeners_.Close();

@@ -107,10 +107,11 @@ int TcpSocket::Accept(bool gen_blocking) const {
     const int ret = ::accept4(fd_.value(), nullptr, nullptr, flags);
     if (ret < 0) {
       const Errno err(errno);
-      if (Interrupted(err) || err.value() == ECONNABORTED) {
-        continue;
-      } else if (WouldBlock(err)) {
+      if (WouldBlock(err)) {
         return kAcceptWouldBlock;
+      } else if (Interrupted(err) || err.value() == EPROTO ||
+                 err.value() == ECONNABORTED) {
+        continue;
       } else if (err.value() == EINVAL) {  // after shutdown()
         LOG(INFO) << okMsg("accept shutdown");
         return kAcceptShutdown;
