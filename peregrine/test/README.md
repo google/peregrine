@@ -8,6 +8,7 @@
 | Subdirectory   |           Namespace          |         Purpose            |
 | :------------- | :--------------------------- | :------------------------- |
 | `benchmark/`   | `peregrine::benchmark`       | Benchmarks across hosts    |
+| `cluster/`     | `peregrine::cluster`         | Multi-node cluster tests   |
 | `integration/` | `peregrine::integration`     | Tests in a single process  |
 | `workloads/`   | `peregrine::workloads`       | Shared workload generators |
 
