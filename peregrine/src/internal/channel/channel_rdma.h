@@ -35,6 +35,9 @@ class RdmaChannel final : public Channel {
     return t;
   }
 
+  // Returns whether the channel is blocking or non-blocking.
+  constexpr bool IsBlocking() const override { return true; }
+
   // Writes a chunk via one-sided RDMA WRITE. Requires exactly 2 iovecs:
   // iovecs[0] is the serialized ChunkHeader containing the remote memory
   // address. iovecs[1] is the local payload buffer to transfer.

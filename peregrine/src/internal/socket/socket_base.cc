@@ -10,6 +10,26 @@
 
 namespace peregrine::internal {
 
+bool SocketBase::IsBlocking() const {
+  if (IsBlockingMode(fd_)) {
+    DCHECK(!IsNonBlockingMode(fd_));
+    return true;
+  } else {
+    DCHECK(IsNonBlockingMode(fd_));
+    return false;
+  }
+}
+
+bool SocketBase::IsNonBlocking() const {
+  if (IsNonBlockingMode(fd_)) {
+    DCHECK(!IsBlockingMode(fd_));
+    return true;
+  } else {
+    DCHECK(IsBlockingMode(fd_));
+    return false;
+  }
+}
+
 int SocketBase::Bind(const fd_t fd, const Endpoint& local) {
   DCHECK(IsValidSocket(fd));
 

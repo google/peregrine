@@ -40,10 +40,10 @@ class SocketBase {
   bool IsConnected() const { return connected_; }
 
   // Returns true iff the socket is in blocking mode.
-  bool IsBlocking() const { return IsBlockingMode(fd_); }
+  bool IsBlocking() const;
 
   // Returns true iff the socket is in non-blocking mode.
-  bool IsNonBlocking() const { return IsNonBlockingMode(fd_); }
+  bool IsNonBlocking() const;
 
   // Returns true iff the socket is in the specified blocking mode.
   bool MatchesBlocking(bool blocking) const {

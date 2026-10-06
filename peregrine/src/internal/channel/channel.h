@@ -20,6 +20,9 @@ class Channel {
   // Returns the channel type.
   virtual ChannelType Type() const = 0;
 
+  // Returns whether the channel is blocking or non-blocking.
+  virtual bool IsBlocking() const = 0;
+
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
   // no data has been written due to non-error reasons. Returns -1 on error.

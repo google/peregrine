@@ -31,6 +31,9 @@ class MemMsgChannel final : public Channel {
     return t;
   }
 
+  // Returns whether the channel is blocking or non-blocking.
+  constexpr bool IsBlocking() const override { return true; }
+
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
   // no data has been written due to non-error reasons. Returns -1 on error.

@@ -27,7 +27,7 @@ class TcpChannel final : public Channel {
       : socket_(std::move(socket)) {
     DCHECK_NE(socket_, nullptr);
     DCHECK(socket_->IsValid());
-    DCHECK(socket_->IsBlocking());
+    DCHECK(socket_->IsBlocking() || socket_->IsNonBlocking());
   }
 
   // Returns the channel type.
@@ -39,6 +39,10 @@ class TcpChannel final : public Channel {
     static_assert(t.IsRealChannel());
     return t;
   }
+
+  // Returns whether the channel is blocking or non-blocking.
+  // Note: avoid calling this function in fast path.
+  bool IsBlocking() const override { return socket_->IsBlocking(); }
 
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
