@@ -87,6 +87,12 @@ _SHARE_BUFFER = flags.DEFINE_bool(
     True,
     "Share one registered buffer across all instances in a node process.",
 )
+_NODE_MINLOGLEVEL = flags.DEFINE_integer(
+    "node_minloglevel",
+    1,
+    "Minimum Abseil log level for :node processes (0=INFO, 1=WARNING,"
+    " 2=ERROR, 3=FATAL).",
+)
 _METRICS_INTERVAL = flags.DEFINE_string(
     "metrics_interval",
     "1s",
@@ -150,6 +156,7 @@ def main(argv: Sequence[str]) -> None:
       num_xfers=_NUM_XFERS.value,
       traffic_pattern=_TRAFFIC_PATTERN.value,
       share_buffer=_SHARE_BUFFER.value,
+      node_minloglevel=_NODE_MINLOGLEVEL.value,
       metrics_interval=_METRICS_INTERVAL.value,
       ssh_cmd=_SSH_CMD.value,
       remote_dir=_REMOTE_DIR.value,

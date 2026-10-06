@@ -36,6 +36,7 @@ class BipartiteSessionConfig:
   num_xfers: int = 1
   traffic_pattern: str = "all_to_all"
   share_buffer: bool = True
+  node_minloglevel: int = 1
   metrics_interval: str = "1s"
   ssh_cmd: str = node_executor.DEFAULT_SSH_CMD
   remote_dir: str = "/tmp"
@@ -168,6 +169,7 @@ def _common_workload_flags(cfg: BipartiteSessionConfig) -> list[str]:
       f"--num_xfers={cfg.num_xfers}",
       f"--traffic_pattern={cfg.traffic_pattern}",
       f"--share_buffer={'true' if cfg.share_buffer else 'false'}",
+      f"--minloglevel={cfg.node_minloglevel}",
       f"--metrics_interval={cfg.metrics_interval}",
   ]
   if cfg.workload.lower() == "serial_fixed_write":
