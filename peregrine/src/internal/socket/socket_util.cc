@@ -64,9 +64,9 @@ int GetPeerName(const fd_t fd, struct sockaddr_storage& ss) {
 }
 }  // namespace
 
-int AddrFamily(const fd_t fd) {
+sa_family_t AddrFamily(const fd_t fd) {
   struct sockaddr_storage ss;
-  return !GetSockName(fd, ss) ? ss.ss_family : -1;
+  return !GetSockName(fd, ss) ? ss.ss_family : AF_UNSPEC;
 }
 
 std::string SelfAddrPort(const fd_t fd) {

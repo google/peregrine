@@ -50,7 +50,7 @@ inline bool MatchesBlockingMode(fd_t fd, bool blocking) {
 }
 
 // Returns the address family of the socket `fd`.
-int AddrFamily(fd_t fd);
+sa_family_t AddrFamily(fd_t fd);
 
 // Returns the self ip:port string for the socket `fd`.
 std::string SelfAddrPort(fd_t fd);

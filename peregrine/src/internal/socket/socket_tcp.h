@@ -104,6 +104,8 @@ class TcpSocket final : public SocketBase {
   static constexpr std::string_view kTcp = "tcp";
 };
 
+static_assert(sizeof(TcpSocket) == 8);
+
 inline std::ostream& operator<<(std::ostream& os, const TcpSocket& s) {
   return os << s.ToString();
 }

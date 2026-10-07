@@ -85,6 +85,8 @@ class UdpSocket final : public SocketBase {
   static constexpr std::string_view kUdp = "udp";
 };
 
+static_assert(sizeof(UdpSocket) == 8);
+
 inline std::ostream& operator<<(std::ostream& os, const UdpSocket& s) {
   return os << s.ToString();
 }

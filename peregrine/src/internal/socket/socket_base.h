@@ -4,7 +4,10 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include <cstdint>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
@@ -28,7 +31,9 @@ class SocketBase {
   int family() const { return family_; }
 
   // Returns true iff the socket is in the specified family.
-  bool MatchesFamily(int family) const { return family == family_; }
+  bool MatchesFamily(int family) const {
+    return std::cmp_equal(family, family_);
+  }
 
   // Returns true iff the socket is up and running.
   bool IsValid() const { return IsValidSocket(fd_); }
@@ -74,6 +79,8 @@ class SocketBase {
   // Constructor.
   SocketBase(fd_t fd, int family, bool blocking, bool connected)
       : fd_(fd), family_(family), blocking_(blocking), connected_(connected) {
+    DCHECK_GE(fd.value(), 0);
+    DCHECK(family == AF_INET || family == AF_INET6);
     DCHECK(invariant());
   }
 
@@ -101,13 +108,14 @@ class SocketBase {
   static int Connect(fd_t fd, const Endpoint& peer);
 
  protected:
+  static_assert(std::is_same_v<sa_family_t, uint16_t>);
   fd_t fd_;
-  int family_;
+  sa_family_t family_;
   bool blocking_;
   bool connected_;
 };
 
-static_assert(sizeof(SocketBase) == 12);
+static_assert(sizeof(SocketBase) == 8);
 
 }  // namespace peregrine::internal
 
