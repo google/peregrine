@@ -64,48 +64,7 @@ INSTANTIATE_TEST_SUITE_P(BlockingTcpSocketUtilTest, TcpSocketUtilTest,
                                  /*blocking=*/Values(true)),
                          ToString);
 
-TEST_P(TcpSocketUtilTest, SmallMessage) {
-  // Create a small send message and a recv buffer.
-  const size_t kMsgSize = 64UL << 10;
-  std::vector<Byte> message(kMsgSize);
-  std::vector<Byte> recv_buf(kMsgSize, 0x00);
-  util::RandomNonZero(absl::MakeSpan(message));
-  ASSERT_THAT(recv_buf, Pointwise(Ne(), message));
-
-  // First, create a server thread.
-  absl::Notification server_ready;
-  util::Thread server([&]() {
-    CHECK(!listener_->Listen(local_));
-    server_ready.Notify();
-    DCHECK(listener_->IsBlocking());
-    const int ret = listener_->Accept(cfg_.blocking);
-    CHECK_GE(ret, 0);
-
-    const fd_t new_fd(ret);
-    auto new_socket = TcpSocket::Create(new_fd, cfg_.family, cfg_.blocking);
-    DCHECK(new_socket->IsBlocking());
-    DCHECK(new_socket->IsConnected());
-    CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), recv_buf.data(), kMsgSize));
-  });
-
-  // Second, create a client thread.
-  util::Thread client([&]() {
-    server_ready.WaitForNotification();
-    CHECK(!connector_->Connect(local_));
-    DCHECK(connector_->IsBlocking());
-    DCHECK(connector_->IsConnected());
-    CHECK_OK(TcpSocketUtil::Send(connector_->fd(), message.data(), kMsgSize));
-  });
-
-  // Wait for both threads to finish.
-  client.join();
-  server.join();
-
-  // Check that the server got the client's message.
-  EXPECT_THAT(recv_buf, Pointwise(Eq(), message));
-}
-
-TEST_P(TcpSocketUtilTest, BigData) {
+TEST_P(TcpSocketUtilTest, ScatterGather) {
   // Create a big chunk of data and a recv buffer.
   constexpr size_t kDataSize = 16UL << 20;
   std::vector<Byte> send_buf(kDataSize);
@@ -131,7 +90,7 @@ TEST_P(TcpSocketUtilTest, BigData) {
         {IoVec(recv_buf.data(), kPartial)},
         {IoVec(recv_buf.data() + kPartial, kDataSize - kPartial)},
     };
-    CHECK_OK(TcpSocketUtil::RecvV(new_socket->fd(), iovecs));
+    CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), iovecs));
   });
 
   // Second, create a client thread.
@@ -146,7 +105,7 @@ TEST_P(TcpSocketUtilTest, BigData) {
         {IoVec(send_buf.data() + kPartial, kPartial)},
         {IoVec(send_buf.data() + kPartial * 2, kDataSize - kPartial * 2)},
     };
-    CHECK_OK(TcpSocketUtil::SendV(connector_->fd(), iovecs));
+    CHECK_OK(TcpSocketUtil::Send(connector_->fd(), iovecs));
   });
 
   // Wait for both threads to finish.

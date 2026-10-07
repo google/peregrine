@@ -38,77 +38,8 @@ inline std::string ErrMsg(std::string_view what, fd_t fd, Errno err) {
 }
 }  // namespace
 
-absl::Status TcpSocketUtil::Send(const fd_t fd, const Byte* const buf,
-                                 const size_t len) {
-  DCHECK(IsValidSocket(fd));
-  DCHECK(IsBlockingMode(fd));
-
-  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
-  if (len == 0) return absl::OkStatus();
-
-  const Byte* ptr = buf;
-  size_t sent = 0;
-  ssize_t left = len;
-  while (left > 0) {
-    const ssize_t bytes = ::send(fd.value(), ptr, left, MSG_NOSIGNAL);
-    if ABSL_PREDICT_TRUE (bytes > 0) {
-      DCHECK_LE(bytes, left);
-      ptr += bytes;
-      left -= bytes;
-      sent += bytes;
-      DCHECK_EQ(buf + len, ptr + left);
-    } else {
-      if ABSL_PREDICT_TRUE (bytes < 0) {
-        const Errno err(errno);
-        if (Interrupted(err)) continue;
-        DCHECK(!WouldBlock(err));
-        return absl::InternalError(ErrMsg("send", fd, err));
-      } else {  // rarely happens
-        DCHECK_EQ(bytes, 0);
-        return absl::InternalError("send zero");
-      }
-    }
-  }
-  DCHECK_EQ(left, 0);
-  DCHECK_EQ(sent, len);
-  return absl::OkStatus();
-}
-
-absl::Status TcpSocketUtil::Recv(const fd_t fd, Byte* const buf,
-                                 const size_t len) {
-  DCHECK(IsValidSocket(fd));
-  DCHECK(IsBlockingMode(fd));
-
-  DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
-  if (len == 0) return absl::OkStatus();
-
-  Byte* ptr = buf;
-  size_t rcvd = 0;
-  ssize_t left = len;
-  while (left > 0) {
-    const ssize_t bytes = ::recv(fd.value(), ptr, left, /*flags=*/0);
-    if ABSL_PREDICT_TRUE (bytes > 0) {
-      DCHECK_LE(bytes, left);
-      ptr += bytes;
-      left -= bytes;
-      rcvd += bytes;
-      DCHECK_EQ(buf + len, ptr + left);
-    } else if (bytes == 0) {  // peer closed connection
-      return absl::InternalError("recv eof");
-    } else {
-      const Errno err(errno);
-      if (Interrupted(err)) continue;
-      DCHECK(!WouldBlock(err));
-      return absl::InternalError(ErrMsg("recv", fd, err));
-    }
-  }
-  DCHECK_EQ(left, 0);
-  DCHECK_EQ(rcvd, len);
-  return absl::OkStatus();
-}
-
-absl::Status TcpSocketUtil::SendV(const fd_t fd,
-                                  const absl::Span<const IoVec> iovecs) {
+absl::Status TcpSocketUtil::Send(const fd_t fd,
+                                 const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValidSocket(fd));
   DCHECK(IsBlockingMode(fd));
   DCHECK_LE(iovecs.size(), IOV_MAX);
@@ -155,8 +86,8 @@ absl::Status TcpSocketUtil::SendV(const fd_t fd,
   return absl::OkStatus();
 }
 
-absl::Status TcpSocketUtil::RecvV(const fd_t fd,
-                                  const absl::Span<const IoVec> iovecs) {
+absl::Status TcpSocketUtil::Recv(const fd_t fd,
+                                 const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValidSocket(fd));
   DCHECK(IsBlockingMode(fd));
   DCHECK_LE(iovecs.size(), IOV_MAX);

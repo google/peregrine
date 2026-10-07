@@ -148,7 +148,6 @@ cc_library(
     name = "socket_util",
     hdrs = ["socket_util.h"],
     deps = [
-        ":transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/socket:socket_util",
         "//peregrine/src/internal/socket:tcp_socket_util",
