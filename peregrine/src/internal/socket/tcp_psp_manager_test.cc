@@ -18,10 +18,12 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
+#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/psp/psp.h"
 #include "peregrine/src/internal/socket/psp/psp_mock.h"
 #include "peregrine/src/internal/socket/psp/psp_util.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -45,13 +47,9 @@ class PspTcpManagerTest : public TestWithParam<SocketTestParam> {
   PspTcpManagerTest()
       : cfg_(GetParam()),
         self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
-        mgr_(PspTcpManager::Create(self_)),
+        mgr_(TcpManager::Create(self_)),
         peers_(self_.data_plane_listeners),
-        psp_syscalls_(psp::testing::FakePspTcpSyscalls::Create()),
-        psp_token_xchg_([this](const PspToken& self_token, const Endpoint& peer,
-                               const Endpoint& peer_control) {
-          return this->mgr_->ExchangePspTokens(self_token, peer);
-        }) {
+        psp_syscalls_(psp::testing::FakePspTcpSyscalls::Create()) {
     CHECK(self_.IsValid());
     CHECK_NE(mgr_, nullptr);
     CHECK_NE(psp_syscalls_, nullptr);
@@ -70,7 +68,7 @@ class PspTcpManagerTest : public TestWithParam<SocketTestParam> {
  protected:
   const SocketTestConfig cfg_;
   HostInfo self_;
-  std::unique_ptr<PspTcpManager> mgr_;
+  std::unique_ptr<TcpManager> mgr_;
   const std::vector<NicInfo> peers_;
   std::unique_ptr<psp::testing::FakePspTcpSyscalls> psp_syscalls_;
   PspTcpManager::PspTokenExchange psp_token_xchg_;
@@ -90,12 +88,14 @@ TEST_P(PspTcpManagerTest, HandlePspTokenExchange) {
   const PspToken peer_token(Spi(1), Gen(9), {0xbe, 0xef});
   const NicInfo& nic = self_.data_plane_listeners[0];
   const Endpoint& self_target = nic.endpoints[0];
-  const auto self_token = mgr_->ExchangePspTokens(peer_token, self_target);
+  const auto self_token =
+      PspTcpManager::ExchangePspTokens(fd_t(-1), peer_token, self_target);
   ASSERT_TRUE(self_token.ok());
   EXPECT_TRUE(self_token->IsValid());
 
-  const Endpoint unknown_target = Endpoint::Create("127.0.0.1:9999");
-  const auto status = mgr_->ExchangePspTokens(peer_token, unknown_target);
+  const Endpoint _ = Endpoint::Create("127.0.0.1:9999");
+  const auto status =
+      PspTcpManager::ExchangePspTokens(fd_t(-1), peer_token, self_target);
   EXPECT_THAT(status, StatusIs(kNotFound));
 }
 
@@ -104,7 +104,7 @@ TEST_P(PspTcpManagerTest, AcceptBeforeConnect) {
     GTEST_SKIP() << "psp not supported";
   }
 
-  util::Thread ta([&]() { mgr_->Start(OnAccept, cfg_.blocking); });
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
 
   ShortSleep();
   util::Thread tc([&]() {
@@ -113,7 +113,7 @@ TEST_P(PspTcpManagerTest, AcceptBeforeConnect) {
     for (const NicInfo& ni : peers_) {
       const Endpoint& peer = ni.endpoints[0];
       std::unique_ptr<TcpSocket> socket =
-          PspTcpManager::ConnectPsp(self, peer, peer_control, psp_token_xchg_);
+          PspTcpManager::ConnectPsp(self, peer, peer_control);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());
@@ -138,7 +138,7 @@ TEST_P(PspTcpManagerTest, ConnectBeforeAccept) {
     for (const NicInfo& ni : peers_) {
       const Endpoint& peer = ni.endpoints[0];
       std::unique_ptr<TcpSocket> socket =
-          PspTcpManager::ConnectPsp(self, peer, peer_control, psp_token_xchg_);
+          PspTcpManager::ConnectPsp(self, peer, peer_control);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());
@@ -147,7 +147,7 @@ TEST_P(PspTcpManagerTest, ConnectBeforeAccept) {
   });
 
   ShortSleep();
-  util::Thread ta([&]() { mgr_->Start(OnAccept, cfg_.blocking); });
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
 
   ShortSleep();
   mgr_->Stop();

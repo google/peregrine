@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/log/check.h"
 #include "absl/time/time.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
@@ -52,6 +53,12 @@ class TcpManager : public TcpManagerBase {
   // Returns all the connected outgoing sockets currently available.
   std::vector<std::unique_ptr<TcpSocket>> GetOutgoingSockets() {
     return outgoing_.MoveAll();
+  }
+
+  // Finds the listener matching the `target` endpoint.
+  const Listener* FindListener(const Endpoint& target) const {
+    DCHECK(target.HasNonzeroIpPort());
+    return listeners_.Find(target);
   }
 
  private:
