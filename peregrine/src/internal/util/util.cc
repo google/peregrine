@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <numeric>
 
-#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 
@@ -18,7 +17,6 @@ bool IsValid(absl::Span<const IoVec> iovecs) {
 size_t TotalLength(const absl::Span<const IoVec> iovecs) {
   return std::accumulate(iovecs.begin(), iovecs.end(), size_t{0},
                          [](size_t sum, const IoVec& v) {
-                           DCHECK(IsValid(v));
                            return sum + v.iov_len;
                          });
 }

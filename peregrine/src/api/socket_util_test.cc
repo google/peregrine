@@ -163,12 +163,10 @@ TEST_F(SocketUtilIovTest, ZeroIovs) {
   std::vector<struct iovec> empty_iovs;
 
   const absl::Status read_status = ReadVExact(fd, empty_iovs);
-  EXPECT_EQ(read_status.code(), absl::StatusCode::kInvalidArgument);
-  EXPECT_EQ(read_status.message(), "#iovs=0");
+  EXPECT_EQ(read_status.code(), absl::StatusCode::kOk);
 
   const absl::Status write_status = WriteVExact(fd, empty_iovs);
-  EXPECT_EQ(write_status.code(), absl::StatusCode::kInvalidArgument);
-  EXPECT_EQ(write_status.message(), "#iovs=0");
+  EXPECT_EQ(write_status.code(), absl::StatusCode::kOk);
 }
 
 TEST_F(SocketUtilIovTest, ExceedMaxIovs) {

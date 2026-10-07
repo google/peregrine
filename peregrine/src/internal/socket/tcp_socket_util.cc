@@ -45,8 +45,8 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
   DCHECK_LE(iovecs.size(), IOV_MAX);
 
   const size_t len = TotalLength(iovecs);
+  DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
-  if (len == 0) return absl::OkStatus();
 
   std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
   const size_t n = vecs.size();
@@ -93,8 +93,8 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
   DCHECK_LE(iovecs.size(), IOV_MAX);
 
   const size_t len = TotalLength(iovecs);
+  DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
-  if (len == 0) return absl::OkStatus();
 
   std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
   const size_t n = vecs.size();

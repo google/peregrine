@@ -21,30 +21,16 @@ namespace peregrine {
 // Returns OK if all the bytes are sent successfully, error otherwise.
 // Precondition: the caller must ensure the input parameters are valid.
 inline absl::Status WriteVExact(int fd, absl::Span<const struct iovec> iovs) {
+  if ABSL_PREDICT_FALSE (internal::TotalLength(iovs) == 0) {
+    return absl::OkStatus();
+  }
   const internal::fd_t sock_fd(fd);
   DCHECK(internal::IsValidSocket(sock_fd));
   DCHECK(internal::IsBlockingMode(sock_fd));
   DCHECK(internal::IsValid(iovs));
-
   const size_t n = iovs.size();
   if ABSL_PREDICT_TRUE (1 <= n && n <= IOV_MAX) {
     return internal::TcpSocketUtil::Send(sock_fd, iovs);
-  }
-  return absl::InvalidArgumentError(absl::StrCat("#iovs=", n));
-}
-
-// Reads data from the blocking socket `fd` into the `iovs`.
-// Returns OK if all the bytes are received successfully, error otherwise.
-// Precondition: the caller must ensure the input parameters are valid.
-inline absl::Status ReadVExact(int fd, absl::Span<const struct iovec> iovs) {
-  const internal::fd_t sock_fd(fd);
-  DCHECK(internal::IsValidSocket(sock_fd));
-  DCHECK(internal::IsBlockingMode(sock_fd));
-  DCHECK(internal::IsValid(iovs));
-
-  const size_t n = iovs.size();
-  if ABSL_PREDICT_TRUE (1 <= n && n <= IOV_MAX) {
-    return internal::TcpSocketUtil::Recv(sock_fd, iovs);
   }
   return absl::InvalidArgumentError(absl::StrCat("#iovs=", n));
 }
@@ -54,6 +40,24 @@ inline absl::Status ReadVExact(int fd, absl::Span<const struct iovec> iovs) {
 // Precondition: the caller must ensure the input parameters are valid.
 inline absl::Status WriteExact(int fd, const void* buf, size_t len) {
   return WriteVExact(fd, {{const_cast<void*>(buf), len}});
+}
+
+// Reads data from the blocking socket `fd` into the `iovs`.
+// Returns OK if all the bytes are received successfully, error otherwise.
+// Precondition: the caller must ensure the input parameters are valid.
+inline absl::Status ReadVExact(int fd, absl::Span<const struct iovec> iovs) {
+  if ABSL_PREDICT_FALSE (internal::TotalLength(iovs) == 0) {
+    return absl::OkStatus();
+  }
+  const internal::fd_t sock_fd(fd);
+  DCHECK(internal::IsValidSocket(sock_fd));
+  DCHECK(internal::IsBlockingMode(sock_fd));
+  DCHECK(internal::IsValid(iovs));
+  const size_t n = iovs.size();
+  if ABSL_PREDICT_TRUE (1 <= n && n <= IOV_MAX) {
+    return internal::TcpSocketUtil::Recv(sock_fd, iovs);
+  }
+  return absl::InvalidArgumentError(absl::StrCat("#iovs=", n));
 }
 
 // Reads exactly `len` bytes of data from the blocking socket `fd` to the `buf`.
