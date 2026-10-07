@@ -88,12 +88,19 @@ bool IsRoutable(const struct in_addr& addr) {
   return true;
 }
 
+// Returns true iff the ipv6 address is a unique local unicast address
+// (RFC 4193, fc00::/7).
+inline bool IN6_IS_ADDR_UniqueLocalUnicast(const struct in6_addr* a) {
+  return (a->s6_addr[0] & 0xFE) == 0xFC;
+}
+
 // Returns true iff the ipv6 address is routable.
 bool IsRoutable(const struct in6_addr& addr) {
   if (IN6_IS_ADDR_UNSPECIFIED(&addr)) return false;
   if (IN6_IS_ADDR_MULTICAST(&addr)) return false;
   if (IN6_IS_ADDR_LINKLOCAL(&addr)) return false;
   if (IN6_IS_ADDR_SITELOCAL(&addr)) return false;
+  if (IN6_IS_ADDR_UniqueLocalUnicast(&addr)) return false;
   return true;
 }
 
@@ -121,30 +128,15 @@ bool Exists(const std::string_view ifc, const std::string_view suffix) {
   return access(s.c_str(), F_OK) == 0;
 }
 
-// Returns true iff the interface `ifc` is a physical network adapter.
-bool IsPhysicalInterface(const std::string_view ifc) {
-  // Note: Virtual interfaces (e.g., veth, bridges, or containers) may also be
-  // assigned valid ip addresses, so checking for /device may not be sufficient
-  // for containerized environments without direct hardware passthrough.
-  return Exists(ifc, "/device");
-}
-
-// Returns true iff `ifc` is an active bonded master network adapter.
-bool IsBondedInterface(const std::string_view ifc) {
-  // TODO: We assume the bonded master interface is assigned ip address but its
-  // underlying slave interfaces are not. In general, slave interfaces may also
-  // carry configuration or different bonding modes, so this must be revisited.
-  return Exists(ifc, "/bonding");
+// Returns true iff the interface `ifc` is a software bridge (e.g., docker0,
+// virbr0, gbmcbr).
+bool IsBridgeInterface(const std::string_view ifc) {
+  return Exists(ifc, "/bridge");
 }
 
 // Returns true iff the interface `ifc` is under the RDMA/InfiniBand subsystem.
 bool IsRdmaInterface(const std::string_view ifc) {
   return Exists(ifc, "/device/infiniband");
-}
-
-// Returns true iff the interface `ifc` is the loopback interface.
-bool IsLoopbackInterface(const std::string_view ifc) {
-  return absl::StartsWithIgnoreCase(ifc, "lo");
 }
 }  // namespace
 
@@ -152,10 +144,7 @@ absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     const int family) {
   absl::flat_hash_map<std::string, NicInfo> ifc_ips;
   for (const auto& [ifc, ips] : EnumerateNics()) {
-    if (!IsLoopbackInterface(ifc) && !IsPhysicalInterface(ifc) &&
-        !IsBondedInterface(ifc)) {
-      continue;
-    }
+    if (IsBridgeInterface(ifc)) continue;
 
     std::vector<IpAddr> addrs;
     for (const auto& ip : ips) {
