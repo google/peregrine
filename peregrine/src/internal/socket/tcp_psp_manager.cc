@@ -43,22 +43,19 @@ std::unique_ptr<TcpSocket> PspTcpManager::createListener(Endpoint& endpoint,
   if ABSL_PREDICT_FALSE (socket == nullptr) {
     return nullptr;
   }
-
   DCHECK(socket->IsNonBlocking());
-  if ABSL_PREDICT_FALSE (socket->Listen(endpoint)) {
+  if ABSL_PREDICT_FALSE (socket->Listen(endpoint) < 0) {
     return nullptr;
   }
-
-  endpoint = SelfEndpoint(socket->fd());
-  if (!endpoint.HasNonzeroIpPort()) {
+  const Endpoint e = SelfEndpoint(socket->fd());
+  if (!e.HasNonzeroIpPort()) {
     return nullptr;
   }
-
   constexpr uint32_t kEvents = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLET;
-  if ABSL_PREDICT_FALSE (poller.Register(socket->fd(), kEvents)) {
+  if ABSL_PREDICT_FALSE (poller.Register(socket->fd(), kEvents) < 0) {
     return nullptr;
   }
-
+  endpoint = e;
   LOG(INFO) << "created, " << *socket;
   return socket;
 }
@@ -69,84 +66,79 @@ std::unique_ptr<PspTcpManager> PspTcpManager::Create(HostInfo& self) {
     LOG(ERROR) << "failed to create poller";
     return nullptr;
   }
-
   const bool loopback = self.control_plane_listener.GetIpAddr().IsLoopback();
   auto candidates = NicInfo::GetTcpListenerCandidates(loopback);
   if ABSL_PREDICT_FALSE (candidates.empty()) {
     LOG(ERROR) << "failed to find data plane tcp listener candidates";
     return nullptr;
   }
-
+  HostInfo host = self;  // only update `self` on success
   absl::flat_hash_map<fd_t, Listener> listeners;
   for (auto& [_, ni] : candidates) {
     NicInfo nic(ni.name, ni.type, {});
     for (auto& e : ni.endpoints) {  // `e` will be modified below
-      std::unique_ptr<TcpSocket> socket = createListener(e, *poller);
-      if ABSL_PREDICT_FALSE (socket == nullptr) {
-        LOG(WARNING) << "failed to create tcp listening socket for " << e;
-        continue;
+      if (auto socket = createListener(e, *poller); socket != nullptr) {
+        const fd_t fd = socket->fd();
+        DCHECK(e.HasNonzeroIpPort());
+        DCHECK_EQ(e, SelfEndpoint(fd));
+        listeners.emplace(fd, Listener{std::move(socket), e});
+        nic.endpoints.push_back(e);
       }
-      const fd_t fd = socket->fd();
-      DCHECK(e.HasNonzeroIpPort());
-      DCHECK_EQ(e, SelfEndpoint(fd));
-      listeners.emplace(fd, Listener{std::move(socket), e});
-      nic.endpoints.push_back(e);
     }
-    if (nic.IsValid()) {
-      self.data_plane_listeners.push_back(nic);
-    }
+    if (nic.IsValid()) host.data_plane_listeners.push_back(nic);
   }
-  if ABSL_PREDICT_FALSE (!self.IsValid()) {
-    LOG(ERROR) << "invalid self host info " << self;
+  if ABSL_PREDICT_FALSE (listeners.empty()) {
+    LOG(ERROR) << "failed to create data plane tcp listening sockets";
     return nullptr;
   }
-
-  return absl::WrapUnique(
-      new PspTcpManager(self, std::move(poller), std::move(listeners)));
+  if ABSL_PREDICT_FALSE (!host.IsValid()) {
+    LOG(ERROR) << "invalid self host info " << host;
+    return nullptr;
+  }
+  self = host;
+  auto m = new PspTcpManager(self, std::move(poller), std::move(listeners));
+  return absl::WrapUnique(m);
 }
 
 int PspTcpManager::Connect(const Endpoint& self, const Endpoint& peer,
                            const bool blocking) {
+  static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
   DCHECK(peer.HasNonzeroIpPort());
 
   // TODO(yongx): non-blocking connect
-  if (!blocking) return -1;
+  if (!blocking) return kConnectError;
 
   const int family = peer.GetIpAddr().AddressFamily();
   auto socket = TcpSocket::Create(family, /*blocking=*/true);
   if ABSL_PREDICT_FALSE (socket == nullptr) {
-    return -1;
+    return kConnectError;
   }
-
   if (!self.HasZeroIpAddr() && socket->Bind(self)) {
-    return -1;
+    return kConnectError;
   }
-
   DCHECK(socket->IsBlocking());
   if (socket->Connect(peer)) {
-    return -1;
+    return kConnectError;
   }
-
   DCHECK(socket->IsConnected());
   LOG(INFO) << "made " << *socket;
   AddConnected(std::move(socket));
-  return 0;
+  return kConnectSuccess;
 }
 
 void PspTcpManager::Start(OnAccept on_accept, bool gen_blocking) {
   static_assert(assumptions::kTcpListeningSocketsAreNonBlocking);
   DCHECK(invariant());
-  DCHECK_NE(on_accept, nullptr);
   LOG(INFO) << "starting, " << self_;
 
-  constexpr int kTimeoutMs = 100;
+  constexpr int kTimeoutMs = 50;
   constexpr int kMaxEvents = 64;
   epoll_event events[kMaxEvents];
-  while (!isStopped() && !listeners_.empty()) {
+  while (!isStopped()) {
     const int nfds = poller_->BlockingWait(events, kMaxEvents, kTimeoutMs);
+    if (isStopped()) break;
     if ABSL_PREDICT_FALSE (nfds < 0) {
-      if (isStopped()) return;
-      LOG(WARNING) << "poller wait failed";
+      LOG_EVERY_N_SEC(ERROR, 1) << "poller wait failed";
       continue;
     }
     for (int i = 0; i < nfds; ++i) {
@@ -163,7 +155,7 @@ void PspTcpManager::Start(OnAccept on_accept, bool gen_blocking) {
         if ABSL_PREDICT_FALSE (ret < 0) {
           if ABSL_PREDICT_FALSE (IsOutOfResource(ret)) {
             LOG_EVERY_N_SEC(ERROR, 3) << "out of resource, " << *listener;
-            absl::SleepFor(absl::Milliseconds(100));  // avoid busy-looping
+            absl::SleepFor(absl::Milliseconds(50));  // avoid busy-looping
           } else if (IsWouldBlock(ret) || IsShutdown(ret)) {
             // do nothing
           } else {
@@ -213,42 +205,35 @@ std::unique_ptr<TcpSocket> PspTcpManager::ConnectPsp(
   if ABSL_PREDICT_FALSE (socket == nullptr) {
     return nullptr;
   }
-
   if (!self.HasZeroIpAddr() && socket->Bind(self)) {
     return nullptr;
   }
-
   const fd_t fd = socket->fd();
   const absl::StatusOr<PspToken> self_token = psp::AcquireRxSpiAndKey(fd);
   if (!self_token.ok() || !self_token->IsValid()) {
     LOG(WARNING) << "failed to acquire self rx psp token";
     return nullptr;
   }
-
   const absl::StatusOr<PspToken> peer_token =
       psp_token_xchg(self_token.value(), peer, peer_control);
   if (!peer_token.ok()) {
     LOG(WARNING) << "failed to exchange psp token with peer";
     return nullptr;
   }
-
   const absl::Status status = psp::SetTxSpiAndKey(fd, peer_token.value());
   if (!status.ok()) {
     LOG(WARNING) << "failed to set tx psp token: " << status;
     return nullptr;
   }
-
   DCHECK(socket->IsBlocking());
   if (socket->Connect(peer)) {
     return nullptr;
   }
-
   const absl::StatusOr<Spi> spi = psp::GetInitialRxSpi(fd);
   if (!spi.ok() || spi.value() != self_token->spi) {
     LOG(WARNING) << "failed to verify negotiated rx psp spi";
     return nullptr;
   }
-
   DCHECK(socket->IsConnected());
   LOG(INFO) << "made psp " << *socket;
   return socket;
@@ -273,14 +258,14 @@ absl::StatusOr<PspToken> PspTcpManager::ExchangePspTokens(
     return absl::NotFoundError(
         absl::StrCat("no listener found for ", self_target.ToString()));
   }
-
   const fd_t fd = l->socket->fd();
   absl::MutexLock lock(*l->mu);
   absl::StatusOr<PspToken> self_token = psp::AddSecureListener(fd, peer_token);
   if (!self_token.ok() || !self_token->IsValid()) {
     return absl::InternalError("invalid self psp token");
   }
-  return self_token;  // TODO(yyd): RemoveSecureListener when `fd` is closed?
+  // RemoveSecureListener(fd) is automatically called when `fd` is closed.
+  return self_token;
 }
 
 }  // namespace peregrine::internal

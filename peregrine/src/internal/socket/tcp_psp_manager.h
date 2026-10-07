@@ -10,6 +10,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
+#include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -27,7 +28,7 @@ namespace peregrine::internal {
 // It is thread-compatible but not thread-safe.
 // TODO(yongx): after `TcpManager` matures, consolidate dup code here.
 class PspTcpManager {
-  using OnAccept = absl::AnyInvocable<void(std::unique_ptr<TcpSocket>)>;
+  using OnAccept = absl::FunctionRef<void(std::unique_ptr<TcpSocket>)>;
 
  public:
   using PspTokenExchange = absl::AnyInvocable<absl::StatusOr<PspToken>(
