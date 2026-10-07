@@ -30,7 +30,7 @@ std::unique_ptr<TcpSocket> TestOnly_CreateTcpSocket(int family, bool blocking) {
   CHECK_NE(socket, nullptr);  // Crash OK
   DCHECK(socket->IsValid());
   DCHECK(socket->MatchesFamily(family));
-  DCHECK(socket->MatchesBlocking(blocking));
+  DCHECK(socket->MatchesBlocking());
   DCHECK(!socket->IsConnected());
   return socket;
 }
@@ -40,7 +40,7 @@ std::unique_ptr<UdpSocket> TestOnly_CreateUdpSocket(int family, bool blocking) {
   CHECK_NE(socket, nullptr);  // Crash OK
   DCHECK(socket->IsValid());
   DCHECK(socket->MatchesFamily(family));
-  DCHECK(socket->MatchesBlocking(blocking));
+  DCHECK(socket->MatchesBlocking());
   DCHECK(!socket->IsConnected());
   return socket;
 }

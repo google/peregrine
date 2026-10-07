@@ -49,8 +49,16 @@ TEST_P(SocketUtilTest, Basic) {
     const fd_t fd = CreateSocket(cfg_.family, type, cfg_.blocking);
     ASSERT_GE(fd.value(), 0);
     ASSERT_TRUE(IsValidSocket(fd));
-    ASSERT_TRUE(MatchesBlockingMode(fd, cfg_.blocking));
     LOG(INFO) << SuccessMsg(proto, "created", fd);
+
+    if (cfg_.blocking) {
+      ASSERT_TRUE(IsBlockingMode(fd));
+      ASSERT_FALSE(IsNonBlockingMode(fd));
+    } else {
+      ASSERT_FALSE(IsBlockingMode(fd));
+      ASSERT_TRUE(IsNonBlockingMode(fd));
+    }
+    ASSERT_TRUE(MatchesBlockingMode(fd, cfg_.blocking));
 
     int on = 1, off = 0;
     EXPECT_TRUE(!SetSocketOption(fd, SO_REUSEADDR, &on, sizeof(on)));
@@ -61,16 +69,6 @@ TEST_P(SocketUtilTest, Basic) {
     EXPECT_TRUE(!GetSocketOption(fd, SO_ERROR, &err, &len));
     EXPECT_EQ(err, 0);
     EXPECT_EQ(GetSocketError(fd), 0);
-
-    EXPECT_TRUE(!SetBlockingMode(fd));
-    EXPECT_TRUE(IsBlockingMode(fd));
-    EXPECT_FALSE(IsNonBlockingMode(fd));
-    EXPECT_TRUE(MatchesBlockingMode(fd, true));
-
-    EXPECT_TRUE(!SetNonBlockingMode(fd));
-    EXPECT_TRUE(IsNonBlockingMode(fd));
-    EXPECT_FALSE(IsBlockingMode(fd));
-    EXPECT_TRUE(MatchesBlockingMode(fd, false));
 
     if (cfg_.family == AF_INET) {
       EXPECT_EQ(SelfAddrPort(fd), "0.0.0.0:0");

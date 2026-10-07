@@ -3,6 +3,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
@@ -10,24 +11,32 @@
 
 namespace peregrine::internal {
 
-bool SocketBase::IsBlocking() const {
-  if (IsBlockingMode(fd_)) {
-    DCHECK(!IsNonBlockingMode(fd_));
-    return true;
-  } else {
-    DCHECK(IsNonBlockingMode(fd_));
-    return false;
-  }
+namespace {
+// Sets the socket file descriptor `fd` to the specified blocking mode.
+// Returns 0 on success, -1 on error.
+// Note: we put this function here instead of in socket_util.h because we want
+// to set blocking mode only through the socket, not via its file descriptor,
+// to avoid accidental misuse of an utility function.
+int SetSocketBlockingMode(const fd_t fd, const bool blocking) {
+  const int flags = ::fcntl(fd.value(), F_GETFL);
+  if ABSL_PREDICT_FALSE (flags < 0) return -1;
+  const int cmd = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
+  return ::fcntl(fd.value(), F_SETFL, cmd);
 }
+}  // namespace
 
-bool SocketBase::IsNonBlocking() const {
-  if (IsNonBlockingMode(fd_)) {
-    DCHECK(!IsBlockingMode(fd_));
-    return true;
-  } else {
-    DCHECK(IsBlockingMode(fd_));
-    return false;
+int SocketBase::SetBlocking(const bool blocking) {
+  if (blocking == blocking_) {
+    DCHECK(MatchesBlocking());
+    return 0;
   }
+  if (SetSocketBlockingMode(fd_, blocking) == 0) {
+    blocking_ = blocking;
+    DCHECK(MatchesBlocking());
+    return 0;
+  }
+  DCHECK(MatchesBlocking());
+  return -1;
 }
 
 int SocketBase::Bind(const fd_t fd, const Endpoint& local) {

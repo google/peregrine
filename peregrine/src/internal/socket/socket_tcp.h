@@ -29,7 +29,7 @@ class TcpSocket final : public SocketBase {
   static std::unique_ptr<TcpSocket> Create(int family, bool blocking);
 
   // Creates a connected tcp socket.
-  static std::unique_ptr<TcpSocket> Create(fd_t fd, int family);
+  static std::unique_ptr<TcpSocket> Create(fd_t fd, int family, bool blocking);
 
   // Destructor closes the socket.
   ~TcpSocket();
@@ -75,8 +75,8 @@ class TcpSocket final : public SocketBase {
  private:
   // Constructor with a valid file descriptor `fd`.
   // The `fd` comes from a successful `Create()` or `Accept()` call.
-  TcpSocket(fd_t fd, int family, bool connected)
-      : SocketBase(fd, family, connected) {
+  TcpSocket(fd_t fd, int family, bool blocking, bool connected)
+      : SocketBase(fd, family, blocking, connected) {
     DCHECK(invariant());
   }
 

@@ -35,30 +35,18 @@ inline int GetSocketOption(fd_t fd, int opt, void* val, socklen_t* len) {
 }
 
 // Returns true iff the socket `fd` is in blocking mode.
+// Returning false does not mean the socket is in non-blocking mode.
+// Use `IsNonBlockingMode()` to check.
 bool IsBlockingMode(fd_t fd);
 
 // Returns true iff the socket `fd` is in non-blocking mode.
+// Returning false does not mean the socket is in blocking mode.
+// Use `IsBlockingMode()` to check.
 bool IsNonBlockingMode(fd_t fd);
 
 // Returns true iff the socket `fd` is in the specified blocking mode.
 inline bool MatchesBlockingMode(fd_t fd, bool blocking) {
   return blocking ? IsBlockingMode(fd) : IsNonBlockingMode(fd);
-}
-
-// Sets the socket to the specified blocking mode.
-// Returns 0 on success, -1 otherwise.
-int SetSocketBlockingMode(fd_t fd, bool blocking);
-
-// Sets the socket to blocking mode.
-// Returns 0 on success, -1 otherwise.
-inline int SetBlockingMode(fd_t fd) {
-  return SetSocketBlockingMode(fd, /*blocking=*/true);
-}
-
-// Sets the socket to non-blocking mode.
-// Returns 0 on success, -1 otherwise.
-inline int SetNonBlockingMode(fd_t fd) {
-  return SetSocketBlockingMode(fd, /*blocking=*/false);
 }
 
 // Returns the self ip:port string for the socket `fd`.

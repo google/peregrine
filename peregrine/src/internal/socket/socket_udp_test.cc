@@ -17,7 +17,6 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/socket/socket_test_util.h"
-#include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -89,7 +88,7 @@ TEST_P(UdpSocketTest, ScatterGather) {
       CHECK_GT(len, 0);
       CHECK_LE(len, kDataSize);
     } else {
-      SetNonBlockingMode(rskt_->fd());
+      CHECK(!rskt_->SetBlocking(false));
       CHECK(rskt_->IsNonBlocking());
       ssize_t rcvd = 0;
       while (true) {
@@ -113,7 +112,7 @@ TEST_P(UdpSocketTest, ScatterGather) {
       DCHECK(sskt_->IsBlocking());
       CHECK_EQ(sskt_->Send(*iovs), kDataSize);
     } else {
-      SetNonBlockingMode(sskt_->fd());
+      CHECK(!sskt_->SetBlocking(false));
       CHECK(sskt_->IsNonBlocking());
       ssize_t sent = 0;
       while (true) {

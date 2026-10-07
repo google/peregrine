@@ -36,7 +36,7 @@ std::unique_ptr<UdpSocket> UdpSocket::Create(int family, bool blocking) {
     return nullptr;
   } else {
     LOG(INFO) << okMsg("created", fd);
-    return absl::WrapUnique(new UdpSocket(fd, family));
+    return absl::WrapUnique(new UdpSocket(fd, family, blocking));
   }
 }
 

@@ -39,8 +39,7 @@ std::unique_ptr<TcpSocket> PspTcpManager::createListener(Endpoint& endpoint,
   DCHECK(!endpoint.HasZeroIpAddr());
 
   const int family = endpoint.GetIpAddr().AddressFamily();
-  constexpr bool kBlocking = false;
-  std::unique_ptr<TcpSocket> socket = TcpSocket::Create(family, kBlocking);
+  auto socket = TcpSocket::Create(family, /*blocking=*/false);
   if ABSL_PREDICT_FALSE (socket == nullptr) {
     return nullptr;
   }
@@ -173,8 +172,8 @@ void PspTcpManager::Start(OnAccept on_accept, bool gen_blocking) {
           break;
         }
         const fd_t new_fd(ret);
-        std::unique_ptr<TcpSocket> socket = TcpSocket::Create(new_fd, family);
-        DCHECK(socket->MatchesBlocking(gen_blocking));
+        auto socket = TcpSocket::Create(new_fd, family, gen_blocking);
+        DCHECK(socket->MatchesBlocking());
         DCHECK(socket->IsConnected());
         LOG(INFO) << "made " << *socket;
         on_accept(std::move(socket));

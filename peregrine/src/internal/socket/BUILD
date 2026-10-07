@@ -57,6 +57,7 @@ cc_library(
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
     ],
@@ -104,7 +105,6 @@ cc_test(
     deps = [
         ":socket_tcp",
         ":socket_test_util",
-        ":socket_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
@@ -147,7 +147,6 @@ cc_test(
     deps = [
         ":socket_test_util",
         ":socket_udp",
-        ":socket_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/util:test_param",

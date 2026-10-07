@@ -219,8 +219,8 @@ bool TcpManager::handleAllIncoming(const fd_t fd, const uint32_t flag,
         break;
       }
       const fd_t new_fd(ret);
-      auto socket = TcpSocket::Create(new_fd, family);
-      DCHECK(socket->MatchesBlocking(gen_blocking));
+      auto socket = TcpSocket::Create(new_fd, family, gen_blocking);
+      DCHECK(socket->MatchesBlocking());
       DCHECK(socket->IsConnected());
       LOG(INFO) << "made " << *socket;
       if (!incoming_.Add(std::move(socket))) break;

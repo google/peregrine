@@ -50,13 +50,6 @@ bool IsNonBlockingMode(const fd_t fd) {
   return flags >= 0 && (flags & O_NONBLOCK);
 }
 
-int SetSocketBlockingMode(const fd_t fd, const bool blocking) {
-  const int flags = ::fcntl(fd.value(), F_GETFL);
-  if ABSL_PREDICT_FALSE (flags < 0) return -1;
-  const int cmd = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
-  return ::fcntl(fd.value(), F_SETFL, cmd);
-}
-
 std::string SelfAddrPort(const fd_t fd) {
   struct sockaddr_storage ss;
   socklen_t len = sizeof(ss);

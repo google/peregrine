@@ -37,12 +37,15 @@ std::unique_ptr<TcpSocket> TcpSocket::Create(int family, bool blocking) {
     return nullptr;
   } else {
     LOG(INFO) << okMsg("created", fd);
-    return absl::WrapUnique(new TcpSocket(fd, family, /*connected=*/false));
+    return absl::WrapUnique(
+        new TcpSocket(fd, family, blocking, /*connected=*/false));
   }
 }
 
-std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family) {
-  return absl::WrapUnique(new TcpSocket(fd, family, /*connected=*/true));
+std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family,
+                                             bool blocking) {
+  return absl::WrapUnique(
+      new TcpSocket(fd, family, blocking, /*connected=*/true));
 }
 
 TcpSocket::~TcpSocket() {

@@ -56,7 +56,8 @@ class UdpSocket final : public SocketBase {
  private:
   // Constructor with a valid file descriptor `fd`.
   // The `fd` comes from a successful `Create()` call.
-  UdpSocket(fd_t fd, int family) : SocketBase(fd, family, /*connected=*/false) {
+  UdpSocket(fd_t fd, int family, bool blocking)
+      : SocketBase(fd, family, blocking, /*connected=*/false) {
     DCHECK(invariant());
   }
 

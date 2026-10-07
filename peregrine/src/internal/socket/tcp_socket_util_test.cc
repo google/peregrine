@@ -82,7 +82,7 @@ TEST_P(TcpSocketUtilTest, SmallMessage) {
     CHECK_GE(ret, 0);
 
     const fd_t new_fd(ret);
-    auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
+    auto new_socket = TcpSocket::Create(new_fd, cfg_.family, cfg_.blocking);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
     CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), recv_buf.data(), kMsgSize));
@@ -123,7 +123,7 @@ TEST_P(TcpSocketUtilTest, BigData) {
     CHECK_GE(ret, 0);
 
     const fd_t new_fd(ret);
-    auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
+    auto new_socket = TcpSocket::Create(new_fd, cfg_.family, cfg_.blocking);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
     const size_t kPartial = kDataSize / 2;

@@ -18,7 +18,6 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_test_util.h"
-#include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -85,8 +84,9 @@ TEST_P(TcpSocketTest, ScatterGather) {
     CHECK_GE(ret, 0);
 
     const fd_t new_fd(ret);
-    auto new_socket = TcpSocket::Create(new_fd, cfg_.family);
+    auto new_socket = TcpSocket::Create(new_fd, cfg_.family, cfg_.blocking);
     DCHECK(new_socket->IsConnected());
+    DCHECK(new_socket->MatchesBlocking());
     auto iovs = CreateIoVecCursor(recv_buf, /*splits=*/2);
     if (cfg_.blocking) {
       CHECK(new_socket->IsBlocking());
@@ -116,7 +116,7 @@ TEST_P(TcpSocketTest, ScatterGather) {
       CHECK(connector_->IsBlocking());
       CHECK_EQ(connector_->Send(*iovs), kDataSize);
     } else {
-      SetNonBlockingMode(connector_->fd());
+      CHECK(!connector_->SetBlocking(false));
       CHECK(connector_->IsNonBlocking());
       ssize_t sent = 0;
       while (true) {

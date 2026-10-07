@@ -39,15 +39,26 @@ class SocketBase {
   // Returns true iff the socket is connected.
   bool IsConnected() const { return connected_; }
 
+  // Sets the blocking mode to the specified value.
+  // Returns 0 on success, -1 on error.
+  [[nodiscard("Must check if the call succeeded")]]
+  int SetBlocking(bool blocking);
+
   // Returns true iff the socket is in blocking mode.
-  bool IsBlocking() const;
+  bool IsBlocking() const {
+    DCHECK(MatchesBlocking());
+    return blocking_;
+  }
 
   // Returns true iff the socket is in non-blocking mode.
-  bool IsNonBlocking() const;
+  bool IsNonBlocking() const {
+    DCHECK(MatchesBlocking());
+    return !blocking_;
+  }
 
   // Returns true iff the socket is in the specified blocking mode.
-  bool MatchesBlocking(bool blocking) const {
-    return blocking ? IsBlockingMode(fd_) : IsNonBlockingMode(fd_);
+  bool MatchesBlocking() const {
+    return blocking_ ? IsBlockingMode(fd_) : IsNonBlockingMode(fd_);
   }
 
   // Returns a string representation of the socket.
@@ -60,8 +71,8 @@ class SocketBase {
 
  protected:
   // Constructor.
-  SocketBase(fd_t fd, int family, bool connected)
-      : fd_(fd), family_(family), connected_(connected) {
+  SocketBase(fd_t fd, int family, bool blocking, bool connected)
+      : fd_(fd), family_(family), blocking_(blocking), connected_(connected) {
     DCHECK(invariant());
   }
 
@@ -69,7 +80,6 @@ class SocketBase {
   DISALLOW_COPY(SocketBase);
 
   // Disallows move to force the use of `std::unique_ptr<T>`, not `T`.
-  // TODO(yongx): should we allow move?
   DISALLOW_MOVE(SocketBase);
 
   // Destructor.
@@ -78,7 +88,7 @@ class SocketBase {
   // Returns true iff the invariant holds.
   bool invariant() const {
     return fd_.value() >= 0 && (family_ == AF_INET || family_ == AF_INET6) &&
-           IsValidSocket(fd_);
+           IsValidSocket(fd_) && MatchesBlocking();
   }
 
  protected:
@@ -91,6 +101,7 @@ class SocketBase {
  protected:
   fd_t fd_;
   int family_;
+  bool blocking_;
   bool connected_;
 };
 

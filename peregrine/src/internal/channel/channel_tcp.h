@@ -41,7 +41,6 @@ class TcpChannel final : public Channel {
   }
 
   // Returns whether the channel is blocking or non-blocking.
-  // Note: avoid calling this function in fast path.
   bool IsBlocking() const override { return socket_->IsBlocking(); }
 
   // Writes a number of buffers described by the `iovecs` to the channel.

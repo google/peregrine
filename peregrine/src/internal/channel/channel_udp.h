@@ -41,7 +41,6 @@ class UdpChannel final : public Channel {
   }
 
   // Returns whether the channel is blocking or non-blocking.
-  // Note: avoid calling this function in fast path.
   bool IsBlocking() const override { return socket_->IsBlocking(); }
 
   // Writes data from the `iovecs` buffers to the channel.
