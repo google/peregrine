@@ -49,6 +49,7 @@ TEST_P(SocketUtilTest, Basic) {
     const fd_t fd = CreateSocket(cfg_.family, type, cfg_.blocking);
     ASSERT_GE(fd.value(), 0);
     ASSERT_TRUE(IsValidSocket(fd));
+    ASSERT_EQ(AddrFamily(fd), cfg_.family);
     LOG(INFO) << SuccessMsg(proto, "created", fd);
 
     if (cfg_.blocking) {

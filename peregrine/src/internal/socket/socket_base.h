@@ -64,9 +64,10 @@ class SocketBase {
   // Returns a string representation of the socket.
   std::string ToString() const {
     DCHECK(invariant());
-    return absl::StrFormat("ipv%d socket fd=%d %s (connected=%d)",
+    return absl::StrFormat("ipv%d socket fd=%d %s (blocking=%d, connected=%d)",
                            family_ == AF_INET ? 4 : 6, fd_.value(),
-                           AddrPortPair(fd_), connected_ ? 1 : 0);
+                           AddrPortPair(fd_), blocking_ ? 1 : 0,
+                           connected_ ? 1 : 0);
   }
 
  protected:
@@ -87,8 +88,9 @@ class SocketBase {
 
   // Returns true iff the invariant holds.
   bool invariant() const {
-    return fd_.value() >= 0 && (family_ == AF_INET || family_ == AF_INET6) &&
-           IsValidSocket(fd_) && MatchesBlocking();
+    return fd_.value() >= 0 && IsValidSocket(fd_) &&
+           (family_ == AF_INET || family_ == AF_INET6) &&
+           AddrFamily(fd_) == family_ && MatchesBlocking();
   }
 
  protected:
@@ -104,6 +106,8 @@ class SocketBase {
   bool blocking_;
   bool connected_;
 };
+
+static_assert(sizeof(SocketBase) == 12);
 
 }  // namespace peregrine::internal
 

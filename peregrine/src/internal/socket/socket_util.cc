@@ -50,54 +50,44 @@ bool IsNonBlockingMode(const fd_t fd) {
   return flags >= 0 && (flags & O_NONBLOCK);
 }
 
+namespace {
+// Gets the self socket address. Returns 0 on success, -1 on error.
+int GetSockName(const fd_t fd, struct sockaddr_storage& ss) {
+  socklen_t len = sizeof(ss);
+  return ::getsockname(fd.value(), (struct sockaddr*)&ss, &len);
+}
+
+// Gets the peer socket address. Returns 0 on success, -1 on error.
+int GetPeerName(const fd_t fd, struct sockaddr_storage& ss) {
+  socklen_t len = sizeof(ss);
+  return ::getpeername(fd.value(), (struct sockaddr*)&ss, &len);
+}
+}  // namespace
+
+int AddrFamily(const fd_t fd) {
+  struct sockaddr_storage ss;
+  return !GetSockName(fd, ss) ? ss.ss_family : -1;
+}
+
 std::string SelfAddrPort(const fd_t fd) {
   struct sockaddr_storage ss;
-  socklen_t len = sizeof(ss);
-  if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
-    return ToIpAddrPortString(ss);
-  } else {
-    const Errno err(errno);
-    LOG(WARNING) << ErrorMsg("getsockname", err);
-    return "?";
-  }
+  return !GetSockName(fd, ss) ? ToIpAddrPortString(ss) : "?";
 }
 
 std::string PeerAddrPort(const fd_t fd) {
   struct sockaddr_storage ss;
-  socklen_t len = sizeof(ss);
-  if (::getpeername(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
-    return ToIpAddrPortString(ss);
-  } else if (errno == ENOTCONN) {
-    return "*";
-  } else {
-    const Errno err(errno);
-    LOG(WARNING) << ErrorMsg("getpeername", err);
-    return "?";
-  }
+  return !GetPeerName(fd, ss) ? ToIpAddrPortString(ss)
+                              : (errno == ENOTCONN ? "*" : "?");
 }
 
 Endpoint SelfEndpoint(const fd_t fd) {
   struct sockaddr_storage ss;
-  socklen_t len = sizeof(ss);
-  if (::getsockname(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
-    return Endpoint::Create(ss);
-  } else {
-    const Errno err(errno);
-    LOG(WARNING) << ErrorMsg("getsockname", err);
-    return Endpoint();
-  }
+  return !GetSockName(fd, ss) ? Endpoint::Create(ss) : Endpoint();
 }
 
 Endpoint PeerEndpoint(const fd_t fd) {
   struct sockaddr_storage ss;
-  socklen_t len = sizeof(ss);
-  if (::getpeername(fd.value(), (struct sockaddr*)&ss, &len) == 0) {
-    return Endpoint::Create(ss);
-  } else {
-    const Errno err(errno);
-    LOG(WARNING) << ErrorMsg("getpeername", err);
-    return Endpoint();
-  }
+  return !GetPeerName(fd, ss) ? Endpoint::Create(ss) : Endpoint();
 }
 
 std::string ToIpAddrPortString(const struct sockaddr_storage& ss) {
