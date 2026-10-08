@@ -6,6 +6,7 @@
 #include <string>
 
 #include "absl/log/check.h"
+#include "absl/numeric/int128.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -20,16 +21,17 @@ DEFINE_STRONG_INT_TYPE(addr_t, uintptr_t);
 DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
 
 // `ChunkHeader` defines chunk metadata.
-struct alignas(8) ChunkHeader final {
+struct alignas(16) ChunkHeader final {
   static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
   static_assert(assumptions::kChunkHeaderHasBackwardForwardCompatibilityIssue);
   // LINT.IfChange
-  Handle handle;     // REQUIRED: handle id (fixed)
-  ReqId reqid;       // REQUIRED: request id (fixed)
-  uint32_t nchunks;  // REQUIRED: total #chunks (fixed)
-  chunk_t index;     // REQUIRED: chunk index (variable)
-  addr_t addr;       // REQUIRED: chunk address (variable)
-  uint32_t size;     // REQUIRED: chunk size (variable)
+  Handle handle;                // REQUIRED: handle id (fixed)
+  ReqId reqid;                  // REQUIRED: request id (fixed)
+  uint32_t nchunks;             // REQUIRED: total #chunks (fixed)
+  chunk_t index;                // REQUIRED: chunk index (variable)
+  addr_t addr;                  // REQUIRED: chunk address (variable)
+  uint32_t size;                // REQUIRED: chunk size (variable)
+  absl::uint128 buffer_id = 0;  // OPTIONAL: opaque buffer id (fixed)
   // LINT.ThenChange(chunk.fbs)
 
   // Returns true iff the chunk is valid.
@@ -51,10 +53,10 @@ struct alignas(8) ChunkHeader final {
   friend bool operator==(const ChunkHeader& a, const ChunkHeader& b) {
     return a.handle == b.handle && a.reqid == b.reqid &&
            a.nchunks == b.nchunks && a.index == b.index && a.addr == b.addr &&
-           a.size == b.size;
+           a.size == b.size && a.buffer_id == b.buffer_id;
   }
 };
-static_assert(sizeof(ChunkHeader) == 32);
+static_assert(sizeof(ChunkHeader) == 48);
 
 inline std::ostream& operator<<(std::ostream& os, const ChunkHeader& chunk) {
   return os << chunk.ToString();

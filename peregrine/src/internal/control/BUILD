@@ -60,6 +60,7 @@ cc_library(
         "//peregrine/src/internal/socket/psp",
         "//peregrine/src/util:nic",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/numeric:int128",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -76,6 +77,7 @@ cc_test(
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/base:nicinfo",
         "//peregrine/src/util:nic",
+        "@abseil-cpp//absl/numeric:int128",
         "@googletest//:gtest_main",
     ],
 )

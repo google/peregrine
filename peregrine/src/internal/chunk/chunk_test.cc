@@ -27,8 +27,13 @@ class ChunkTest : public ::testing::Test {
 
 TEST_F(ChunkTest, ChunkAddr) {
   EXPECT_EQ(chunk_.DstAddr(), reinterpret_cast<Byte*>(0xffff'0400));
+  EXPECT_EQ(chunk_.buffer_id, kBufferId);
   EXPECT_TRUE(IsMatch(chunk_, payload1_));
   EXPECT_FALSE(IsMatch(chunk_, payload2_));
+  ChunkHeader other = chunk_;
+  EXPECT_EQ(other, chunk_);
+  other.buffer_id = 0;
+  EXPECT_NE(other, chunk_);
   LOG(INFO) << chunk_;
 }
 

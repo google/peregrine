@@ -8,6 +8,7 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/numeric/int128.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
@@ -54,10 +55,11 @@ bool ChunkUtil::Deserialize(std::string_view s, ChunkHeader& chunk) {
 
 std::string ChunkUtil::serializeV1(const ChunkHeader& chunk) {
   constexpr uint16_t kVer = 1;
-  const flatbuf::ChunkHeader h(kMagic, kVer, chunk.handle.value(),
-                               chunk.reqid.value(), chunk.nchunks,
-                               chunk.index.value(), chunk.size,
-                               chunk.addr.value(), /*paddings=*/0, 0, 0, 0);
+  const flatbuf::ChunkHeader h(
+      kMagic, kVer, chunk.handle.value(), chunk.reqid.value(), chunk.nchunks,
+      chunk.index.value(), chunk.size, chunk.addr.value(),
+      absl::Uint128Low64(chunk.buffer_id), absl::Uint128High64(chunk.buffer_id),
+      /*paddings=*/0, 0);
   DCHECK_EQ(sizeof(h), kSize);
   return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
 }
@@ -71,6 +73,7 @@ void ChunkUtil::deserializeV1(const flatbuf::ChunkHeader& h,
   chunk.index = chunk_t(h.index());
   chunk.addr = addr_t(h.addr());
   chunk.size = h.size();
+  chunk.buffer_id = absl::MakeUint128(h.buffer_id_high(), h.buffer_id_low());
 }
 
 }  // namespace peregrine::internal

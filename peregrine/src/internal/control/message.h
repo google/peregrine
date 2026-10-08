@@ -47,7 +47,9 @@ class Message final {
   // Returns true iff the proto requests are equal.
   static bool AreEqual(const proto::Request& a, const proto::Request& b) {
     return a.op() == b.op() && a.laddr() == b.laddr() &&
-           a.raddr() == b.raddr() && a.len() == b.len() && a.rkey() == b.rkey();
+           a.raddr() == b.raddr() && a.len() == b.len() &&
+           a.rkey() == b.rkey() && a.buffer_id_low() == b.buffer_id_low() &&
+           a.buffer_id_high() == b.buffer_id_high();
   }
 
   // Serializes the host info to its proto.

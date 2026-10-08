@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/numeric/int128.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
@@ -134,6 +135,8 @@ bool Message::serialize(const Request& req, proto::Request& proto) {
   proto.set_raddr(reinterpret_cast<uint64_t>(req.raddr));
   proto.set_len(req.len);
   proto.set_rkey(req.rkey);
+  proto.set_buffer_id_low(absl::Uint128Low64(req.buffer_id));
+  proto.set_buffer_id_high(absl::Uint128High64(req.buffer_id));
   return true;
 }
 
@@ -146,6 +149,8 @@ bool Message::deserialize(const proto::Request& proto, Request& req) {
   req.raddr = reinterpret_cast<Byte*>(proto.raddr());
   req.len = proto.len();
   req.rkey = proto.rkey();
+  req.buffer_id =
+      absl::MakeUint128(proto.buffer_id_high(), proto.buffer_id_low());
   return req.IsValid();
 }
 

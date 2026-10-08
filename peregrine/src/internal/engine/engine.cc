@@ -240,6 +240,7 @@ void Engine::processWrite(Workers& workers, const Handle handle,
         .index = chunk_t(i),
         .addr = addr_t(reinterpret_cast<uintptr_t>(chunk_dst_addr)),
         .size = size,
+        .buffer_id = request.buffer_id,
     };
     workers[i]->EnqueueChunk(chunk_src_addr, chunk);
   }

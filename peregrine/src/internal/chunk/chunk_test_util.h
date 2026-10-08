@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "absl/numeric/int128.h"
 #include "absl/random/bit_gen_ref.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -22,6 +23,8 @@ constexpr ReqId kReqId2(0xdead);
 constexpr uint32_t kChunkSize = 1024;
 constexpr uint32_t kNumChunks = 10;
 constexpr chunk_t kChunkIndex(1);
+inline constexpr absl::uint128 kBufferId =
+    absl::MakeUint128(0x0123456789abcdefULL, 0xfedcba9876543210ULL);
 
 // Generates chunk header.
 void GenChunkHeader(ChunkHeader& chunk, chunk_t index = kChunkIndex);
