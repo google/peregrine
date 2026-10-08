@@ -12,7 +12,6 @@
 #include "absl/base/attributes.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 
@@ -24,18 +23,24 @@ namespace peregrine::internal {
 class TcpSocketUtil final {
  public:
   // Sends on the socket `fd` exactly all the data from the `iovecs` buffers.
-  // Returns OK if all the bytes are sent successfully by the `deadline`.
-  // Returns error otherwise, which means this socket can't be used anymore.
+  // Returns OK if all the bytes are sent successfully by the deadline set by
+  // `timeout_ms`, which is infinite if `timeout_ms` < 0. Otherwise returns
+  // error, which means this socket can't be used anymore.
+  // Note: the deadline is only enforced while blocked waiting on the socket,
+  // so a transfer that keeps making progress may complete after the deadline.
   ABSL_DEPRECATED("temporarily for tpu raiden")
   static absl::Status Send(fd_t fd, absl::Span<const IoVec> iovecs,
-                           absl::Time deadline);
+                           int timeout_ms);
 
   // Receives on the socket `fd` exactly all the data into the `iovecs` buffers.
-  // Returns OK if all the bytes are received successfully by the `deadline`.
-  // Returns error otherwise, which means this socket can't be used anymore.
+  // Returns OK if all the bytes are received successfully by the deadline set
+  // by `timeout_ms`, which is infinite if `timeout_ms` < 0. Otherwise returns
+  // error, which means this socket can't be used anymore.
+  // Note: the deadline is only enforced while blocked waiting on the socket,
+  // so a transfer that keeps making progress may complete after the deadline.
   ABSL_DEPRECATED("temporarily for tpu raiden")
   static absl::Status Recv(fd_t fd, absl::Span<const IoVec> iovecs,
-                           absl::Time deadline);
+                           int timeout_ms);
 };
 
 }  // namespace peregrine::internal

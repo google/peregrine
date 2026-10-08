@@ -42,37 +42,39 @@ inline std::string ErrMsg(std::string_view what, fd_t fd, Errno err) {
                          std::strerror(err.value()));
 }
 
+inline absl::Time GetDeadline(int timeout_ms) {
+  return timeout_ms >= 0 ? absl::Now() + absl::Milliseconds(timeout_ms)
+                         : absl::InfiniteFuture();
+}
+
 // Waits for the `event` on the `fd` by the `deadline`.
-// Returns true if the event is received, false otherwise.
+// Returns true if the `fd` is ready for the `event` or has an error or hangup,
+// in which case the next send/recv call reports the actual result.
+// Returns false on timeout or `poll` failure.
 bool Wait(const fd_t fd, const int16_t event, const absl::Time deadline) {
   DCHECK(event == POLLIN || event == POLLOUT);
+  DCHECK_LT(deadline, absl::InfiniteFuture());
   struct pollfd pfd = {
       .fd = fd.value(),
       .events = event,
       .revents = 0,
   };
   while (true) {
-    const absl::Duration remaining = deadline - absl::Now();
-    if (remaining <= absl::ZeroDuration()) return false;
-    const int64_t remaining_ms = absl::ToInt64Milliseconds(remaining);
-    const int timeout_ms = static_cast<int>(
-        std::min<int64_t>(remaining_ms, std::numeric_limits<int>::max()));
-    const int ret = ::poll(&pfd, 1, timeout_ms);
-    if ABSL_PREDICT_FALSE (ret < 0) {
-      if (Interrupted(Errno(errno))) continue;
-      return false;
-    } else {
-      if (ret == 0) return false;
-      constexpr uint16_t kErrorEvents = POLLERR | POLLHUP | POLLNVAL;
-      return (pfd.revents & (kErrorEvents | event)) == event;
-    }
+    const int64_t ms = absl::ToInt64Milliseconds(deadline - absl::Now());
+    if (ms <= 0) return false;
+
+    constexpr int kMax = std::numeric_limits<int>::max();
+    const int timeout_ms = static_cast<int>(std::min<int64_t>(ms, kMax));
+    const int ret = ::poll(&pfd, /*nfds=*/1, timeout_ms);
+    if (ret < 0 && Interrupted(Errno(errno))) continue;
+    return ret > 0;
   }
 }
 }  // namespace
 
 absl::Status TcpSocketUtil::Send(const fd_t fd,
                                  const absl::Span<const IoVec> iovecs,
-                                 const absl::Time deadline) {
+                                 const int timeout_ms) {
   DCHECK(IsValidSocket(fd));
   DCHECK(IsBlockingMode(fd));
   DCHECK(IsValid(iovecs));
@@ -82,18 +84,14 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  const bool has_deadline = deadline < absl::InfiniteFuture();
-  const int flags = MSG_NOSIGNAL | (has_deadline ? MSG_DONTWAIT : 0);
+  const absl::Time deadline = GetDeadline(timeout_ms);
+  const int flags = (timeout_ms >= 0 ? MSG_DONTWAIT : 0) | MSG_NOSIGNAL;
   std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
   const size_t n = vecs.size();
   size_t sent = 0;
   size_t i = 0;
   struct msghdr msg = {};
   while (i < n) {
-    if ABSL_PREDICT_FALSE (has_deadline && deadline < absl::Now()) {
-      return absl::InternalError(
-          ErrMsg("sendmsg timeout", fd, Errno(ETIMEDOUT)));
-    }
     msg.msg_iov = &vecs[i];
     msg.msg_iovlen = n - i;
     const ssize_t bytes = ::sendmsg(fd.value(), &msg, flags);
@@ -115,13 +113,10 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
       if ABSL_PREDICT_TRUE (bytes < 0) {
         const Errno err(errno);
         if (Interrupted(err)) continue;
-        // When `has_deadline` is true, `MSG_DONTWAIT` is set so `sendmsg` can
-        // return EAGAIN/EWOULDBLOCK on a blocking socket.
-        if (has_deadline && WouldBlock(err)) {
-          if (!Wait(fd, POLLOUT, deadline)) {
-            return absl::InternalError(ErrMsg("sendmsg timeout", fd, err));
-          }
-          continue;
+        if (WouldBlock(err)) {
+          DCHECK(flags & MSG_DONTWAIT);
+          if (Wait(fd, POLLOUT, deadline)) continue;
+          return absl::InternalError(ErrMsg("sendmsg timeout", fd, err));
         }
         return absl::InternalError(ErrMsg("sendmsg", fd, err));
       }
@@ -133,7 +128,7 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
 
 absl::Status TcpSocketUtil::Recv(const fd_t fd,
                                  const absl::Span<const IoVec> iovecs,
-                                 const absl::Time deadline) {
+                                 const int timeout_ms) {
   DCHECK(IsValidSocket(fd));
   DCHECK(IsBlockingMode(fd));
   DCHECK(IsValid(iovecs));
@@ -143,18 +138,14 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  const bool has_deadline = deadline < absl::InfiniteFuture();
-  const int flags = has_deadline ? MSG_DONTWAIT : 0;
+  const absl::Time deadline = GetDeadline(timeout_ms);
+  const int flags = timeout_ms >= 0 ? MSG_DONTWAIT : 0;
   std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
   const size_t n = vecs.size();
   size_t rcvd = 0;
   size_t i = 0;
   struct msghdr msg = {};
   while (i < n) {
-    if ABSL_PREDICT_FALSE (has_deadline && deadline < absl::Now()) {
-      return absl::InternalError(
-          ErrMsg("recvmsg timeout", fd, Errno(ETIMEDOUT)));
-    }
     msg.msg_iov = &vecs[i];
     msg.msg_iovlen = n - i;
     const ssize_t bytes = ::recvmsg(fd.value(), &msg, flags);
@@ -176,13 +167,10 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
     } else {
       const Errno err(errno);
       if (Interrupted(err)) continue;
-      // When `has_deadline` is true, `MSG_DONTWAIT` is set so `recvmsg` can
-      // return EAGAIN/EWOULDBLOCK on a blocking socket.
-      if (has_deadline && WouldBlock(err)) {
-        if (!Wait(fd, POLLIN, deadline)) {
-          return absl::InternalError(ErrMsg("recvmsg timeout", fd, err));
-        }
-        continue;
+      if (WouldBlock(err)) {
+        DCHECK(flags & MSG_DONTWAIT);
+        if (Wait(fd, POLLIN, deadline)) continue;
+        return absl::InternalError(ErrMsg("recvmsg timeout", fd, err));
       }
       return absl::InternalError(ErrMsg("recvmsg", fd, err));
     }

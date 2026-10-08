@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -13,17 +14,15 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/notification.h"
-#include "absl/time/clock.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
-#include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
@@ -31,6 +30,8 @@
 namespace peregrine::testing {
 namespace {
 
+using ::absl::StatusCode::kInternal;
+using ::absl_testing::StatusIs;
 using internal::Endpoint;
 using internal::TcpSocket;
 using internal::testing::IPv4Localhost;
@@ -39,6 +40,7 @@ using internal::testing::TestOnly_CreateTcpSocket;
 using internal::testing::TestOnly_FindFreeTcpPort;
 using ::testing::Combine;
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::Ne;
 using ::testing::Pointwise;
 using ::testing::TestParamInfo;
@@ -46,18 +48,19 @@ using ::testing::Values;
 
 constexpr bool kBlocking = true;
 
-using Param =
-    std::tuple</*family=*/int, /*riov=*/bool, /*wiov=*/bool, /*deadline=*/bool>;
+using Param = std::tuple</*family=*/int, /*riov=*/bool, /*wiov=*/bool,
+                         /*timeout_ms=*/int>;
 
 std::string ToString(const TestParamInfo<Param>& info) {
   const int family = std::get<0>(info.param);
   const bool read_iovec = std::get<1>(info.param);
   const bool write_iovec = std::get<2>(info.param);
-  const bool has_deadline = std::get<3>(info.param);
+  const int timeout_ms = std::get<3>(info.param);
   DCHECK(family == AF_INET || family == AF_INET6);
-  return absl::StrFormat("IPv%d_Read%s_Write%s_%s", family == AF_INET ? 4 : 6,
-                         read_iovec ? "V" : "", write_iovec ? "V" : "",
-                         has_deadline ? "Deadline" : "NoDeadline");
+  return absl::StrFormat(
+      "IPv%d_Read%s_Write%s_Timeout_%s", family == AF_INET ? 4 : 6,
+      read_iovec ? "V" : "", write_iovec ? "V" : "",
+      timeout_ms >= 0 ? absl::StrCat(timeout_ms, "ms") : "inf");
 }
 
 class SocketUtilTest : public ::testing::TestWithParam<Param> {
@@ -66,7 +69,7 @@ class SocketUtilTest : public ::testing::TestWithParam<Param> {
       : family_(std::get<0>(GetParam())),
         read_iovec_(std::get<1>(GetParam())),
         write_iovec_(std::get<2>(GetParam())),
-        has_deadline_(std::get<3>(GetParam())),
+        timeout_ms_(std::get<3>(GetParam())),
         local_(family_ == AF_INET ? IPv4Localhost() : IPv6Localhost(),
                TestOnly_FindFreeTcpPort(family_)),
         peer_(local_),
@@ -79,11 +82,25 @@ class SocketUtilTest : public ::testing::TestWithParam<Param> {
     DCHECK_NE(listener_->fd(), connector_->fd());
   }
 
+  static std::vector<struct iovec> BuildIovs(std::vector<Byte>& buf, size_t n) {
+    const size_t size = buf.size();
+    n = std::min(std::max(size_t{1}, n), size);
+    const size_t partial = size / n;
+    DCHECK_GE(partial, 1);
+    std::vector<struct iovec> iovs;
+    iovs.reserve(n);
+    for (size_t i = 0; i < n - 1; ++i) {
+      iovs.push_back({buf.data() + partial * i, partial});
+    }
+    iovs.push_back({buf.data() + partial * (n - 1), size - partial * (n - 1)});
+    return iovs;
+  }
+
  protected:
   const int family_;
   const bool read_iovec_;
   const bool write_iovec_;
-  const bool has_deadline_;
+  const int timeout_ms_;
   const Endpoint local_;
   const Endpoint peer_;
   const std::unique_ptr<TcpSocket> listener_;
@@ -94,19 +111,16 @@ INSTANTIATE_TEST_SUITE_P(, SocketUtilTest,
                          Combine(/*family=*/Values(AF_INET, AF_INET6),
                                  /*riov=*/Values(false, true),
                                  /*wiov=*/Values(false, true),
-                                 /*deadline=*/Values(false, true)),
+                                 /*timeout_ms=*/Values(10'000, -1)),
                          ToString);
 
 TEST_P(SocketUtilTest, ReadWrite) {
-  // Create a big chunk of send/recv buffers with random data.
-  constexpr size_t kSize = 64UL << 20;
+  // Create a small chunk of send/recv buffers with random data.
+  constexpr size_t kSize = 64UL << 10;
   std::vector<Byte> send_buf(kSize, 0x01);
   std::vector<Byte> recv_buf(kSize, 0x00);
   util::RandomNonZero(absl::MakeSpan(send_buf));
   ASSERT_THAT(recv_buf, Pointwise(Ne(), send_buf));
-
-  const absl::Time deadline =
-      has_deadline_ ? absl::Now() + absl::Seconds(30) : absl::InfiniteFuture();
 
   // First, create a server thread.
   absl::Notification server_ready;
@@ -121,17 +135,12 @@ TEST_P(SocketUtilTest, ReadWrite) {
     auto new_socket = TcpSocket::Create(new_fd, family_, kBlocking);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
-
+    const int fd = new_socket->fd().value();
     if (read_iovec_) {
-      std::vector<struct iovec> iovs;
-      constexpr size_t kPartial = kSize / 3;
-      iovs.push_back({recv_buf.data(), kPartial});
-      iovs.push_back({recv_buf.data() + kPartial, kPartial});
-      iovs.push_back({recv_buf.data() + kPartial * 2, kSize - kPartial * 2});
-      CHECK_OK(ReadVExact(new_socket->fd().value(), iovs, deadline));
+      std::vector<struct iovec> iovs = BuildIovs(recv_buf, 3);
+      CHECK_OK(ReadVExact(fd, iovs, timeout_ms_));
     } else {
-      CHECK_OK(ReadExact(new_socket->fd().value(), recv_buf.data(), kSize,
-                         deadline));
+      CHECK_OK(ReadExact(fd, recv_buf.data(), kSize, timeout_ms_));
     }
   });
 
@@ -141,16 +150,12 @@ TEST_P(SocketUtilTest, ReadWrite) {
     CHECK(!connector_->Connect(peer_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
-
+    const int fd = connector_->fd().value();
     if (write_iovec_) {
-      std::vector<struct iovec> iovs;
-      constexpr size_t kPartial = kSize / 2;
-      iovs.push_back({send_buf.data(), kPartial});
-      iovs.push_back({send_buf.data() + kPartial, kSize - kPartial});
-      CHECK_OK(WriteVExact(connector_->fd().value(), iovs, deadline));
+      std::vector<struct iovec> iovs = BuildIovs(send_buf, 2);
+      CHECK_OK(WriteVExact(fd, iovs, timeout_ms_));
     } else {
-      CHECK_OK(WriteExact(connector_->fd().value(), send_buf.data(), kSize,
-                          deadline));
+      CHECK_OK(WriteExact(fd, send_buf.data(), kSize, timeout_ms_));
     }
   });
 
@@ -162,104 +167,125 @@ TEST_P(SocketUtilTest, ReadWrite) {
   ASSERT_THAT(recv_buf, Pointwise(Eq(), send_buf));
 }
 
-TEST_P(SocketUtilTest, ReadDeadlineExceeded) {
-  constexpr size_t kSize = 4096;
-  constexpr size_t kHalf = kSize / 2;
-  std::vector<Byte> send_buf(kHalf, 0x42);
+TEST_P(SocketUtilTest, ReadTimeout) {
+  // Create a small chunk of send/recv buffers with random data.
+  constexpr size_t kSize = 64UL << 10;
+  constexpr size_t kTinySize = 64UL;
+  std::vector<Byte> send_buf(kSize, 0x01);
   std::vector<Byte> recv_buf(kSize, 0x00);
+  util::RandomNonZero(absl::MakeSpan(send_buf));
+  ASSERT_THAT(recv_buf, Pointwise(Ne(), send_buf));
 
-  absl::Notification server_ready;
-  absl::Notification read_done;
-  absl::Status read_status = absl::OkStatus();
+  constexpr int kTimeoutMs = 10;
 
-  util::Thread server([&]() {
-    CHECK(!listener_->Listen(local_));
-    server_ready.Notify();
-    const int ret = listener_->Accept(/*gen_blocking=*/kBlocking);
-    CHECK_GE(ret, 0);
-
-    const internal::fd_t new_fd(ret);
-    auto new_socket = TcpSocket::Create(new_fd, family_, kBlocking);
-    const absl::Time deadline = absl::Now() + absl::Milliseconds(100);
-
-    if (read_iovec_) {
-      std::vector<struct iovec> iovs = {
-          {recv_buf.data(), kHalf},
-          {recv_buf.data() + kHalf, kSize - kHalf},
-      };
-      read_status = ReadVExact(new_socket->fd().value(), iovs, deadline);
-    } else {
-      read_status =
-          ReadExact(new_socket->fd().value(), recv_buf.data(), kSize, deadline);
-    }
-    read_done.Notify();
-  });
-
-  util::Thread client([&]() {
-    server_ready.WaitForNotification();
-    CHECK(!connector_->Connect(peer_));
-    // Send only half the expected bytes, then wait until the server times out.
-    CHECK_OK(
-        WriteExact(connector_->fd().value(), send_buf.data(), send_buf.size()));
-    read_done.WaitForNotification();
-  });
-
-  client.join();
-  server.join();
-
-  EXPECT_EQ(read_status.code(), absl::StatusCode::kInternal);
-}
-
-TEST_P(SocketUtilTest, WriteDeadlineExceeded) {
-  constexpr int kTinyBufSize = 4096;
-  constexpr size_t kSize = 4UL << 20;
-  std::vector<Byte> send_buf(kSize, 0x42);
-
+  // First, create a server thread.
   absl::Notification server_ready;
   absl::Notification write_done;
-  absl::Status write_status = absl::OkStatus();
-
   util::Thread server([&]() {
-    CHECK_EQ(internal::SetSocketOption(listener_->fd(), SO_RCVBUF,
-                                       &kTinyBufSize, sizeof(kTinyBufSize)),
-             0);
     CHECK(!listener_->Listen(local_));
     server_ready.Notify();
+    DCHECK(listener_->IsBlocking());
     const int ret = listener_->Accept(/*gen_blocking=*/kBlocking);
     CHECK_GE(ret, 0);
 
     const internal::fd_t new_fd(ret);
     auto new_socket = TcpSocket::Create(new_fd, family_, kBlocking);
-    // Hold the connection open without reading until the writer times out.
+    DCHECK(new_socket->IsBlocking());
+    DCHECK(new_socket->IsConnected());
+    const int fd = new_socket->fd().value();
+    if (read_iovec_) {
+      std::vector<struct iovec> iovs = BuildIovs(recv_buf, 3);
+      ASSERT_THAT(ReadVExact(fd, iovs, kTimeoutMs),
+                  StatusIs(kInternal, HasSubstr("timeout")));
+    } else {
+      ASSERT_THAT(ReadExact(fd, recv_buf.data(), kSize, kTimeoutMs),
+                  StatusIs(kInternal, HasSubstr("timeout")));
+    }
     write_done.WaitForNotification();
   });
 
+  // Second, create a client thread.
   util::Thread client([&]() {
     server_ready.WaitForNotification();
-    CHECK_EQ(internal::SetSocketOption(connector_->fd(), SO_SNDBUF,
-                                       &kTinyBufSize, sizeof(kTinyBufSize)),
-             0);
     CHECK(!connector_->Connect(peer_));
-    const absl::Time deadline = absl::Now() + absl::Milliseconds(100);
-
+    DCHECK(connector_->IsBlocking());
+    DCHECK(connector_->IsConnected());
+    const int fd = connector_->fd().value();
+    // Write a tiny amount of the data to trigger read timeout.
     if (write_iovec_) {
-      constexpr size_t kHalf = kSize / 2;
-      std::vector<struct iovec> iovs = {
-          {send_buf.data(), kHalf},
-          {send_buf.data() + kHalf, kSize - kHalf},
-      };
-      write_status = WriteVExact(connector_->fd().value(), iovs, deadline);
+      std::vector<struct iovec> iovs = {{send_buf.data(), kTinySize}};
+      CHECK_OK(WriteVExact(fd, iovs));
     } else {
-      write_status = WriteExact(connector_->fd().value(), send_buf.data(),
-                                kSize, deadline);
+      CHECK_OK(WriteExact(fd, send_buf.data(), kTinySize));
     }
     write_done.Notify();
   });
 
+  // Wait for both threads to finish.
   client.join();
   server.join();
+}
 
-  EXPECT_EQ(write_status.code(), absl::StatusCode::kInternal);
+TEST_P(SocketUtilTest, WriteTimeout) {
+  // Create a big chunk of send/recv buffers with random data.
+  constexpr size_t kSize = 64UL << 20;
+  constexpr size_t kTinySize = 64UL;
+  std::vector<Byte> send_buf(kSize, 0x01);
+  std::vector<Byte> recv_buf(kSize, 0x00);
+  util::RandomNonZero(absl::MakeSpan(send_buf));
+  ASSERT_THAT(recv_buf, Pointwise(Ne(), send_buf));
+
+  constexpr int kTimeoutMs = 10;
+
+  // First, create a server thread.
+  absl::Notification server_ready;
+  absl::Notification read_done;
+  util::Thread server([&]() {
+    CHECK(!listener_->Listen(local_));
+    server_ready.Notify();
+    DCHECK(listener_->IsBlocking());
+    const int ret = listener_->Accept(/*gen_blocking=*/kBlocking);
+    CHECK_GE(ret, 0);
+
+    const internal::fd_t new_fd(ret);
+    auto new_socket = TcpSocket::Create(new_fd, family_, kBlocking);
+    DCHECK(new_socket->IsBlocking());
+    DCHECK(new_socket->IsConnected());
+    const int fd = new_socket->fd().value();
+    // Read a tiny amount of the data to trigger write timeout.
+    if (read_iovec_) {
+      std::vector<struct iovec> iovs = {{recv_buf.data(), kTinySize}};
+      CHECK_OK(ReadVExact(fd, iovs));
+    } else {
+      CHECK_OK(ReadExact(fd, recv_buf.data(), kTinySize));
+    }
+    read_done.WaitForNotification();
+  });
+
+  // Second, create a client thread.
+  util::Thread client([&]() {
+    server_ready.WaitForNotification();
+    CHECK(!connector_->Connect(peer_));
+    DCHECK(connector_->IsBlocking());
+    DCHECK(connector_->IsConnected());
+    const int fd = connector_->fd().value();
+    // Set socket SNDBUF to a tiny value so that write will block.
+    const int tiny = kTinySize;
+    CHECK_EQ(setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &tiny, sizeof(tiny)), 0);
+    if (write_iovec_) {
+      std::vector<struct iovec> iovs = BuildIovs(send_buf, 3);
+      EXPECT_THAT(WriteVExact(fd, iovs, kTimeoutMs),
+                  StatusIs(kInternal, HasSubstr("timeout")));
+    } else {
+      EXPECT_THAT(WriteExact(fd, send_buf.data(), kSize, kTimeoutMs),
+                  StatusIs(kInternal, HasSubstr("timeout")));
+    }
+    read_done.Notify();
+  });
+
+  // Wait for both threads to finish.
+  client.join();
+  server.join();
 }
 
 class SocketUtilIovTest : public ::testing::Test {
