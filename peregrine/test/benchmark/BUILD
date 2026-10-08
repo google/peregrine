@@ -102,7 +102,9 @@ cc_library(
 cc_binary(
     name = "peregrine",
     srcs = ["peregrine.cc"],
-    visibility = ["//visibility:public"],
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":flags",
         ":peregrine_util",
