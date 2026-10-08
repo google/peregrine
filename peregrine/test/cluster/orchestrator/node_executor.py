@@ -151,16 +151,21 @@ class NodeExecutor:
   def resolve_bind_ip(self, host: str, explicit_ip: str = "") -> str:
     """Resolves the Peregrine bind IP for `host` (supports `user@host` or `user@ip`)."""
     if explicit_ip:
-      return explicit_ip
+      return explicit_ip.strip().strip("[]")
     if is_local_node(host):
-      return "127.0.0.1"
-    host_only = host.split("@", 1)[-1].strip()
+      return "::1" if ":" in host else "127.0.0.1"
+    host_only = host.split("@", 1)[-1].strip().strip("[]")
     try:
       ipaddress.ip_address(host_only)
       return host_only
     except ValueError:
       pass
-    out = self.run_shell(host, "hostname -I | awk '{print $1}'").strip()
+    out = self.run_shell(
+        host,
+        "(hostname -I 2>/dev/null || ip -o addr show scope global"
+        " 2>/dev/null | awk '{split($4, a, \"/\"); print a[1]}') | awk"
+        " '{print $1; exit}'",
+    ).strip()
     if not out:
       raise RuntimeError(f"Failed to resolve bind IP on remote host '{host}'")
     return out
