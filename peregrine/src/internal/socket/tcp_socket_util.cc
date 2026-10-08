@@ -42,6 +42,7 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
                                  const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValidSocket(fd));
   DCHECK(IsBlockingMode(fd));
+  DCHECK(IsValid(iovecs));
   DCHECK_LE(iovecs.size(), IOV_MAX);
 
   const size_t len = TotalLength(iovecs);
@@ -71,14 +72,12 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
         vecs[i].iov_len -= b;
       }
     } else {
+      DCHECK_LT(bytes, 0);
       if ABSL_PREDICT_TRUE (bytes < 0) {
         const Errno err(errno);
         if (Interrupted(err)) continue;
         DCHECK(!WouldBlock(err));
         return absl::InternalError(ErrMsg("sendmsg", fd, err));
-      } else {  // rarely happens
-        DCHECK_EQ(bytes, 0);
-        return absl::InternalError("sendmsg zero");
       }
     }
   }
@@ -90,6 +89,7 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
                                  const absl::Span<const IoVec> iovecs) {
   DCHECK(IsValidSocket(fd));
   DCHECK(IsBlockingMode(fd));
+  DCHECK(IsValid(iovecs));
   DCHECK_LE(iovecs.size(), IOV_MAX);
 
   const size_t len = TotalLength(iovecs);
@@ -100,8 +100,11 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
   const size_t n = vecs.size();
   size_t rcvd = 0;
   size_t i = 0;
+  struct msghdr msg = {};
   while (i < n) {
-    const ssize_t bytes = ::readv(fd.value(), &vecs[i], n - i);
+    msg.msg_iov = &vecs[i];
+    msg.msg_iovlen = n - i;
+    const ssize_t bytes = ::recvmsg(fd.value(), &msg, 0);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       rcvd += bytes;
       if ABSL_PREDICT_TRUE (rcvd >= len) break;
@@ -116,12 +119,12 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
         vecs[i].iov_len -= b;
       }
     } else if (bytes == 0) {  // peer closed connection
-      return absl::InternalError("readv eof");
+      return absl::InternalError("recvmsg eof");
     } else {
       const Errno err(errno);
       if (Interrupted(err)) continue;
       DCHECK(!WouldBlock(err));
-      return absl::InternalError(ErrMsg("readv", fd, err));
+      return absl::InternalError(ErrMsg("recvmsg", fd, err));
     }
   }
   DCHECK_EQ(rcvd, len);
