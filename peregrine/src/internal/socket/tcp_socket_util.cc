@@ -108,18 +108,18 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
         vecs[i].iov_base = static_cast<Byte*>(vecs[i].iov_base) + b;
         vecs[i].iov_len -= b;
       }
-    } else {
-      DCHECK_LT(bytes, 0);
-      if ABSL_PREDICT_TRUE (bytes < 0) {
-        const Errno err(errno);
-        if (Interrupted(err)) continue;
-        if (WouldBlock(err)) {
-          DCHECK(flags & MSG_DONTWAIT);
-          if (Wait(fd, POLLOUT, deadline)) continue;
-          return absl::InternalError(ErrMsg("sendmsg timeout", fd, err));
-        }
-        return absl::InternalError(ErrMsg("sendmsg", fd, err));
+    } else if (bytes < 0) {
+      const Errno err(errno);
+      if (Interrupted(err)) continue;
+      if (WouldBlock(err)) {
+        DCHECK(flags & MSG_DONTWAIT);
+        if (Wait(fd, POLLOUT, deadline)) continue;
+        return absl::InternalError(ErrMsg("sendmsg timeout", fd, err));
       }
+      return absl::InternalError(ErrMsg("sendmsg", fd, err));
+    } else {  // this won't happen.
+      DCHECK_EQ(bytes, 0);
+      return absl::InternalError(ErrMsg("sendmsg zero", fd, Errno(0)));
     }
   }
   DCHECK_EQ(sent, len);
@@ -163,7 +163,7 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
         vecs[i].iov_len -= b;
       }
     } else if (bytes == 0) {  // peer closed connection
-      return absl::InternalError("recvmsg eof");
+      return absl::InternalError(ErrMsg("recvmsg eof", fd, Errno(0)));
     } else {
       const Errno err(errno);
       if (Interrupted(err)) continue;

@@ -168,12 +168,15 @@ ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
     if ABSL_PREDICT_TRUE (bytes > 0) {
       sent += bytes;
       if (iovs.Advance(bytes)) break;
-    } else {
-      DCHECK_LT(bytes, 0);
+    } else if (bytes < 0) {
       const Errno err(errno);
       if (Interrupted(err)) continue;
       if (WouldBlock(err)) break;
       LOG(WARNING) << errMsg("sendmsg", err);
+      return -1;
+    } else {  // this won't happen.
+      DCHECK_EQ(bytes, 0);
+      LOG(WARNING) << errMsg("sendmsg zero", Errno(0));
       return -1;
     }
   }
