@@ -12,6 +12,7 @@
 #include "absl/base/attributes.h"
 #include "absl/log/check.h"
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 
@@ -23,14 +24,18 @@ namespace peregrine::internal {
 class TcpSocketUtil final {
  public:
   // Sends on the socket `fd` exactly all the data from the `iovecs` buffers.
-  // Returns OK if all the bytes are sent successfully, error otherwise.
+  // Returns OK if all the bytes are sent successfully by the `deadline`.
+  // Returns error otherwise, which means this socket can't be used anymore.
   ABSL_DEPRECATED("temporarily for tpu raiden")
-  static absl::Status Send(fd_t fd, absl::Span<const IoVec> iovecs);
+  static absl::Status Send(fd_t fd, absl::Span<const IoVec> iovecs,
+                           absl::Time deadline);
 
   // Receives on the socket `fd` exactly all the data into the `iovecs` buffers.
-  // Returns OK if all the bytes are received successfully, error otherwise.
+  // Returns OK if all the bytes are received successfully by the `deadline`.
+  // Returns error otherwise, which means this socket can't be used anymore.
   ABSL_DEPRECATED("temporarily for tpu raiden")
-  static absl::Status Recv(fd_t fd, absl::Span<const IoVec> iovecs);
+  static absl::Status Recv(fd_t fd, absl::Span<const IoVec> iovecs,
+                           absl::Time deadline);
 };
 
 }  // namespace peregrine::internal

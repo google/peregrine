@@ -156,6 +156,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -170,6 +171,7 @@ cc_test(
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/socket:socket_tcp",
+        "//peregrine/src/internal/socket:socket_util",
         "//peregrine/src/internal/util:test_util",
         "//peregrine/src/util",
         "//peregrine/src/util:thread",
@@ -178,6 +180,7 @@ cc_test(
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
