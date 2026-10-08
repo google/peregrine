@@ -126,6 +126,7 @@ class NodeExecutor:
     if is_local_node(host):
       res = subprocess.run(
           ["bash", "-c", shell_cmd],
+          stdin=subprocess.DEVNULL,
           capture_output=True,
           text=True,
           timeout=timeout,
@@ -134,6 +135,7 @@ class NodeExecutor:
       return res.stdout
     res = subprocess.run(
         self._build_ssh_cmd(host, shell_cmd),
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -286,6 +288,7 @@ class NodeExecutor:
       try:
         subprocess.run(
             self._build_ssh_cmd(host, f"rm -f {shlex.quote(remote_path)}"),
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             timeout=15,
             check=False,
