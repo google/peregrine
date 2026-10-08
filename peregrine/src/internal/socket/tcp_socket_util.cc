@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
+#include <time.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -21,7 +22,6 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
-#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
@@ -29,6 +29,7 @@
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/util.h"
+#include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
@@ -42,25 +43,26 @@ inline std::string ErrMsg(std::string_view what, fd_t fd, Errno err) {
                          std::strerror(err.value()));
 }
 
-inline absl::Time GetDeadline(int timeout_ms) {
-  return timeout_ms >= 0 ? absl::Now() + absl::Milliseconds(timeout_ms)
-                         : absl::InfiniteFuture();
+inline absl::Duration GetDeadline(int timeout_ms) {
+  return timeout_ms >= 0 ? util::MonotonicNow() + absl::Milliseconds(timeout_ms)
+                         : absl::InfiniteDuration();
 }
 
-// Waits for the `event` on the `fd` by the `deadline`.
+// Waits for the `event` on the `fd` by the `deadline` on the monotonic clock.
 // Returns true if the `fd` is ready for the `event` or has an error or hangup,
 // in which case the next send/recv call reports the actual result.
 // Returns false on timeout or `poll` failure.
-bool Wait(const fd_t fd, const int16_t event, const absl::Time deadline) {
+bool Wait(const fd_t fd, const int16_t event, const absl::Duration deadline) {
   DCHECK(event == POLLIN || event == POLLOUT);
-  DCHECK_LT(deadline, absl::InfiniteFuture());
+  DCHECK_LT(deadline, absl::InfiniteDuration());
   struct pollfd pfd = {
       .fd = fd.value(),
       .events = event,
       .revents = 0,
   };
   while (true) {
-    const int64_t ms = absl::ToInt64Milliseconds(deadline - absl::Now());
+    const absl::Duration now = util::MonotonicNow();
+    const int64_t ms = absl::ToInt64Milliseconds(deadline - now);
     if (ms <= 0) return false;
 
     constexpr int kMax = std::numeric_limits<int>::max();
@@ -84,7 +86,7 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  const absl::Time deadline = GetDeadline(timeout_ms);
+  const absl::Duration deadline = GetDeadline(timeout_ms);
   const int flags = (timeout_ms >= 0 ? MSG_DONTWAIT : 0) | MSG_NOSIGNAL;
   std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
   const size_t n = vecs.size();
@@ -138,7 +140,7 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
   DCHECK_GE(len, 1);
   DCHECK_LE(len, std::numeric_limits<ssize_t>::max());
 
-  const absl::Time deadline = GetDeadline(timeout_ms);
+  const absl::Duration deadline = GetDeadline(timeout_ms);
   const int flags = timeout_ms >= 0 ? MSG_DONTWAIT : 0;
   std::vector<struct iovec> vecs{iovecs.begin(), iovecs.end()};
   const size_t n = vecs.size();

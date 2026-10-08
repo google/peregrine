@@ -63,6 +63,26 @@ cc_library(
 )
 
 cc_library(
+    name = "clock",
+    srcs = ["clock.cc"],
+    hdrs = ["clock.h"],
+    deps = [
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "clock_test",
+    srcs = ["clock_test.cc"],
+    deps = [
+        ":clock",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "ipaddr",
     srcs = ["ipaddr.cc"],
     hdrs = ["ipaddr.h"],

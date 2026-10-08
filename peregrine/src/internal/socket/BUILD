@@ -197,6 +197,7 @@ cc_library(
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/util",
+        "//peregrine/src/util:clock",
         "//peregrine/src/util:errno",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/log",
