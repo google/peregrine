@@ -5,7 +5,6 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
-#include <time.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -19,7 +18,6 @@
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
-#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/time/time.h"

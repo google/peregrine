@@ -46,5 +46,14 @@ TEST_F(IoVecTest, Linearize) {
   EXPECT_THAT(owned2, ElementsAreArray(bytes2_));
 }
 
+TEST_F(IoVecTest, Split) {
+  constexpr size_t kN = 3;
+  const std::vector<IoVec> iovecs = TestOnly_Split(bytes1_, kN);
+  EXPECT_EQ(iovecs.size(), kN);
+  EXPECT_EQ(iovecs[0].iov_len, kSize / kN);
+  EXPECT_EQ(iovecs[0].iov_len, kSize / kN);
+  EXPECT_EQ(iovecs[2].iov_len, kSize - 2 * (kSize / kN));
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

@@ -10,7 +10,6 @@
 #include <sys/uio.h>
 
 #include "absl/base/attributes.h"
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"

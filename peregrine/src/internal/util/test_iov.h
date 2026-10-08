@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
@@ -21,6 +22,16 @@ struct OwnedIoVec {
 // Linearizes a sequence of `IoVecs` into a newly created contiguous buffer.
 // Returns the buffer with its ownership moved to the caller.
 OwnedIoVec TestOnly_Linearize(absl::Span<const IoVec> iovecs);
+
+// Builds a sequence of `IoVecs` from a given buffer. The buffer is split into
+// `n` non-empty iovecs, with the last one possibly being longer than others.
+std::vector<IoVec> TestOnly_Split(absl::Span<Byte> buf, size_t n);
+
+// Builds a sequence of `IoVecs` from a given buffer. The buffer is split into
+// `n` non-empty iovecs, with the last one possibly being longer than others.
+inline std::vector<IoVec> TestOnly_Split(std::vector<Byte>& buf, size_t n) {
+  return TestOnly_Split(absl::MakeSpan(buf), n);
+}
 
 }  // namespace peregrine::internal::testing
 

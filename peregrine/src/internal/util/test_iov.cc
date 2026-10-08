@@ -1,9 +1,11 @@
 #include "peregrine/src/internal/util/test_iov.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
@@ -41,6 +43,26 @@ OwnedIoVec TestOnly_Linearize(const absl::Span<const IoVec> iovecs) {
 
   // Return the buffer, together with its ownership.
   return OwnedIoVec{.data = std::move(buf), .size = size};
+}
+
+std::vector<struct iovec> TestOnly_Split(absl::Span<Byte> buf, size_t n) {
+  const size_t size = buf.size();
+  DCHECK_GE(size, 1);
+
+  n = std::clamp(n, 1UL, size);
+  const size_t partial = size / n;
+  DCHECK_GE(partial, 1);
+
+  std::vector<struct iovec> iovs;
+  iovs.reserve(n);
+  size_t offset = 0;
+  for (size_t i = 0; i < n - 1; ++i) {
+    iovs.push_back({buf.data() + offset, partial});
+    offset += partial;
+  }
+  DCHECK_LE(offset + partial, size);
+  iovs.push_back({buf.data() + offset, size - offset});
+  return iovs;
 }
 
 }  // namespace peregrine::internal::testing

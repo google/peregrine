@@ -19,6 +19,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/util/test_iov.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -57,7 +58,7 @@ class TcpSocketUtilTest : public TestWithParam<SocketTestParam> {
     DCHECK_NE(listener_->fd(), connector_->fd());
   }
 
-  void SetSocketBufferSizeTiny() {
+  void SetSocketBufferSizeTiny() const {
     // Accepted socket inherits the buffer size from the listener.
     const int size = 1024;
     const int lfd = listener_->fd().value();
@@ -100,11 +101,7 @@ TEST_P(TcpSocketUtilTest, ScatterGather) {
     auto new_socket = TcpSocket::Create(new_fd, cfg_.family, cfg_.blocking);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
-    const size_t kPartial = kDataSize / 2;
-    std::vector<IoVec> iovecs = {
-        {IoVec(recv_buf.data(), kPartial)},
-        {IoVec(recv_buf.data() + kPartial, kDataSize - kPartial)},
-    };
+    std::vector<IoVec> iovecs = TestOnly_Split(recv_buf, 2);
     CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), iovecs, /*timeout_ms=*/-1));
   });
 
@@ -114,12 +111,7 @@ TEST_P(TcpSocketUtilTest, ScatterGather) {
     CHECK(!connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
-    const size_t kPartial = kDataSize / 3;
-    std::vector<IoVec> iovecs = {
-        {IoVec(send_buf.data(), kPartial)},
-        {IoVec(send_buf.data() + kPartial, kPartial)},
-        {IoVec(send_buf.data() + kPartial * 2, kDataSize - kPartial * 2)},
-    };
+    std::vector<IoVec> iovecs = TestOnly_Split(send_buf, 3);
     CHECK_OK(TcpSocketUtil::Send(connector_->fd(), iovecs, /*timeout_ms=*/-1));
   });
 
@@ -131,12 +123,47 @@ TEST_P(TcpSocketUtilTest, ScatterGather) {
   EXPECT_THAT(recv_buf, Pointwise(Eq(), send_buf));
 }
 
-TEST_P(TcpSocketUtilTest, Timeout) {
+TEST_P(TcpSocketUtilTest, WillNotTimeout) {
+  constexpr size_t kDataSize = 64UL << 10;
+  std::vector<Byte> send_buf(kDataSize);
+  std::vector<Byte> recv_buf(kDataSize, 0x00);
+  util::RandomNonZero(absl::MakeSpan(send_buf));
+  ASSERT_THAT(recv_buf, Pointwise(Ne(), send_buf));
+
+  // A generous timeout, which should never expire.
+  constexpr int kTimeoutMs = 10'000;
+
+  absl::Notification server_ready;
+  util::Thread server([&]() {
+    CHECK(!listener_->Listen(local_));
+    server_ready.Notify();
+    const int ret = listener_->Accept(cfg_.blocking);
+    CHECK_GE(ret, 0);
+    auto new_socket = TcpSocket::Create(fd_t(ret), cfg_.family, cfg_.blocking);
+    const std::vector<IoVec> iovecs = {{recv_buf.data(), recv_buf.size()}};
+    CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), iovecs, kTimeoutMs));
+  });
+
+  util::Thread client([&]() {
+    server_ready.WaitForNotification();
+    CHECK(!connector_->Connect(local_));
+    const std::vector<IoVec> iovecs = {{send_buf.data(), send_buf.size()}};
+    CHECK_OK(TcpSocketUtil::Send(connector_->fd(), iovecs, kTimeoutMs));
+  });
+
+  client.join();
+  server.join();
+
+  EXPECT_THAT(recv_buf, Pointwise(Eq(), send_buf));
+}
+
+TEST_P(TcpSocketUtilTest, WillTimeout) {
   constexpr size_t kDataSize = 64UL << 10;
   std::vector<Byte> buf(kDataSize, 0x01);
-  std::vector<IoVec> iovecs = {{IoVec(buf.data(), buf.size())}};
+  const std::vector<IoVec> iovecs = {{buf.data(), buf.size()}};
 
   // To ensure sender blocks, set the socket buffer size to a small value.
+  // It must be called before the connection is established.
   SetSocketBufferSizeTiny();
 
   // Create a server thread, which neither sends nor receives any data.
@@ -175,6 +202,7 @@ TEST_P(TcpSocketUtilTest, PeerResetIsNotTimeout) {
   std::vector<Byte> recv_buf(kTinySize, 0x00);
 
   // To ensure sender blocks, set the socket buffer size to a small value.
+  // It must be called before the connection is established.
   SetSocketBufferSizeTiny();
 
   // Create a server thread to read a tiny amount of the data, then closes
@@ -186,14 +214,14 @@ TEST_P(TcpSocketUtilTest, PeerResetIsNotTimeout) {
     const int ret = listener_->Accept(cfg_.blocking);
     CHECK_GE(ret, 0);
     auto new_socket = TcpSocket::Create(fd_t(ret), cfg_.family, cfg_.blocking);
-    std::vector<IoVec> iovecs = {{IoVec(recv_buf.data(), recv_buf.size())}};
+    const std::vector<IoVec> iovecs = {{recv_buf.data(), recv_buf.size()}};
     CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), iovecs, /*timeout_ms=*/-1));
   });
 
   // The send fails due to the reset, well before its timeout expires.
   server_ready.WaitForNotification();
   CHECK(!connector_->Connect(local_));
-  std::vector<IoVec> iovecs = {{IoVec(send_buf.data(), send_buf.size())}};
+  const std::vector<IoVec> iovecs = {{send_buf.data(), send_buf.size()}};
   EXPECT_THAT(TcpSocketUtil::Send(connector_->fd(), iovecs,
                                   /*timeout_ms=*/60'000),
               StatusIs(kInternal, Not(HasSubstr("timeout"))));

@@ -170,6 +170,7 @@ cc_test(
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/socket:socket_tcp",
+        "//peregrine/src/internal/util:test_iov",
         "//peregrine/src/internal/util:test_util",
         "//peregrine/src/util",
         "//peregrine/src/util:thread",

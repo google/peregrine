@@ -3,7 +3,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -23,6 +22,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/util/test_iov.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
@@ -38,6 +38,7 @@ using internal::testing::IPv4Localhost;
 using internal::testing::IPv6Localhost;
 using internal::testing::TestOnly_CreateTcpSocket;
 using internal::testing::TestOnly_FindFreeTcpPort;
+using internal::testing::TestOnly_Split;
 using ::testing::Combine;
 using ::testing::Eq;
 using ::testing::HasSubstr;
@@ -82,20 +83,6 @@ class SocketUtilTest : public ::testing::TestWithParam<Param> {
     DCHECK_NE(listener_->fd(), connector_->fd());
   }
 
-  static std::vector<struct iovec> BuildIovs(std::vector<Byte>& buf, size_t n) {
-    const size_t size = buf.size();
-    n = std::min(std::max(size_t{1}, n), size);
-    const size_t partial = size / n;
-    DCHECK_GE(partial, 1);
-    std::vector<struct iovec> iovs;
-    iovs.reserve(n);
-    for (size_t i = 0; i < n - 1; ++i) {
-      iovs.push_back({buf.data() + partial * i, partial});
-    }
-    iovs.push_back({buf.data() + partial * (n - 1), size - partial * (n - 1)});
-    return iovs;
-  }
-
  protected:
   const int family_;
   const bool read_iovec_;
@@ -137,7 +124,7 @@ TEST_P(SocketUtilTest, ReadWrite) {
     DCHECK(new_socket->IsConnected());
     const int fd = new_socket->fd().value();
     if (read_iovec_) {
-      std::vector<struct iovec> iovs = BuildIovs(recv_buf, 3);
+      std::vector<struct iovec> iovs = TestOnly_Split(recv_buf, 3);
       CHECK_OK(ReadVExact(fd, iovs, timeout_ms_));
     } else {
       CHECK_OK(ReadExact(fd, recv_buf.data(), kSize, timeout_ms_));
@@ -152,7 +139,7 @@ TEST_P(SocketUtilTest, ReadWrite) {
     DCHECK(connector_->IsConnected());
     const int fd = connector_->fd().value();
     if (write_iovec_) {
-      std::vector<struct iovec> iovs = BuildIovs(send_buf, 2);
+      std::vector<struct iovec> iovs = TestOnly_Split(send_buf, 2);
       CHECK_OK(WriteVExact(fd, iovs, timeout_ms_));
     } else {
       CHECK_OK(WriteExact(fd, send_buf.data(), kSize, timeout_ms_));
@@ -194,7 +181,7 @@ TEST_P(SocketUtilTest, ReadTimeout) {
     DCHECK(new_socket->IsConnected());
     const int fd = new_socket->fd().value();
     if (read_iovec_) {
-      std::vector<struct iovec> iovs = BuildIovs(recv_buf, 3);
+      std::vector<struct iovec> iovs = TestOnly_Split(recv_buf, 3);
       ASSERT_THAT(ReadVExact(fd, iovs, kTimeoutMs),
                   StatusIs(kInternal, HasSubstr("timeout")));
     } else {
@@ -273,7 +260,7 @@ TEST_P(SocketUtilTest, WriteTimeout) {
     const int tiny = kTinySize;
     CHECK_EQ(setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &tiny, sizeof(tiny)), 0);
     if (write_iovec_) {
-      std::vector<struct iovec> iovs = BuildIovs(send_buf, 3);
+      std::vector<struct iovec> iovs = TestOnly_Split(send_buf, 3);
       EXPECT_THAT(WriteVExact(fd, iovs, kTimeoutMs),
                   StatusIs(kInternal, HasSubstr("timeout")));
     } else {
