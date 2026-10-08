@@ -112,8 +112,8 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
       const Errno err(errno);
       if (Interrupted(err)) continue;
       if (WouldBlock(err)) {
-        DCHECK(flags & MSG_DONTWAIT);
-        if (Wait(fd, POLLOUT, deadline)) continue;
+        // Missing MSG_DONTWAIT means SO_SNDTIMEO set on the socket expired.
+        if ((flags & MSG_DONTWAIT) && Wait(fd, POLLOUT, deadline)) continue;
         return absl::InternalError(ErrMsg("sendmsg timeout", fd, err));
       }
       return absl::InternalError(ErrMsg("sendmsg", fd, err));
@@ -168,8 +168,8 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
       const Errno err(errno);
       if (Interrupted(err)) continue;
       if (WouldBlock(err)) {
-        DCHECK(flags & MSG_DONTWAIT);
-        if (Wait(fd, POLLIN, deadline)) continue;
+        // Missing MSG_DONTWAIT means SO_RCVTIMEO set on the socket expired.
+        if ((flags & MSG_DONTWAIT) && Wait(fd, POLLIN, deadline)) continue;
         return absl::InternalError(ErrMsg("recvmsg timeout", fd, err));
       }
       return absl::InternalError(ErrMsg("recvmsg", fd, err));
