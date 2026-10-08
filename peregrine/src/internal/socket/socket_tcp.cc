@@ -176,7 +176,7 @@ ssize_t TcpSocket::Send(IoVecCursor& iovs) const {
       return -1;
     } else {  // this won't happen.
       DCHECK_EQ(bytes, 0);
-      LOG(WARNING) << errMsg("sendmsg zero", Errno(0));
+      LOG(WARNING) << ioMsg("sendmsg zero", 0);
       return -1;
     }
   }

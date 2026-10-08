@@ -41,6 +41,11 @@ inline std::string ErrMsg(std::string_view what, fd_t fd, Errno err) {
                          std::strerror(err.value()));
 }
 
+inline std::string ErrMsg(std::string_view what, fd_t fd) {
+  return absl::StrFormat("tcp socket %s failed: fd=%d %s", what, fd.value(),
+                         AddrPortPair(fd));
+}
+
 inline absl::Duration GetDeadline(int timeout_ms) {
   return timeout_ms >= 0 ? util::MonotonicNow() + absl::Milliseconds(timeout_ms)
                          : absl::InfiniteDuration();
@@ -119,7 +124,7 @@ absl::Status TcpSocketUtil::Send(const fd_t fd,
       return absl::InternalError(ErrMsg("sendmsg", fd, err));
     } else {  // this won't happen.
       DCHECK_EQ(bytes, 0);
-      return absl::InternalError(ErrMsg("sendmsg zero", fd, Errno(0)));
+      return absl::InternalError(ErrMsg("sendmsg zero", fd));
     }
   }
   DCHECK_EQ(sent, len);
@@ -163,7 +168,7 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd,
         vecs[i].iov_len -= b;
       }
     } else if (bytes == 0) {  // peer closed connection
-      return absl::InternalError(ErrMsg("recvmsg eof", fd, Errno(0)));
+      return absl::InternalError(ErrMsg("recvmsg eof", fd));
     } else {
       const Errno err(errno);
       if (Interrupted(err)) continue;
