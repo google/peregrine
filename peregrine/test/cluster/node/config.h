@@ -46,6 +46,7 @@ struct NodeConfig {
   bool exclude_self = false;
   uint32_t num_xfers = 1;
   bool share_buffer = true;
+  std::string cpu_affinity;
   absl::Duration metrics_interval = absl::Seconds(1);
 };
 

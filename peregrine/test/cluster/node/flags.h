@@ -22,6 +22,7 @@ ABSL_DECLARE_FLAG(std::string, traffic_pattern);
 ABSL_DECLARE_FLAG(bool, exclude_self);
 ABSL_DECLARE_FLAG(uint32_t, num_xfers);
 ABSL_DECLARE_FLAG(bool, share_buffer);
+ABSL_DECLARE_FLAG(std::string, cpu_affinity);
 ABSL_DECLARE_FLAG(absl::Duration, metrics_interval);
 
 namespace peregrine::cluster {

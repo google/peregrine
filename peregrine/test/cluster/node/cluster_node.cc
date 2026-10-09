@@ -17,6 +17,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/thread.h"
+#include "peregrine/test/cluster/node/affinity.h"
 #include "peregrine/test/cluster/node/config.h"
 #include "peregrine/test/cluster/node/control_channel.h"
 #include "peregrine/test/cluster/node/instance.h"
@@ -191,7 +192,12 @@ class ScopedMetricsSampler {
 
 absl::Status ClusterNode::Run(const NodeConfig& config,
                               ControlChannel& channel) {
-  // Phase 1: Initialize workload generator, memory buffer(s), and Transports.
+  // Phase 1: Apply CPU affinity (if configured) before first-touch buffer
+  // allocation and Transport worker thread creation.
+  if (absl::Status s = ApplyCpuAffinity(config.cpu_affinity); !s.ok()) {
+    return s;
+  }
+
   const std::shared_ptr<const workloads::WorkloadGenerator> workload_gen =
       ResolveWorkload(config);
   const uint64_t xfer_size =

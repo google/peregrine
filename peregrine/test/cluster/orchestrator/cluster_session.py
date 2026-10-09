@@ -36,6 +36,7 @@ class BipartiteSessionConfig:
   num_xfers: int = 1
   traffic_pattern: str = "all_to_all"
   share_buffer: bool = True
+  cpu_affinity: str = ""
   node_minloglevel: int = 1
   metrics_interval: str = "1s"
   ssh_cmd: str = node_executor.DEFAULT_SSH_CMD
@@ -172,6 +173,8 @@ def _common_workload_flags(cfg: BipartiteSessionConfig) -> list[str]:
       f"--minloglevel={cfg.node_minloglevel}",
       f"--metrics_interval={cfg.metrics_interval}",
   ]
+  if cfg.cpu_affinity:
+    flags.append(f"--cpu_affinity={cfg.cpu_affinity}")
   if cfg.workload.lower() == "serial_fixed_write":
     flags.append(f"--xfer_size={cfg.xfer_size}")
   elif cfg.workload.lower() == "kv_cache":
@@ -457,6 +460,7 @@ def run_bipartite_session(cfg: BipartiteSessionConfig) -> dict[str, Any]:
         "workload": cfg.workload,
         "conn": cfg.conn,
         "num_xfers": cfg.num_xfers,
+        "cpu_affinity": cfg.cpu_affinity,
     }
     return report.aggregate_cluster_results(
         config_summary=config_summary,

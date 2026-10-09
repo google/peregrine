@@ -87,6 +87,12 @@ _SHARE_BUFFER = flags.DEFINE_bool(
     True,
     "Share one registered buffer across all instances in a node process.",
 )
+_CPU_AFFINITY = flags.DEFINE_string(
+    "cpu_affinity",
+    "",
+    "Optional CPU affinity policy for :node processes ('none', 'numa:<node>',"
+    " or explicit CPU list like '0-58,120-179').",
+)
 _NODE_MINLOGLEVEL = flags.DEFINE_integer(
     "node_minloglevel",
     1,
@@ -156,6 +162,7 @@ def main(argv: Sequence[str]) -> None:
       num_xfers=_NUM_XFERS.value,
       traffic_pattern=_TRAFFIC_PATTERN.value,
       share_buffer=_SHARE_BUFFER.value,
+      cpu_affinity=_CPU_AFFINITY.value,
       node_minloglevel=_NODE_MINLOGLEVEL.value,
       metrics_interval=_METRICS_INTERVAL.value,
       ssh_cmd=_SSH_CMD.value,

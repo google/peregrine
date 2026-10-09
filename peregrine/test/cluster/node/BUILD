@@ -20,6 +20,29 @@ cc_library(
 )
 
 cc_library(
+    name = "affinity",
+    srcs = ["affinity.cc"],
+    hdrs = ["affinity.h"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "affinity_test",
+    srcs = ["affinity_test.cc"],
+    deps = [
+        ":affinity",
+        "//peregrine/src/util:thread",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "topology",
     srcs = ["topology.cc"],
     hdrs = ["topology.h"],
@@ -135,6 +158,7 @@ cc_library(
     srcs = ["cluster_node.cc"],
     hdrs = ["cluster_node.h"],
     deps = [
+        ":affinity",
         ":config",
         ":control_channel",
         ":instance",
@@ -173,6 +197,7 @@ cc_library(
     srcs = ["flags.cc"],
     hdrs = ["flags.h"],
     deps = [
+        ":affinity",
         ":config",
         ":topology",
         "//peregrine/src/api:transport_types",

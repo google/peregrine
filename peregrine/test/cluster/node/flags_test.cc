@@ -33,6 +33,7 @@ TEST(FlagsTest, ReadNodeConfigParsesFlags) {
   absl::SetFlag(&FLAGS_targets, "127.0.0.1:10000@123456");
   absl::SetFlag(&FLAGS_traffic_pattern, "round_robin");
   absl::SetFlag(&FLAGS_num_xfers, 5);
+  absl::SetFlag(&FLAGS_cpu_affinity, "numa:0");
 
   auto cfg = ReadNodeConfig();
   ASSERT_TRUE(cfg.ok()) << cfg.status();
@@ -42,9 +43,14 @@ TEST(FlagsTest, ReadNodeConfigParsesFlags) {
   EXPECT_EQ(cfg->base_control_port, 20000);
   EXPECT_EQ(cfg->traffic_pattern, TrafficPattern::kRoundRobin);
   EXPECT_EQ(cfg->num_xfers, 5);
+  EXPECT_EQ(cfg->cpu_affinity, "numa:0");
   ASSERT_EQ(cfg->targets.size(), 1);
   EXPECT_EQ(cfg->targets[0].endpoint, "127.0.0.1:10000");
   EXPECT_EQ(cfg->targets[0].raddr, 123456);
+
+  absl::SetFlag(&FLAGS_cpu_affinity, "invalid_affinity");
+  EXPECT_FALSE(ReadNodeConfig().ok());
+  absl::SetFlag(&FLAGS_cpu_affinity, "");
 }
 
 }  // namespace

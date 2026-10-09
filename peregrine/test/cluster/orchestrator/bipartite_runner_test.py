@@ -29,6 +29,7 @@ class BipartiteRunnerTest(absltest.TestCase):
         xfer_size=1,
         num_xfers=1,
         traffic_pattern="all_to_all",
+        cpu_affinity="none",
     )
     results = cluster_session.run_bipartite_session(cfg)
     self.assertEqual(results["latency"]["count"], 8)

@@ -19,6 +19,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/ipaddr.h"
 #include "peregrine/src/util/nic.h"
+#include "peregrine/test/cluster/node/affinity.h"
 #include "peregrine/test/cluster/node/config.h"
 #include "peregrine/test/cluster/node/topology.h"
 #include "peregrine/test/workloads/workload_generator.h"
@@ -63,6 +64,10 @@ ABSL_FLAG(uint32_t, num_xfers, 1,
 ABSL_FLAG(bool, share_buffer, true,
           "Register one shared memory buffer across all instances in this "
           "process.");
+
+ABSL_FLAG(std::string, cpu_affinity, "",
+          "Optional CPU affinity policy ('none', 'numa:<node_id>', or explicit "
+          "CPU list like '0-58,120-179').");
 
 ABSL_FLAG(absl::Duration, metrics_interval, absl::Seconds(1),
           "Periodic sampling interval for TransportMetrics and CPU usage.");
@@ -167,6 +172,11 @@ absl::StatusOr<NodeConfig> ReadNodeConfig() {
   cfg.exclude_self = absl::GetFlag(FLAGS_exclude_self);
   cfg.num_xfers = std::max<uint32_t>(1, absl::GetFlag(FLAGS_num_xfers));
   cfg.share_buffer = absl::GetFlag(FLAGS_share_buffer);
+
+  auto affinity_or = ValidateCpuAffinitySpec(absl::GetFlag(FLAGS_cpu_affinity));
+  if (!affinity_or.ok()) return affinity_or.status();
+  cfg.cpu_affinity = std::move(*affinity_or);
+
   cfg.metrics_interval = absl::GetFlag(FLAGS_metrics_interval);
   return cfg;
 }
