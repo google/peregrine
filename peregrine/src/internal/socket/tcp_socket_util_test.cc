@@ -19,6 +19,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/test_iov.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
@@ -58,13 +59,8 @@ class TcpSocketUtilTest : public TestWithParam<SocketTestParam> {
     DCHECK_NE(listener_->fd(), connector_->fd());
   }
 
-  void SetSocketBufferSizeTiny() const {
-    // Accepted socket inherits the buffer size from the listener.
-    const int size = 1024;
-    const int lfd = listener_->fd().value();
-    const int cfd = connector_->fd().value();
-    CHECK_EQ(setsockopt(lfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size)), 0);
-    CHECK_EQ(setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &size, sizeof(size)), 0);
+  void SetSocketSendBufSize(const fd_t fd, const int size) const {
+    CHECK(!SetSocketOption(fd, SO_RCVBUF, &size, sizeof(size)));
   }
 
  protected:
@@ -158,14 +154,6 @@ TEST_P(TcpSocketUtilTest, WillNotTimeout) {
 }
 
 TEST_P(TcpSocketUtilTest, WillTimeout) {
-  constexpr size_t kDataSize = 64UL << 10;
-  std::vector<Byte> buf(kDataSize, 0x01);
-  const std::vector<IoVec> iovecs = {{buf.data(), buf.size()}};
-
-  // To ensure sender blocks, set the socket buffer size to a small value.
-  // It must be called before the connection is established.
-  SetSocketBufferSizeTiny();
-
   // Create a server thread, which neither sends nor receives any data.
   absl::Notification server_ready;
   absl::Notification done;
@@ -181,6 +169,11 @@ TEST_P(TcpSocketUtilTest, WillTimeout) {
 
   server_ready.WaitForNotification();
   CHECK(!connector_->Connect(local_));
+  // To ensure sender blocks, set the socket buffer size to a small value.
+  SetSocketSendBufSize(connector_->fd(), /*size=*/1024);
+  constexpr size_t kDataSize = 64UL << 20;
+  std::vector<Byte> buf(kDataSize);
+  const std::vector<IoVec> iovecs = {{buf.data(), buf.size()}};
   // A zero timeout never blocks; a positive timeout blocks until it expires.
   for (const int timeout_ms : {0, 10}) {
     EXPECT_THAT(TcpSocketUtil::Recv(connector_->fd(), iovecs, timeout_ms),
@@ -196,31 +189,27 @@ TEST_P(TcpSocketUtilTest, WillTimeout) {
 }
 
 TEST_P(TcpSocketUtilTest, PeerResetIsNotTimeout) {
-  constexpr size_t kDataSize = 64UL << 10;
-  constexpr size_t kTinySize = 64UL;
-  std::vector<Byte> send_buf(kDataSize, 0x01);
-  std::vector<Byte> recv_buf(kTinySize, 0x00);
-
-  // To ensure sender blocks, set the socket buffer size to a small value.
-  // It must be called before the connection is established.
-  SetSocketBufferSizeTiny();
-
   // Create a server thread to read a tiny amount of the data, then closes
   // the connection with some data unread, which resets the connection.
   absl::Notification server_ready;
+  absl::Notification connected;
   util::Thread server([&]() {
     CHECK(!listener_->Listen(local_));
     server_ready.Notify();
     const int ret = listener_->Accept(cfg_.blocking);
     CHECK_GE(ret, 0);
-    auto new_socket = TcpSocket::Create(fd_t(ret), cfg_.family, cfg_.blocking);
-    const std::vector<IoVec> iovecs = {{recv_buf.data(), recv_buf.size()}};
-    CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), iovecs, /*timeout_ms=*/-1));
+    auto _ = TcpSocket::Create(fd_t(ret), cfg_.family, cfg_.blocking);
+    connected.WaitForNotification();
   });
 
   // The send fails due to the reset, well before its timeout expires.
   server_ready.WaitForNotification();
   CHECK(!connector_->Connect(local_));
+  connected.Notify();
+
+  // To ensure sender blocks, set the socket buffer size to a small value.
+  SetSocketSendBufSize(connector_->fd(), /*size=*/1024);
+  std::vector<Byte> send_buf(64UL << 20);
   const std::vector<IoVec> iovecs = {{send_buf.data(), send_buf.size()}};
   EXPECT_THAT(TcpSocketUtil::Send(connector_->fd(), iovecs,
                                   /*timeout_ms=*/60'000),

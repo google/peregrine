@@ -214,6 +214,7 @@ cc_test(
     shard_count = 2,
     deps = [
         ":socket_tcp",
+        ":socket_util",
         ":tcp_socket_util",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
