@@ -1,7 +1,6 @@
 #ifndef PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_UTIL_H_
 #define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_UTIL_H_
 
-#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -11,7 +10,7 @@
 #include "peregrine/src/internal/channel/channel_rdma.h"
 #include "peregrine/src/internal/channel/channel_tcp.h"
 #include "peregrine/src/internal/channel/channel_udp.h"
-#include "peregrine/src/internal/rdma/rdma_qpair.h"
+#include "peregrine/src/internal/rdma/rdma_conn.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
@@ -31,10 +30,9 @@ inline std::unique_ptr<Channel> CreateUdpChannel(
 }
 
 // Creates an rdma channel.
-inline std::unique_ptr<Channel> CreateRdmaChannel(std::unique_ptr<RdmaQPair> qp,
-                                                  uint32_t lkey = 0,
-                                                  uint32_t rkey = 0) {
-  return std::make_unique<RdmaChannel>(std::move(qp), lkey, rkey);
+inline std::unique_ptr<Channel> CreateRdmaChannel(
+    std::unique_ptr<RdmaConn> rdma_conn) {
+  return std::make_unique<RdmaChannel>(std::move(rdma_conn));
 }
 
 // Creates `n` tcp channels connecting `self` to the `peer`.

@@ -13,10 +13,10 @@
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
-#include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/control/message.pb.h"
 #include "peregrine/src/internal/control/message_internal.pb.h"
+#include "peregrine/src/internal/rdma/rdma_conn.h"
 #include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/internal/rdma/rdma_memory.h"
 #include "peregrine/src/internal/rdma/rdma_qpair.h"
@@ -38,9 +38,9 @@ class RdmaManager final {
   // Destructor.
   ~RdmaManager();
 
-  // Connects to a peer via RDMA and returns established RDMA channels.
-  std::vector<std::unique_ptr<Channel>> Connect(const Endpoint& peer_control,
-                                                int num_conns);
+  // Connects to a peer via RDMA and returns established RDMA connections.
+  std::vector<std::unique_ptr<RdmaConn>> Connect(const Endpoint& peer_control,
+                                                 int num_conns);
 
   // Registers a contiguous memory buffer across all active RDMA hardware
   // adapters.

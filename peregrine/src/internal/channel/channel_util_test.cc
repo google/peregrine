@@ -12,6 +12,7 @@
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
+#include "peregrine/src/internal/rdma/rdma_conn.h"
 #include "peregrine/src/internal/rdma/rdma_context.h"
 #include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/internal/rdma/rdma_qpair.h"
@@ -79,7 +80,9 @@ TEST(ChannelUtilNonParamTest, CreateRdmaChannel) {
   RdmaContext* const ctx = dev.value()->Contexts()[0].get();
   auto qp_or = RdmaQPair::Create(ctx);
   ASSERT_TRUE(qp_or.ok());
-  auto ch = CreateRdmaChannel(std::move(*qp_or), 0x1234, 0x5678);
+
+  auto conn = std::make_unique<RdmaConn>(std::move(*qp_or), 0x1234, 0x5678);
+  auto ch = CreateRdmaChannel(std::move(conn));
   ASSERT_NE(ch, nullptr);
   EXPECT_EQ(ch->Type(), ChannelType::kRDMA);
 }

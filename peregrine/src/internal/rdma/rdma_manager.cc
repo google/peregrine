@@ -22,11 +22,10 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
-#include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/channel/channel_util.h"
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/control/message.pb.h"
 #include "peregrine/src/internal/control/message_internal.pb.h"
+#include "peregrine/src/internal/rdma/rdma_conn.h"
 #include "peregrine/src/internal/rdma/rdma_context.h"
 #include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/internal/rdma/rdma_memory.h"
@@ -112,19 +111,19 @@ absl::Status RdmaManager::UnregisterMemory(const void* addr) {
   return absl::FailedPreconditionError("RDMA memory manager not initialized");
 }
 
-std::vector<std::unique_ptr<Channel>> RdmaManager::Connect(
+std::vector<std::unique_ptr<RdmaConn>> RdmaManager::Connect(
     const Endpoint& peer_control, int num_conns) {
-  std::vector<std::unique_ptr<Channel>> channels;
+  std::vector<std::unique_ptr<RdmaConn>> conns_;
   if (device_ == nullptr || device_->Contexts().empty()) {
     LOG(WARNING) << "no local RDMA devices available";
-    return channels;
+    return conns_;
   }
 
   const auto peer_info = control_.GetPeerHostInfo(peer_control);
   if (!peer_info.ok()) {
     LOG(WARNING) << "failed to resolve peer " << peer_control << ": "
                  << peer_info.status();
-    return channels;
+    return conns_;
   }
 
   std::vector<NicInfo> remote_interfaces;
@@ -135,7 +134,7 @@ std::vector<std::unique_ptr<Channel>> RdmaManager::Connect(
   }
   if (remote_interfaces.empty()) {
     LOG(WARNING) << "no RDMA interfaces found for peer " << peer_control;
-    return channels;
+    return conns_;
   }
 
   const auto& ctxs = device_->Contexts();
@@ -196,12 +195,12 @@ std::vector<std::unique_ptr<Channel>> RdmaManager::Connect(
       continue;
     }
 
-    channels.push_back(
-        CreateRdmaChannel(std::move(qp), local_lkey, resp.rkey()));
-    if (channels.size() >= num_conns) break;
+    conns_.push_back(
+        std::make_unique<RdmaConn>(std::move(qp), local_lkey, resp.rkey()));
+    if (conns_.size() >= num_conns) break;
   }
 
-  return channels;
+  return conns_;
 }
 
 absl::Status RdmaManager::handleConnect(const proto::RdmaConnReq& req,

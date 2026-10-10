@@ -15,6 +15,7 @@
 #include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_flatbuf.h"
+#include "peregrine/src/internal/rdma/rdma_conn.h"
 #include "peregrine/src/internal/rdma/rdma_context.h"
 #include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/internal/rdma/rdma_memory.h"
@@ -73,8 +74,9 @@ TEST(RdmaChannelTest, LoopbackWrite) {
   ASSERT_TRUE(rkey.ok());
 
   // Instantiate channel.
-  RdmaChannel sender_ch(std::move(qp_sender.value()), lkey.value(),
-                        rkey.value());
+  auto conn = std::make_unique<RdmaConn>(std::move(qp_sender.value()),
+                                         lkey.value(), rkey.value());
+  RdmaChannel sender_ch(std::move(conn));
 
   EXPECT_EQ(sender_ch.Type(), ChannelType::kRDMA);
 

@@ -154,7 +154,12 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
 EngineHelper::Channels EngineHelper::connectRdma(const Endpoint& peer_control,
                                                  const int n) {
   if (rdma_mgr_ == nullptr) return {};
-  return rdma_mgr_->Connect(peer_control, n);
+
+  EngineHelper::Channels chs;
+  for (auto& conn : rdma_mgr_->Connect(peer_control, n)) {
+    chs.push_back(CreateRdmaChannel(std::move(conn)));
+  }
+  return chs;
 }
 
 absl::Status EngineHelper::checkRdmaManager() const {

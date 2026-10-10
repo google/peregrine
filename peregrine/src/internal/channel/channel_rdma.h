@@ -2,28 +2,29 @@
 #define PEREGRINE_SRC_INTERNAL_CHANNEL_CHANNEL_RDMA_H_
 
 #include <atomic>
-#include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 
+#include "absl/log/check.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
-#include "peregrine/src/internal/rdma/rdma_qpair.h"
+#include "peregrine/src/internal/rdma/rdma_conn.h"
 
 namespace peregrine::internal {
 
-// An RDMA Queue Pair based channel: reliable, message.
-// Supports one-sided RDMA WRITE only.
+// An RDMA channel: reliable, message, one-sided.
 // It is thread-compatible but not thread-safe.
 class RdmaChannel final : public Channel {
  public:
   // Constructor.
-  RdmaChannel(std::unique_ptr<RdmaQPair> qp, uint32_t lkey, uint32_t rkey);
-
-  // Destructor.
-  ~RdmaChannel() override;
+  explicit RdmaChannel(std::unique_ptr<RdmaConn> rdma)
+      : rdma_(std::move(rdma)), is_shutdown_(false) {
+    DCHECK_NE(rdma_, nullptr);
+    DCHECK_NE(rdma_->qp, nullptr);
+  }
 
   // Returns the channel type.
   constexpr ChannelType Type() const override {
@@ -53,9 +54,7 @@ class RdmaChannel final : public Channel {
   std::string ToString() const override;
 
  private:
-  std::unique_ptr<RdmaQPair> qp_;
-  const uint32_t lkey_;
-  const uint32_t rkey_;
+  std::unique_ptr<RdmaConn> rdma_;
   std::atomic<bool> is_shutdown_;
 };
 

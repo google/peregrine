@@ -83,6 +83,14 @@ cc_test(
 )
 
 cc_library(
+    name = "rdma_conn",
+    hdrs = ["rdma_conn.h"],
+    deps = [
+        ":rdma_qpair",
+    ],
+)
+
+cc_library(
     name = "rdma_device",
     srcs = ["rdma_device.cc"],
     hdrs = ["rdma_device.h"],
@@ -153,6 +161,7 @@ cc_library(
     srcs = ["rdma_manager.cc"],
     hdrs = ["rdma_manager.h"],
     deps = [
+        ":rdma_conn",
         ":rdma_context",
         ":rdma_device",
         ":rdma_memory",
@@ -163,8 +172,6 @@ cc_library(
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/base:nicinfo",
-        "//peregrine/src/internal/channel",
-        "//peregrine/src/internal/channel:channel_util",
         "//peregrine/src/internal/control",
         "//peregrine/src/internal/control:message_cc_proto",
         "//peregrine/src/internal/control:message_internal_cc_proto",
