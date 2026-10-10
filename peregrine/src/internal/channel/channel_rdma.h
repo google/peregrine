@@ -10,7 +10,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
-#include "peregrine/src/internal/rdma/rdma_queue_pair.h"
+#include "peregrine/src/internal/rdma/rdma_qpair.h"
 
 namespace peregrine::internal {
 
@@ -20,7 +20,7 @@ namespace peregrine::internal {
 class RdmaChannel final : public Channel {
  public:
   // Constructor.
-  RdmaChannel(std::unique_ptr<RdmaQueuePair> qp, uint32_t lkey, uint32_t rkey);
+  RdmaChannel(std::unique_ptr<RdmaQPair> qp, uint32_t lkey, uint32_t rkey);
 
   // Destructor.
   ~RdmaChannel() override;
@@ -53,7 +53,7 @@ class RdmaChannel final : public Channel {
   std::string ToString() const override;
 
  private:
-  std::unique_ptr<RdmaQueuePair> qp_;
+  std::unique_ptr<RdmaQPair> qp_;
   const uint32_t lkey_;
   const uint32_t rkey_;
   std::atomic<bool> is_shutdown_;

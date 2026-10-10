@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_INTERNAL_RDMA_RDMA_MEMORY_MANAGER_H_
-#define PEREGRINE_SRC_INTERNAL_RDMA_RDMA_MEMORY_MANAGER_H_
+#ifndef PEREGRINE_SRC_INTERNAL_RDMA_RDMA_MEMORY_H_
+#define PEREGRINE_SRC_INTERNAL_RDMA_RDMA_MEMORY_H_
 
 #include <infiniband/verbs.h>
 
@@ -13,17 +13,17 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "peregrine/src/internal/assumptions.h"
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal {
 
 // This class manages memory registration across all RDMA devices present in
-// the RdmaDeviceManager. It maintains an internal registry of registered memory
+// the RdmaDevice. It maintains an internal registry of registered memory
 // regions and supports range-containment lookups for sub-buffers.
 //
 // It is thread-compatible but not thread-safe.
-class RdmaMemoryManager final {
+class RdmaMemory final {
   static_assert(assumptions::kPeregrineRegistersApplicationAllocatedMemory);
 
  public:
@@ -32,20 +32,19 @@ class RdmaMemoryManager final {
   static constexpr int kDefaultAccessFlags =
       IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
 
-  // Constructor. `device_manager` must not be nullptr and must outlive this
-  // manager.
-  explicit RdmaMemoryManager(const RdmaDeviceManager* device_manager);
+  // Constructor. `dev` must not be nullptr and must outlive this object.
+  explicit RdmaMemory(const RdmaDevice* dev);
 
   // Disallows copy and move.
-  DISALLOW_COPY(RdmaMemoryManager);
-  DISALLOW_MOVE(RdmaMemoryManager);
+  DISALLOW_COPY(RdmaMemory);
+  DISALLOW_MOVE(RdmaMemory);
 
   // Destructor. Automatically unregisters all memory regions across all
   // devices.
-  ~RdmaMemoryManager();
+  ~RdmaMemory();
 
   // Pins and registers the memory buffer at `addr` of size `length` across all
-  // active RDMA devices in `device_manager`.
+  // active RDMA devices.
   // If registration fails on any device, all partially-registered handles in
   // this call are rolled back before returning an error status.
   absl::Status RegisterMemory(void* addr, size_t length,
@@ -78,7 +77,7 @@ class RdmaMemoryManager final {
   // Returns the RKey of the first pre-registered memory region on
   // `device_name`, or 0 if no memory regions are registered.
   //
-  // NOTE: This function is used during the initial RdmaConnect handshake to
+  // NOTE: This function is used during the initial Rdma Connect handshake to
   // advertise the responder's pre-registered memory key when no specific buffer
   // address is known yet. It will be deprecated once dynamic per-transfer key
   // resolution (e.g. PeerRequests/PeerResponse) is introduced.
@@ -99,10 +98,10 @@ class RdmaMemoryManager final {
   const RegisteredRegion* findRegion(const void* addr, size_t length) const;
 
  private:
-  const RdmaDeviceManager* const device_manager_;
+  const RdmaDevice* const dev_;
   absl::btree_map<uintptr_t, RegisteredRegion> registered_regions_;
 };
 
 }  // namespace peregrine::internal
 
-#endif  // PEREGRINE_SRC_INTERNAL_RDMA_RDMA_MEMORY_MANAGER_H_
+#endif  // PEREGRINE_SRC_INTERNAL_RDMA_RDMA_MEMORY_H_

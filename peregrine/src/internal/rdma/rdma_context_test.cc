@@ -1,4 +1,4 @@
-#include "peregrine/src/internal/rdma/rdma_device_context.h"
+#include "peregrine/src/internal/rdma/rdma_context.h"
 
 #include <infiniband/verbs.h>
 
@@ -13,7 +13,7 @@ namespace {
 
 using ::testing::NotNull;
 
-TEST(RdmaDeviceContextTest, CreateAndVerify) {
+TEST(RdmaContextTest, CreateAndVerify) {
   int num_devices = 0;
   struct ibv_device** device_list = ibv_get_device_list(&num_devices);
   if (device_list == nullptr || num_devices == 0) {
@@ -30,24 +30,24 @@ TEST(RdmaDeviceContextTest, CreateAndVerify) {
     struct ibv_device* dev = device_list[i];
     ASSERT_THAT(dev, NotNull());
 
-    std::unique_ptr<RdmaDeviceContext> dev_ctx = RdmaDeviceContext::Create(dev);
-    if (dev_ctx == nullptr) {
+    std::unique_ptr<RdmaContext> ctx = RdmaContext::Create(dev);
+    if (ctx == nullptr) {
       continue;
     }
     ++verified_devices;
-    EXPECT_THAT(dev_ctx->GetDeviceContext(), NotNull());
-    EXPECT_THAT(dev_ctx->GetPd(), NotNull());
-    EXPECT_THAT(dev_ctx->GetCq(), NotNull());
-    EXPECT_FALSE(dev_ctx->Name().empty());
-    EXPECT_GT(dev_ctx->GetDeviceAttr().max_cqe, 0);
-    EXPECT_GE(dev_ctx->GidIndex(), 0);
+    EXPECT_THAT(ctx->GetIbvContext(), NotNull());
+    EXPECT_THAT(ctx->GetPd(), NotNull());
+    EXPECT_THAT(ctx->GetCq(), NotNull());
+    EXPECT_FALSE(ctx->Name().empty());
+    EXPECT_GT(ctx->GetDeviceAttr().max_cqe, 0);
+    EXPECT_GE(ctx->GidIndex(), 0);
 
-    const auto& attr = dev_ctx->GetDeviceAttr();
-    LOG(INFO) << "[Test Verified] Device Name: " << dev_ctx->Name()
+    const auto& attr = ctx->GetDeviceAttr();
+    LOG(INFO) << "[Test Verified] Device Name: " << ctx->Name()
               << " | Max CQE: " << attr.max_cqe << " | Max QP: " << attr.max_qp
               << " | Max MR: " << attr.max_mr
               << " | Phys Ports: " << static_cast<int>(attr.phys_port_cnt)
-              << " | GID Index: " << dev_ctx->GidIndex();
+              << " | GID Index: " << ctx->GidIndex();
   }
   ibv_free_device_list(device_list);
   if (verified_devices == 0) {

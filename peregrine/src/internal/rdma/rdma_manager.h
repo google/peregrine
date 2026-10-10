@@ -17,9 +17,9 @@
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/control/message.pb.h"
 #include "peregrine/src/internal/control/message_internal.pb.h"
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
-#include "peregrine/src/internal/rdma/rdma_memory_manager.h"
-#include "peregrine/src/internal/rdma/rdma_queue_pair.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
+#include "peregrine/src/internal/rdma/rdma_memory.h"
+#include "peregrine/src/internal/rdma/rdma_qpair.h"
 
 namespace peregrine::internal {
 
@@ -54,7 +54,7 @@ class RdmaManager final {
  private:
   // Constructor.
   RdmaManager(const Config& config, const HostInfo& self, Control& control,
-              std::unique_ptr<RdmaDeviceManager> rdma_devmgr);
+              std::unique_ptr<RdmaDevice> device);
 
   // Handles an incoming RDMA connection request from a remote peer.
   absl::Status handleConnect(const proto::RdmaConnReq& req,
@@ -70,11 +70,11 @@ class RdmaManager final {
 
   // RDMA device manager discovering and managing host HCAs. Read-only after
   // construction, so concurrent access is thread-safe without mutex locking.
-  std::unique_ptr<RdmaDeviceManager> rdma_devmgr_;
+  std::unique_ptr<RdmaDevice> device_;
 
   mutable absl::Mutex mu_;
   absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
-  std::unique_ptr<RdmaMemoryManager> rdma_memmgr_ ABSL_GUARDED_BY(mu_);
+  std::unique_ptr<RdmaMemory> memory_ ABSL_GUARDED_BY(mu_);
 
   // Passive Queue Pairs created for incoming connections from remote peers.
   // Must be retained here to prevent RAII destruction (~RdmaQueuePair() calls
@@ -82,7 +82,7 @@ class RdmaManager final {
   // accept incoming one-sided RDMA writes.
   // (Outbound active QPs are transferred to the Channels returned by
   // Connect()).
-  std::vector<std::unique_ptr<RdmaQueuePair>> inbound_rdma_qps_
+  std::vector<std::unique_ptr<RdmaQPair>> inbound_rdma_qps_
       ABSL_GUARDED_BY(mu_);
 };
 

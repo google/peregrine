@@ -27,10 +27,10 @@
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/control/message.pb.h"
 #include "peregrine/src/internal/control/message_internal.pb.h"
-#include "peregrine/src/internal/rdma/rdma_device_context.h"
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
-#include "peregrine/src/internal/rdma/rdma_memory_manager.h"
-#include "peregrine/src/internal/rdma/rdma_queue_pair.h"
+#include "peregrine/src/internal/rdma/rdma_context.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
+#include "peregrine/src/internal/rdma/rdma_memory.h"
+#include "peregrine/src/internal/rdma/rdma_qpair.h"
 #include "peregrine/src/util/ipaddr.h"
 #include "peregrine/src/util/nic.h"
 #include "peregrine/src/util/util.h"
@@ -44,21 +44,20 @@ std::unique_ptr<RdmaManager> RdmaManager::Create(const Config& config,
     return nullptr;
   }
 
-  auto devmgr_or = RdmaDeviceManager::Create();
-  if (!devmgr_or.ok()) {
-    LOG(WARNING) << "failed to create RDMA device manager: "
-                 << devmgr_or.status();
+  auto device_or = RdmaDevice::Create();
+  if (!device_or.ok()) {
+    LOG(WARNING) << "failed to create RDMA device: " << device_or.status();
     return nullptr;
   }
-  auto devmgr = std::move(*devmgr_or);
+  auto device = std::move(*device_or);
 
   std::vector<NicInfo> nics;
-  nics.reserve(devmgr->Devices().size());
-  for (const auto& dev : devmgr->Devices()) {
+  nics.reserve(device->Contexts().size());
+  for (const auto& ctx : device->Contexts()) {
     util::ipv6_t ipv6;
-    std::memcpy(ipv6.s6_addr, dev->LocalGid().raw, sizeof(ipv6));
-    const NicInfo nic(std::string(dev->Name()), util::NicType::kRDMA,
-                      {Endpoint(ipv6, RdmaDeviceContext::kDefaultPort)});
+    std::memcpy(ipv6.s6_addr, ctx->LocalGid().raw, sizeof(ipv6));
+    const NicInfo nic(std::string(ctx->Name()), util::NicType::kRDMA,
+                      {Endpoint(ipv6, RdmaContext::kDefaultPort)});
     DCHECK(nic.IsValid());
     nics.push_back(nic);
   }
@@ -70,7 +69,7 @@ std::unique_ptr<RdmaManager> RdmaManager::Create(const Config& config,
                                    nics.begin(), nics.end());
 
   auto mgr = absl::WrapUnique(
-      new RdmaManager(config, self, control, std::move(devmgr)));
+      new RdmaManager(config, self, control, std::move(device)));
 
   control.SetRdmaConnHandler([a = mgr.get()](const proto::RdmaConnReq& req,
                                              proto::RdmaConnResp* resp) {
@@ -81,14 +80,13 @@ std::unique_ptr<RdmaManager> RdmaManager::Create(const Config& config,
 }
 
 RdmaManager::RdmaManager(const Config& config, const HostInfo& self,
-                         Control& control,
-                         std::unique_ptr<RdmaDeviceManager> rdma_devmgr)
+                         Control& control, std::unique_ptr<RdmaDevice> device)
     : config_(config),
       self_(self),
       control_(control),
-      rdma_devmgr_(std::move(rdma_devmgr)) {
-  DCHECK(rdma_devmgr_ != nullptr);
-  rdma_memmgr_ = std::make_unique<RdmaMemoryManager>(rdma_devmgr_.get());
+      device_(std::move(device)) {
+  DCHECK(device_ != nullptr);
+  memory_ = std::make_unique<RdmaMemory>(device_.get());
 }
 
 RdmaManager::~RdmaManager() { control_.SetRdmaConnHandler(nullptr); }
@@ -100,16 +98,16 @@ uint32_t RdmaManager::genPsn() {
 
 absl::Status RdmaManager::RegisterMemory(void* addr, size_t length) {
   absl::MutexLock _(mu_);
-  if (rdma_memmgr_ != nullptr) {
-    return rdma_memmgr_->RegisterMemory(addr, length);
+  if (memory_ != nullptr) {
+    return memory_->RegisterMemory(addr, length);
   }
-  return absl::FailedPreconditionError("RDMA memory manager not initialized");
+  return absl::FailedPreconditionError("RDMA memory not initialized");
 }
 
 absl::Status RdmaManager::UnregisterMemory(const void* addr) {
   absl::MutexLock _(mu_);
-  if (rdma_memmgr_ != nullptr) {
-    return rdma_memmgr_->UnregisterMemory(addr);
+  if (memory_ != nullptr) {
+    return memory_->UnregisterMemory(addr);
   }
   return absl::FailedPreconditionError("RDMA memory manager not initialized");
 }
@@ -117,12 +115,11 @@ absl::Status RdmaManager::UnregisterMemory(const void* addr) {
 std::vector<std::unique_ptr<Channel>> RdmaManager::Connect(
     const Endpoint& peer_control, int num_conns) {
   std::vector<std::unique_ptr<Channel>> channels;
-  if (rdma_devmgr_ == nullptr || rdma_devmgr_->Devices().empty()) {
+  if (device_ == nullptr || device_->Contexts().empty()) {
     LOG(WARNING) << "no local RDMA devices available";
     return channels;
   }
 
-  const auto& local_devices = rdma_devmgr_->Devices();
   const auto peer_info = control_.GetPeerHostInfo(peer_control);
   if (!peer_info.ok()) {
     LOG(WARNING) << "failed to resolve peer " << peer_control << ": "
@@ -141,6 +138,7 @@ std::vector<std::unique_ptr<Channel>> RdmaManager::Connect(
     return channels;
   }
 
+  const auto& ctxs = device_->Contexts();
   for (int i = 0; i < 2 * num_conns; ++i) {
     // TODO: Assumes interface indices are rail-aligned (i.e. local interface at
     // index 0 connects to remote interface at index 0 on the same rail). In
@@ -148,13 +146,13 @@ std::vector<std::unique_ptr<Channel>> RdmaManager::Connect(
     // physically unsupported or blocked, causing connections to fail. In the
     // future, support dynamic topology discovery or explicit rail matching
     // rather than relying on positional index alignment.
-    const size_t local_idx = i % local_devices.size();
+    const size_t local_idx = i % ctxs.size();
     const size_t remote_idx = i % remote_interfaces.size();
-    RdmaDeviceContext* local_dev = local_devices[local_idx].get();
+    RdmaContext* ctx = ctxs[local_idx].get();
     const std::string_view remote_device_name =
         remote_interfaces[remote_idx].name;
 
-    auto qp_or = RdmaQueuePair::Create(local_dev);
+    auto qp_or = RdmaQPair::Create(ctx);
     if (!qp_or.ok()) {
       LOG(WARNING) << "failed to create local RDMA queue pair: "
                    << qp_or.status();
@@ -167,15 +165,15 @@ std::vector<std::unique_ptr<Channel>> RdmaManager::Connect(
     uint32_t initiator_rkey = 0;
     {
       absl::MutexLock _(mu_);
-      if (rdma_memmgr_ != nullptr) {
-        local_lkey = rdma_memmgr_->GetDefaultLKey(local_dev->Name());
-        initiator_rkey = rdma_memmgr_->GetDefaultRKey(local_dev->Name());
+      if (memory_ != nullptr) {
+        local_lkey = memory_->GetDefaultLKey(ctx->Name());
+        initiator_rkey = memory_->GetDefaultRKey(ctx->Name());
       }
     }
 
-    auto resp_or = control_.ConnectRdmaPeer(
-        peer_control, remote_device_name, qp->Qpn(), local_dev->LocalGid().raw,
-        local_psn, initiator_rkey);
+    auto resp_or = control_.ConnectRdmaPeer(peer_control, remote_device_name,
+                                            qp->Qpn(), ctx->LocalGid().raw,
+                                            local_psn, initiator_rkey);
     if (!resp_or.ok()) {
       LOG(WARNING) << "ConnectRdmaPeer RPC failed for peer " << peer_control
                    << ": " << resp_or.status();
@@ -208,26 +206,25 @@ std::vector<std::unique_ptr<Channel>> RdmaManager::Connect(
 
 absl::Status RdmaManager::handleConnect(const proto::RdmaConnReq& req,
                                         proto::RdmaConnResp* resp) {
-  if (rdma_devmgr_ == nullptr) {
+  if (device_ == nullptr) {
     return absl::FailedPreconditionError("RDMA is not enabled on this host");
   }
-  if (resp == nullptr) {
-    return absl::InvalidArgumentError("null response pointer");
-  }
-
-  RdmaDeviceContext* dev = rdma_devmgr_->GetDevice(req.device_name());
-  if (dev == nullptr) {
-    return absl::NotFoundError(
-        absl::StrFormat("RDMA device not found: %s", req.device_name()));
-  }
-
   if (req.gid().size() != sizeof(union ibv_gid)) {
     return absl::InvalidArgumentError(
         absl::StrFormat("invalid GID size: expected %d, got %d",
                         sizeof(union ibv_gid), req.gid().size()));
   }
+  if (resp == nullptr) {
+    return absl::InvalidArgumentError("null response pointer");
+  }
 
-  auto qp_or = RdmaQueuePair::Create(dev);
+  RdmaContext* ctx = device_->GetContext(req.device_name());
+  if (ctx == nullptr) {
+    return absl::NotFoundError(
+        absl::StrFormat("RDMA device not found: %s", req.device_name()));
+  }
+
+  auto qp_or = RdmaQPair::Create(ctx);
   if (!qp_or.ok()) return qp_or.status();
   auto qp = std::move(*qp_or);
 
@@ -238,20 +235,18 @@ absl::Status RdmaManager::handleConnect(const proto::RdmaConnReq& req,
   auto status = qp->Connect(req.qpn(), remote_gid, req.psn(), local_psn);
   if (!status.ok()) return status;
 
+  const auto local_gid = ctx->LocalGid().raw;
   resp->set_qpn(qp->Qpn());
-  resp->set_gid(
-      std::string_view(reinterpret_cast<const char*>(dev->LocalGid().raw),
-                       sizeof(dev->LocalGid().raw)));
   resp->set_psn(local_psn);
-
+  resp->set_gid(std::string_view(reinterpret_cast<const char*>(local_gid),
+                                 sizeof(local_gid)));
   {
     absl::MutexLock _(mu_);
-    if (rdma_memmgr_ != nullptr) {
-      resp->set_rkey(rdma_memmgr_->GetDefaultRKey(dev->Name()));
+    if (memory_ != nullptr) {
+      resp->set_rkey(memory_->GetDefaultRKey(ctx->Name()));
     }
     inbound_rdma_qps_.push_back(std::move(qp));
   }
-
   return absl::OkStatus();
 }
 

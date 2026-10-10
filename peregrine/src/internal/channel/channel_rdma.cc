@@ -19,11 +19,11 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_flatbuf.h"
-#include "peregrine/src/internal/rdma/rdma_queue_pair.h"
+#include "peregrine/src/internal/rdma/rdma_qpair.h"
 
 namespace peregrine::internal {
 
-RdmaChannel::RdmaChannel(std::unique_ptr<RdmaQueuePair> qp, uint32_t lkey,
+RdmaChannel::RdmaChannel(std::unique_ptr<RdmaQPair> qp, uint32_t lkey,
                          uint32_t rkey)
     : qp_(std::move(qp)), lkey_(lkey), rkey_(rkey), is_shutdown_(false) {
   DCHECK(qp_ != nullptr);

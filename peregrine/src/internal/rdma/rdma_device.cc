@@ -1,4 +1,4 @@
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
 
 #include <dirent.h>
 #include <infiniband/verbs.h>
@@ -17,7 +17,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
-#include "peregrine/src/internal/rdma/rdma_device_context.h"
+#include "peregrine/src/internal/rdma/rdma_context.h"
 
 namespace peregrine::internal {
 namespace {
@@ -61,8 +61,8 @@ struct ibv_device** getDeviceList(int& num_devices) {
   return device_list;
 }
 
-std::unique_ptr<RdmaDeviceContext> openDeviceContext(struct ibv_device* dev) {
-  std::unique_ptr<RdmaDeviceContext> dev_ctx = RdmaDeviceContext::Create(dev);
+std::unique_ptr<RdmaContext> openDeviceContext(struct ibv_device* dev) {
+  std::unique_ptr<RdmaContext> dev_ctx = RdmaContext::Create(dev);
   if (dev_ctx == nullptr) {
     const char* name = ibv_get_device_name(dev);
     LOG(WARNING) << "Failed to open and initialize RDMA adapter: "
@@ -73,27 +73,23 @@ std::unique_ptr<RdmaDeviceContext> openDeviceContext(struct ibv_device* dev) {
 
 }  // namespace
 
-RdmaDeviceManager::RdmaDeviceManager(
-    std::vector<std::unique_ptr<RdmaDeviceContext>> devices,
-    absl::flat_hash_map<std::string, RdmaDeviceContext*> device_map)
-    : devices_(std::move(devices)), device_map_(std::move(device_map)) {
-  LOG(INFO) << "RdmaDeviceManager initialized with " << devices_.size()
-            << " device(s)";
+RdmaDevice::RdmaDevice(std::vector<std::unique_ptr<RdmaContext>> ctxs,
+                       absl::flat_hash_map<std::string, RdmaContext*> ctx_map)
+    : ctxs_(std::move(ctxs)), ctx_map_(std::move(ctx_map)) {
+  LOG(INFO) << "RdmaDevice initialized with " << ctxs_.size() << " device(s)";
 }
 
-RdmaDeviceManager::~RdmaDeviceManager() {
-  LOG(INFO) << "RdmaDeviceManager destroyed";
-}
+RdmaDevice::~RdmaDevice() { LOG(INFO) << "RdmaDevice destroyed"; }
 
-RdmaDeviceContext* RdmaDeviceManager::GetDevice(std::string_view name) const {
-  auto it = device_map_.find(name);
-  if (it == device_map_.end()) {
+RdmaContext* RdmaDevice::GetContext(std::string_view name) const {
+  auto it = ctx_map_.find(name);
+  if (it == ctx_map_.end()) {
     return nullptr;
   }
   return it->second;
 }
 
-absl::StatusOr<std::unique_ptr<RdmaDeviceManager>> RdmaDeviceManager::Create() {
+absl::StatusOr<std::unique_ptr<RdmaDevice>> RdmaDevice::Create() {
   int num_devices = 0;
   struct ibv_device** device_list = getDeviceList(num_devices);
   if (device_list == nullptr) {
@@ -101,8 +97,8 @@ absl::StatusOr<std::unique_ptr<RdmaDeviceManager>> RdmaDeviceManager::Create() {
         "no active RDMA Host Channel Adapters found on this host");
   }
 
-  std::vector<std::unique_ptr<RdmaDeviceContext>> devices;
-  absl::flat_hash_map<std::string, RdmaDeviceContext*> device_map;
+  std::vector<std::unique_ptr<RdmaContext>> devices;
+  absl::flat_hash_map<std::string, RdmaContext*> device_map;
 
   for (int i = 0; i < num_devices; ++i) {
     struct ibv_device* dev = device_list[i];
@@ -124,12 +120,12 @@ absl::StatusOr<std::unique_ptr<RdmaDeviceManager>> RdmaDeviceManager::Create() {
       continue;
     }
 
-    std::unique_ptr<RdmaDeviceContext> dev_ctx = openDeviceContext(dev);
+    std::unique_ptr<RdmaContext> dev_ctx = openDeviceContext(dev);
     if (dev_ctx == nullptr) {
       continue;
     }
 
-    RdmaDeviceContext* ptr = dev_ctx.get();
+    RdmaContext* ptr = dev_ctx.get();
     device_map[std::string(ptr->Name())] = ptr;
     devices.push_back(std::move(dev_ctx));
   }
@@ -142,7 +138,7 @@ absl::StatusOr<std::unique_ptr<RdmaDeviceManager>> RdmaDeviceManager::Create() {
   }
 
   return absl::WrapUnique(
-      new RdmaDeviceManager(std::move(devices), std::move(device_map)));
+      new RdmaDevice(std::move(devices), std::move(device_map)));
 }
 
 }  // namespace peregrine::internal

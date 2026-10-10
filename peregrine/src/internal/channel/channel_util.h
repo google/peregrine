@@ -11,7 +11,7 @@
 #include "peregrine/src/internal/channel/channel_rdma.h"
 #include "peregrine/src/internal/channel/channel_tcp.h"
 #include "peregrine/src/internal/channel/channel_udp.h"
-#include "peregrine/src/internal/rdma/rdma_queue_pair.h"
+#include "peregrine/src/internal/rdma/rdma_qpair.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
@@ -31,8 +31,9 @@ inline std::unique_ptr<Channel> CreateUdpChannel(
 }
 
 // Creates an rdma channel.
-inline std::unique_ptr<Channel> CreateRdmaChannel(
-    std::unique_ptr<RdmaQueuePair> qp, uint32_t lkey = 0, uint32_t rkey = 0) {
+inline std::unique_ptr<Channel> CreateRdmaChannel(std::unique_ptr<RdmaQPair> qp,
+                                                  uint32_t lkey = 0,
+                                                  uint32_t rkey = 0) {
   return std::make_unique<RdmaChannel>(std::move(qp), lkey, rkey);
 }
 

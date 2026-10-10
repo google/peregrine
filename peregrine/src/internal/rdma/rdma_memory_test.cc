@@ -1,4 +1,4 @@
-#include "peregrine/src/internal/rdma/rdma_memory_manager.h"
+#include "peregrine/src/internal/rdma/rdma_memory.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -12,7 +12,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -21,61 +21,59 @@ using ::testing::Eq;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
-class RdmaMemoryManagerTest : public ::testing::Test {
+class RdmaMemoryTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    auto dev_mgr_or = RdmaDeviceManager::Create();
-    if (absl::IsNotFound(dev_mgr_or.status())) {
+    auto dev_or = RdmaDevice::Create();
+    if (absl::IsNotFound(dev_or.status())) {
       GTEST_SKIP()
           << "No hardware RDMA devices available in this test environment.";
     }
-    ASSERT_TRUE(dev_mgr_or.ok()) << dev_mgr_or.status();
-    dev_mgr_ = std::move(*dev_mgr_or);
-    ASSERT_THAT(dev_mgr_, NotNull());
-    ASSERT_FALSE(dev_mgr_->Devices().empty());
+    ASSERT_TRUE(dev_or.ok()) << dev_or.status();
+    dev_ = std::move(*dev_or);
+    ASSERT_THAT(dev_, NotNull());
+    ASSERT_FALSE(dev_->Contexts().empty());
   }
 
-  std::unique_ptr<RdmaDeviceManager> dev_mgr_;
+  std::unique_ptr<RdmaDevice> dev_;
 };
 
-TEST_F(RdmaMemoryManagerTest, RegisterAndLookupBaseBuffer) {
-  RdmaMemoryManager mem_manager(dev_mgr_.get());
+TEST_F(RdmaMemoryTest, RegisterAndLookupBaseBuffer) {
+  RdmaMemory mem(dev_.get());
 
   constexpr size_t kBufferSize = 4096;
   std::vector<uint8_t> buffer(kBufferSize, 0x5A);
 
-  ASSERT_TRUE(mem_manager.RegisterMemory(buffer.data(), buffer.size()).ok());
+  ASSERT_TRUE(mem.RegisterMemory(buffer.data(), buffer.size()).ok());
 
-  for (const auto& dev_ctx : dev_mgr_->Devices()) {
-    struct ibv_mr* mr = mem_manager.GetMemoryRegion(
-        buffer.data(), buffer.size(), dev_ctx->Name());
+  for (const auto& ctx : dev_->Contexts()) {
+    struct ibv_mr* mr =
+        mem.GetMemoryRegion(buffer.data(), buffer.size(), ctx->Name());
     ASSERT_THAT(mr, NotNull());
     EXPECT_THAT(mr->addr, Eq(buffer.data()));
     EXPECT_THAT(mr->length, Eq(buffer.size()));
 
-    auto lkey_or =
-        mem_manager.GetLKey(buffer.data(), buffer.size(), dev_ctx->Name());
+    auto lkey_or = mem.GetLKey(buffer.data(), buffer.size(), ctx->Name());
     ASSERT_TRUE(lkey_or.ok());
     EXPECT_THAT(*lkey_or, Eq(mr->lkey));
 
-    auto rkey_or =
-        mem_manager.GetRKey(buffer.data(), buffer.size(), dev_ctx->Name());
+    auto rkey_or = mem.GetRKey(buffer.data(), buffer.size(), ctx->Name());
     ASSERT_TRUE(rkey_or.ok());
     EXPECT_THAT(*rkey_or, Eq(mr->rkey));
   }
 }
 
-TEST_F(RdmaMemoryManagerTest, SubSliceContainmentLookup) {
-  RdmaMemoryManager mem_manager(dev_mgr_.get());
+TEST_F(RdmaMemoryTest, SubSliceContainmentLookup) {
+  RdmaMemory mem_manager(dev_.get());
 
   constexpr size_t kBufferSize = 4096;
   std::vector<uint8_t> buffer(kBufferSize, 0x5A);
 
   ASSERT_TRUE(mem_manager.RegisterMemory(buffer.data(), buffer.size()).ok());
 
-  for (const auto& dev_ctx : dev_mgr_->Devices()) {
-    struct ibv_mr* mr = mem_manager.GetMemoryRegion(
-        buffer.data(), buffer.size(), dev_ctx->Name());
+  for (const auto& ctx : dev_->Contexts()) {
+    struct ibv_mr* mr =
+        mem_manager.GetMemoryRegion(buffer.data(), buffer.size(), ctx->Name());
     ASSERT_THAT(mr, NotNull());
 
     // Sub-slice inside the buffer (e.g. offset +512, length 128).
@@ -83,42 +81,42 @@ TEST_F(RdmaMemoryManagerTest, SubSliceContainmentLookup) {
     constexpr size_t kSliceLen = 128;
 
     auto slice_lkey_or =
-        mem_manager.GetLKey(slice_addr, kSliceLen, dev_ctx->Name());
+        mem_manager.GetLKey(slice_addr, kSliceLen, ctx->Name());
     ASSERT_TRUE(slice_lkey_or.ok());
     EXPECT_THAT(*slice_lkey_or, Eq(mr->lkey));
 
     auto slice_rkey_or =
-        mem_manager.GetRKey(slice_addr, kSliceLen, dev_ctx->Name());
+        mem_manager.GetRKey(slice_addr, kSliceLen, ctx->Name());
     ASSERT_TRUE(slice_rkey_or.ok());
     EXPECT_THAT(*slice_rkey_or, Eq(mr->rkey));
   }
 }
 
-TEST_F(RdmaMemoryManagerTest, OutOfBoundsSliceLookupFails) {
-  RdmaMemoryManager mem_manager(dev_mgr_.get());
+TEST_F(RdmaMemoryTest, OutOfBoundsSliceLookupFails) {
+  RdmaMemory mem_manager(dev_.get());
 
   constexpr size_t kBufferSize = 4096;
   std::vector<uint8_t> buffer(kBufferSize, 0x5A);
 
   ASSERT_TRUE(mem_manager.RegisterMemory(buffer.data(), buffer.size()).ok());
 
-  for (const auto& dev_ctx : dev_mgr_->Devices()) {
+  for (const auto& ctx : dev_->Contexts()) {
     // Slice that starts inside buffer but exceeds capacity (e.g. offset +4000,
     // length 200).
     const uint8_t* oob_addr = buffer.data() + 4000;
     constexpr size_t kOobLen = 200;
 
-    EXPECT_THAT(mem_manager.GetMemoryRegion(oob_addr, kOobLen, dev_ctx->Name()),
+    EXPECT_THAT(mem_manager.GetMemoryRegion(oob_addr, kOobLen, ctx->Name()),
                 IsNull());
     EXPECT_TRUE(absl::IsNotFound(
-        mem_manager.GetLKey(oob_addr, kOobLen, dev_ctx->Name()).status()));
+        mem_manager.GetLKey(oob_addr, kOobLen, ctx->Name()).status()));
     EXPECT_TRUE(absl::IsNotFound(
-        mem_manager.GetRKey(oob_addr, kOobLen, dev_ctx->Name()).status()));
+        mem_manager.GetRKey(oob_addr, kOobLen, ctx->Name()).status()));
   }
 }
 
-TEST_F(RdmaMemoryManagerTest, LookupOnNonExistentDeviceFails) {
-  RdmaMemoryManager mem_manager(dev_mgr_.get());
+TEST_F(RdmaMemoryTest, LookupOnNonExistentDeviceFails) {
+  RdmaMemory mem_manager(dev_.get());
 
   constexpr size_t kBufferSize = 4096;
   std::vector<uint8_t> buffer(kBufferSize, 0x5A);
@@ -136,8 +134,8 @@ TEST_F(RdmaMemoryManagerTest, LookupOnNonExistentDeviceFails) {
           .status()));
 }
 
-TEST_F(RdmaMemoryManagerTest, DuplicateOrContainedRegistrationFails) {
-  RdmaMemoryManager mem_manager(dev_mgr_.get());
+TEST_F(RdmaMemoryTest, DuplicateOrContainedRegistrationFails) {
+  RdmaMemory mem_manager(dev_.get());
 
   constexpr size_t kBufferSize = 4096;
   std::vector<uint8_t> buffer(kBufferSize, 0x5A);
@@ -153,8 +151,8 @@ TEST_F(RdmaMemoryManagerTest, DuplicateOrContainedRegistrationFails) {
       mem_manager.RegisterMemory(buffer.data() + 100, 500)));
 }
 
-TEST_F(RdmaMemoryManagerTest, UnregisterMemory) {
-  RdmaMemoryManager mem_manager(dev_mgr_.get());
+TEST_F(RdmaMemoryTest, UnregisterMemory) {
+  RdmaMemory mem_manager(dev_.get());
 
   constexpr size_t kBufferSize = 4096;
   std::vector<uint8_t> buffer(kBufferSize, 0x5A);
@@ -165,12 +163,12 @@ TEST_F(RdmaMemoryManagerTest, UnregisterMemory) {
   ASSERT_TRUE(mem_manager.UnregisterMemory(buffer.data()).ok());
 
   // Subsequent lookups should fail.
-  for (const auto& dev_ctx : dev_mgr_->Devices()) {
-    EXPECT_THAT(mem_manager.GetMemoryRegion(buffer.data(), buffer.size(),
-                                            dev_ctx->Name()),
-                IsNull());
+  for (const auto& ctx : dev_->Contexts()) {
+    EXPECT_THAT(
+        mem_manager.GetMemoryRegion(buffer.data(), buffer.size(), ctx->Name()),
+        IsNull());
     EXPECT_TRUE(absl::IsNotFound(
-        mem_manager.GetLKey(buffer.data(), buffer.size(), dev_ctx->Name())
+        mem_manager.GetLKey(buffer.data(), buffer.size(), ctx->Name())
             .status()));
   }
 
@@ -178,13 +176,13 @@ TEST_F(RdmaMemoryManagerTest, UnregisterMemory) {
   EXPECT_TRUE(absl::IsNotFound(mem_manager.UnregisterMemory(buffer.data())));
 }
 
-TEST_F(RdmaMemoryManagerTest, GetDefaultKeys) {
-  RdmaMemoryManager mem_manager(dev_mgr_.get());
+TEST_F(RdmaMemoryTest, GetDefaultKeys) {
+  RdmaMemory mem_manager(dev_.get());
 
   // Before registration, default keys should be 0.
-  for (const auto& dev_ctx : dev_mgr_->Devices()) {
-    EXPECT_EQ(mem_manager.GetDefaultLKey(dev_ctx->Name()), 0);
-    EXPECT_EQ(mem_manager.GetDefaultRKey(dev_ctx->Name()), 0);
+  for (const auto& ctx : dev_->Contexts()) {
+    EXPECT_EQ(mem_manager.GetDefaultLKey(ctx->Name()), 0);
+    EXPECT_EQ(mem_manager.GetDefaultRKey(ctx->Name()), 0);
   }
 
   constexpr size_t kBufferSize = 4096;
@@ -192,15 +190,13 @@ TEST_F(RdmaMemoryManagerTest, GetDefaultKeys) {
   ASSERT_TRUE(mem_manager.RegisterMemory(buffer.data(), buffer.size()).ok());
 
   // After registration, default keys should match registered keys.
-  for (const auto& dev_ctx : dev_mgr_->Devices()) {
-    EXPECT_NE(mem_manager.GetDefaultLKey(dev_ctx->Name()), 0);
-    EXPECT_NE(mem_manager.GetDefaultRKey(dev_ctx->Name()), 0);
-    EXPECT_EQ(
-        mem_manager.GetDefaultLKey(dev_ctx->Name()),
-        *mem_manager.GetLKey(buffer.data(), buffer.size(), dev_ctx->Name()));
-    EXPECT_EQ(
-        mem_manager.GetDefaultRKey(dev_ctx->Name()),
-        *mem_manager.GetRKey(buffer.data(), buffer.size(), dev_ctx->Name()));
+  for (const auto& ctx : dev_->Contexts()) {
+    EXPECT_NE(mem_manager.GetDefaultLKey(ctx->Name()), 0);
+    EXPECT_NE(mem_manager.GetDefaultRKey(ctx->Name()), 0);
+    EXPECT_EQ(mem_manager.GetDefaultLKey(ctx->Name()),
+              *mem_manager.GetLKey(buffer.data(), buffer.size(), ctx->Name()));
+    EXPECT_EQ(mem_manager.GetDefaultRKey(ctx->Name()),
+              *mem_manager.GetRKey(buffer.data(), buffer.size(), ctx->Name()));
   }
 }
 

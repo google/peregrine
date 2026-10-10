@@ -12,7 +12,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/control/control.h"
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -35,8 +35,8 @@ TEST(RdmaManagerTest, ReturnsNullWhenTransportTypeIsNotRdma) {
 }
 
 TEST(RdmaManagerTest, CreateAndRegisterMemoryWithRdmaTransport) {
-  auto dev_mgr_or = RdmaDeviceManager::Create();
-  if (absl::IsNotFound(dev_mgr_or.status())) {
+  auto dev_or = RdmaDevice::Create();
+  if (absl::IsNotFound(dev_or.status())) {
     GTEST_SKIP()
         << "No hardware RDMA devices available in this test environment.";
   }

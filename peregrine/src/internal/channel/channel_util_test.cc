@@ -12,9 +12,9 @@
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
-#include "peregrine/src/internal/rdma/rdma_device_context.h"
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
-#include "peregrine/src/internal/rdma/rdma_queue_pair.h"
+#include "peregrine/src/internal/rdma/rdma_context.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
+#include "peregrine/src/internal/rdma/rdma_qpair.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
@@ -72,12 +72,12 @@ TEST_P(ChannelUtilTest, Create) {
 }
 
 TEST(ChannelUtilNonParamTest, CreateRdmaChannel) {
-  auto dev_mgr = RdmaDeviceManager::Create();
-  if (!dev_mgr.ok() || dev_mgr.value()->Devices().empty()) {
+  auto dev = RdmaDevice::Create();
+  if (!dev.ok() || dev.value()->Contexts().empty()) {
     GTEST_SKIP() << "No RDMA hardware devices found on this host.";
   }
-  RdmaDeviceContext* const dev_ctx = dev_mgr.value()->Devices()[0].get();
-  auto qp_or = RdmaQueuePair::Create(dev_ctx);
+  RdmaContext* const ctx = dev.value()->Contexts()[0].get();
+  auto qp_or = RdmaQPair::Create(ctx);
   ASSERT_TRUE(qp_or.ok());
   auto ch = CreateRdmaChannel(std::move(*qp_or), 0x1234, 0x5678);
   ASSERT_NE(ch, nullptr);

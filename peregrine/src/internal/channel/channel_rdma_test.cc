@@ -1,9 +1,11 @@
 #include "peregrine/src/internal/channel/channel_rdma.h"
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -13,10 +15,10 @@
 #include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_flatbuf.h"
-#include "peregrine/src/internal/rdma/rdma_device_context.h"
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
-#include "peregrine/src/internal/rdma/rdma_memory_manager.h"
-#include "peregrine/src/internal/rdma/rdma_queue_pair.h"
+#include "peregrine/src/internal/rdma/rdma_context.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
+#include "peregrine/src/internal/rdma/rdma_memory.h"
+#include "peregrine/src/internal/rdma/rdma_qpair.h"
 
 namespace peregrine::internal {
 namespace {
@@ -24,15 +26,15 @@ namespace {
 constexpr size_t kBufSize = 64 * 1024;  // 64 KiB
 
 TEST(RdmaChannelTest, LoopbackWrite) {
-  auto dev_mgr = RdmaDeviceManager::Create();
-  if (!dev_mgr.ok() || dev_mgr.value()->Devices().empty()) {
+  auto dev = RdmaDevice::Create();
+  if (!dev.ok() || dev.value()->Contexts().empty()) {
     GTEST_SKIP() << "No RDMA hardware devices found on this host.";
   }
 
-  RdmaDeviceContext* const dev_ctx = dev_mgr.value()->Devices()[0].get();
-  ASSERT_NE(dev_ctx, nullptr);
+  RdmaContext* const ctx = dev.value()->Contexts()[0].get();
+  ASSERT_NE(ctx, nullptr);
 
-  RdmaMemoryManager mem_mgr(dev_mgr.value().get());
+  RdmaMemory mem_mgr(dev.value().get());
 
   // Allocate source and destination test buffers.
   std::vector<uint8_t> src_buf(kBufSize);
@@ -47,17 +49,17 @@ TEST(RdmaChannelTest, LoopbackWrite) {
   ASSERT_TRUE(mem_mgr.RegisterMemory(dst_buf.data(), kBufSize).ok());
 
   // Create two Queue Pairs on the same device for loopback testing.
-  auto qp_sender = RdmaQueuePair::Create(dev_ctx);
+  auto qp_sender = RdmaQPair::Create(ctx);
   ASSERT_TRUE(qp_sender.ok());
-  auto qp_receiver = RdmaQueuePair::Create(dev_ctx);
+  auto qp_receiver = RdmaQPair::Create(ctx);
   ASSERT_TRUE(qp_receiver.ok());
 
   // Connect QPs in loopback.
   ASSERT_TRUE(qp_sender.value()
-                  ->Connect(qp_receiver.value()->Qpn(), dev_ctx->LocalGid())
+                  ->Connect(qp_receiver.value()->Qpn(), ctx->LocalGid())
                   .ok());
   ASSERT_TRUE(qp_receiver.value()
-                  ->Connect(qp_sender.value()->Qpn(), dev_ctx->LocalGid())
+                  ->Connect(qp_sender.value()->Qpn(), ctx->LocalGid())
                   .ok());
 
   EXPECT_TRUE(qp_sender.value()->IsConnected());
@@ -65,22 +67,20 @@ TEST(RdmaChannelTest, LoopbackWrite) {
 
   // Resolve local LKey for source buffer and remote RKey for destination
   // buffer.
-  const auto lkey = mem_mgr.GetLKey(src_buf.data(), kBufSize, dev_ctx->Name());
+  const auto lkey = mem_mgr.GetLKey(src_buf.data(), kBufSize, ctx->Name());
   ASSERT_TRUE(lkey.ok());
-  const auto rkey = mem_mgr.GetRKey(dst_buf.data(), kBufSize, dev_ctx->Name());
+  const auto rkey = mem_mgr.GetRKey(dst_buf.data(), kBufSize, ctx->Name());
   ASSERT_TRUE(rkey.ok());
 
   // Instantiate channel.
   RdmaChannel sender_ch(std::move(qp_sender.value()), lkey.value(),
                         rkey.value());
 
-  EXPECT_EQ(sender_ch.Type(), ChannelType::kReliableMessage);
+  EXPECT_EQ(sender_ch.Type(), ChannelType::kRDMA);
 
   // Verify unsupported operations return -1.
-  EXPECT_EQ(sender_ch.Write(src_buf.data(), kBufSize), -1);
-  EXPECT_EQ(sender_ch.Read(dst_buf.data(), kBufSize), -1);
-  EXPECT_EQ(sender_ch.WriteV({}), -1);
-  EXPECT_EQ(sender_ch.WriteV({{src_buf.data(), kBufSize}}), -1);
+  EXPECT_EQ(sender_ch.Write({}), -1);
+  EXPECT_EQ(sender_ch.Write({{src_buf.data(), kBufSize}}), -1);
 
   // Construct ChunkHeader pointing to destination memory address.
   ChunkHeader chunk = {};
@@ -98,7 +98,7 @@ TEST(RdmaChannelTest, LoopbackWrite) {
   };
 
   // Perform one-sided RDMA Write.
-  const ssize_t written = sender_ch.WriteV(iovecs);
+  const ssize_t written = sender_ch.Write(iovecs);
   EXPECT_EQ(written, serialized_hdr.size() + kBufSize);
 
   // Verify that destination buffer contains exact source data.

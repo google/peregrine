@@ -4,9 +4,31 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//peregrine/src/internal:internal_impl"])
 
 cc_library(
-    name = "rdma_device_context",
-    srcs = ["rdma_device_context.cc"],
-    hdrs = ["rdma_device_context.h"],
+    name = "rdma_util",
+    srcs = ["rdma_util.cc"],
+    hdrs = ["rdma_util.h"],
+    deps = [
+        "//:libibverbs",  # buildcleaner: keep
+        "//peregrine/src/internal:assumptions",
+        "//peregrine/src/util:ipaddr",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "rdma_util_test",
+    srcs = ["rdma_util_test.cc"],
+    deps = [
+        ":rdma_util",
+        "//peregrine/src/util:ipaddr",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "rdma_context",
+    srcs = ["rdma_context.cc"],
+    hdrs = ["rdma_context.h"],
     deps = [
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/util:errno",
@@ -14,15 +36,16 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
 cc_test(
-    name = "rdma_device_context_test",
-    srcs = ["rdma_device_context_test.cc"],
+    name = "rdma_context_test",
+    srcs = ["rdma_context_test.cc"],
     deps = [
-        ":rdma_device_context",
+        ":rdma_context",
         "//:libibverbs",  # buildcleaner: keep
         "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
@@ -30,11 +53,41 @@ cc_test(
 )
 
 cc_library(
-    name = "rdma_device_manager",
-    srcs = ["rdma_device_manager.cc"],
-    hdrs = ["rdma_device_manager.h"],
+    name = "rdma_qpair",
+    srcs = ["rdma_qpair.cc"],
+    hdrs = ["rdma_qpair.h"],
     deps = [
-        ":rdma_device_context",
+        ":rdma_context",
+        "//:libibverbs",  # buildcleaner: keep
+        "//peregrine/src/util:macro",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "rdma_qpair_test",
+    srcs = ["rdma_qpair_test.cc"],
+    deps = [
+        ":rdma_context",
+        ":rdma_device",
+        ":rdma_qpair",
+        "//:libibverbs",  # buildcleaner: keep
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "rdma_device",
+    srcs = ["rdma_device.cc"],
+    hdrs = ["rdma_device.h"],
+    deps = [
+        ":rdma_context",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -48,11 +101,11 @@ cc_library(
 )
 
 cc_test(
-    name = "rdma_device_manager_test",
-    srcs = ["rdma_device_manager_test.cc"],
+    name = "rdma_device_test",
+    srcs = ["rdma_device_test.cc"],
     deps = [
-        ":rdma_device_context",
-        ":rdma_device_manager",
+        ":rdma_context",
+        ":rdma_device",
         "//:libibverbs",  # buildcleaner: keep
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
@@ -61,12 +114,12 @@ cc_test(
 )
 
 cc_library(
-    name = "rdma_memory_manager",
-    srcs = ["rdma_memory_manager.cc"],
-    hdrs = ["rdma_memory_manager.h"],
+    name = "rdma_memory",
+    srcs = ["rdma_memory.cc"],
+    hdrs = ["rdma_memory.h"],
     deps = [
-        ":rdma_device_context",
-        ":rdma_device_manager",
+        ":rdma_context",
+        ":rdma_device",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/util:errno",
@@ -83,41 +136,11 @@ cc_library(
 )
 
 cc_test(
-    name = "rdma_memory_manager_test",
-    srcs = ["rdma_memory_manager_test.cc"],
+    name = "rdma_memory_test",
+    srcs = ["rdma_memory_test.cc"],
     deps = [
-        ":rdma_device_manager",
-        ":rdma_memory_manager",
-        "//:libibverbs",  # buildcleaner: keep
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/status",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "rdma_queue_pair",
-    srcs = ["rdma_queue_pair.cc"],
-    hdrs = ["rdma_queue_pair.h"],
-    deps = [
-        ":rdma_device_context",
-        "//:libibverbs",  # buildcleaner: keep
-        "//peregrine/src/util:macro",
-        "@abseil-cpp//absl/log",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings:str_format",
-    ],
-)
-
-cc_test(
-    name = "rdma_queue_pair_test",
-    srcs = ["rdma_queue_pair_test.cc"],
-    deps = [
-        ":rdma_device_context",
-        ":rdma_device_manager",
-        ":rdma_queue_pair",
+        ":rdma_device",
+        ":rdma_memory",
         "//:libibverbs",  # buildcleaner: keep
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
@@ -130,10 +153,10 @@ cc_library(
     srcs = ["rdma_manager.cc"],
     hdrs = ["rdma_manager.h"],
     deps = [
-        ":rdma_device_context",
-        ":rdma_device_manager",
-        ":rdma_memory_manager",
-        ":rdma_queue_pair",
+        ":rdma_context",
+        ":rdma_device",
+        ":rdma_memory",
+        ":rdma_qpair",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:config",
@@ -163,7 +186,7 @@ cc_test(
     name = "rdma_manager_test",
     srcs = ["rdma_manager_test.cc"],
     deps = [
-        ":rdma_device_manager",
+        ":rdma_device",
         ":rdma_manager",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:config",
@@ -171,28 +194,6 @@ cc_test(
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/control",
         "@abseil-cpp//absl/status",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "rdma_util",
-    srcs = ["rdma_util.cc"],
-    hdrs = ["rdma_util.h"],
-    deps = [
-        "//:libibverbs",  # buildcleaner: keep
-        "//peregrine/src/internal:assumptions",
-        "//peregrine/src/util:ipaddr",
-        "@abseil-cpp//absl/log:check",
-    ],
-)
-
-cc_test(
-    name = "rdma_util_test",
-    srcs = ["rdma_util_test.cc"],
-    deps = [
-        ":rdma_util",
-        "//peregrine/src/util:ipaddr",
         "@googletest//:gtest_main",
     ],
 )

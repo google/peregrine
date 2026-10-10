@@ -1,4 +1,4 @@
-#include "peregrine/src/internal/rdma/rdma_memory_manager.h"
+#include "peregrine/src/internal/rdma/rdma_memory.h"
 
 #include <infiniband/verbs.h>
 
@@ -17,8 +17,8 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "peregrine/src/internal/rdma/rdma_device_context.h"
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
+#include "peregrine/src/internal/rdma/rdma_context.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
@@ -43,31 +43,30 @@ void UnregisterMrs(
 }
 }  // namespace
 
-RdmaMemoryManager::RdmaMemoryManager(const RdmaDeviceManager* device_manager)
-    : device_manager_(device_manager) {
-  DCHECK_NE(device_manager_, nullptr);
-  LOG(INFO) << "RdmaMemoryManager initialized";
+RdmaMemory::RdmaMemory(const RdmaDevice* dev) : dev_(dev) {
+  DCHECK_NE(dev_, nullptr);
+  LOG(INFO) << "RdmaMemory initialized";
 }
 
-RdmaMemoryManager::~RdmaMemoryManager() {
+RdmaMemory::~RdmaMemory() {
   for (const auto& [addr, region] : registered_regions_) {
     UnregisterMrs(region.device_mrs);
   }
-  LOG(INFO) << "RdmaMemoryManager destroyed";
+  LOG(INFO) << "RdmaMemory destroyed";
 }
 
-absl::Status RdmaMemoryManager::RegisterMemory(void* addr, size_t length,
-                                               int access_flags) {
+absl::Status RdmaMemory::RegisterMemory(void* addr, size_t length,
+                                        int access_flags) {
   if (addr == nullptr) {
     return absl::InvalidArgumentError("addr cannot be nullptr");
   }
   if (length == 0) {
     return absl::InvalidArgumentError("length must be greater than 0");
   }
-  if (device_manager_ == nullptr) {
+  if (dev_ == nullptr) {
     return absl::FailedPreconditionError("device_manager cannot be nullptr");
   }
-  if (device_manager_->Devices().empty()) {
+  if (dev_->Contexts().empty()) {
     return absl::FailedPreconditionError(
         "no active RDMA devices available to register memory");
   }
@@ -84,12 +83,12 @@ absl::Status RdmaMemoryManager::RegisterMemory(void* addr, size_t length,
 
   absl::flat_hash_map<std::string, struct ibv_mr*> memory_regions;
 
-  for (const auto& dev_ctx : device_manager_->Devices()) {
-    struct ibv_pd* pd = dev_ctx->GetPd();
+  for (const auto& crx : dev_->Contexts()) {
+    struct ibv_pd* pd = crx->GetPd();
     if (pd == nullptr) {
       UnregisterMrs(memory_regions);
       return absl::InternalError(absl::StrFormat(
-          "device %s has null protection domain (PD)", dev_ctx->Name()));
+          "device %s has null protection domain (PD)", crx->Name()));
     }
 
     struct ibv_mr* mr = ibv_reg_mr(pd, addr, length, access_flags);
@@ -97,15 +96,15 @@ absl::Status RdmaMemoryManager::RegisterMemory(void* addr, size_t length,
       const Errno err(errno);
       LOG(WARNING) << ErrMsg(
           absl::StrFormat("ibv_reg_mr failed for device %s (addr=%p, len=%zu)",
-                          dev_ctx->Name(), addr, length),
+                          crx->Name(), addr, length),
           err);
       UnregisterMrs(memory_regions);
       return absl::InternalError(absl::StrFormat(
-          "ibv_reg_mr failed on device %s: errno=%d (%s)", dev_ctx->Name(),
+          "ibv_reg_mr failed on device %s: errno=%d (%s)", crx->Name(),
           err.value(), std::strerror(err.value())));
     }
 
-    memory_regions[std::string(dev_ctx->Name())] = mr;
+    memory_regions[std::string(crx->Name())] = mr;
   }
 
   LOG(INFO) << "Registered memory buffer at " << addr << " (length " << length
@@ -115,7 +114,7 @@ absl::Status RdmaMemoryManager::RegisterMemory(void* addr, size_t length,
   return absl::OkStatus();
 }
 
-absl::Status RdmaMemoryManager::UnregisterMemory(const void* addr) {
+absl::Status RdmaMemory::UnregisterMemory(const void* addr) {
   const uintptr_t target = reinterpret_cast<uintptr_t>(addr);
   auto it = registered_regions_.find(target);
   if (it == registered_regions_.end()) {
@@ -133,7 +132,7 @@ absl::Status RdmaMemoryManager::UnregisterMemory(const void* addr) {
 // Only single-slab containment is supported; multi-slab spanning is not
 // supported as verbs SGE operations require a single LKey per contiguous
 // transfer.
-const RdmaMemoryManager::RegisteredRegion* RdmaMemoryManager::findRegion(
+const RdmaMemory::RegisteredRegion* RdmaMemory::findRegion(
     const void* addr, size_t length) const {
   if (addr == nullptr || length == 0 || registered_regions_.empty()) {
     return nullptr;
@@ -160,8 +159,8 @@ const RdmaMemoryManager::RegisteredRegion* RdmaMemoryManager::findRegion(
   return nullptr;
 }
 
-struct ibv_mr* RdmaMemoryManager::GetMemoryRegion(
-    const void* addr, size_t length, std::string_view device_name) const {
+struct ibv_mr* RdmaMemory::GetMemoryRegion(const void* addr, size_t length,
+                                           std::string_view device_name) const {
   const auto* region = findRegion(addr, length);
   if (region == nullptr) {
     return nullptr;
@@ -173,7 +172,7 @@ struct ibv_mr* RdmaMemoryManager::GetMemoryRegion(
   return mr_it->second;
 }
 
-absl::StatusOr<uint32_t> RdmaMemoryManager::GetLKey(
+absl::StatusOr<uint32_t> RdmaMemory::GetLKey(
     const void* addr, size_t length, std::string_view device_name) const {
   struct ibv_mr* mr = GetMemoryRegion(addr, length, device_name);
   if (mr == nullptr) {
@@ -186,7 +185,7 @@ absl::StatusOr<uint32_t> RdmaMemoryManager::GetLKey(
   return mr->lkey;
 }
 
-absl::StatusOr<uint32_t> RdmaMemoryManager::GetRKey(
+absl::StatusOr<uint32_t> RdmaMemory::GetRKey(
     const void* addr, size_t length, std::string_view device_name) const {
   struct ibv_mr* mr = GetMemoryRegion(addr, length, device_name);
   if (mr == nullptr) {
@@ -199,7 +198,7 @@ absl::StatusOr<uint32_t> RdmaMemoryManager::GetRKey(
   return mr->rkey;
 }
 
-uint32_t RdmaMemoryManager::GetDefaultLKey(std::string_view device_name) const {
+uint32_t RdmaMemory::GetDefaultLKey(std::string_view device_name) const {
   if (registered_regions_.empty()) {
     return 0;
   }
@@ -211,7 +210,7 @@ uint32_t RdmaMemoryManager::GetDefaultLKey(std::string_view device_name) const {
   return mr_it->second->lkey;
 }
 
-uint32_t RdmaMemoryManager::GetDefaultRKey(std::string_view device_name) const {
+uint32_t RdmaMemory::GetDefaultRKey(std::string_view device_name) const {
   if (registered_regions_.empty()) {
     return 0;
   }

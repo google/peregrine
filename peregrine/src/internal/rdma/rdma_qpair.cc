@@ -1,4 +1,4 @@
-#include "peregrine/src/internal/rdma/rdma_queue_pair.h"
+#include "peregrine/src/internal/rdma/rdma_qpair.h"
 
 #include <infiniband/verbs.h>
 
@@ -12,24 +12,19 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
-#include "peregrine/src/internal/rdma/rdma_device_context.h"
+#include "peregrine/src/internal/rdma/rdma_context.h"
 
 namespace peregrine::internal {
 
-RdmaQueuePair::RdmaQueuePair(RdmaDeviceContext* device_context,
-                             struct ibv_qp* qp, struct ibv_cq* cq,
-                             const Options& options)
-    : device_context_(device_context),
-      qp_(qp),
-      cq_(cq),
-      options_(options),
-      state_(State::kReset) {
-  DCHECK(device_context_ != nullptr);
+RdmaQPair::RdmaQPair(RdmaContext* ctx, struct ibv_qp* qp, struct ibv_cq* cq,
+                     const Options& options)
+    : ctx_(ctx), qp_(qp), cq_(cq), options_(options), state_(State::kReset) {
+  DCHECK(ctx_ != nullptr);
   DCHECK(qp_ != nullptr);
   DCHECK(cq_ != nullptr);
 }
 
-RdmaQueuePair::~RdmaQueuePair() {
+RdmaQPair::~RdmaQPair() {
   if (qp_ != nullptr) {
     const int ret = ibv_destroy_qp(qp_);
     if (ret != 0) {
@@ -48,18 +43,17 @@ RdmaQueuePair::~RdmaQueuePair() {
   }
 }
 
-absl::StatusOr<std::unique_ptr<RdmaQueuePair>> RdmaQueuePair::Create(
-    RdmaDeviceContext* device_context, const Options& options) {
-  if (device_context == nullptr) {
+absl::StatusOr<std::unique_ptr<RdmaQPair>> RdmaQPair::Create(
+    RdmaContext* ctx, const Options& options) {
+  if (ctx == nullptr) {
     return absl::InvalidArgumentError("device_context is null");
   }
 
-  struct ibv_cq* cq = ibv_create_cq(device_context->GetDeviceContext(),
-                                    options.cq_size, nullptr, nullptr, 0);
+  struct ibv_cq* cq =
+      ibv_create_cq(ctx->GetIbvContext(), options.cq_size, nullptr, nullptr, 0);
   if (cq == nullptr) {
-    return absl::InternalError(
-        absl::StrFormat("ibv_create_cq failed on device %s: %s",
-                        device_context->Name(), strerror(errno)));
+    return absl::InternalError(absl::StrFormat(
+        "ibv_create_cq failed on device %s: %s", ctx->Name(), strerror(errno)));
   }
 
   struct ibv_qp_init_attr init_attr = {};
@@ -72,16 +66,14 @@ absl::StatusOr<std::unique_ptr<RdmaQueuePair>> RdmaQueuePair::Create(
   init_attr.cap.max_recv_sge = options.max_recv_sge;
   init_attr.sq_sig_all = options.sq_sig_all ? 1 : 0;
 
-  struct ibv_qp* qp = ibv_create_qp(device_context->GetPd(), &init_attr);
+  struct ibv_qp* qp = ibv_create_qp(ctx->GetPd(), &init_attr);
   if (qp == nullptr) {
     ibv_destroy_cq(cq);
-    return absl::InternalError(
-        absl::StrFormat("ibv_create_qp failed on device %s: %s",
-                        device_context->Name(), strerror(errno)));
+    return absl::InternalError(absl::StrFormat(
+        "ibv_create_qp failed on device %s: %s", ctx->Name(), strerror(errno)));
   }
 
-  std::unique_ptr<RdmaQueuePair> queue_pair(
-      new RdmaQueuePair(device_context, qp, cq, options));
+  std::unique_ptr<RdmaQPair> queue_pair(new RdmaQPair(ctx, qp, cq, options));
   absl::Status init_status = queue_pair->Init();
   if (!init_status.ok()) {
     return init_status;
@@ -89,7 +81,7 @@ absl::StatusOr<std::unique_ptr<RdmaQueuePair>> RdmaQueuePair::Create(
   return queue_pair;
 }
 
-absl::Status RdmaQueuePair::Init() {
+absl::Status RdmaQPair::Init() {
   if (qp_ == nullptr) {
     return absl::FailedPreconditionError("ibv_qp is null");
   }
@@ -97,7 +89,7 @@ absl::Status RdmaQueuePair::Init() {
   struct ibv_qp_attr attr = {};
   attr.qp_state = IBV_QPS_INIT;
   attr.pkey_index = 0;
-  attr.port_num = RdmaDeviceContext::kDefaultPort;
+  attr.port_num = RdmaContext::kDefaultPort;
   attr.qp_access_flags = options_.access_flags;
 
   const int flags =
@@ -113,9 +105,9 @@ absl::Status RdmaQueuePair::Init() {
   return absl::OkStatus();
 }
 
-absl::Status RdmaQueuePair::Rtr(uint32_t remote_qpn,
-                                const union ibv_gid& remote_gid,
-                                uint32_t remote_psn) {
+absl::Status RdmaQPair::Rtr(uint32_t remote_qpn,
+                            const union ibv_gid& remote_gid,
+                            uint32_t remote_psn) {
   if (qp_ == nullptr) {
     return absl::FailedPreconditionError("ibv_qp is null");
   }
@@ -134,11 +126,11 @@ absl::Status RdmaQueuePair::Rtr(uint32_t remote_qpn,
 
   // Address Vector (AV) configuration for RoCEv2 GRH
   attr.ah_attr.is_global = 1;
-  attr.ah_attr.port_num = RdmaDeviceContext::kDefaultPort;
+  attr.ah_attr.port_num = RdmaContext::kDefaultPort;
   attr.ah_attr.sl = options_.sl;
   attr.ah_attr.src_path_bits = 0;
   attr.ah_attr.grh.dgid = remote_gid;
-  attr.ah_attr.grh.sgid_index = device_context_->GidIndex();
+  attr.ah_attr.grh.sgid_index = ctx_->GidIndex();
   attr.ah_attr.grh.hop_limit = options_.hop_limit;
   attr.ah_attr.grh.traffic_class = options_.traffic_class;
 
@@ -156,7 +148,7 @@ absl::Status RdmaQueuePair::Rtr(uint32_t remote_qpn,
   return absl::OkStatus();
 }
 
-absl::Status RdmaQueuePair::Rts(uint32_t local_psn) {
+absl::Status RdmaQPair::Rts(uint32_t local_psn) {
   if (qp_ == nullptr) {
     return absl::FailedPreconditionError("ibv_qp is null");
   }
@@ -187,19 +179,19 @@ absl::Status RdmaQueuePair::Rts(uint32_t local_psn) {
   return absl::OkStatus();
 }
 
-absl::Status RdmaQueuePair::Connect(uint32_t remote_qpn,
-                                    const union ibv_gid& remote_gid,
-                                    uint32_t remote_psn, uint32_t local_psn) {
+absl::Status RdmaQPair::Connect(uint32_t remote_qpn,
+                                const union ibv_gid& remote_gid,
+                                uint32_t remote_psn, uint32_t local_psn) {
   absl::Status status = Rtr(remote_qpn, remote_gid, remote_psn);
   if (!status.ok()) return status;
   return Rts(local_psn);
 }
 
-absl::StatusOr<union ibv_gid> RdmaQueuePair::GetLocalGid() const {
-  if (device_context_ == nullptr) {
+absl::StatusOr<union ibv_gid> RdmaQPair::GetLocalGid() const {
+  if (ctx_ == nullptr) {
     return absl::FailedPreconditionError("invalid device context");
   }
-  return device_context_->LocalGid();
+  return ctx_->LocalGid();
 }
 
 }  // namespace peregrine::internal

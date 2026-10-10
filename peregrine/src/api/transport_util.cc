@@ -11,14 +11,14 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
-#include "peregrine/src/internal/rdma/rdma_device_manager.h"
+#include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/internal/transport_impl.h"
 
 namespace peregrine {
 
 using internal::Config;
 using internal::Endpoint;
-using internal::RdmaDeviceManager;
+using internal::RdmaDevice;
 using internal::TransportImpl;
 
 bool IsTransportSupported(TransportType t) {
@@ -26,10 +26,10 @@ bool IsTransportSupported(TransportType t) {
     case TransportType::kTcp:
       return true;
     case TransportType::kRdma: {
-      // TODO: Instead of relying on internal::RdmaDeviceManager, consider
+      // TODO: Instead of relying on internal::RdmaDevice, consider
       // querying the underlying OS or NIC driver for RDMA support.
-      auto devmgr = RdmaDeviceManager::Create();
-      return devmgr.ok() && !(*devmgr)->Devices().empty();
+      auto dev = RdmaDevice::Create();
+      return dev.ok() && !dev.value()->Contexts().empty();
     }
     default:
       return false;

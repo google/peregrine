@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_INTERNAL_RDMA_RDMA_QUEUE_PAIR_H_
-#define PEREGRINE_SRC_INTERNAL_RDMA_RDMA_QUEUE_PAIR_H_
+#ifndef PEREGRINE_SRC_INTERNAL_RDMA_RDMA_QPAIR_H_
+#define PEREGRINE_SRC_INTERNAL_RDMA_RDMA_QPAIR_H_
 
 #include <infiniband/verbs.h>
 
@@ -8,18 +8,18 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "peregrine/src/internal/rdma/rdma_device_context.h"
+#include "peregrine/src/internal/rdma/rdma_context.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal {
 
 // This class represents a Reliable Connected (RC) RDMA Queue Pair.
 // It manages QP lifecycle, dedicated hardware Completion Queue (CQ) ownership,
-// hardware resource binding to an RdmaDeviceContext, and state transitions
+// hardware resource binding to an RdmaContext, and state transitions
 // (RESET -> INIT -> RTR -> RTS).
 //
 // It is thread-compatible but not thread-safe.
-class RdmaQueuePair final {
+class RdmaQPair final {
  public:
   // Configuration options for creating and initializing the Queue Pair.
   // TODO: Allow these options to be configured via external config / flags.
@@ -48,19 +48,19 @@ class RdmaQueuePair final {
   // allocated its own private Completion Queue and automatically transitioned
   // into INIT state.
   // Returns nullptr or an error status on creation failure.
-  static absl::StatusOr<std::unique_ptr<RdmaQueuePair>> Create(
-      RdmaDeviceContext* device_context, const Options& options);
-  static absl::StatusOr<std::unique_ptr<RdmaQueuePair>> Create(
-      RdmaDeviceContext* device_context) {
-    return Create(device_context, Options{});
+  static absl::StatusOr<std::unique_ptr<RdmaQPair>> Create(
+      RdmaContext* ctx, const Options& options);
+
+  static absl::StatusOr<std::unique_ptr<RdmaQPair>> Create(RdmaContext* ctx) {
+    return Create(ctx, Options{});
   }
 
   // Disallows copy and move.
-  DISALLOW_COPY(RdmaQueuePair);
-  DISALLOW_MOVE(RdmaQueuePair);
+  DISALLOW_COPY(RdmaQPair);
+  DISALLOW_MOVE(RdmaQPair);
 
   // Destructor. Destroys the underlying ibv_qp and private ibv_cq.
-  ~RdmaQueuePair();
+  ~RdmaQPair();
 
   // Connects the QP to the remote peer (transitions INIT -> RTR -> RTS).
   absl::Status Connect(uint32_t remote_qpn, const union ibv_gid& remote_gid,
@@ -84,7 +84,7 @@ class RdmaQueuePair final {
   struct ibv_cq* GetCq() const { return cq_; }
 
   // Returns the associated device context.
-  RdmaDeviceContext* GetDeviceContext() const { return device_context_; }
+  RdmaContext* GetDeviceContext() const { return ctx_; }
 
  private:
   // Transport mode constant.
@@ -99,8 +99,8 @@ class RdmaQueuePair final {
     kError,
   };
 
-  RdmaQueuePair(RdmaDeviceContext* device_context, struct ibv_qp* qp,
-                struct ibv_cq* cq, const Options& options);
+  RdmaQPair(RdmaContext* ctx, struct ibv_qp* qp, struct ibv_cq* cq,
+            const Options& options);
 
   // Internal state machine transitions.
   absl::Status Init();
@@ -109,7 +109,7 @@ class RdmaQueuePair final {
   absl::Status Rts(uint32_t local_psn);
 
  private:
-  RdmaDeviceContext* const device_context_;
+  RdmaContext* const ctx_;
   struct ibv_qp* qp_;
   struct ibv_cq* cq_;
   const Options options_;
@@ -118,4 +118,4 @@ class RdmaQueuePair final {
 
 }  // namespace peregrine::internal
 
-#endif  // PEREGRINE_SRC_INTERNAL_RDMA_RDMA_QUEUE_PAIR_H_
+#endif  // PEREGRINE_SRC_INTERNAL_RDMA_RDMA_QPAIR_H_
