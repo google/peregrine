@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_INTERNAL_RDMA_RDMA_ACCEPTOR_H_
-#define PEREGRINE_SRC_INTERNAL_RDMA_RDMA_ACCEPTOR_H_
+#ifndef PEREGRINE_SRC_INTERNAL_RDMA_RDMA_MANAGER_H_
+#define PEREGRINE_SRC_INTERNAL_RDMA_RDMA_MANAGER_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -23,20 +23,20 @@
 
 namespace peregrine::internal {
 
-// RdmaAcceptor manages the RDMA data plane. It owns the device manager,
+// RdmaManager manages the RDMA data plane. It owns the device manager,
 // memory manager, and inbound passive Queue Pairs. It registers and serves
 // inbound RDMA connect requests via Control, handles outbound connection
 // establishment, and provides thread-safe memory registration.
 //
 // This class is thread-safe.
-class RdmaAcceptor final {
+class RdmaManager final {
  public:
-  // Factory method to create an RdmaAcceptor.
-  static std::unique_ptr<RdmaAcceptor> Create(const Config& config,
-                                              HostInfo& self, Control& control);
+  // Factory method to create an RdmaManager.
+  static std::unique_ptr<RdmaManager> Create(const Config& config,
+                                             HostInfo& self, Control& control);
 
   // Destructor.
-  ~RdmaAcceptor();
+  ~RdmaManager();
 
   // Connects to a peer via RDMA and returns established RDMA channels.
   std::vector<std::unique_ptr<Channel>> Connect(const Endpoint& peer_control,
@@ -53,8 +53,8 @@ class RdmaAcceptor final {
 
  private:
   // Constructor.
-  RdmaAcceptor(const Config& config, const HostInfo& self, Control& control,
-               std::unique_ptr<RdmaDeviceManager> rdma_devmgr);
+  RdmaManager(const Config& config, const HostInfo& self, Control& control,
+              std::unique_ptr<RdmaDeviceManager> rdma_devmgr);
 
   // Handles an incoming RDMA connection request from a remote peer.
   absl::Status handleConnect(const proto::RdmaConnReq& req,
@@ -88,4 +88,4 @@ class RdmaAcceptor final {
 
 }  // namespace peregrine::internal
 
-#endif  // PEREGRINE_SRC_INTERNAL_RDMA_RDMA_ACCEPTOR_H_
+#endif  // PEREGRINE_SRC_INTERNAL_RDMA_RDMA_MANAGER_H_

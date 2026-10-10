@@ -13,7 +13,7 @@
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
-#include "peregrine/src/internal/rdma/rdma_acceptor.h"
+#include "peregrine/src/internal/rdma/rdma_manager.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
@@ -56,7 +56,7 @@ class EngineHelper final {
   // Constructor.
   EngineHelper(const Config& config, const HostInfo& self, Control& control,
                std::unique_ptr<TcpManager> tcp_mgr,
-               std::unique_ptr<RdmaAcceptor> rdma_acceptor);
+               std::unique_ptr<RdmaManager> rdma_mgr);
 
   // Returns true if the following invariants hold.
   bool invariant() const {
@@ -70,8 +70,8 @@ class EngineHelper final {
   // Creates `n` RDMA channels that connect to the peer.
   Channels connectRdma(const Endpoint& peer_control, int n);
 
-  // Returns an error if the config requires RDMA but its acceptor is null.
-  absl::Status checkRdmaAcceptor() const;
+  // Returns an error if the config requires RDMA but its manager is null.
+  absl::Status checkRdmaManager() const;
 
  private:
   const Config& config_;
@@ -81,7 +81,7 @@ class EngineHelper final {
   EngineMetrics metrics_;
 
   absl_nonnull std::unique_ptr<TcpManager> tcp_mgr_;
-  absl_nullable std::unique_ptr<RdmaAcceptor> rdma_acceptor_;
+  absl_nullable std::unique_ptr<RdmaManager> rdma_mgr_;
 
   util::Jthread tcpmgr_thread_;
 };

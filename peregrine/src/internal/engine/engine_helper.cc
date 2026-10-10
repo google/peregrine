@@ -22,7 +22,7 @@
 #include "peregrine/src/internal/channel/channel_util.h"
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
-#include "peregrine/src/internal/rdma/rdma_acceptor.h"
+#include "peregrine/src/internal/rdma/rdma_manager.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
@@ -38,13 +38,13 @@ std::unique_ptr<EngineHelper> EngineHelper::Create(const Config& config,
   DCHECK(config.IsValid());
 
   self.data_plane_listeners.clear();
-  auto rdma_acceptor = RdmaAcceptor::Create(config, self, control);
-  if (rdma_acceptor == nullptr) {
+  auto rdma_mgr = RdmaManager::Create(config, self, control);
+  if (rdma_mgr == nullptr) {
     if (config.transport_type == TransportType::kRdma) {
-      LOG(ERROR) << "failed to create rdma acceptor for " << self;
+      LOG(ERROR) << "failed to create rdma manager for " << self;
       return nullptr;
     }
-    LOG(WARNING) << "failed to create rdma acceptor for " << self
+    LOG(WARNING) << "failed to create rdma manager for " << self
                  << ", continue with TCP but no RDMA";
   }
 
@@ -60,18 +60,18 @@ std::unique_ptr<EngineHelper> EngineHelper::Create(const Config& config,
 
   DCHECK(!config.require_dataplane_encryption);
   return absl::WrapUnique(new EngineHelper(
-      config, self, control, std::move(tcp_mgr), std::move(rdma_acceptor)));
+      config, self, control, std::move(tcp_mgr), std::move(rdma_mgr)));
 }
 
 EngineHelper::EngineHelper(const Config& config, const HostInfo& self,
                            Control& control,
                            std::unique_ptr<TcpManager> tcp_mgr,
-                           std::unique_ptr<RdmaAcceptor> rdma_acceptor)
+                           std::unique_ptr<RdmaManager> rdma_mgr)
     : config_(config),
       self_(self),
       control_(control),
       tcp_mgr_(std::move(tcp_mgr)),
-      rdma_acceptor_(std::move(rdma_acceptor)) {
+      rdma_mgr_(std::move(rdma_mgr)) {
   DCHECK(invariant());
   tcpmgr_thread_ = util::Jthread([this]() {
     constexpr bool kGenBlocking = true;
@@ -153,29 +153,29 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
 
 EngineHelper::Channels EngineHelper::connectRdma(const Endpoint& peer_control,
                                                  const int n) {
-  if (rdma_acceptor_ == nullptr) return {};
-  return rdma_acceptor_->Connect(peer_control, n);
+  if (rdma_mgr_ == nullptr) return {};
+  return rdma_mgr_->Connect(peer_control, n);
 }
 
-absl::Status EngineHelper::checkRdmaAcceptor() const {
-  DCHECK_EQ(rdma_acceptor_, nullptr);
+absl::Status EngineHelper::checkRdmaManager() const {
+  DCHECK_EQ(rdma_mgr_, nullptr);
   return config_.transport_type == TransportType::kRdma
-             ? absl::FailedPreconditionError("null rdma acceptor")
+             ? absl::FailedPreconditionError("null rdma manager")
              : absl::OkStatus();
 }
 
 absl::Status EngineHelper::RegisterMemory(void* addr, size_t length) {
-  if (rdma_acceptor_ != nullptr) {
-    return rdma_acceptor_->RegisterMemory(addr, length);
+  if (rdma_mgr_ != nullptr) {
+    return rdma_mgr_->RegisterMemory(addr, length);
   }
-  return checkRdmaAcceptor();
+  return checkRdmaManager();
 }
 
 absl::Status EngineHelper::UnregisterMemory(const void* addr) {
-  if (rdma_acceptor_ != nullptr) {
-    return rdma_acceptor_->UnregisterMemory(addr);
+  if (rdma_mgr_ != nullptr) {
+    return rdma_mgr_->UnregisterMemory(addr);
   }
-  return checkRdmaAcceptor();
+  return checkRdmaManager();
 }
 
 }  // namespace peregrine::internal

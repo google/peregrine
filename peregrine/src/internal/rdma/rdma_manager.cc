@@ -1,4 +1,4 @@
-#include "peregrine/src/internal/rdma/rdma_acceptor.h"
+#include "peregrine/src/internal/rdma/rdma_manager.h"
 
 #include <infiniband/verbs.h>
 
@@ -37,9 +37,9 @@
 
 namespace peregrine::internal {
 
-std::unique_ptr<RdmaAcceptor> RdmaAcceptor::Create(const Config& config,
-                                                   HostInfo& self,
-                                                   Control& control) {
+std::unique_ptr<RdmaManager> RdmaManager::Create(const Config& config,
+                                                 HostInfo& self,
+                                                 Control& control) {
   if (config.transport_type != TransportType::kRdma) {
     return nullptr;
   }
@@ -69,20 +69,20 @@ std::unique_ptr<RdmaAcceptor> RdmaAcceptor::Create(const Config& config,
   self.data_plane_listeners.insert(self.data_plane_listeners.end(),
                                    nics.begin(), nics.end());
 
-  auto acceptor = absl::WrapUnique(
-      new RdmaAcceptor(config, self, control, std::move(devmgr)));
+  auto mgr = absl::WrapUnique(
+      new RdmaManager(config, self, control, std::move(devmgr)));
 
-  control.SetRdmaConnHandler([a = acceptor.get()](const proto::RdmaConnReq& req,
-                                                  proto::RdmaConnResp* resp) {
+  control.SetRdmaConnHandler([a = mgr.get()](const proto::RdmaConnReq& req,
+                                             proto::RdmaConnResp* resp) {
     return a->handleConnect(req, resp);
   });
 
-  return acceptor;
+  return mgr;
 }
 
-RdmaAcceptor::RdmaAcceptor(const Config& config, const HostInfo& self,
-                           Control& control,
-                           std::unique_ptr<RdmaDeviceManager> rdma_devmgr)
+RdmaManager::RdmaManager(const Config& config, const HostInfo& self,
+                         Control& control,
+                         std::unique_ptr<RdmaDeviceManager> rdma_devmgr)
     : config_(config),
       self_(self),
       control_(control),
@@ -91,14 +91,14 @@ RdmaAcceptor::RdmaAcceptor(const Config& config, const HostInfo& self,
   rdma_memmgr_ = std::make_unique<RdmaMemoryManager>(rdma_devmgr_.get());
 }
 
-RdmaAcceptor::~RdmaAcceptor() { control_.SetRdmaConnHandler(nullptr); }
+RdmaManager::~RdmaManager() { control_.SetRdmaConnHandler(nullptr); }
 
-uint32_t RdmaAcceptor::genPsn() {
+uint32_t RdmaManager::genPsn() {
   absl::MutexLock _(mu_);
   return util::Random<uint32_t>(bitgen_) & 0x00FF'FFFF;
 }
 
-absl::Status RdmaAcceptor::RegisterMemory(void* addr, size_t length) {
+absl::Status RdmaManager::RegisterMemory(void* addr, size_t length) {
   absl::MutexLock _(mu_);
   if (rdma_memmgr_ != nullptr) {
     return rdma_memmgr_->RegisterMemory(addr, length);
@@ -106,7 +106,7 @@ absl::Status RdmaAcceptor::RegisterMemory(void* addr, size_t length) {
   return absl::FailedPreconditionError("RDMA memory manager not initialized");
 }
 
-absl::Status RdmaAcceptor::UnregisterMemory(const void* addr) {
+absl::Status RdmaManager::UnregisterMemory(const void* addr) {
   absl::MutexLock _(mu_);
   if (rdma_memmgr_ != nullptr) {
     return rdma_memmgr_->UnregisterMemory(addr);
@@ -114,7 +114,7 @@ absl::Status RdmaAcceptor::UnregisterMemory(const void* addr) {
   return absl::FailedPreconditionError("RDMA memory manager not initialized");
 }
 
-std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
+std::vector<std::unique_ptr<Channel>> RdmaManager::Connect(
     const Endpoint& peer_control, int num_conns) {
   std::vector<std::unique_ptr<Channel>> channels;
   if (rdma_devmgr_ == nullptr || rdma_devmgr_->Devices().empty()) {
@@ -206,8 +206,8 @@ std::vector<std::unique_ptr<Channel>> RdmaAcceptor::Connect(
   return channels;
 }
 
-absl::Status RdmaAcceptor::handleConnect(const proto::RdmaConnReq& req,
-                                         proto::RdmaConnResp* resp) {
+absl::Status RdmaManager::handleConnect(const proto::RdmaConnReq& req,
+                                        proto::RdmaConnResp* resp) {
   if (rdma_devmgr_ == nullptr) {
     return absl::FailedPreconditionError("RDMA is not enabled on this host");
   }

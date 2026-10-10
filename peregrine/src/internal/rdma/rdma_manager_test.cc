@@ -1,4 +1,4 @@
-#include "peregrine/src/internal/rdma/rdma_acceptor.h"
+#include "peregrine/src/internal/rdma/rdma_manager.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -20,7 +20,7 @@ namespace {
 using ::testing::IsNull;
 using ::testing::NotNull;
 
-TEST(RdmaAcceptorTest, ReturnsNullWhenTransportTypeIsNotRdma) {
+TEST(RdmaManagerTest, ReturnsNullWhenTransportTypeIsNotRdma) {
   Config config;
   config.transport_type = TransportType::kTcp;
 
@@ -30,11 +30,11 @@ TEST(RdmaAcceptorTest, ReturnsNullWhenTransportTypeIsNotRdma) {
   auto control = Control::Create(config, self, creds);
   ASSERT_THAT(control, NotNull());
 
-  auto acceptor = RdmaAcceptor::Create(config, self, *control);
-  EXPECT_THAT(acceptor, IsNull());
+  auto mgr = RdmaManager::Create(config, self, *control);
+  EXPECT_THAT(mgr, IsNull());
 }
 
-TEST(RdmaAcceptorTest, CreateAndRegisterMemoryWithRdmaTransport) {
+TEST(RdmaManagerTest, CreateAndRegisterMemoryWithRdmaTransport) {
   auto dev_mgr_or = RdmaDeviceManager::Create();
   if (absl::IsNotFound(dev_mgr_or.status())) {
     GTEST_SKIP()
@@ -50,14 +50,14 @@ TEST(RdmaAcceptorTest, CreateAndRegisterMemoryWithRdmaTransport) {
   auto control = Control::Create(config, self, creds);
   ASSERT_THAT(control, NotNull());
 
-  auto acceptor = RdmaAcceptor::Create(config, self, *control);
-  ASSERT_THAT(acceptor, NotNull());
+  auto mgr = RdmaManager::Create(config, self, *control);
+  ASSERT_THAT(mgr, NotNull());
 
   constexpr size_t kBufferSize = 4096;
   std::vector<uint8_t> buffer(kBufferSize, 0xAB);
 
-  EXPECT_TRUE(acceptor->RegisterMemory(buffer.data(), buffer.size()).ok());
-  EXPECT_TRUE(acceptor->UnregisterMemory(buffer.data()).ok());
+  EXPECT_TRUE(mgr->RegisterMemory(buffer.data(), buffer.size()).ok());
+  EXPECT_TRUE(mgr->UnregisterMemory(buffer.data()).ok());
 }
 
 }  // namespace

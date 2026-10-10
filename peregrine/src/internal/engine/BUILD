@@ -60,7 +60,7 @@ cc_library(
         "//peregrine/src/internal/channel:channel_util",
         "//peregrine/src/internal/control",
         "//peregrine/src/internal/metrics:engine_metrics",
-        "//peregrine/src/internal/rdma:rdma_acceptor",
+        "//peregrine/src/internal/rdma:rdma_manager",
         "//peregrine/src/internal/socket:socket_tcp",
         "//peregrine/src/internal/socket:socket_util",
         "//peregrine/src/internal/socket:tcp_manager",

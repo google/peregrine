@@ -126,9 +126,9 @@ cc_test(
 )
 
 cc_library(
-    name = "rdma_acceptor",
-    srcs = ["rdma_acceptor.cc"],
-    hdrs = ["rdma_acceptor.h"],
+    name = "rdma_manager",
+    srcs = ["rdma_manager.cc"],
+    hdrs = ["rdma_manager.h"],
     deps = [
         ":rdma_device_context",
         ":rdma_device_manager",
@@ -160,11 +160,11 @@ cc_library(
 )
 
 cc_test(
-    name = "rdma_acceptor_test",
-    srcs = ["rdma_acceptor_test.cc"],
+    name = "rdma_manager_test",
+    srcs = ["rdma_manager_test.cc"],
     deps = [
-        ":rdma_acceptor",
         ":rdma_device_manager",
+        ":rdma_manager",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
