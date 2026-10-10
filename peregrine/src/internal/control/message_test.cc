@@ -4,6 +4,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
+#include "absl/numeric/int128.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
@@ -18,6 +19,8 @@ namespace {
 constexpr uint64_t kLaddr = 0x1000;
 constexpr uint64_t kRaddr = 0x2000;
 constexpr uint64_t kLen = 300;
+constexpr absl::uint128 kBufferId =
+    absl::MakeUint128(0x0123456789abcdefULL, 0xfedcba9876543210ULL);
 
 TEST(MessageTest, RequestOp) {
   EXPECT_EQ(static_cast<int>(proto::Request::INVALID), 0);
@@ -47,6 +50,7 @@ TEST(MessageTest, Serialization) {
       .raddr = reinterpret_cast<Byte*>(kRaddr),
       .len = kLen,
       .rkey = 0xCAFE,
+      .buffer_id = kBufferId,
   };
   proto::ReqMsg a;
   Message::Serialize(host, {req}, a);
@@ -64,6 +68,7 @@ TEST(MessageTest, Serialization) {
   EXPECT_EQ(requests.size(), 1);
   EXPECT_EQ(requests[0], req);
   EXPECT_EQ(requests[0].rkey, 0xCAFE);
+  EXPECT_EQ(requests[0].buffer_id, kBufferId);
 }
 
 TEST(MessageTest, HostInfoExchange) {
@@ -181,6 +186,8 @@ TEST(MessageTest, AreEqualAndRKey) {
   r1.set_raddr(0x2000);
   r1.set_len(1024);
   r1.set_rkey(0xABCD);
+  r1.set_buffer_id_low(0x1122334455667788ULL);
+  r1.set_buffer_id_high(0x99aabbccddeeff00ULL);
 
   proto::Request r2;
   r2.set_op(proto::Request::READ);
@@ -188,6 +195,8 @@ TEST(MessageTest, AreEqualAndRKey) {
   r2.set_raddr(0x2000);
   r2.set_len(1024);
   r2.set_rkey(0xABCD);
+  r2.set_buffer_id_low(0x1122334455667788ULL);
+  r2.set_buffer_id_high(0x99aabbccddeeff00ULL);
 
   EXPECT_TRUE(Message::AreEqual(r1, r2));
 
@@ -215,6 +224,16 @@ TEST(MessageTest, AreEqualAndRKey) {
   proto::Request r7 = r1;
   r7.set_len(2048);
   EXPECT_FALSE(Message::AreEqual(r1, r7));
+
+  // Mismatched buffer_id_low
+  proto::Request r8 = r1;
+  r8.set_buffer_id_low(0x1);
+  EXPECT_FALSE(Message::AreEqual(r1, r8));
+
+  // Mismatched buffer_id_high
+  proto::Request r9 = r1;
+  r9.set_buffer_id_high(0x1);
+  EXPECT_FALSE(Message::AreEqual(r1, r9));
 }
 
 }  // namespace

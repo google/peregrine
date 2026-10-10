@@ -1,7 +1,10 @@
 #include "peregrine/src/api/transport_types.h"
 
+#include <string>
+
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "absl/numeric/int128.h"
 
 namespace peregrine::testing {
 namespace {
@@ -90,6 +93,38 @@ TEST(TransportRequest, RKeyAndEquality) {
   EXPECT_EQ(r1, r2);
   EXPECT_NE(r1, r3);
   EXPECT_NE(r1.ToString().find("rkey: 0xabcd"), std::string::npos);
+}
+
+TEST(TransportRequest, BufferIdAndEquality) {
+  const absl::uint128 id1 =
+      absl::MakeUint128(0x0123456789abcdefULL, 0xfedcba9876543210ULL);
+  const absl::uint128 id2 =
+      absl::MakeUint128(0x0123456789abcdefULL, 0x0000000000000001ULL);
+  const Request r1 = {
+      .op = Op::kWrite,
+      .laddr = reinterpret_cast<Byte*>(0x1000),
+      .raddr = reinterpret_cast<Byte*>(0x2000),
+      .len = 1024,
+      .buffer_id = id1,
+  };
+  const Request r2 = {
+      .op = Op::kWrite,
+      .laddr = reinterpret_cast<Byte*>(0x1000),
+      .raddr = reinterpret_cast<Byte*>(0x2000),
+      .len = 1024,
+      .buffer_id = id1,
+  };
+  const Request r3 = {
+      .op = Op::kWrite,
+      .laddr = reinterpret_cast<Byte*>(0x1000),
+      .raddr = reinterpret_cast<Byte*>(0x2000),
+      .len = 1024,
+      .buffer_id = id2,
+  };
+
+  EXPECT_TRUE(r1.IsValid());
+  EXPECT_EQ(r1, r2);
+  EXPECT_NE(r1, r3);
 }
 
 }  // namespace

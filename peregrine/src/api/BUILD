@@ -64,6 +64,7 @@ cc_library(
     deps = [
         "//peregrine/src/util:strong_int",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/numeric:int128",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
     ],
@@ -75,6 +76,7 @@ cc_test(
     deps = [
         ":transport_types",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/numeric:int128",
         "@googletest//:gtest_main",
     ],
 )

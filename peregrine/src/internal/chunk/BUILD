@@ -14,6 +14,7 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/util:strong_int",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/numeric:int128",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
     ],
@@ -49,6 +50,7 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/numeric:int128",
     ],
 )
 
@@ -111,6 +113,7 @@ cc_library(
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/util",
+        "@abseil-cpp//absl/numeric:int128",
         "@abseil-cpp//absl/random:bit_gen_ref",
     ],
 )

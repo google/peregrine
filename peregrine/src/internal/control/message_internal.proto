@@ -63,11 +63,13 @@ message Request {
     READ = 1;   // Read from peer
     WRITE = 2;  // Write to peer
   }
-  Op op = 1;         // operation type
-  uint64 laddr = 2;  // address in this local process
-  uint64 raddr = 3;  // address in the remote peer process
-  uint64 len = 4;    // buffer length in bytes
-  uint32 rkey = 5;   // remote memory region key (for RDMA)
+  Op op = 1;                  // operation type
+  uint64 laddr = 2;           // address in this local process
+  uint64 raddr = 3;           // address in the remote peer process
+  uint64 len = 4;             // buffer length in bytes
+  uint32 rkey = 5;            // remote memory region key (for RDMA)
+  uint64 buffer_id_low = 6;   // low 64 bits of opaque buffer id
+  uint64 buffer_id_high = 7;  // high 64 bits of opaque buffer id
 }
 // LINT.ThenChange(../../api/transport_types.h)
 

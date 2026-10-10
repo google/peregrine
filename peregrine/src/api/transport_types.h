@@ -7,6 +7,7 @@
 #include <ostream>
 #include <string>
 
+#include "absl/numeric/int128.h"
 #include "absl/types/span.h"
 #include "peregrine/src/util/strong_int.h"
 
@@ -38,6 +39,7 @@ struct Request final {
   Byte* raddr = nullptr;  // address in the remote peer process
   size_t len = 0;         // buffer length in bytes
   uint32_t rkey = 0;      // remote memory region key (for RDMA operations)
+  absl::uint128 buffer_id = 0;  // opaque buffer identifier
   // LINT.ThenChange(../internal/control/message_internal.proto)
 
   // Returns true iff the request is valid.
@@ -48,7 +50,7 @@ struct Request final {
   // Returns true iff the requests are equal.
   friend bool operator==(const Request& a, const Request& b) {
     return a.op == b.op && a.laddr == b.laddr && a.raddr == b.raddr &&
-           a.len == b.len && a.rkey == b.rkey;
+           a.len == b.len && a.rkey == b.rkey && a.buffer_id == b.buffer_id;
   }
 
   // Returns a string representation of the transport request.

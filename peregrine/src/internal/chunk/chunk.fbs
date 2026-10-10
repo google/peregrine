@@ -21,11 +21,11 @@ struct ChunkHeader {
   index:uint32;
   size:uint32;
   addr:uint64;
+  buffer_id_low:uint64;
+  buffer_id_high:uint64;
 
   // Paddings to keep the header size always 64 bytes.
   padding0:uint64;
   padding1:uint64;
-  padding2:uint64;
-  padding3:uint64;
 // LINT.ThenChange(chunk.h)
 }

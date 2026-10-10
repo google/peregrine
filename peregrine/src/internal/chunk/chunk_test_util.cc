@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "absl/numeric/int128.h"
 #include "absl/random/bit_gen_ref.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
@@ -18,6 +19,7 @@ void GenChunkHeader(ChunkHeader& chunk, const chunk_t index) {
   chunk.index = index;
   chunk.addr = addr_t(kBufferBaseAddr.value() + index.value() * kChunkSize);
   chunk.size = kChunkSize;
+  chunk.buffer_id = kBufferId;
 }
 
 ChunkHeader GenChunkHeader(const chunk_t index) {
@@ -33,6 +35,8 @@ void GenChunkHeader(absl::BitGenRef bitgen, ChunkHeader& chunk) {
   chunk.index = chunk_t(util::Random<uint32_t>(bitgen, 0, chunk.nchunks - 1));
   chunk.addr = addr_t(util::Random<addr_t::ValueType>(bitgen));
   chunk.size = util::Random<uint32_t>(bitgen, 1, 0xffff'ffff);
+  chunk.buffer_id = absl::MakeUint128(util::Random<uint64_t>(bitgen),
+                                      util::Random<uint64_t>(bitgen));
 }
 
 ChunkHeader GenChunkHeader(absl::BitGenRef bitgen) {
