@@ -87,6 +87,8 @@ cc_library(
     hdrs = ["rdma_conn.h"],
     deps = [
         ":rdma_qpair",
+        "//peregrine/src/util:macro",
+        "@abseil-cpp//absl/log:check",
     ],
 )
 

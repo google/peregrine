@@ -23,7 +23,7 @@ class RdmaChannel final : public Channel {
   explicit RdmaChannel(std::unique_ptr<RdmaConn> rdma)
       : rdma_(std::move(rdma)), is_shutdown_(false) {
     DCHECK_NE(rdma_, nullptr);
-    DCHECK_NE(rdma_->qp, nullptr);
+    DCHECK_NE(rdma_->Qp(), nullptr);
   }
 
   // Returns the channel type.

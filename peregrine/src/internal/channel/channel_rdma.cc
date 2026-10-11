@@ -27,7 +27,7 @@ void RdmaChannel::Shutdown() {
     return;
   }
 
-  auto qp = rdma_->qp.get();
+  auto qp = rdma_->Qp();
   if (qp != nullptr && qp->GetQp() != nullptr) {
     // Transition QP to ERROR state to immediately abort and flush in-flight
     // hardware DMA transfers.
@@ -44,8 +44,11 @@ ssize_t RdmaChannel::Read(absl::Span<IoVec> /*iovecs*/) {
 
 ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
   if (is_shutdown_.load(std::memory_order_acquire)) return -1;
-  auto qp = rdma_->qp.get();
+  auto qp = rdma_->Qp();
   if (qp == nullptr || qp->GetQp() == nullptr) return -1;
+
+  struct ibv_qp* const ibv_qp = qp->GetQp();
+  if (ibv_qp == nullptr) return -1;
 
   // One-sided RDMA requires exactly [ChunkHeader, Payload].
   if (iovecs.size() != 2) {
@@ -73,7 +76,7 @@ ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
   struct ibv_sge sge = {};
   sge.addr = reinterpret_cast<uintptr_t>(payload_addr);
   sge.length = static_cast<uint32_t>(payload_len);
-  sge.lkey = rdma_->lkey;
+  sge.lkey = rdma_->LKey();
 
   struct ibv_send_wr wr = {};
   wr.wr_id = reinterpret_cast<uint64_t>(this);
@@ -82,17 +85,16 @@ ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
   wr.opcode = IBV_WR_RDMA_WRITE;
   wr.send_flags = IBV_SEND_SIGNALED;
   wr.wr.rdma.remote_addr = remote_dest_addr;
-  wr.wr.rdma.rkey = rdma_->rkey;
+  wr.wr.rdma.rkey = rdma_->RKey();
 
   struct ibv_send_wr* bad_wr = nullptr;
-  if (const int ret = ibv_post_send(rdma_->qp->GetQp(), &wr, &bad_wr);
-      ret != 0) {
+  if (const int ret = ibv_post_send(ibv_qp, &wr, &bad_wr); ret != 0) {
     LOG(ERROR) << "ibv_post_send(IBV_WR_RDMA_WRITE) failed: " << strerror(ret);
     return -1;
   }
 
   // Poll dedicated send CQ for completion
-  struct ibv_cq* const cq = rdma_->qp->GetSendCq();
+  struct ibv_cq* const cq = rdma_->Qp()->GetSendCq();
   if (cq == nullptr) return -1;
 
   struct ibv_wc wc = {};
@@ -118,7 +120,7 @@ ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
 
 std::string RdmaChannel::ToString() const {
   return absl::StrFormat("RdmaChannel: qpn=%u, lkey=%u, rkey=%u",
-                         rdma_->qp->Qpn(), rdma_->lkey, rdma_->rkey);
+                         rdma_->Qp()->Qpn(), rdma_->LKey(), rdma_->RKey());
 }
 
 }  // namespace peregrine::internal
