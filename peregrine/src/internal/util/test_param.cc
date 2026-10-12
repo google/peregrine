@@ -39,9 +39,9 @@ std::string SocketTestConfig::ToString() const {
 }
 
 std::string ChannelTestParam::ToString() const {
-  return absl::StrFormat("%s_%s_ErrorRate_%d_Size_%u",
+  return absl::StrFormat("%s_%s_%s_ErrorRate_%d_Size_%u",
                          ChannelTypeToString(type), FamilyToString(family),
-                         error_rate, size);
+                         BlockingToString(blocking), error_rate, size);
 }
 
 }  // namespace peregrine::internal::testing

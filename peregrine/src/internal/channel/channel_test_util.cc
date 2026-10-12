@@ -45,19 +45,16 @@ ConnectedChannelPair CreateMemMsgChannelPair(const int error_rate) {
   return {std::move(a), std::move(b)};
 }
 
-ConnectedChannelPair CreateTestChannelPair(const TestChannelType type,
-                                           const int family,
-                                           const bool blocking,
-                                           const int error_rate) {
-  switch (type) {
+ConnectedChannelPair CreateTestChannelPair(const ChannelTestParam& p) {
+  switch (p.type) {
     case TestChannelType::kTcp:
-      return CreateTcpChannelPair(family, blocking);
+      return CreateTcpChannelPair(p.family, p.blocking);
     case TestChannelType::kUdp:
-      return CreateUdpChannelPair(family, blocking);
+      return CreateUdpChannelPair(p.family, p.blocking);
     case TestChannelType::kMemStream:
-      return CreateMemStreamChannelPair(error_rate);
+      return CreateMemStreamChannelPair(p.error_rate);
     case TestChannelType::kMemMsg:
-      return CreateMemMsgChannelPair(error_rate);
+      return CreateMemMsgChannelPair(p.error_rate);
   }
 }
 

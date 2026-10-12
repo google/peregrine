@@ -112,23 +112,22 @@ class TransferTest : public ::testing::TestWithParam<Param> {
   Host b_;
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    , TransferTest,
-    Values(Param{kTcp, AF_INET, /*error_rate=*/0, /*size=*/0},
-           Param{kTcp, AF_INET6, /*error_rate=*/0, /*size=*/0},
-           Param{kUdp, AF_INET, /*error_rate=*/0, /*size=*/0},
-           Param{kUdp, AF_INET6, /*error_rate=*/0, /*size=*/0},
-           Param{kMemStream, AF_UNSPEC, /*error_rate=*/0, /*size=*/0},
-           Param{kMemStream, AF_UNSPEC, /*error_rate=*/10, /*size=*/0},
-           Param{kMemStream, AF_UNSPEC, /*error_rate=*/50, /*size=*/0},
-           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/0, /*size=*/0},
-           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/10, /*size=*/0},
-           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/50, /*size=*/0}),
-    ToString);
+INSTANTIATE_TEST_SUITE_P(, TransferTest,
+                         // TransportType, Family, Blocking, ErrorRate, Size
+                         Values(Param{kTcp, AF_INET, true, 0, 0},
+                                Param{kTcp, AF_INET6, true, 0, 0},
+                                Param{kUdp, AF_INET, true, 0, 0},
+                                Param{kUdp, AF_INET6, true, 0, 0},
+                                Param{kMemStream, AF_UNSPEC, true, 0, 0},
+                                Param{kMemStream, AF_UNSPEC, true, 10, 0},
+                                Param{kMemStream, AF_UNSPEC, true, 50, 0},
+                                Param{kMemMsg, AF_UNSPEC, true, 0, 0},
+                                Param{kMemMsg, AF_UNSPEC, true, 10, 0},
+                                Param{kMemMsg, AF_UNSPEC, true, 50, 0}),
+                         ToString);
 
 TEST_P(TransferTest, SendRecv) {
-  const auto chs = CreateTestChannelPair(p_.type, p_.family, /*blocking=*/true,
-                                         p_.error_rate);
+  const auto chs = CreateTestChannelPair(p_);
 
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));

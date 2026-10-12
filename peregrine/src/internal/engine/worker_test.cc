@@ -63,8 +63,7 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
       : p_(GetParam()),
         src_(kBufSize),
         dst_(kBufSize),
-        chs_(CreateTestChannelPair(p_.type, p_.family, /*blocking=*/true,
-                                   p_.error_rate)),
+        chs_(CreateTestChannelPair(p_)),
         s_(CreateHostInfo()),
         r_(CreateHostInfo()),
         sndr_(5, s_, std::move(chs_.sndr)),
@@ -125,17 +124,17 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
   Host rcvr_;
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    , WorkerTest,
-    Values(Param{kTcp, AF_INET, /*error_rate=*/0, /*size=*/0},
-           Param{kTcp, AF_INET6, /*error_rate=*/0, /*size=*/0},
-           Param{kUdp, AF_INET, /*error_rate=*/0, /*size=*/0},
-           Param{kUdp, AF_INET6, /*error_rate=*/0, /*size=*/0},
-           Param{kMemStream, AF_UNSPEC, /*error_rate=*/0, /*size=*/0},
-           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/0, /*size=*/0},
-           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/10, /*size=*/0},
-           Param{kMemMsg, AF_UNSPEC, /*error_rate=*/30, /*size=*/0}),
-    ToString);
+INSTANTIATE_TEST_SUITE_P(, WorkerTest,
+                         // TransportType, Family, Blocking, ErrorRate, Size
+                         Values(Param{kTcp, AF_INET, true, 0, 0},
+                                Param{kTcp, AF_INET6, true, 0, 0},
+                                Param{kUdp, AF_INET, true, 0, 0},
+                                Param{kUdp, AF_INET6, true, 0, 0},
+                                Param{kMemStream, AF_UNSPEC, true, 0, 0},
+                                Param{kMemMsg, AF_UNSPEC, true, 0, 0},
+                                Param{kMemMsg, AF_UNSPEC, true, 10, 0},
+                                Param{kMemMsg, AF_UNSPEC, true, 30, 0}),
+                         ToString);
 
 TEST_P(WorkerTest, SendRecv) {
   // Precondition: dst is different from src.

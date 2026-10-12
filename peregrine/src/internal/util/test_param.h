@@ -46,6 +46,7 @@ inline std::string ToString(const SocketTestParam& p) {
 struct ChannelTestParam {
   TestChannelType type;
   int family;
+  bool blocking;
   int error_rate;
   size_t size;
 
