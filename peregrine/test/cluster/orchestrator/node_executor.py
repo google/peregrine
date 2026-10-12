@@ -278,7 +278,7 @@ class NodeExecutor:
     )
 
   def cleanup(self) -> None:
-    """Removes any remote staged binaries."""
+    """Terminates any lingering remote processes and removes staged binaries."""
     if self._staged_remotes:
       logging.info(
           "Cleaning up staged :node binary on %d remote host(s)...",
@@ -286,8 +286,13 @@ class NodeExecutor:
       )
     for host, remote_path in list(self._staged_remotes.items()):
       try:
+        pattern = shlex.quote(f"^{remote_path}( |$)")
+        quoted_path = shlex.quote(remote_path)
+        remote_cmd = (
+            f"pkill -9 -f {pattern} 2>/dev/null || true; rm -f {quoted_path}"
+        )
         subprocess.run(
-            self._build_ssh_cmd(host, f"rm -f {shlex.quote(remote_path)}"),
+            self._build_ssh_cmd(host, remote_cmd),
             stdin=subprocess.DEVNULL,
             capture_output=True,
             timeout=15,

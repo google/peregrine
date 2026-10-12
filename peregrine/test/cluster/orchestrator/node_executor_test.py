@@ -82,6 +82,35 @@ class NodeExecutorTest(absltest.TestCase):
         ],
     )
 
+  def test_cleanup_kills_remote_process_and_removes_binary(self):
+    with tempfile.NamedTemporaryFile(mode="wb", delete=False) as tmp:
+      tmp.write(b"fake_elf_payload")
+      tmp_path = tmp.name
+
+    executor = node_executor.NodeExecutor(
+        ssh_cmd="ssh -p 2222", remote_dir="/tmp", session_id="test1234"
+    )
+    fake_proc = mock.MagicMock()
+    fake_proc.stdin = mock.MagicMock()
+    fake_proc.communicate.return_value = (b"", b"")
+    fake_proc.returncode = 0
+
+    with mock.patch.object(
+        node_executor.subprocess, "Popen", return_value=fake_proc
+    ):
+      executor.stage_binary(["remote-host-1"], tmp_path)
+
+    with mock.patch.object(node_executor.subprocess, "run") as mock_run:
+      executor.cleanup()
+      mock_run.assert_called_once()
+      called_argv = mock_run.call_args[0][0]
+      self.assertEqual(called_argv[:4], ["ssh", "-p", "2222", "remote-host-1"])
+      self.assertEqual(
+          called_argv[4],
+          "pkill -9 -f '^/tmp/peregrine_node_test1234( |$)' 2>/dev/null ||"
+          " true; rm -f /tmp/peregrine_node_test1234",
+      )
+
 
 if __name__ == "__main__":
   absltest.main()
