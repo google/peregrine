@@ -43,6 +43,10 @@ class TcpChannel final : public Channel {
   // Returns whether the channel is blocking or non-blocking.
   bool IsBlocking() const override { return socket_->IsBlocking(); }
 
+  // Returns the underlying file descriptor for the channel.
+  // Note: the channel owns the file descriptor; callers must not close it.
+  fd_t GetFd() const override { return socket_->fd(); }
+
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
   // no data has been written due to non-error reasons. Returns -1 on error.

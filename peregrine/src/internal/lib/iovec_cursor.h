@@ -68,6 +68,18 @@ class IoVecCursor {
   // Returns a pointer to the current first iovec.
   IoVec* Head() { return const_cast<IoVec*>(std::as_const(*this).Head()); }
 
+  // Returns a constant span of the remaining iovec items.
+  absl::Span<const IoVec> RemainingSpan() const {
+    DCHECK_LE(cur_, end_);
+    return absl::MakeConstSpan(cur_, end_);
+  }
+
+  // Returns a mutable span of the remaining iovec items.
+  absl::Span<IoVec> RemainingSpan() {
+    DCHECK_LE(cur_, end_);
+    return absl::MakeSpan(cur_, end_);
+  }
+
   // Advances the cursor by `bytes`, which must not go beyond the end.
   // This call can update some iovec items but won't delete any.
   // Returns true iff all the iovec items are exhausted.

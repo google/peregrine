@@ -23,6 +23,11 @@ class Channel {
   // Returns whether the channel is blocking or non-blocking.
   virtual bool IsBlocking() const = 0;
 
+  // Returns the underlying file descriptor (>= 0) for the channel.
+  // Returns -1 if the channel has none.
+  // Note: the channel owns the file descriptor; callers must not close it.
+  virtual fd_t GetFd() const { return fd_t(-1); }
+
   // Writes a number of buffers described by the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
   // no data has been written due to non-error reasons. Returns -1 on error.

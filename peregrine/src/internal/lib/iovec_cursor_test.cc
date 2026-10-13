@@ -83,12 +83,14 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   EXPECT_FALSE(c.Advance(1));
   EXPECT_EQ(c.RemainingItems(), 3);
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes - 1);
+  EXPECT_EQ(c.RemainingSpan().size(), 3);
   EXPECT_EQ(c.Head()->iov_base, a_ + 1);
   EXPECT_EQ(c.Head()->iov_len, sizeof(a_) - 1);
   LOG(INFO) << c;
 
   EXPECT_FALSE(c.Advance(2));
   EXPECT_EQ(c.RemainingItems(), 3);
+  EXPECT_EQ(c.RemainingSpan().size(), 3);
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes - 3);
   EXPECT_EQ(c.Head()->iov_base, a_ + 3);
   EXPECT_EQ(c.Head()->iov_len, sizeof(a_) - 3);
@@ -96,6 +98,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
 
   EXPECT_FALSE(c.Advance(3));
   EXPECT_EQ(c.RemainingItems(), 3);
+  EXPECT_EQ(c.RemainingSpan().size(), 3);
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes - 6);
   EXPECT_EQ(c.Head()->iov_base, a_ + 6);
   EXPECT_EQ(c.Head()->iov_len, sizeof(a_) - 6);
@@ -104,6 +107,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   // Advance to the next iovec's beginning.
   EXPECT_FALSE(c.Advance(1));
   EXPECT_EQ(c.RemainingItems(), 2);
+  EXPECT_EQ(c.RemainingSpan().size(), 2);
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes - 7);
   EXPECT_EQ(c.Head()->iov_base, b_ + 0);
   EXPECT_EQ(c.Head()->iov_len, sizeof(b_) - 0);
@@ -112,6 +116,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   // Advance to the next iovec's middle.
   EXPECT_FALSE(c.Advance(10));
   EXPECT_EQ(c.RemainingItems(), 1);
+  EXPECT_EQ(c.RemainingSpan().size(), 1);
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes - 17);
   EXPECT_EQ(c.Head()->iov_base, c_ + 2);
   EXPECT_EQ(c.Head()->iov_len, sizeof(c_) - 2);
@@ -121,6 +126,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   EXPECT_TRUE(c.Advance(7));
   EXPECT_EQ(c.RemainingItems(), 0);
   EXPECT_EQ(c.RemainingBytes(), 0);
+  EXPECT_EQ(c.RemainingSpan().size(), 0);
   EXPECT_EQ(c.Head(), nullptr);
   LOG(INFO) << c;
 
@@ -140,6 +146,7 @@ TEST_F(IoVecCursorTest, AdvanceOneByteAtATime) {
     const size_t remaining = 3 - (i >= 7) - (i >= 15) - (i >= 24);
     EXPECT_EQ(c.RemainingItems(), remaining);
     EXPECT_EQ(c.RemainingBytes(), kTotalBytes - i);
+    EXPECT_EQ(c.RemainingSpan().size(), remaining);
     LOG(INFO) << c;
   }
 
