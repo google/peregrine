@@ -88,19 +88,12 @@ bool IsRoutable(const struct in_addr& addr) {
   return true;
 }
 
-// Returns true iff the ipv6 address is a unique local unicast address
-// (RFC 4193, fc00::/7).
-inline bool IN6_IS_ADDR_UniqueLocalUnicast(const struct in6_addr* a) {
-  return (a->s6_addr[0] & 0xFE) == 0xFC;
-}
-
 // Returns true iff the ipv6 address is routable.
 bool IsRoutable(const struct in6_addr& addr) {
   if (IN6_IS_ADDR_UNSPECIFIED(&addr)) return false;
   if (IN6_IS_ADDR_MULTICAST(&addr)) return false;
   if (IN6_IS_ADDR_LINKLOCAL(&addr)) return false;
   if (IN6_IS_ADDR_SITELOCAL(&addr)) return false;
-  if (IN6_IS_ADDR_UniqueLocalUnicast(&addr)) return false;
   return true;
 }
 

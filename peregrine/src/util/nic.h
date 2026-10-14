@@ -47,9 +47,8 @@ inline std::ostream& operator<<(std::ostream& os, const NicInfo& ni) {
 absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics();
 
 // Returns a map of `interface -> NicInfo` with routable IP addresses (including
-// loopback, excluding unspecified, multicast, link-local, site-local, and IPv6
-// ULA) on non-bridge interfaces matching `family` (AF_UNSPEC, AF_INET, or
-// AF_INET6).
+// loopback, excluding unspecified, multicast, link-local, and site-local) on
+// non-bridge interfaces matching `family` (AF_UNSPEC, AF_INET, or AF_INET6).
 absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     int family = AF_UNSPEC);
 
