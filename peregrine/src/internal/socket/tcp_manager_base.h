@@ -10,6 +10,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 
@@ -22,6 +23,7 @@ class TcpManagerBase {
   // A listening socket.
   struct Listener {
     std::unique_ptr<TcpSocket> socket;
+    Endpoint endpoint;  // cache for `SelfEndpoint(socket->fd())`
   };
 
   // A connecting socket.
@@ -35,7 +37,7 @@ class TcpManagerBase {
    public:
     // Constructor with a set of non-blocking tcp listening sockets.
     explicit Listeners(absl::flat_hash_map<fd_t, Listener> sockets)
-        : fd2skts_(std::move(sockets)) {
+        : fd2ls_(std::move(sockets)) {
       DCHECK(Invariant());
     }
 
@@ -45,6 +47,11 @@ class TcpManagerBase {
     // Returns a pointer (which is stable) to the listening socket of the
     // file descriptor `fd`. If it does not exist, returns nullptr.
     const TcpSocket* Get(fd_t fd) const ABSL_LOCKS_EXCLUDED(mu_);
+
+    // Returns a pointer (which is stable) to the listener at the given
+    // given `endpoint`. If it does not exist, returns nullptr.
+    const Listener* Find(const Endpoint& endpoint) const
+        ABSL_LOCKS_EXCLUDED(mu_);
 
     // Removes the listening socket of the file descriptor `fd`.
     void Remove(fd_t fd) ABSL_LOCKS_EXCLUDED(mu_);
@@ -57,7 +64,7 @@ class TcpManagerBase {
 
    private:
     mutable absl::Mutex mu_;
-    absl::flat_hash_map<fd_t, Listener> fd2skts_ ABSL_GUARDED_BY(mu_);
+    absl::flat_hash_map<fd_t, Listener> fd2ls_ ABSL_GUARDED_BY(mu_);
   };
 
   // A map of non-blocking tcp connecting sockets, each keyed by its file
@@ -90,7 +97,7 @@ class TcpManagerBase {
    private:
     mutable absl::Mutex mu_;
     bool sealed_ ABSL_GUARDED_BY(mu_) = false;
-    absl::flat_hash_map<fd_t, Connector> fd2skts_ ABSL_GUARDED_BY(mu_);
+    absl::flat_hash_map<fd_t, Connector> fd2cs_ ABSL_GUARDED_BY(mu_);
   };
 
   // A number of produced sockets that are in the connected state.

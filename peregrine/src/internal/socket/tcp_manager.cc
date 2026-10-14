@@ -93,7 +93,7 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
         DCHECK(e.HasNonzeroIpPort());
         DCHECK_EQ(e, SelfEndpoint(fd));
         const bool inserted =
-            listeners.emplace(fd, Listener{std::move(socket)}).second;
+            listeners.emplace(fd, Listener{std::move(socket), e}).second;
         DCHECK(inserted) << "duplicate listener fd=" << fd;
         nic.endpoints.push_back(e);
       }

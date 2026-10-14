@@ -11,6 +11,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 
@@ -27,41 +28,52 @@ inline bool IsPairAndNonBlocking(const fd_t fd, const TcpSocket* s) {
 
 bool TcpManagerBase::Listeners::Invariant() const {
   absl::MutexLock _(mu_);
-  return std::all_of(fd2skts_.begin(), fd2skts_.end(), [](const auto& pair) {
-    return IsPairAndNonBlocking(pair.first, pair.second.socket.get());
+  return std::all_of(fd2ls_.begin(), fd2ls_.end(), [](const auto& pair) {
+    return IsPairAndNonBlocking(pair.first, pair.second.socket.get()) &&
+           pair.second.endpoint == SelfEndpoint(pair.first) &&
+           pair.second.endpoint.HasNonzeroIpPort();
   });
 }
 
 const TcpSocket* TcpManagerBase::Listeners::Get(const fd_t fd) const {
   absl::MutexLock _(mu_);
-  const auto it = fd2skts_.find(fd);
-  return it != fd2skts_.end() ? it->second.socket.get() : nullptr;
+  const auto it = fd2ls_.find(fd);
+  return it != fd2ls_.end() ? it->second.socket.get() : nullptr;
+}
+
+const TcpManagerBase::Listener* TcpManagerBase::Listeners::Find(
+    const Endpoint& endpoint) const {
+  absl::MutexLock _(mu_);
+  for (const auto& [_, l] : fd2ls_) {
+    if (l.endpoint == endpoint) return &l;
+  }
+  return nullptr;
 }
 
 void TcpManagerBase::Listeners::Remove(const fd_t fd) {
   absl::MutexLock _(mu_);
-  fd2skts_.erase(fd);
+  fd2ls_.erase(fd);
+}
+
+void TcpManagerBase::Listeners::Shutdown() {
+  absl::MutexLock _(mu_);
+  for (auto& [_, l] : fd2ls_) {
+    l.socket->Shutdown();
+  }
 }
 
 void TcpManagerBase::Listeners::Close() {
   absl::flat_hash_map<fd_t, Listener> doomed;
   {
     absl::MutexLock _(mu_);
-    doomed.swap(fd2skts_);
+    doomed.swap(fd2ls_);
   }
   doomed.clear();  // sockets are closed outside the lock
 }
 
-void TcpManagerBase::Listeners::Shutdown() {
-  absl::MutexLock _(mu_);
-  for (auto& [_, listener] : fd2skts_) {
-    listener.socket->Shutdown();
-  }
-}
-
 bool TcpManagerBase::Connectors::Invariant() const {
   absl::MutexLock _(mu_);
-  return std::all_of(fd2skts_.begin(), fd2skts_.end(), [](const auto& pair) {
+  return std::all_of(fd2cs_.begin(), fd2cs_.end(), [](const auto& pair) {
     return IsPairAndNonBlocking(pair.first, pair.second.socket.get());
   });
 }
@@ -78,9 +90,9 @@ bool TcpManagerBase::Connectors::Add(const fd_t fd,
   DCHECK(!socket->IsConnected());
   {
     absl::MutexLock _(mu_);
-    if ABSL_PREDICT_TRUE (!sealed_ && !fd2skts_.contains(fd) && on_add(fd)) {
+    if ABSL_PREDICT_TRUE (!sealed_ && !fd2cs_.contains(fd) && on_add(fd)) {
       LOG(INFO) << "added socket " << *socket;
-      fd2skts_.emplace(fd, Connector{std::move(socket)});
+      fd2cs_.emplace(fd, Connector{std::move(socket)});
       return true;
     }
   }
@@ -90,12 +102,12 @@ bool TcpManagerBase::Connectors::Add(const fd_t fd,
 
 std::unique_ptr<TcpSocket> TcpManagerBase::Connectors::Remove(const fd_t fd) {
   absl::MutexLock _(mu_);
-  const auto it = fd2skts_.find(fd);
-  if ABSL_PREDICT_FALSE (it == fd2skts_.end()) {
+  const auto it = fd2cs_.find(fd);
+  if ABSL_PREDICT_FALSE (it == fd2cs_.end()) {
     return nullptr;
   } else {
     std::unique_ptr<TcpSocket> socket = std::move(it->second.socket);
-    fd2skts_.erase(it);
+    fd2cs_.erase(it);
     DCHECK(!socket->IsConnected());
     return socket;
   }
@@ -106,7 +118,7 @@ void TcpManagerBase::Connectors::Close() {
   {
     absl::MutexLock _(mu_);
     DCHECK(sealed_);
-    doomed.swap(fd2skts_);
+    doomed.swap(fd2cs_);
   }
   doomed.clear();  // sockets are closed outside the lock
 }
