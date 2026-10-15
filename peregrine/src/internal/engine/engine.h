@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -34,6 +35,8 @@
 #include "peregrine/src/internal/engine/worker.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
 
@@ -56,6 +59,8 @@ class Engine final {
     absl::Time start_time;
     absl::AnyInvocable<void(Status)> on_complete;
     Metadata metadata = {};
+    uint64_t start_mono_us;
+    TraceContext trace_ctx;
     // Returns true iff the item has at least one request and all are valid.
     bool IsValid() const;
   };
@@ -101,6 +106,7 @@ class Engine final {
     Handle handle;
     std::vector<Request> reqs;
     Metadata metadata;
+    TraceContext trace_ctx;
   };
 
  private:
@@ -142,11 +148,12 @@ class Engine final {
   // Creates a worker, using positive/negative id for send/recv respectively.
   std::unique_ptr<Worker> createWorker(int id, std::unique_ptr<Channel> ch) {
     return std::make_unique<Worker>(id, self_, outgoing_, incoming_, metrics_,
-                                    std::move(ch));
+                                    tracer_, std::move(ch));
   }
 
   // Creates send workers for a `peer`.
-  void createSendWorkers(const Endpoint& peer);
+  void createSendWorkers(const Endpoint& peer, const TraceContext& trace_ctx,
+                         Handle handle);
 
   // Creates recv workers for accepted channels.
   bool createRecvWorkers();
@@ -163,7 +170,8 @@ class Engine final {
                     const RequestInfo& req_info) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Processes a read request.
-  void processRead(Handle handle, const Request& req) ABSL_LOCKS_EXCLUDED(mu_);
+  void processRead(const PostEntry& post, const Request& req)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
   const Config& config_;
@@ -182,6 +190,7 @@ class Engine final {
   RequestTracker incoming_;
 
   EngineMetrics& metrics_;
+  TraceRecorder& tracer_;
 
   absl_nonnull std::unique_ptr<EngineHelper> helper_;
   absl::flat_hash_map<Endpoint, Workers> send_workers_;

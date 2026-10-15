@@ -1,5 +1,6 @@
 #include "peregrine/src/internal/transport_impl.h"
 
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <utility>
@@ -24,6 +25,8 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/engine/engine.h"
+#include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal {
 
@@ -72,6 +75,8 @@ absl::StatusOr<Handle> TransportImpl::Post(
     std::string_view peer, absl::Span<const Request> requests,
     absl::AnyInvocable<void(Status)> on_complete, const Metadata& metadata) {
   const absl::Time start_time = absl::Now();
+  const uint64_t start_mono_us = TraceRecorder::NowUs();
+  const TraceContext trace_ctx = engine_->Helper()->Tracer().MaybeStartTrace();
   const Endpoint endpoint = Endpoint::Create(peer);
   if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
     return absl::InvalidArgumentError(
@@ -97,8 +102,9 @@ absl::StatusOr<Handle> TransportImpl::Post(
         "All requests must have the same op type");
   }
 
-  return engine_->Enqueue(
-      endpoint, {requests, start_time, std::move(on_complete), metadata});
+  return engine_->Enqueue(endpoint,
+                          {requests, start_time, std::move(on_complete),
+                           metadata, start_mono_us, trace_ctx});
 }
 
 TransportMetrics TransportImpl::GetTransportMetrics() const {

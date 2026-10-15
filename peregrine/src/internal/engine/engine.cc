@@ -34,6 +34,7 @@
 #include "peregrine/src/internal/engine/worker.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
 
@@ -76,9 +77,10 @@ Engine::Engine(const Config& config, const HostInfo& self,
       next_reqid_(util::Random<ReqId::ValueType>(bitgen_)),
       recv_post_callback_(nullptr),
       recv_req_callback_(nullptr),
-      outgoing_(helper->Metrics()),
-      incoming_(helper->Metrics()),
+      outgoing_(helper->Metrics(), helper->Tracer()),
+      incoming_(helper->Metrics(), helper->Tracer()),
       metrics_(helper->Metrics()),
+      tracer_(helper->Tracer()),
       helper_(std::move(helper)) {
   DCHECK(config_.IsValid());
 
@@ -96,10 +98,13 @@ Engine::~Engine() {
   LOG(INFO) << "engine destroyed @ " << self_;
 }
 
-void Engine::createSendWorkers(const Endpoint& peer) {
+void Engine::createSendWorkers(const Endpoint& peer,
+                               const TraceContext& trace_ctx,
+                               const Handle handle) {
   // TODO(yongx): helper_->Connect(), called at start time, is blocking.
   Workers& workers = send_workers_[peer];
-  for (std::unique_ptr<Channel>& ch : helper_->Connect(peer)) {
+  for (std::unique_ptr<Channel>& ch :
+       helper_->Connect(peer, trace_ctx, handle)) {
     auto sw = createWorker(1 + workers.size(), std::move(ch));
     workers.push_back(std::move(sw));
   }
@@ -149,7 +154,7 @@ void Engine::mainLoop() {
 
     // step 2: create send workers if needed.
     if (send_workers_[post.peer].size() < config_.num_conns_per_peer) {
-      createSendWorkers(post.peer);
+      createSendWorkers(post.peer, post.trace_ctx, post.handle);
     }
 
     // step 3: process the post.
@@ -169,6 +174,7 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
 
   absl::MutexLock _(mu_);
   const Handle handle = genHandle();
+  const TraceContext trace_ctx = item.trace_ctx;
 
   // TODO(yongx): all the request ops are the same for now.
   RequestTracker& tracker = getRequestTracker(item.requests[0]);
@@ -180,7 +186,17 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
       .handle = handle,
       .reqs = std::vector<Request>(item.requests.begin(), item.requests.end()),
       .metadata = item.metadata,
+      .trace_ctx = trace_ctx,
   });
+  if (trace_ctx.is_traced) {
+    size_t total_bytes = 0;
+    for (const Request& req : item.requests) {
+      total_bytes += req.len;
+    }
+    tracer_.RecordEngineEnqueued(trace_ctx, handle, item.start_mono_us,
+                                 item.requests.size(), total_bytes,
+                                 item.requests[0].op);
+  }
   return handle;
 }
 
@@ -210,7 +226,7 @@ void Engine::process(const PostEntry& post) {
     }
   } else {
     for (const Request& req : post.reqs) {
-      processRead(post.handle, req);
+      processRead(post, req);
     }
   }
 }
@@ -223,10 +239,14 @@ void Engine::processWrite(Workers& workers, const PostEntry& post) {
   for (const Request& req : post.reqs) {
     DCHECK(req.IsValid());
     metrics_.write.request_size_bytes.Record(req.len);
+    const ReqId reqid = genReqId();
+    if (post.trace_ctx.is_traced) {
+      tracer_.RecordEngineDequeued(post.trace_ctx, post.handle, reqid, req);
+    }
     const uint32_t nchunks = std::min(workers.size(), req.len);
     DCHECK_GE(nchunks, 1);
     req_infos.push_back(RequestInfo{
-        .reqid = genReqId(),
+        .reqid = reqid,
         .nchunks = nchunks,
         .raddr = addr_t(reinterpret_cast<uintptr_t>(req.raddr)),
         .total_len = req.len,
@@ -285,13 +305,16 @@ void Engine::processWrite(Workers& workers, const Handle handle,
   DCHECK_EQ(offset, len);
 }
 
-void Engine::processRead(const Handle handle, const Request& req) {
+void Engine::processRead(const PostEntry& post, const Request& req) {
   // TODO(yongx): implement read.
   metrics_.read.request_size_bytes.Record(req.len);
   std::memcpy(req.laddr, req.raddr, req.len);
   const ReqId reqid = genReqId();
-  incoming_.FindOrCreate(handle, reqid, /*num_chunks=*/1);
-  incoming_.Update(handle, reqid, chunk_t(0));
+  if (post.trace_ctx.is_traced) {
+    tracer_.RecordEngineDequeued(post.trace_ctx, post.handle, reqid, req);
+  }
+  incoming_.FindOrCreate(post.handle, reqid, /*num_chunks=*/1);
+  incoming_.Update(post.handle, reqid, chunk_t(0));
 }
 
 }  // namespace peregrine::internal

@@ -6,6 +6,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/time/clock.h"
+#include "peregrine/src/api/trace/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk.h"
@@ -13,19 +14,24 @@
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal::testing {
 namespace {
 
 class RequestTrackerTest : public ::testing::Test {
  protected:
-  RequestTrackerTest() : metrics_(), rt_(metrics_) {
+  RequestTrackerTest()
+      : metrics_(),
+        tracer_(TraceConfig{.sample_every_n = 0}),
+        rt_(metrics_, tracer_) {
     CHECK(rt_.IsEmpty());
     CHECK_EQ(rt_.Check(kHandle), Status::kNotFound);
   }
 
  protected:
   EngineMetrics metrics_;
+  TraceRecorder tracer_;
   RequestTracker rt_;
 };
 
