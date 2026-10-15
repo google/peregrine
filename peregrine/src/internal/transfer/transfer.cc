@@ -25,11 +25,22 @@
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/chunk_trace_wire.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal {
 
 namespace {
 using ChunkStatus = ChunkTracker::ChunkStatus;
+
+// Stamps receiver timings into chunk.trace before sendAck() echoes it to the
+// sender.
+void StampRxTrace(DataHeader& chunk, int worker_id, ChunkStatus s,
+                  uint64_t t_start_us, uint64_t t_acquired_us) {
+  if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
+  chunk.trace.SetRx(worker_id, s, t_start_us, t_acquired_us,
+                    TraceRecorder::NowUs());
+}
 }  // namespace
 
 bool Transfer::SendInfo(Channel* const channel, const PostInfoHeader& info,
@@ -72,14 +83,15 @@ bool Transfer::SendChunk(Channel* const channel, const DataHeader& chunk,
 }
 
 bool Transfer::Recv(Channel* const channel, RequestTracker& outgoing,
-                    RequestTracker& incoming) {
+                    RequestTracker& incoming, const int worker_id,
+                    TraceRecorder& tracer) {
   static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
   const ChannelType t = channel->Type();
   if ABSL_PREDICT_TRUE (t.IsStreamChannel()) {
-    return recvStream(channel, outgoing, incoming);
+    return recvStream(channel, outgoing, incoming, worker_id, tracer);
   } else {
     DCHECK(t.IsMessageChannel());
-    return recvMsg(channel, outgoing, incoming);
+    return recvMsg(channel, outgoing, incoming, worker_id, tracer);
   }
 }
 
@@ -110,7 +122,8 @@ bool Transfer::sendAck(Channel* channel, DataHeader& chunk) {
 }
 
 bool Transfer::recvStream(Channel* const channel, RequestTracker& outgoing,
-                          RequestTracker& incoming) {
+                          RequestTracker& incoming, const int worker_id,
+                          TraceRecorder& tracer) {
   DCHECK(channel->Type().IsStreamChannel());
   DCHECK(channel->Type().IsLosslessChannel());
 
@@ -130,7 +143,8 @@ bool Transfer::recvStream(Channel* const channel, RequestTracker& outgoing,
     return false;
   }
   if (auto* chunk = std::get_if<DataHeader>(&header)) {
-    return recvDataStream(channel, *chunk, outgoing, incoming);
+    return recvDataStream(channel, *chunk, outgoing, incoming, worker_id,
+                          tracer);
   }
   return recvPostInfoStream(channel, std::get<PostInfoHeader>(header),
                             incoming);
@@ -157,13 +171,18 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
 
 bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
                               RequestTracker& outgoing,
-                              RequestTracker& incoming) {
+                              RequestTracker& incoming, const int worker_id,
+                              TraceRecorder& tracer) {
   // Step 1: process ack chunk.
   if (chunk.IsAck()) {
     static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    outgoing.Update(chunk.handle, chunk.reqid, chunk.index);
+    tracer.RecordTxAckRcvd(chunk);
+    outgoing.Update(chunk.handle, chunk.reqid, chunk.index, worker_id);
     return true;
   }
+
+  const bool is_traced = chunk.trace.IsTraced();
+  const uint64_t t_start_us = is_traced ? TraceRecorder::NowUs() : 0;
 
   // Step 2: find chunk tracker for incoming data chunk.
   // TODO: Relax the assumption that `PostInfoHeader` has already been processed
@@ -183,17 +202,23 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
   static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
   const ChunkStatus s = tracker.Acquire(index);
+  const uint64_t t_acquired_us = is_traced ? TraceRecorder::NowUs() : 0;
   if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
     IoVec payload[] = {{chunk.DstAddr(), size}};
     const ssize_t len = channel->Read(payload);
     const bool success = std::cmp_equal(len, size);
     tracker.Release(index, success);
-    return success && sendAck(channel, chunk);
+    if (!success) return false;
+    StampRxTrace(chunk, worker_id, s, t_start_us, t_acquired_us);
+    return sendAck(channel, chunk);
   } else {
     DCHECK(s == ChunkStatus::kDone || s == ChunkStatus::kBusy);
     const bool done = s == ChunkStatus::kDone;
     LOG(WARNING) << (done ? "done" : "busy") << " chunk #" << index.value();
     const bool drained = drainStream(channel, size);
+    if (done) {
+      StampRxTrace(chunk, worker_id, s, t_start_us, t_acquired_us);
+    }
     const bool success = !done || sendAck(channel, chunk);
     if (!drained) {
       return false;
@@ -203,7 +228,8 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
 }
 
 bool Transfer::recvMsg(Channel* const channel, RequestTracker& outgoing,
-                       RequestTracker& incoming) {
+                       RequestTracker& incoming, const int worker_id,
+                       TraceRecorder& tracer) {
   DCHECK(channel->Type().IsMessageChannel());
 
   // Step 1: read packet.
@@ -228,7 +254,8 @@ bool Transfer::recvMsg(Channel* const channel, RequestTracker& outgoing,
   const ChunkPayloadView payload(buf + HeaderUtil::kSize,
                                  len - HeaderUtil::kSize);
   if (auto* chunk = std::get_if<DataHeader>(&header)) {
-    return recvDataMsg(channel, *chunk, payload, outgoing, incoming);
+    return recvDataMsg(channel, *chunk, payload, outgoing, incoming, worker_id,
+                       tracer);
   }
   return recvPostInfoMsg(std::get<PostInfoHeader>(header), payload, incoming);
 }
@@ -254,7 +281,8 @@ bool Transfer::recvPostInfoMsg(const PostInfoHeader& info,
 
 bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
                            const ChunkPayloadView payload,
-                           RequestTracker& outgoing, RequestTracker& incoming) {
+                           RequestTracker& outgoing, RequestTracker& incoming,
+                           const int worker_id, TraceRecorder& tracer) {
   if ABSL_PREDICT_FALSE (!IsMatch(chunk, payload)) {
     LOG(WARNING) << "mismatched data header: " << chunk
                  << " vs payload size: " << payload.size();
@@ -264,9 +292,13 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
   // Step 1: process ack chunk.
   if (chunk.IsAck()) {
     static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    outgoing.Update(chunk.handle, chunk.reqid, chunk.index);
+    tracer.RecordTxAckRcvd(chunk);
+    outgoing.Update(chunk.handle, chunk.reqid, chunk.index, worker_id);
     return true;
   }
+
+  const bool is_traced = chunk.trace.IsTraced();
+  const uint64_t t_start_us = is_traced ? TraceRecorder::NowUs() : 0;
 
   // Step 2: find chunk tracker for incoming data chunk.
   // TODO: Relax the assumption that `PostInfoHeader` has already been processed
@@ -283,13 +315,17 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
-  switch (tracker.Acquire(index)) {
+  const ChunkStatus s = tracker.Acquire(index);
+  const uint64_t t_acquired_us = is_traced ? TraceRecorder::NowUs() : 0;
+  switch (s) {
     case ChunkStatus::kEmpty:
       std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
       tracker.Release(index, true);
+      StampRxTrace(chunk, worker_id, s, t_start_us, t_acquired_us);
       return sendAck(channel, chunk);
     case ChunkStatus::kDone:
       LOG(WARNING) << "done chunk #" << index.value();
+      StampRxTrace(chunk, worker_id, s, t_start_us, t_acquired_us);
       return sendAck(channel, chunk);
     case ChunkStatus::kBusy:
       LOG(WARNING) << "busy chunk #" << index.value();

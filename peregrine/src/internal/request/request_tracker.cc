@@ -75,9 +75,10 @@ void RequestTracker::Remove(const Handle handle) {
 }
 
 void RequestTracker::Update(const Handle handle, const ReqId reqid,
-                            const chunk_t index) {
+                            const chunk_t index, const int worker_id) {
   OnComplete callback = nullptr;
   absl::Time start_time = ReqsTracker::kInvalidTime;
+  TraceContext trace_ctx;
   {
     absl::MutexLock lock(trackers_mu_);
     auto it = trackers_.find(handle);
@@ -89,6 +90,8 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
 
     if (tracker.IsDone() && isComplete(rt)) {
       start_time = rt.start_time;
+      trace_ctx = rt.trace_ctx;
+      tracer_.RecordAllChunksDone(trace_ctx, handle, reqid, index, worker_id);
       if (rt.on_complete != nullptr) {
         callback = std::move(rt.on_complete);
         trackers_.erase(it);
@@ -101,6 +104,7 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
   }
   if (callback != nullptr) {
     std::move(callback)(Status::kSuccess);
+    tracer_.RecordCallbackDone(trace_ctx, handle, worker_id);
   }
 }
 

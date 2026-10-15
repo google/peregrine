@@ -6,6 +6,10 @@ package(default_visibility = ["//peregrine/src/internal:internal_impl"])
 cc_library(
     name = "chunk_trace_wire",
     hdrs = ["chunk_trace_wire.h"],
+    deps = [
+        "//peregrine/src/internal/chunk:chunk_tracker",
+        "//peregrine/src/internal/util",
+    ],
 )
 
 cc_library(
@@ -69,6 +73,30 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "trace_assembler",
+    srcs = ["trace_assembler.cc"],
+    hdrs = ["trace_assembler.h"],
+    deps = [
+        ":trace_event",
+        "//peregrine/src/api:transport_trace",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "chrome_trace_exporter",
+    srcs = ["chrome_trace_exporter.cc"],
+    hdrs = ["chrome_trace_exporter.h"],
+    deps = [
+        ":trace_event",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
 cc_test(
     name = "trace_buffer_test",
     srcs = ["trace_buffer_test.cc"],
@@ -91,6 +119,20 @@ cc_test(
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:header",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "trace_assembler_test",
+    srcs = ["trace_assembler_test.cc"],
+    deps = [
+        ":trace_assembler",
+        ":trace_event",
+        "//peregrine/src/api:transport_trace",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )

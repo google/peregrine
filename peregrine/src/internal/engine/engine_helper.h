@@ -3,10 +3,12 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "absl/base/nullability.h"
 #include "absl/log/check.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
@@ -45,6 +47,18 @@ class EngineHelper final {
 
   // Returns a mutable reference to the trace recorder.
   TraceRecorder& Tracer() { return tracer_; }
+
+  // Dynamically updates the trace configuration.
+  void ConfigureTrace(const TraceConfig& config) { tracer_.Configure(config); }
+
+  // Clears the trace buffer.
+  void ClearTrace() { tracer_.Clear(); }
+
+  // Takes a snapshot of assembled Post() trace records.
+  std::vector<PostTraceRecord> GetTraceSnapshot() const;
+
+  // Exports assembled Post() trace records in Chrome Trace Event JSON format.
+  std::string ExportChromeTraceJson() const;
 
   // Creates a number of channels connected to the peer.
   Channels Connect(const Endpoint& peer_control, const TraceContext& trace_ctx,

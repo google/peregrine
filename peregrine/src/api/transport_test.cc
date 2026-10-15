@@ -17,6 +17,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "peregrine/src/api/transport_metrics.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/app.h"
 
@@ -50,6 +51,7 @@ class TransportTest : public ::testing::TestWithParam<Param> {
         r_(kBufSize, kNumConnsPerPeer) {
     CHECK(1 <= partial_ && partial_ < l_.DataSize());
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
+    l_.GetTransport().ConfigureTrace(TraceConfig{.sample_every_n = 1});
   }
 
   absl::AnyInvocable<void(Status)> GetCompletionCallback() {
@@ -169,6 +171,33 @@ TEST_P(TransportTest, Write) {
   // Post-condition: all the remote bytes are equal to the local.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
+
+  // Verify end-to-end Post() trace snapshot.
+  const auto traces = lt.GetTraceSnapshot();
+  ASSERT_EQ(traces.size(), 1U);
+  const PostTraceRecord& rec = traces[0];
+  EXPECT_EQ(rec.handle, *h);
+  EXPECT_GT(rec.post_start_us, 0U);
+  EXPECT_GT(rec.conn_setup_us, 0U);
+  EXPECT_GT(rec.transport_e2e_us, 0U);
+  ASSERT_EQ(rec.requests.size(), 2U);
+  for (const auto& req_trace : rec.requests) {
+    EXPECT_EQ(req_trace.op, Op::kWrite);
+    EXPECT_EQ(req_trace.chunks.size(), 4U);
+    for (const auto& chunk_trace : req_trace.chunks) {
+      EXPECT_GE(chunk_trace.send_worker_id, 1);
+      EXPECT_LE(chunk_trace.recv_worker_id, -1);
+      EXPECT_GT(chunk_trace.tx_write_us, 0U);
+      EXPECT_GT(chunk_trace.rx_payload_write_us, 0U);
+      EXPECT_GT(chunk_trace.chunk_rtt_us, 0U);
+    }
+  }
+
+  // Stubbed until ChromeTraceExporter is implemented.
+  EXPECT_TRUE(lt.ExportChromeTraceJson().empty());
+
+  lt.ClearTrace();
+  EXPECT_TRUE(lt.GetTraceSnapshot().empty());
 }
 
 }  // namespace

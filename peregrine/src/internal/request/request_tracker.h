@@ -63,7 +63,7 @@ class RequestTracker {
   // - If a completion callback is registered, it is invoked and the handle is
   //   automatically removed.
   // - Otherwise, the handle remains until `Poll()` is called.
-  void Update(Handle handle, ReqId reqid, chunk_t index)
+  void Update(Handle handle, ReqId reqid, chunk_t index, int worker_id)
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Returns a reference to the chunk tracker for the given `handle` and

@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,8 @@
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
+#include "peregrine/src/internal/trace/chrome_trace_exporter.h"
+#include "peregrine/src/internal/trace/trace_assembler.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/util/nic.h"
 #include "peregrine/src/util/thread.h"
@@ -196,6 +199,15 @@ absl::Status EngineHelper::UnregisterMemory(const void* addr) {
     return rdma_mgr_->UnregisterMemory(addr);
   }
   return checkRdmaManager();
+}
+
+std::vector<PostTraceRecord> EngineHelper::GetTraceSnapshot() const {
+  return TraceAssembler::Assemble(tracer_.Buffer().Snapshot());
+}
+
+std::string EngineHelper::ExportChromeTraceJson() const {
+  return ChromeTraceExporter::Export(tracer_.Buffer().Snapshot(),
+                                     self_.control_plane_listener.ToString());
 }
 
 }  // namespace peregrine::internal

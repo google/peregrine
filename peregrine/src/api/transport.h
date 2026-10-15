@@ -4,12 +4,14 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_metrics.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 
 namespace peregrine {
@@ -74,6 +76,21 @@ class Transport {
 
   // Returns a snapshot of transport metrics.
   virtual TransportMetrics GetTransportMetrics() const = 0;
+
+  // Dynamically updates the trace configuration (e.g., enabling/disabling
+  // tracing or changing the sampling interval).
+  virtual void ConfigureTrace(const TraceConfig& config) = 0;
+
+  // Clears all buffered Post() trace records.
+  virtual void ClearTrace() = 0;
+
+  // Returns a snapshot of assembled Post() trace records currently in the
+  // trace buffer.
+  virtual std::vector<PostTraceRecord> GetTraceSnapshot() const = 0;
+
+  // Exports all currently buffered Post() trace records in Chrome Trace Event
+  // JSON format (compatible with Perfetto / chrome://tracing).
+  virtual std::string ExportChromeTraceJson() const = 0;
 };
 
 }  // namespace peregrine

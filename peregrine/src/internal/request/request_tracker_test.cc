@@ -81,7 +81,7 @@ TEST_F(RequestTrackerTest, SetMethod) {
   rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
-    rt_.Update(kHandle, kReqId, chunk_t(i));
+    rt_.Update(kHandle, kReqId, chunk_t(i), /*worker_id=*/0);
   }
   EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 
@@ -103,7 +103,7 @@ TEST_F(RequestTrackerTest, CompletionCallbackSingleRequest) {
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(callback_count, 0);
     EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
-    rt_.Update(kHandle, kReqId, chunk_t(i));
+    rt_.Update(kHandle, kReqId, chunk_t(i), /*worker_id=*/0);
   }
 
   EXPECT_EQ(callback_count, 1);
@@ -126,20 +126,20 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
 
   // Complete first request.
   for (int i = 0; i < kNumChunks; ++i) {
-    rt_.Update(kHandle, kReqId, chunk_t(i));
+    rt_.Update(kHandle, kReqId, chunk_t(i), /*worker_id=*/0);
   }
   EXPECT_EQ(callback_count, 0);
   EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
 
   // Complete second request partially.
   for (int i = 0; i < kNumChunks - 1; ++i) {
-    rt_.Update(kHandle, kReqId2, chunk_t(i));
+    rt_.Update(kHandle, kReqId2, chunk_t(i), /*worker_id=*/0);
   }
   EXPECT_EQ(callback_count, 0);
   EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
 
   // Complete second request fully.
-  rt_.Update(kHandle, kReqId2, chunk_t(kNumChunks - 1));
+  rt_.Update(kHandle, kReqId2, chunk_t(kNumChunks - 1), /*worker_id=*/0);
   EXPECT_EQ(callback_count, 1);
   EXPECT_EQ(completed_status, Status::kSuccess);
   EXPECT_TRUE(rt_.IsEmpty());
@@ -155,13 +155,13 @@ TEST_F(RequestTrackerTest, MultipleRequestsPartialProgress) {
 
   // Complete the first request.
   for (int i = 0; i < kNumChunks; ++i) {
-    rt_.Update(kHandle, kReqId, chunk_t(i));
+    rt_.Update(kHandle, kReqId, chunk_t(i), /*worker_id=*/0);
   }
   EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
 
   // Complete the second request.
   for (int i = 0; i < kNumChunks; ++i) {
-    rt_.Update(kHandle, kReqId2, chunk_t(i));
+    rt_.Update(kHandle, kReqId2, chunk_t(i), /*worker_id=*/0);
   }
   EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 }
@@ -207,6 +207,45 @@ TEST_F(RequestTrackerTest, PollTraceEvents) {
   EXPECT_EQ(events[0].stage, TraceStage::kPollReaped);
   EXPECT_EQ(events[0].handle, kHandle.value());
   EXPECT_GT(events[0].timestamp_us, 0);
+}
+
+TEST_F(RequestTrackerTest, CompletionTraceEvents) {
+  tracer_.Configure(TraceConfig{.sample_every_n = 1});
+  const TraceContext trace_ctx = tracer_.MaybeStartTrace();
+  ASSERT_TRUE(trace_ctx.is_traced);
+
+  // 1. Polled handle: records kAllChunksDone on the last chunk only.
+  ASSERT_TRUE(
+      rt_.Add(kHandle, absl::Now(), /*on_complete=*/nullptr, trace_ctx));
+  rt_.FindOrCreate(kHandle, kReqId, /*num_chunks=*/2);
+  rt_.Update(kHandle, kReqId, chunk_t(0), /*worker_id=*/3);
+  rt_.Update(kHandle, kReqId, chunk_t(1), /*worker_id=*/3);
+
+  // 2. Callback handle: records kAllChunksDone and kCallbackDone.
+  constexpr Handle kHandle2(0x5678);
+  bool callback_invoked = false;
+  ASSERT_TRUE(rt_.Add(
+      kHandle2, absl::Now(), [&](Status) { callback_invoked = true; },
+      trace_ctx));
+  rt_.FindOrCreate(kHandle2, kReqId, /*num_chunks=*/1);
+  rt_.Update(kHandle2, kReqId, chunk_t(0), /*worker_id=*/4);
+  EXPECT_TRUE(callback_invoked);
+
+  const std::vector<TraceEvent> events = tracer_.Buffer().Snapshot();
+  ASSERT_EQ(events.size(), 3);
+  EXPECT_EQ(events[0].stage, TraceStage::kAllChunksDone);
+  EXPECT_EQ(events[0].handle, kHandle.value());
+  EXPECT_EQ(events[0].reqid, kReqId.value());
+  EXPECT_EQ(events[0].chunk_idx, 1);
+  EXPECT_EQ(events[0].worker_id, 3);
+
+  EXPECT_EQ(events[1].stage, TraceStage::kAllChunksDone);
+  EXPECT_EQ(events[1].handle, kHandle2.value());
+  EXPECT_EQ(events[1].worker_id, 4);
+
+  EXPECT_EQ(events[2].stage, TraceStage::kCallbackDone);
+  EXPECT_EQ(events[2].handle, kHandle2.value());
+  EXPECT_EQ(events[2].worker_id, 4);
 }
 
 }  // namespace

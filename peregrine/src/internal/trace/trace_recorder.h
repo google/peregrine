@@ -77,8 +77,8 @@ class TraceRecorder final {
                            size_t num_workers) noexcept;
 
   // Records T_WorkerEnqueued for chunk index on Engine::main_thread_.
-  void RecordWorkerEnqueued(const TraceContext& ctx, DataHeader& chunk,
-                            int send_worker_id, Op op) noexcept;
+  void RecordWorkerEnqueued(const DataHeader& chunk,
+                            int send_worker_id) noexcept;
 
   // Records T_WorkerDequeued and stamps chunk.trace.tx_send_mono_us.
   void RecordWorkerDequeued(DataHeader& chunk, int send_worker_id) noexcept;
@@ -89,10 +89,6 @@ class TraceRecorder final {
   // Records T_TxAckRcvd on sender's Worker::recv_thread_, unpacking
   // piggybacked receiver timings from chunk.trace.
   void RecordTxAckRcvd(const DataHeader& chunk) noexcept;
-
-  // Records T_RxChunkDone locally on the receiver worker if receiver tracing
-  // is enabled.
-  void RecordRxChunkDone(const DataHeader& chunk, uint64_t t_done_us) noexcept;
 
   // Records T_AllChunksDone when the final chunk of the final ReqId completes
   // in RequestTracker::Update().

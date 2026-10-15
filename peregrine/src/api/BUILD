@@ -12,6 +12,7 @@ cc_library(
     hdrs = ["transport.h"],
     deps = [
         ":transport_metrics",
+        ":transport_trace",
         ":transport_types",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
@@ -27,6 +28,7 @@ cc_test(
     deps = [
         ":transport",
         ":transport_metrics",
+        ":transport_trace",
         ":transport_types",
         "//peregrine/src/util:app",
         "@abseil-cpp//absl/functional:any_invocable",
@@ -60,6 +62,9 @@ cc_test(
 cc_library(
     name = "transport_trace",
     hdrs = ["transport_trace.h"],
+    deps = [
+        ":transport_types",
+    ],
 )
 
 cc_library(

@@ -34,6 +34,7 @@
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
 
@@ -260,13 +261,14 @@ void Engine::processWrite(Workers& workers, const PostEntry& post) {
   }
 
   for (size_t i = 0; i < num_reqs; ++i) {
-    processWrite(workers, post.handle, post.reqs[i].laddr, req_infos[i]);
+    processWrite(workers, post.handle, post.reqs[i].laddr, req_infos[i],
+                 post.trace_ctx);
   }
 }
 
 void Engine::processWrite(Workers& workers, const Handle handle,
-                          const Byte* const laddr,
-                          const RequestInfo& req_info) {
+                          const Byte* const laddr, const RequestInfo& req_info,
+                          const TraceContext& trace_ctx) {
   DCHECK(!workers.empty());
   DCHECK(req_info.IsValid());
   const size_t len = req_info.total_len;
@@ -288,6 +290,9 @@ void Engine::processWrite(Workers& workers, const Handle handle,
     chunk.index = chunk_t(i);
     chunk.byte_offset = offset;
     chunk.raddr = addr_t(req_info.raddr.value() + offset);
+    if ABSL_PREDICT_FALSE (trace_ctx.is_traced) {
+      chunk.trace.SetTraced();
+    }
     offset += size;
     workers[i]->EnqueueChunk(laddr + chunk.byte_offset, chunk);
   }
@@ -302,7 +307,7 @@ void Engine::processRead(const PostEntry& post) {
     const ReqId reqid = genReqId();
     tracer_.RecordEngineDequeued(post.trace_ctx, post.handle, reqid, req);
     incoming_.FindOrCreate(post.handle, reqid, /*num_chunks=*/1);
-    incoming_.Update(post.handle, reqid, chunk_t(0));
+    incoming_.Update(post.handle, reqid, chunk_t(0), /*worker_id=*/0);
   }
 }
 

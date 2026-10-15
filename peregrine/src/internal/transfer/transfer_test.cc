@@ -27,6 +27,7 @@
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_event.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/util/thread.h"
@@ -105,6 +106,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     chunk.index = chunk_t(i);
     chunk.byte_offset = offset;
     chunk.raddr = addr_t(reinterpret_cast<uintptr_t>(dst_.data() + offset));
+    chunk.trace.tx_send_mono_us = TraceRecorder::NowUs();
     return chunk;
   }
 
@@ -128,7 +130,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     RequestTracker incoming;
     Host()
         : metrics(),
-          tracer(TraceConfig{.sample_every_n = 0}),
+          tracer(TraceConfig{.sample_every_n = 1}),
           outgoing(metrics, tracer),
           incoming(metrics, tracer) {}
   };
@@ -163,8 +165,9 @@ TEST_P(TransferTest, SendRecv) {
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
   const RequestInfo req = GenRequestInfo();
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(a_.outgoing.Add(kHandle, absl::Now(), std::move(on_complete),
-                              TraceContext{}));
+  const TraceContext trace_ctx = a_.tracer.MaybeStartTrace();
+  ASSERT_TRUE(
+      a_.outgoing.Add(kHandle, absl::Now(), std::move(on_complete), trace_ctx));
   ASSERT_TRUE(a_.outgoing.Add(kHandle, {req}));
 
   // A sends PostInfoHeader + RequestInfo and DataHeader chunks to B.
@@ -185,7 +188,8 @@ TEST_P(TransferTest, SendRecv) {
   util::Thread a_recv([&]() {
     Channel* const channel = chs.sndr.get();
     while (!IsSendDone()) {
-      if (!Transfer::Recv(channel, a_.outgoing, a_.incoming)) {
+      if (!Transfer::Recv(channel, a_.outgoing, a_.incoming, /*worker_id=*/-1,
+                          a_.tracer)) {
         util::Yield();
       }
     }
@@ -195,7 +199,8 @@ TEST_P(TransferTest, SendRecv) {
   util::Thread b_recv([&]() {
     Channel* const channel = chs.rcvr.get();
     while (!IsSendDone()) {
-      if (!Transfer::Recv(channel, b_.outgoing, b_.incoming)) {
+      if (!Transfer::Recv(channel, b_.outgoing, b_.incoming, /*worker_id=*/-3,
+                          b_.tracer)) {
         util::Yield();
       }
     }
@@ -212,6 +217,26 @@ TEST_P(TransferTest, SendRecv) {
 
   // Postcondition: dst is the same as src.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));
+
+  bool saw_ack_rcvd = false;
+  bool saw_all_chunks_done = false;
+  for (const TraceEvent& ev : a_.tracer.Buffer().Snapshot()) {
+    if (ev.stage == TraceStage::kTxAckRcvd) {
+      saw_ack_rcvd = true;
+      EXPECT_EQ(ev.handle, kHandle.value());
+      EXPECT_EQ(ev.reqid, kReqId.value());
+      EXPECT_EQ(ev.worker_id, -3);
+    } else if (ev.stage == TraceStage::kAllChunksDone) {
+      saw_all_chunks_done = true;
+      EXPECT_EQ(ev.handle, kHandle.value());
+      EXPECT_EQ(ev.reqid, kReqId.value());
+      EXPECT_EQ(ev.worker_id, -1);
+    }
+  }
+  EXPECT_TRUE(saw_ack_rcvd);
+  EXPECT_TRUE(saw_all_chunks_done);
+
+  EXPECT_EQ(b_.tracer.Buffer().TotalRecorded(), 0);
 }
 
 }  // namespace
