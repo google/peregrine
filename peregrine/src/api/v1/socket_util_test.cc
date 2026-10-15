@@ -1,4 +1,4 @@
-#include "peregrine/src/api/socket_util.h"
+#include "peregrine/src/api/v1/socket_util.h"
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -27,7 +27,7 @@
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
 
-namespace peregrine::testing {
+namespace peregrine::v1::testing {
 namespace {
 
 using ::absl::StatusCode::kInternal;
@@ -311,4 +311,4 @@ TEST_F(SocketUtilIovTest, ExceedMaxIovs) {
 }
 
 }  // namespace
-}  // namespace peregrine::testing
+}  // namespace peregrine::v1::testing
