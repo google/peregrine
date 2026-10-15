@@ -13,10 +13,10 @@ namespace peregrine::internal {
 
 absl::Duration BlockingRateLimiter::reserve(uint64_t bytes) {
   DCHECK_GE(bytes, 1);
-  DCHECK_GE(sec_per_byte_, 0.0);
+  DCHECK_GE(ns_per_byte_, 0.0);
 
   const double b = static_cast<double>(bytes);
-  const absl::Duration cost = absl::Seconds(b * sec_per_byte_);
+  const absl::Duration cost = absl::Nanoseconds(b * ns_per_byte_);
   DCHECK_GE(cost, absl::ZeroDuration());
 
   absl::MutexLock lock(mu_);
