@@ -67,6 +67,65 @@ cc_test(
 )
 
 cc_library(
+    name = "header",
+    srcs = ["header.cc"],
+    hdrs = ["header.h"],
+    deps = [
+        ":chunk",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings:str_format",
+    ],
+)
+
+cc_test(
+    name = "header_test",
+    srcs = ["header_test.cc"],
+    deps = [
+        ":chunk",
+        ":chunk_test_util",
+        ":header",
+        "//peregrine/src/api:transport_types",
+        "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
+flatbuffer_cc_library(
+    name = "header_cc_fbs",
+    srcs = ["header.fbs"],
+)
+
+cc_library(
+    name = "header_flatbuf",
+    srcs = ["header_flatbuf.cc"],
+    hdrs = ["header_flatbuf.h"],
+    deps = [
+        ":chunk",
+        ":header",
+        ":header_cc_fbs",
+        "//peregrine/src/api:transport_types",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "header_flatbuf_test",
+    srcs = ["header_flatbuf_test.cc"],
+    deps = [
+        ":chunk",
+        ":chunk_test_util",
+        ":header",
+        ":header_flatbuf",
+        "//peregrine/src/api:transport_types",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "chunk_tracker",
     srcs = ["chunk_tracker.cc"],
     hdrs = ["chunk_tracker.h"],

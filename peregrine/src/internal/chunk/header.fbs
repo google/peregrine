@@ -1,0 +1,95 @@
+namespace peregrine.internal.flatbuf;
+
+// Wire packet type carried in the common 12-byte `HeaderBase` prefix.
+enum Opcode:uint8 {
+  // LINT.IfChange(opcode)
+  UNKNOWN = 0,
+  POST_INFO = 1,
+  DATA = 2,
+// LINT.ThenChange(header.h:opcode)
+}
+
+// Common 12-byte prefix at the start of every 64-byte chunk header.
+struct HeaderBase {
+  // Two fixed fields. Do not change.
+  magic:uint16;
+  ver:uint8;
+
+  // LINT.IfChange(header_base)
+  opcode:uint8;
+  handle:uint32;
+  len:uint32;
+// LINT.ThenChange(header.h:header_base)
+}
+
+// `flatbuf::PostInfoHeader` has a fixed size of 64 bytes. Its wire payload is
+// a sequence of `flatbuf::RequestInfo` structs (`len` bytes total).
+struct PostInfoHeader {
+  // LINT.IfChange(post_info_header)
+  base:HeaderBase;
+  metadata:[uint8:32];
+
+  // Paddings to keep the header size always 64 bytes.
+  padding0:uint32;
+  padding1:uint64;
+  padding2:uint64;
+// LINT.ThenChange(header.h:post_info_header)
+}
+
+// `flatbuf::DataHeader` has a fixed size of 64 bytes. It is used for both
+// data chunks (`base.len > 0`) and chunk ACKs (`base.len == 0`).
+struct DataHeader {
+  // LINT.IfChange(data_header)
+  base:HeaderBase;
+  reqid:uint32;
+  index:uint32;
+  padding0:uint32;
+  byte_offset:uint64;
+  raddr:uint64;
+
+  // Paddings to keep the header size always 64 bytes.
+  padding1:uint64;
+  padding2:uint64;
+  padding3:uint64;
+// LINT.ThenChange(header.h:data_header)
+}
+
+// Layout recipe type for a `RequestInfo`.
+enum RecipeType:uint8 {
+  // LINT.IfChange(recipe_type)
+  UNKNOWN = 0,
+  CONTIGUOUS = 1,
+// LINT.ThenChange(header.h:recipe_type)
+}
+
+// `flatbuf::Recipe` has a fixed size of 40 bytes.
+struct Recipe {
+  // LINT.IfChange(recipe)
+  type:RecipeType;
+  padding0:uint8;
+  padding1:uint16;
+  padding2:uint32;
+  params:[uint8:32];
+// LINT.ThenChange(header.h:recipe)
+}
+
+// `flatbuf::RequestInfo` has a fixed size of 128 bytes.
+struct RequestInfo {
+  // LINT.IfChange(request_info)
+  reqid:uint32;
+  nchunks:uint32;
+  raddr:uint64;
+  total_len:uint64;
+  op:uint8;
+  padding0:uint8;
+  padding1:uint16;
+  padding2:uint32;
+  recipe:Recipe;
+  metadata:[uint8:32];
+
+  // Paddings to keep the struct size always 128 bytes.
+  padding3:uint64;
+  padding4:uint64;
+  padding5:uint64;
+// LINT.ThenChange(header.h:request_info)
+}
