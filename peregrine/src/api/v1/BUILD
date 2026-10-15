@@ -51,3 +51,11 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "rate_limiter",
+    hdrs = ["rate_limiter.h"],
+    deps = [
+        "//peregrine/src/internal/lib:rate_limiter",
+    ],
+)

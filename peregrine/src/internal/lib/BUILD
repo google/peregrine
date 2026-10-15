@@ -91,3 +91,29 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "rate_limiter",
+    srcs = ["rate_limiter.cc"],
+    hdrs = ["rate_limiter.h"],
+    deps = [
+        "//peregrine/src/util:clock",
+        "//peregrine/src/util:strong_int",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "rate_limiter_test",
+    srcs = ["rate_limiter_test.cc"],
+    deps = [
+        ":rate_limiter",
+        "//peregrine/src/util:clock",
+        "//peregrine/src/util:thread",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
