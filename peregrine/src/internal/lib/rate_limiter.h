@@ -20,7 +20,7 @@ class BlockingRateLimiter {
   // Creates a rate limiter with the rate clamped to at least 1 byte/sec.
   explicit BlockingRateLimiter(BytesPerSec rate)
       : rate_(std::max(uint64_t{1}, rate.value())),
-        sec_per_byte_(1.0 / rate_.value()),
+        ns_per_byte_(1e9 / rate_.value()),
         deadline_(-absl::InfiniteDuration()) {}
 
   // Creates a rate limiter with the rate clamped to at least 1 byte/sec.
@@ -42,7 +42,7 @@ class BlockingRateLimiter {
 
  private:
   const BytesPerSec rate_;
-  const double sec_per_byte_;
+  const double ns_per_byte_;
   absl::Mutex mu_;
   absl::Duration deadline_ ABSL_GUARDED_BY(mu_);
 };
