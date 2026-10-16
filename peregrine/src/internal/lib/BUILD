@@ -71,6 +71,24 @@ cc_test(
 )
 
 cc_library(
+    name = "histogram",
+    hdrs = ["histogram.h"],
+    deps = [
+        "@abseil-cpp//absl/container:inlined_vector",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_test(
+    name = "histogram_test",
+    srcs = ["histogram_test.cc"],
+    deps = [
+        ":histogram",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "log2_histogram",
     hdrs = ["log2_histogram.h"],
     deps = [

@@ -6,6 +6,41 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "histogram",
+    hdrs = ["histogram.h"],
+    deps = [
+        "//peregrine/src/internal/lib:histogram",
+    ],
+)
+
+cc_test(
+    name = "histogram_test",
+    srcs = ["histogram_test.cc"],
+    deps = [
+        ":histogram",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "rate_limiter",
+    hdrs = ["rate_limiter.h"],
+    deps = [
+        "//peregrine/src/internal/lib:rate_limiter",
+    ],
+)
+
+cc_test(
+    name = "rate_limiter_test",
+    srcs = ["rate_limiter_test.cc"],
+    deps = [
+        ":rate_limiter",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "socket_util",
     hdrs = ["socket_util.h"],
     deps = [
@@ -43,13 +78,5 @@ cc_test(
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
-    ],
-)
-
-cc_library(
-    name = "rate_limiter",
-    hdrs = ["rate_limiter.h"],
-    deps = [
-        "//peregrine/src/internal/lib:rate_limiter",
     ],
 )
