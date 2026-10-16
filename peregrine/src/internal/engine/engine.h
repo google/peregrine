@@ -55,6 +55,7 @@ class Engine final {
     absl::Span<const Request> requests;
     absl::Time start_time;
     absl::AnyInvocable<void(Status)> on_complete;
+    Metadata metadata = {};
     // Returns true iff the item has at least one request and all are valid.
     bool IsValid() const;
   };
