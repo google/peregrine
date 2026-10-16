@@ -136,22 +136,29 @@ TEST_P(TransportTest, Write) {
 
   // Post multiple write requests (local -> remote).
   Transport& lt = l_.GetTransport();
+  Transport& rt = r_.GetTransport();
+  rt.SetRecvPostCallback([](Status, const Metadata&) {});
+  rt.SetRecvReqCallback([](Status, const Metadata&) {});
   const std::string peer = r_.GetControlEndpoint();
   const Request req1 = {
       .op = Op::kWrite,
       .laddr = l_.DataPtr(),
       .raddr = r_.DataPtr(),
       .len = partial_,
+      .metadata = {1, 2, 3},
   };
   const Request req2 = {
       .op = Op::kWrite,
       .laddr = l_.DataPtr() + partial_,
       .raddr = r_.DataPtr() + partial_,
       .len = l_.DataSize() - partial_,
+      .metadata = {4, 5, 6},
   };
   std::array<Request, 2> reqs = {req1, req2};
   auto callback = GetCompletionCallback();
-  const absl::StatusOr<Handle> h = lt.Post(peer, reqs, std::move(callback));
+  const Metadata post_metadata = {7, 8, 9};
+  const absl::StatusOr<Handle> h =
+      lt.Post(peer, reqs, std::move(callback), post_metadata);
   ASSERT_TRUE(h.ok()) << h.status();
 
   // Wait for the transport to finish processing the requests.

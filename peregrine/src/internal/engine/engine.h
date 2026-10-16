@@ -55,6 +55,7 @@ class Engine final {
     absl::Span<const Request> requests;
     absl::Time start_time;
     absl::AnyInvocable<void(Status)> on_complete;
+    Metadata metadata = {};
     // Returns true iff the item has at least one request and all are valid.
     bool IsValid() const;
   };
@@ -78,6 +79,18 @@ class Engine final {
 
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);
+
+  // Sets the callback invoked when an incoming `Post()` batch completes.
+  void SetRecvPostCallback(RecvCallback callback) ABSL_LOCKS_EXCLUDED(mu_) {
+    absl::MutexLock _(mu_);
+    recv_post_callback_ = std::move(callback);
+  }
+
+  // Sets the callback invoked when an incoming request completes.
+  void SetRecvReqCallback(RecvCallback callback) ABSL_LOCKS_EXCLUDED(mu_) {
+    absl::MutexLock _(mu_);
+    recv_req_callback_ = std::move(callback);
+  }
 
   // Takes a snapshot of engine metrics.
   void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
@@ -162,6 +175,8 @@ class Engine final {
   Handle::ValueType next_handle_ ABSL_GUARDED_BY(mu_);
   ReqId::ValueType next_reqid_ ABSL_GUARDED_BY(mu_);
   std::deque<Entry> reqs_ ABSL_GUARDED_BY(mu_);
+  RecvCallback recv_post_callback_ ABSL_GUARDED_BY(mu_);
+  RecvCallback recv_req_callback_ ABSL_GUARDED_BY(mu_);
 
   RequestTracker outgoing_;
   RequestTracker incoming_;

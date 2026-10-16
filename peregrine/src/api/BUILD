@@ -63,6 +63,7 @@ cc_library(
     hdrs = ["transport_types.h"],
     deps = [
         "//peregrine/src/util:strong_int",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",

@@ -2,11 +2,13 @@
 #define PEREGRINE_SRC_API_TRANSPORT_TYPES_H_
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <ostream>
 #include <string>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/types/span.h"
 #include "peregrine/src/util/strong_int.h"
 
@@ -14,6 +16,11 @@ namespace peregrine {
 
 // `Byte` is an 8-bit unit of data.
 using Byte = uint8_t;
+
+// Fixed-size opaque application metadata (32 bytes) for a `Post()` or
+// `Request`.
+inline constexpr size_t kMetadataSize = 32;
+using Metadata = std::array<Byte, kMetadataSize>;
 
 // `Handle` uniquely identifies a transport request within one process.
 DEFINE_STRONG_INT_TYPE(Handle, uint32_t);
@@ -39,6 +46,7 @@ struct Request final {
   size_t len = 0;         // buffer length in bytes
   uint32_t rkey = 0;      // remote memory region key (for RDMA operations)
   // LINT.ThenChange(../internal/control/message_internal.proto)
+  Metadata metadata = {};  // optional opaque per-request metadata
 
   // Returns true iff the request is valid.
   constexpr bool IsValid() const {
@@ -48,7 +56,7 @@ struct Request final {
   // Returns true iff the requests are equal.
   friend bool operator==(const Request& a, const Request& b) {
     return a.op == b.op && a.laddr == b.laddr && a.raddr == b.raddr &&
-           a.len == b.len && a.rkey == b.rkey;
+           a.len == b.len && a.rkey == b.rkey && a.metadata == b.metadata;
   }
 
   // Returns a string representation of the transport request.
@@ -69,6 +77,11 @@ enum class Status : int {
   kSuccess = 0,
   kFailure = -1,
 };
+
+// Callback invoked on the receiver when an incoming `Post()` batch or
+// individual `Request` completes.
+using RecvCallback =
+    absl::AnyInvocable<void(Status, const Metadata& metadata) const>;
 
 // Returns true iff the transport operation is still in progress.
 constexpr bool IsInProgress(const Status s) { return s == Status::kInProgress; }

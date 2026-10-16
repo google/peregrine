@@ -14,6 +14,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
+#include "peregrine/src/internal/chunk/header.h"
 
 namespace peregrine::internal {
 
@@ -60,13 +61,28 @@ bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids,
   return trackers_.try_emplace(handle, std::move(rt)).second;
 }
 
+bool RequestTracker::Add(const Handle handle,
+                         absl::Span<const RequestInfo> reqs) {
+  DCHECK(!reqs.empty());
+  absl::MutexLock _(trackers_mu_);
+  auto [it, inserted] = trackers_.try_emplace(handle);
+  if (!inserted) return true;
+  ReqsTracker& rt = it->second;
+  rt.req_map.reserve(reqs.size());
+  for (const RequestInfo& req : reqs) {
+    DCHECK(req.IsValid());
+    rt.req_map[req.reqid] = std::make_unique<ChunkTracker>(req.nchunks);
+  }
+  return true;
+}
+
 void RequestTracker::Remove(const Handle handle) {
   absl::MutexLock _(trackers_mu_);
   trackers_.erase(handle);
 }
 
 void RequestTracker::Update(const Handle handle, const ReqId reqid,
-                            const uint32_t num_chunks, const chunk_t index) {
+                            const chunk_t index) {
   OnComplete callback = nullptr;
   absl::Time start_time = ReqsTracker::kInvalidTime;
   {
@@ -75,13 +91,10 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
     if ABSL_PREDICT_FALSE (it == trackers_.end()) return;
 
     ReqsTracker& rt = it->second;
-    std::unique_ptr<ChunkTracker>& tracker = rt.req_map[reqid];
-    if (tracker == nullptr) {
-      tracker = std::make_unique<ChunkTracker>(num_chunks);
-    }
-    tracker->Set(index);
+    ChunkTracker& tracker = *rt.req_map.at(reqid);
+    tracker.Set(index);
 
-    if (tracker->IsDone() && isComplete(rt)) {
+    if (tracker.IsDone() && isComplete(rt)) {
       start_time = rt.start_time;
       if (rt.on_complete != nullptr) {
         callback = std::move(rt.on_complete);
@@ -96,6 +109,11 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
   if (callback != nullptr) {
     std::move(callback)(Status::kSuccess);
   }
+}
+
+ChunkTracker& RequestTracker::Find(const Handle handle, const ReqId reqid) {
+  absl::MutexLock _(trackers_mu_);
+  return *trackers_.at(handle).req_map.at(reqid);
 }
 
 ChunkTracker& RequestTracker::FindOrCreate(const Handle handle,
