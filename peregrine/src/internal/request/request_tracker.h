@@ -15,6 +15,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/util/macro.h"
 
@@ -47,6 +48,11 @@ class RequestTracker {
   bool Add(Handle handle, absl::Span<const ReqId> reqids, absl::Time start_time,
            OnComplete on_complete) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
+  // Adds the tracker for incoming `RequestInfo` descriptors of `handle`
+  // (idempotent if `handle` is already registered).
+  bool Add(Handle handle, absl::Span<const RequestInfo> reqs)
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+
   // Removes the tracker for the given `handle`.
   void Remove(Handle handle) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
@@ -55,7 +61,19 @@ class RequestTracker {
   // - If a completion callback is registered, it is invoked and the handle is
   //   automatically removed.
   // - Otherwise, the handle remains until `Poll()` is called.
+  void Update(Handle handle, ReqId reqid, chunk_t index)
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+
+  // TODO: Remove once ChunkHeader is replaced by PostInfoHeader + DataHeader.
   void Update(Handle handle, ReqId reqid, uint32_t num_chunks, chunk_t index)
+      ABSL_LOCKS_EXCLUDED(trackers_mu_) {
+    FindOrCreate(handle, reqid, num_chunks);
+    Update(handle, reqid, index);
+  }
+
+  // Returns a reference to the chunk tracker for the given `handle` and
+  // `reqid`.
+  ChunkTracker& Find(Handle handle, ReqId reqid)
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Finds a request tracker for the given `handle` and `reqid`.

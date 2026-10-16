@@ -33,7 +33,8 @@ class Transport {
   // specified by the `request` until processing is complete.
   virtual absl::StatusOr<Handle> Post(
       std::string_view peer, absl::Span<const Request> requests,
-      absl::AnyInvocable<void(Status)> on_complete = nullptr) = 0;
+      absl::AnyInvocable<void(Status)> on_complete = nullptr,
+      const Metadata& metadata = {}) = 0;
 
   // Polls the status of the transport request identified by the `handle`.
   //

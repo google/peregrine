@@ -70,7 +70,7 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(
 
 absl::StatusOr<Handle> TransportImpl::Post(
     std::string_view peer, absl::Span<const Request> requests,
-    absl::AnyInvocable<void(Status)> on_complete) {
+    absl::AnyInvocable<void(Status)> on_complete, const Metadata& metadata) {
   const absl::Time start_time = absl::Now();
   const Endpoint endpoint = Endpoint::Create(peer);
   if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
@@ -97,8 +97,8 @@ absl::StatusOr<Handle> TransportImpl::Post(
         "All requests must have the same op type");
   }
 
-  return engine_->Enqueue(endpoint,
-                          {requests, start_time, std::move(on_complete)});
+  return engine_->Enqueue(
+      endpoint, {requests, start_time, std::move(on_complete), metadata});
 }
 
 TransportMetrics TransportImpl::GetTransportMetrics() const {
