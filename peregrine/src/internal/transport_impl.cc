@@ -33,7 +33,7 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(
     LOG(ERROR) << "invalid config";
     return nullptr;
   }
-  if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {
+  if ABSL_PREDICT_FALSE (endpoint.HasZeroIpAddr()) {
     LOG(ERROR) << "invalid control-plane endpoint " << endpoint;
     return nullptr;
   }
@@ -58,13 +58,13 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(
     LOG(ERROR) << "failed to create data plane for " << t->self_;
     return nullptr;
   }
-  DCHECK(t->self_.IsValid());
 
-  // Start serving control-plane RPCs.
+  // Start serving control-plane RPCs, which fills in the bound control port.
   if ABSL_PREDICT_FALSE (!t->control_->Start()) {
     LOG(ERROR) << "failed to start control plane for " << t->self_;
     return nullptr;
   }
+  DCHECK(t->self_.IsValid());
   return t;
 }
 

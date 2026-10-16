@@ -2,6 +2,7 @@
 #define PEREGRINE_SRC_API_TRANSPORT_H_
 
 #include <cstddef>
+#include <string>
 #include <string_view>
 
 #include "absl/functional/any_invocable.h"
@@ -59,6 +60,9 @@ class Transport {
 
   // Returns a snapshot of transport metrics.
   virtual TransportMetrics GetTransportMetrics() const = 0;
+
+  // Returns the control endpoint with the actual bound port.
+  virtual std::string GetControlEndpoint() const = 0;
 };
 
 }  // namespace peregrine

@@ -121,7 +121,9 @@ NB_MODULE(peregrine, m) {
           },
           nb::arg("addr"))
       .def("get_transport_metrics", &Transport::GetTransportMetrics,
-           "Returns transport metrics.");
+           "Returns transport metrics.")
+      .def("get_control_endpoint", &Transport::GetControlEndpoint,
+           "Returns the control endpoint with the actual bound port.");
 
   // Bind `Log2Histogram<32>`
   nb::class_<Log2Histogram<32>>(m, "Log2Histogram32")

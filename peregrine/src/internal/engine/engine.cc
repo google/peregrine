@@ -62,7 +62,7 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
     LOG(ERROR) << "failed to create engine helper: " << self;
     return nullptr;
   }
-  DCHECK(self.IsValid());
+  DCHECK(self.IsDataPlaneValid());
   return absl::WrapUnique(new Engine(config, self, std::move(helper)));
 }
 

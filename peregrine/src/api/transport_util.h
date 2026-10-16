@@ -13,9 +13,10 @@ namespace peregrine {
 bool IsTransportSupported(TransportType t);
 
 // Creates a new transport instance that listens for control messages on
-// the control `endpoint` (e.g., "10.0.0.1:10000"). The `num_conns_per_peer`
-// parameter guides the transport to make this number (in the range [1, 100]) of
-// parallel connections between itself and each peer.
+// the control `endpoint` (e.g., "10.0.0.1:10000"). If the port is zero, the
+// kernel assigns a free port. The `num_conns_per_peer` parameter guides the
+// transport to make this number (in the range [1, 100]) of parallel connections
+// between itself and each peer.
 //
 // TODO: Support passing in both server and client gRPC credentials instead of
 // hardcoding insecure credentials.

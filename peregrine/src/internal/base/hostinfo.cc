@@ -18,7 +18,11 @@
 namespace peregrine::internal {
 
 bool HostInfo::IsValid() const {
-  const bool control_plane_valid = control_plane_listener.HasNonzeroIpPort();
+  return control_plane_listener.HasNonzeroIpPort() && IsDataPlaneValid();
+}
+
+bool HostInfo::IsDataPlaneValid() const {
+  const bool control_plane_valid = !control_plane_listener.HasZeroIpAddr();
 
   const bool data_plane_valid =
       !data_plane_listeners.empty() &&

@@ -96,6 +96,7 @@ cc_library(
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
+        "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/metrics:control_metrics",
         "//peregrine/src/internal/socket/psp",
         "//peregrine/src/util:macro",

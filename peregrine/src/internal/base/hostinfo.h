@@ -24,6 +24,9 @@ struct HostInfo {
   // Returns true iff all endpoints and RDMA interfaces are valid.
   bool IsValid() const;
 
+  // Same as `IsValid()`, except that the control plane port may still be zero.
+  bool IsDataPlaneValid() const;
+
   // Returns a string representation of the host info.
   std::string ToString() const;
 

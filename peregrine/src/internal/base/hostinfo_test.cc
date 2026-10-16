@@ -33,6 +33,7 @@ TEST(HostInfoTest, Validity) {
       .data_plane_listeners = {lo},
   };
   EXPECT_FALSE(b.IsValid());
+  EXPECT_TRUE(b.IsDataPlaneValid());
 
   // Empty data plane listeners.
   const auto c = HostInfo{

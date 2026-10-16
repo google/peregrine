@@ -47,15 +47,16 @@ inline constexpr bool kTcpListenersOfControlAndDataPlanesAreSeparate = true;
 // starts:
 //  - Peregrine enumerates all the network interface cards (NICs).
 //  - User provides an `ip:port_c` endpoint (not a HostInfo object), where `ip`
-//    is either zero or one of the NIC's IP address, and `port_c` is the same
-//    well-known port for all Peregrine instances. If the provided `ip` is zero,
-//    Peregrine will pick an arbitrary NIC to replace the `ip` field.
-//  - Peregrine starts a control-plane gRPC server bound to `ip:port_c`.
+//    is either zero or one of the NIC's IP address, and `port_c` is either a
+//    well-known port or zero for a kernel-assigned port. If the provided `ip`
+//    is zero, Peregrine will pick an arbitrary NIC to replace the `ip` field.
 //  - It starts multiple data-plane per-NIC TCP listeners on arbitrary ports.
-//  - `TransportImpl` owns a HostInfo object. The control plane will fill
-//    its `control_plane_listener` field, and the data plane will fill its
-//    `data_plane_listeners` field. Note that all the endpoints in the HostInfo
-//    object are valid, meaning they have non-zero IP and port.
+//  - Peregrine starts a control-plane gRPC server bound to `ip:port_c`.
+//  - `TransportImpl` owns a HostInfo object. The data plane will fill its
+//    `data_plane_listeners` field, and then the control plane will fill in the
+//    bound port of its `control_plane_listener` field. Once started, all the
+//    endpoints in the HostInfo object are valid, meaning they have non-zero IP
+//    and port.
 //  - The `HostInfo.control_plane_listener` endpoint will be used to identify
 //    the Peregrine instance itself.
 inline constexpr bool kHostInfoDependsOnControlAndDataPlanes = true;

@@ -13,6 +13,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/synchronization/notification.h"
 #include "absl/types/span.h"
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
@@ -48,7 +49,7 @@ class Control final {
 
   // Creates a control plane instance.
   static std::unique_ptr<Control> Create(const Config& config,
-                                         const HostInfo& self,
+                                         HostInfo& self,
                                          SecurityCredentials creds);
 
   // Disallows copy and move.
@@ -58,9 +59,8 @@ class Control final {
   // Destructor.
   ~Control();
 
-  // Starts the gRPC server to begin accepting incoming request messages.
-  // Must be called only after the `self_` host info is ready to be served.
-  // Returns true if the server was started successfully, false otherwise.
+  // Starts the gRPC server and begins serving requests. Fills in the
+  // kernel-assigned port if endpoint port is 0.
   bool Start();
 
   // Sets the callback handler for incoming psp token exchange requests.
@@ -95,7 +95,7 @@ class Control final {
 
  private:
   // Constructor.
-  Control(const Config& config, const HostInfo& self, SecurityCredentials creds)
+  Control(const Config& config, HostInfo& self, SecurityCredentials creds)
       : config_(config),
         self_(self),
         server_creds_(creds.server_creds),
@@ -103,7 +103,7 @@ class Control final {
         psp_tcp_handler_(nullptr),
         rdma_conn_handler_(nullptr) {
     DCHECK(config_.IsValid());
-    DCHECK(self_.control_plane_listener.HasNonzeroIpPort());
+    DCHECK(!self_.control_plane_listener.HasZeroIpAddr());
     DCHECK_NE(server_creds_, nullptr);
     DCHECK_NE(client_creds_, nullptr);
   }
@@ -114,6 +114,9 @@ class Control final {
            self_.control_plane_listener.HasNonzeroIpPort() &&
            client_creds_ != nullptr && grpc_server_ != nullptr;
   }
+
+  // Returns true iff requests are being served.
+  bool isServing() const { return serving_.HasBeenNotified(); }
 
  private:
   // Retrieves an active client stub for `peer` or instantiates a new one.
@@ -147,11 +150,14 @@ class Control final {
 
  private:
   const Config& config_;
-  const HostInfo& self_;
+  HostInfo& self_;
 
   std::shared_ptr<grpc::ServerCredentials> server_creds_;
   std::shared_ptr<grpc::ChannelCredentials> client_creds_;
   std::unique_ptr<GrpcServer> grpc_server_;
+
+  // Notified by `Start()` once `self_` is ready to be served.
+  absl::Notification serving_;
 
   ControlMetrics metrics_;
 

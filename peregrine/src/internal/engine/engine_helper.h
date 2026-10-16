@@ -60,7 +60,7 @@ class EngineHelper final {
 
   // Returns true if the following invariants hold.
   bool invariant() const {
-    return config_.IsValid() && self_.IsValid() && tcp_mgr_ != nullptr;
+    return config_.IsValid() && self_.IsDataPlaneValid() && tcp_mgr_ != nullptr;
   }
 
  private:

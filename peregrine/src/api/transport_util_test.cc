@@ -17,6 +17,7 @@ namespace {
 
 using ::testing::IsNull;
 using ::testing::NotNull;
+using ::testing::StartsWith;
 
 constexpr int kNumConnsPerPeer = 4;
 
@@ -41,8 +42,23 @@ TEST(TransportUtilTest, InvalidEndpoints) {
 TEST(TransportUtilTest, WildcardAndZeroPort) {
   EXPECT_THAT(CreateTransport("0.0.0.0:9999"), IsNull());
   EXPECT_THAT(CreateTransport("[::]:9999"), IsNull());
-  EXPECT_THAT(CreateTransport("127.0.0.1:0"), IsNull());
-  EXPECT_THAT(CreateTransport("[::1]:0"), IsNull());
+  EXPECT_THAT(CreateTransport("0.0.0.0:0"), IsNull());
+  EXPECT_THAT(CreateTransport("[::]:0"), IsNull());
+}
+
+TEST(TransportUtilTest, ZeroPortIsAutoAssigned) {
+  for (int family : {AF_INET, AF_INET6}) {
+    const std::string_view ip = family == AF_INET ? "127.0.0.1" : "[::1]";
+    auto t = CreateTransport(absl::StrFormat("%s:0", ip));
+    ASSERT_THAT(t, NotNull());
+    const std::string ep = t->GetControlEndpoint();
+    EXPECT_THAT(ep, StartsWith(absl::StrFormat("%s:", ip)));
+    EXPECT_NE(ep, absl::StrFormat("%s:0", ip));
+  }
+}
+
+TEST(TransportUtilTest, NonLocalAddress) {
+  EXPECT_THAT(CreateTransport("192.0.2.1:0"), IsNull());
 }
 
 TEST(TransportUtilTest, IsTransportSupported) {

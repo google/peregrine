@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <string_view>
 
 #include "absl/functional/any_invocable.h"
@@ -79,6 +80,11 @@ class TransportImpl final : public Transport {
 
   // Returns a snapshot of metrics.
   TransportMetrics GetTransportMetrics() const override;
+
+  // Returns the control endpoint with the actual bound port.
+  std::string GetControlEndpoint() const override {
+    return self_.control_plane_listener.ToString();
+  }
 
  private:
   // Constructor.

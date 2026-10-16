@@ -53,7 +53,7 @@ std::unique_ptr<EngineHelper> EngineHelper::Create(const Config& config,
     LOG(ERROR) << "failed to create tcp manager for " << self;
     return nullptr;
   }
-  if ABSL_PREDICT_FALSE (!self.IsValid()) {
+  if ABSL_PREDICT_FALSE (!self.IsDataPlaneValid()) {
     LOG(ERROR) << "invalid self host info for " << self;
     return nullptr;
   }

@@ -104,7 +104,7 @@ std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
     LOG(ERROR) << "failed to create data plane tcp listening sockets";
     return nullptr;
   }
-  if ABSL_PREDICT_FALSE (!host.IsValid()) {
+  if ABSL_PREDICT_FALSE (!host.IsDataPlaneValid()) {
     LOG(ERROR) << "invalid self host info " << host;
     return nullptr;
   }
@@ -294,9 +294,9 @@ void TcpManager::Stop() {
 }
 
 bool TcpManager::invariant() const {
-  return self_.IsValid() && poller_ != nullptr && listeners_.Invariant() &&
-         connectors_.Invariant() && incoming_.Invariant() &&
-         outgoing_.Invariant();
+  return self_.IsDataPlaneValid() && poller_ != nullptr &&
+         listeners_.Invariant() && connectors_.Invariant() &&
+         incoming_.Invariant() && outgoing_.Invariant();
 }
 
 }  // namespace peregrine::internal

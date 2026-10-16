@@ -91,7 +91,7 @@ std::unique_ptr<PspTcpManager> PspTcpManager::Create(HostInfo& self) {
     LOG(ERROR) << "failed to create data plane tcp listening sockets";
     return nullptr;
   }
-  if ABSL_PREDICT_FALSE (!host.IsValid()) {
+  if ABSL_PREDICT_FALSE (!host.IsDataPlaneValid()) {
     LOG(ERROR) << "invalid self host info " << host;
     return nullptr;
   }
@@ -190,7 +190,8 @@ bool PspTcpManager::invariant() const {
         return socket != nullptr && pair.first == socket->fd() &&
                socket->IsNonBlocking();
       });
-  return self_.IsValid() && poller_ != nullptr && nonblocking_listeners;
+  return self_.IsDataPlaneValid() && poller_ != nullptr &&
+         nonblocking_listeners;
 }
 
 std::unique_ptr<TcpSocket> PspTcpManager::ConnectPsp(

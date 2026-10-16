@@ -78,6 +78,13 @@ TEST(EndpointTest, Ctors) {
   LOG(INFO) << "h = " << h;
 }
 
+TEST(EndpointTest, SetPort) {
+  Endpoint e(kIPv4, 0);
+  EXPECT_TRUE(e.HasZeroPort());
+  e.SetPort(12345);
+  EXPECT_EQ(e, Endpoint(kIPv4, 12345));
+}
+
 TEST(EndpointTest, Hash) {
   const Endpoint a(kIPv4, 9999);
   const Endpoint b(kIPv4, 9999);

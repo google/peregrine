@@ -126,6 +126,17 @@ TEST_F(ControlTest, GetPeerHostInfoFailure) {
   EXPECT_EQ(unreachable_or.status().code(), kUnavailable);
 }
 
+TEST_F(ControlTest, StartFailsOnNonLocalAddress) {
+  // 192.0.2.1 (TEST-NET-1) is not assigned to any local interface.
+  HostInfo self = {
+      .control_plane_listener = Endpoint::Create("192.0.2.1:0"),
+      .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20001")},
+  };
+  auto ctrl = Control::Create(config_, self, creds_a_);
+  ASSERT_NE(ctrl, nullptr);
+  EXPECT_FALSE(ctrl->Start());
+}
+
 TEST_F(ControlTest, ExchangePspTokensSuccess) {
   config_.require_dataplane_encryption = true;
   const uint16_t port_a = util::FindFreePort(AF_INET, /*tcp=*/true);
@@ -133,12 +144,12 @@ TEST_F(ControlTest, ExchangePspTokensSuccess) {
   ASSERT_GT(port_a, 0);
   ASSERT_GT(port_b, 0);
 
-  const HostInfo host_a = {
+  HostInfo host_a = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
       .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20001")},
   };
-  const HostInfo host_b = {
+  HostInfo host_b = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
       .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20002")},
@@ -174,12 +185,12 @@ TEST_F(ControlTest, ExchangePspTokenErrors) {
   ASSERT_GT(port_a, 0);
   ASSERT_GT(port_b, 0);
 
-  const HostInfo host_a = {
+  HostInfo host_a = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
       .data_plane_listeners = {NicInfo::Create("eth0/ip/127.0.0.1:20001")},
   };
-  const HostInfo host_b = {
+  HostInfo host_b = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
       .data_plane_listeners = {NicInfo::Create("eth0/ip/127.0.0.1:20002")},
@@ -228,7 +239,7 @@ TEST_F(ControlTest, ExchangePspTokenErrors) {
   config_.require_dataplane_encryption = true;
   const uint16_t port_c = util::FindFreePort(AF_INET, /*tcp=*/true);
   ASSERT_GT(port_c, 0);
-  const HostInfo host_c = {
+  HostInfo host_c = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_c)),
       .data_plane_listeners = {NicInfo::Create("lo/ip/127.0.0.1:20003")},
@@ -249,12 +260,12 @@ TEST_F(ControlTest, ConnectRdmaPeer) {
   ASSERT_GT(port_a, 0);
   ASSERT_GT(port_b, 0);
 
-  const HostInfo host_a = {
+  HostInfo host_a = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_a)),
       .data_plane_listeners = {NicInfo::Create("irdma0/rdma/[::1]:1")},
   };
-  const HostInfo host_b = {
+  HostInfo host_b = {
       .control_plane_listener =
           Endpoint::Create(absl::StrCat("127.0.0.1:", port_b)),
       .data_plane_listeners = {NicInfo::Create("irdma0/rdma/[::1]:2")},

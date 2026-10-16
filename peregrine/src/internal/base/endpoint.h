@@ -88,6 +88,9 @@ class Endpoint final {
   // Returns the port of the endpoint.
   port_t Port() const { return port_; }
 
+  // Sets the port of the endpoint.
+  void SetPort(port_t port) { port_ = port; }
+
   // Builds a `sockaddr_in` struct for the ipv4 endpoint.
   struct sockaddr_in BuildIPv4Sockaddr() const;
 

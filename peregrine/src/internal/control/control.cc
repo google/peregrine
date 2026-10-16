@@ -19,6 +19,7 @@
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
+#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/control/grpc_client.h"
 #include "peregrine/src/internal/control/grpc_server.h"
 #include "peregrine/src/internal/control/message.h"
@@ -29,11 +30,11 @@
 namespace peregrine::internal {
 
 std::unique_ptr<Control> Control::Create(const Config& config,
-                                         const HostInfo& self,
+                                         HostInfo& self,
                                          SecurityCredentials creds) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
   const Endpoint& e = self.control_plane_listener;
-  if ABSL_PREDICT_FALSE (!e.HasNonzeroIpPort()) {
+  if ABSL_PREDICT_FALSE (e.HasZeroIpAddr()) {
     LOG(ERROR) << "invalid control plane listener " << e;
     return nullptr;
   }
@@ -47,8 +48,8 @@ std::unique_ptr<Control> Control::Create(const Config& config,
 bool Control::Start() {
   if (grpc_server_ != nullptr) return true;
 
-  DCHECK(self_.IsValid());
-  const Endpoint& e = self_.control_plane_listener;
+  Endpoint& e = self_.control_plane_listener;
+  DCHECK(!e.HasZeroIpAddr());
   auto handler = [this](const proto::ReqMsg& req, proto::RespMsg* resp) {
     return this->handleAllRequest(req, resp);
   };
@@ -59,7 +60,10 @@ bool Control::Start() {
     return false;
   } else {
     grpc_server_ = std::move(server).value();
+    e.SetPort(static_cast<port_t>(grpc_server_->Port()));
     DCHECK(invariant());
+    DCHECK(self_.IsValid());
+    serving_.Notify();
     LOG(INFO) << "control started @ " << e;
     return true;
   }
@@ -77,6 +81,9 @@ Control::~Control() {
 
 absl::Status Control::handleAllRequest(const proto::ReqMsg& req_msg,
                                        proto::RespMsg* resp_msg) {
+  if ABSL_PREDICT_FALSE (!isServing()) {
+    return absl::UnavailableError("control plane not serving yet");
+  }
   if (resp_msg == nullptr) {
     return absl::InvalidArgumentError("null response message");
   }
