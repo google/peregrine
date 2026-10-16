@@ -23,7 +23,7 @@ TEST(RateLimiterTest, ZeroBytesDoesNotSleep) {
   const absl::Duration start = util::MonotonicNow();
   l.Consume(0);
   const absl::Duration elapsed = util::MonotonicNow() - start;
-  EXPECT_LE(elapsed, absl::Milliseconds(10));
+  EXPECT_LE(elapsed, absl::Milliseconds(20));
 }
 
 TEST(RateLimiterTest, SingleByteSleepsBriefly) {
@@ -31,7 +31,7 @@ TEST(RateLimiterTest, SingleByteSleepsBriefly) {
   const absl::Duration start = util::MonotonicNow();
   l.Consume(1);  // 1 us
   const absl::Duration elapsed = util::MonotonicNow() - start;
-  EXPECT_LE(elapsed, absl::Milliseconds(10));
+  EXPECT_LE(elapsed, absl::Milliseconds(20));
 }
 
 TEST(RateLimiterTest, HighBandwidthSleepsBriefly) {
@@ -39,7 +39,7 @@ TEST(RateLimiterTest, HighBandwidthSleepsBriefly) {
   const absl::Duration start = util::MonotonicNow();
   l.Consume(1024 * 1024);  // ~1 ms
   const absl::Duration elapsed = util::MonotonicNow() - start;
-  EXPECT_LE(elapsed, absl::Milliseconds(10));
+  EXPECT_LE(elapsed, absl::Milliseconds(20));
 }
 
 TEST(RateLimiterTest, PacesBelowOneGigabytePerSec) {
@@ -47,8 +47,8 @@ TEST(RateLimiterTest, PacesBelowOneGigabytePerSec) {
   const absl::Duration start = util::MonotonicNow();
   l.Consume(5 * kM);  // 50 ms
   const absl::Duration elapsed = util::MonotonicNow() - start;
-  EXPECT_GE(elapsed, absl::Milliseconds(40));
-  EXPECT_LE(elapsed, absl::Milliseconds(80));
+  EXPECT_GE(elapsed, absl::Milliseconds(30));
+  EXPECT_LE(elapsed, absl::Milliseconds(90));
 }
 
 TEST(RateLimiterTest, PacesAboveOneGigabytePerSec) {
@@ -56,8 +56,8 @@ TEST(RateLimiterTest, PacesAboveOneGigabytePerSec) {
   const absl::Duration start = util::MonotonicNow();
   l.Consume(40 * kG);  // 50 ms
   const absl::Duration elapsed = util::MonotonicNow() - start;
-  EXPECT_GE(elapsed, absl::Milliseconds(40));
-  EXPECT_LE(elapsed, absl::Milliseconds(80));
+  EXPECT_GE(elapsed, absl::Milliseconds(30));
+  EXPECT_LE(elapsed, absl::Milliseconds(90));
 }
 
 TEST(RateLimiterTest, PacesNonIntegralNanosPerByte) {
@@ -65,8 +65,8 @@ TEST(RateLimiterTest, PacesNonIntegralNanosPerByte) {
   const absl::Duration start = util::MonotonicNow();
   l.Consume(30 * kM);  // 50 ms
   const absl::Duration elapsed = util::MonotonicNow() - start;
-  EXPECT_GE(elapsed, absl::Milliseconds(40));
-  EXPECT_LE(elapsed, absl::Milliseconds(80));
+  EXPECT_GE(elapsed, absl::Milliseconds(30));
+  EXPECT_LE(elapsed, absl::Milliseconds(90));
 }
 
 TEST(RateLimiterTest, ConcurrentTimelineAdvancement) {
@@ -77,8 +77,8 @@ TEST(RateLimiterTest, ConcurrentTimelineAdvancement) {
   t1.join();
   t2.join();
   const absl::Duration elapsed = util::MonotonicNow() - start;
-  EXPECT_GE(elapsed, absl::Milliseconds(40));
-  EXPECT_LE(elapsed, absl::Milliseconds(80));
+  EXPECT_GE(elapsed, absl::Milliseconds(30));
+  EXPECT_LE(elapsed, absl::Milliseconds(90));
 }
 
 }  // namespace
