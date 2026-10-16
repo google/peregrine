@@ -3,13 +3,7 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
-package(default_visibility = [
-    # TODO(yongx): make the visibility public
-    "//third_party/peregrine:__pkg__",
-    "//peregrine/src:__subpackages__",
-    "//peregrine/test:__subpackages__",
-    "//third_party/tpu_raiden:__subpackages__",
-])
+package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "socket_util",
