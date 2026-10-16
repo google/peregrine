@@ -143,11 +143,3 @@ py_test(
         "@abseil-py//absl/testing:absltest",
     ],
 )
-
-cc_library(
-    name = "socket_util",
-    hdrs = ["socket_util.h"],
-    deps = [
-        "//peregrine/src/api/v1:socket_util",
-    ],
-)
