@@ -34,7 +34,8 @@ class Transport {
   // specified by the `request` until processing is complete.
   virtual absl::StatusOr<Handle> Post(
       std::string_view peer, absl::Span<const Request> requests,
-      absl::AnyInvocable<void(Status)> on_complete = nullptr) = 0;
+      absl::AnyInvocable<void(Status)> on_complete = nullptr,
+      const Metadata& metadata = {}) = 0;
 
   // Polls the status of the transport request identified by the `handle`.
   //
@@ -45,6 +46,16 @@ class Transport {
   // Callers providing a non-null `on_complete` callback to `Post()` must not
   // call this `Poll()` function.
   virtual absl::StatusOr<Status> Poll(Handle handle) = 0;
+
+  // Sets the callback invoked on the receiver when all requests in an incoming
+  // `Post()` batch complete. If not set (or set to `nullptr`), no callback is
+  // invoked on post receive completion.
+  virtual void SetRecvPostCallback(RecvCallback callback) = 0;
+
+  // Sets the callback invoked on the receiver when an individual incoming
+  // request completes. If not set (or set to `nullptr`), no callback is
+  // invoked on request receive completion.
+  virtual void SetRecvReqCallback(RecvCallback callback) = 0;
 
   // Registers a contiguous memory buffer of `length` bytes at the base `addr`.
   //

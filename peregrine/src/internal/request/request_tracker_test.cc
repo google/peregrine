@@ -12,6 +12,7 @@
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 
 namespace peregrine::internal::testing {
@@ -144,6 +145,29 @@ TEST_F(RequestTrackerTest, MultipleRequestsPartialProgress) {
   // Complete the second request.
   for (int i = 0; i < kNumChunks; ++i) {
     rt_.Update(kHandle, kReqId2, kNumChunks, chunk_t(i));
+  }
+  EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
+}
+
+TEST_F(RequestTrackerTest, RecvRequestInfo) {
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = kNumChunks,
+       .raddr = kBufferBaseAddr,
+       .total_len = 2048,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+
+  ASSERT_TRUE(rt_.Add(kHandle, reqs));
+  EXPECT_TRUE(rt_.Add(kHandle, reqs));  // Duplicate POST_INFO is idempotent.
+
+  ChunkTracker& recv = rt_.Find(kHandle, kReqId);
+  for (int i = 0; i < kNumChunks; ++i) {
+    EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
+    const chunk_t index(i);
+    ASSERT_EQ(recv.Acquire(index), ChunkTracker::ChunkStatus::kEmpty);
+    recv.Release(index, /*success=*/true);
   }
   EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 }
