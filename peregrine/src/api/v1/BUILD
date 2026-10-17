@@ -10,7 +10,10 @@ cc_library(
     hdrs = ["ip_util.h"],
     deps = [
         "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/routing:route",
         "//peregrine/src/internal/socket:socket_util",
+        "//peregrine/src/util:envvar",
+        "@abseil-cpp//absl/log",
     ],
 )
 

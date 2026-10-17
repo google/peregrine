@@ -47,6 +47,10 @@ class IpAddr final {
   // Otherwise, returns `std::nullopt`.
   static std::optional<IpAddr> Create(std::string_view ip);
 
+  // Parses the sockaddr `sa` and returns an `IpAddr` if successful.
+  // Otherwise, returns `std::nullopt`.
+  static std::optional<IpAddr> Create(const struct sockaddr& sa);
+
   // Default constructor.
   IpAddr() : ipaddr_() { DCHECK(IsIPv4()); }
 
@@ -77,6 +81,15 @@ class IpAddr final {
 
   // Returns the ipv6 address.
   const ipv6_t& IPv6Addr() const { return std::get<ipv6_t>(ipaddr_); }
+
+  // Returns a const pointer to the raw ip address data.
+  const void* Data() const {
+    return IsIPv4() ? static_cast<const void*>(&IPv4Addr().s_addr)
+                    : static_cast<const void*>(&IPv6Addr().s6_addr);
+  }
+
+  // Returns the length of the ip address data.
+  size_t Length() const { return IsIPv4() ? sizeof(ipv4_t) : sizeof(ipv6_t); }
 
   // Returns true iff the ip address is zero (i.e., "0.0.0.0" or "::").
   bool IsZero() const;

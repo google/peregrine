@@ -117,5 +117,33 @@ TEST(IpAddrTest, IsLoopback) {
   EXPECT_FALSE(IpAddr::Create("::ffff:10.0.0.1")->IsLoopback());
 }
 
+TEST(IpAddrTest, CreateFromSockaddr) {
+  const sockaddr* sa;
+
+  const sockaddr_in v4 = {
+      .sin_family = AF_INET,
+      .sin_addr = {.s_addr = htonl(INADDR_LOOPBACK)},
+  };
+  sa = reinterpret_cast<const sockaddr*>(&v4);
+  const std::optional<IpAddr> a4 = IpAddr::Create(*sa);
+  EXPECT_TRUE(a4.has_value());
+  EXPECT_TRUE(a4->IsIPv4());
+  EXPECT_EQ(a4->Data(), &a4->IPv4Addr().s_addr);
+  EXPECT_EQ(a4->Length(), sizeof(ipv4_t));
+  EXPECT_EQ(*a4, IpAddr::Create("127.0.0.1"));
+
+  const sockaddr_in6 v6 = {
+      .sin6_family = AF_INET6,
+      .sin6_addr = IN6ADDR_LOOPBACK_INIT,
+  };
+  sa = reinterpret_cast<const sockaddr*>(&v6);
+  const std::optional<IpAddr> a6 = IpAddr::Create(*sa);
+  EXPECT_TRUE(a6.has_value());
+  EXPECT_TRUE(a6->IsIPv6());
+  EXPECT_EQ(a6->Data(), a6->IPv6Addr().s6_addr);
+  EXPECT_EQ(a6->Length(), sizeof(ipv6_t));
+  EXPECT_EQ(*a6, IpAddr::Create("::1"));
+}
+
 }  // namespace
 }  // namespace peregrine::util::testing

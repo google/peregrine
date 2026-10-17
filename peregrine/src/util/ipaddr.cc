@@ -120,6 +120,17 @@ std::optional<IpAddr> IpAddr::Create(std::string_view ip) {
   return std::nullopt;
 }
 
+std::optional<IpAddr> IpAddr::Create(const struct sockaddr& sa) {
+  switch (sa.sa_family) {
+    case AF_INET:
+      return IpAddr(reinterpret_cast<const sockaddr_in*>(&sa)->sin_addr);
+    case AF_INET6:
+      return IpAddr(reinterpret_cast<const sockaddr_in6*>(&sa)->sin6_addr);
+    default:
+      return std::nullopt;
+  }
+}
+
 bool operator==(const IpAddr& a, const IpAddr& b) {
   if (a.IsIPv4() && b.IsIPv4()) {
     return a.IPv4Addr().s_addr == b.IPv4Addr().s_addr;
