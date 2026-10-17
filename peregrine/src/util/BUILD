@@ -83,6 +83,25 @@ cc_test(
 )
 
 cc_library(
+    name = "env",
+    srcs = ["env.cc"],
+    hdrs = ["env.h"],
+    deps = [
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "env_test",
+    srcs = ["env_test.cc"],
+    deps = [
+        ":env",
+        ":macro",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "ipaddr",
     srcs = ["ipaddr.cc"],
     hdrs = ["ipaddr.h"],
