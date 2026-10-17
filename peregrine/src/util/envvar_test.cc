@@ -40,48 +40,48 @@ constexpr char kEnvVar[] = "_PeregrineTestEnvVar_";
 
 TEST(EnvVarTest, UnsetVariable) {
   ::unsetenv(kEnvVar);
-  EXPECT_FALSE(util::IsEnvVarEnabled(kEnvVar));
-  EXPECT_FALSE(util::IsEnvVarDisabled(kEnvVar));
-  EXPECT_FALSE(util::IsEnvVarEnabled(""));
-  EXPECT_FALSE(util::IsEnvVarDisabled(""));
+  EXPECT_FALSE(IsEnvVarEnabled(kEnvVar));
+  EXPECT_FALSE(IsEnvVarDisabled(kEnvVar));
+  EXPECT_FALSE(IsEnvVarEnabled(""));
+  EXPECT_FALSE(IsEnvVarDisabled(""));
 }
 
 TEST(EnvVarTest, IsEnabled) {
   for (const char* value : {"1", "true", "TRUE", "yes", "Yes", "on", "On"}) {
     ScopedEnvVar ev(kEnvVar, value);
-    EXPECT_TRUE(util::IsEnvVarEnabled(kEnvVar)) << value;
-    EXPECT_FALSE(util::IsEnvVarDisabled(kEnvVar)) << value;
+    EXPECT_TRUE(IsEnvVarEnabled(kEnvVar)) << value;
+    EXPECT_FALSE(IsEnvVarDisabled(kEnvVar)) << value;
   }
 }
 
 TEST(EnvVarTest, IsDisabled) {
   for (const char* value : {"0", "false", "False", "No", "no", "Off", "off"}) {
     ScopedEnvVar ev(kEnvVar, value);
-    EXPECT_TRUE(util::IsEnvVarDisabled(kEnvVar)) << value;
-    EXPECT_FALSE(util::IsEnvVarEnabled(kEnvVar)) << value;
+    EXPECT_TRUE(IsEnvVarDisabled(kEnvVar)) << value;
+    EXPECT_FALSE(IsEnvVarEnabled(kEnvVar)) << value;
   }
 }
 
 TEST(EnvVarTest, UnrecognizedValue) {
   for (const char* value : {"", "2", "maybe", "_true", "on_"}) {
     ScopedEnvVar ev(kEnvVar, value);
-    EXPECT_FALSE(util::IsEnvVarEnabled(kEnvVar)) << "'" << value << "'";
-    EXPECT_FALSE(util::IsEnvVarDisabled(kEnvVar)) << "'" << value << "'";
+    EXPECT_FALSE(IsEnvVarEnabled(kEnvVar)) << "'" << value << "'";
+    EXPECT_FALSE(IsEnvVarDisabled(kEnvVar)) << "'" << value << "'";
   }
 }
 
 TEST(EnvVarTest, EnvVarMatchesAnyIgnoreCase) {
   ScopedEnvVar ev(kEnvVar, "value");
-  EXPECT_TRUE(util::EnvVarMatchesAnyIgnoreCase(kEnvVar, {"value", "VALUE"}));
-  EXPECT_FALSE(util::EnvVarMatchesAnyIgnoreCase(kEnvVar, {"other", "OTHER"}));
-  EXPECT_FALSE(util::EnvVarMatchesAnyIgnoreCase(kEnvVar, {}));
+  EXPECT_TRUE(EnvVarMatchesAnyIgnoreCase(kEnvVar, {"value", "VALUE"}));
+  EXPECT_FALSE(EnvVarMatchesAnyIgnoreCase(kEnvVar, {"other", "OTHER"}));
+  EXPECT_FALSE(EnvVarMatchesAnyIgnoreCase(kEnvVar, {}));
 }
 
 TEST(EnvVarTest, EnvVarMatchesAnyIgnoreCaseUnset) {
   ::unsetenv(kEnvVar);
-  EXPECT_FALSE(util::EnvVarMatchesAnyIgnoreCase(kEnvVar, {"value"}));
-  EXPECT_FALSE(util::EnvVarMatchesAnyIgnoreCase(kEnvVar, {""}));
-  EXPECT_FALSE(util::EnvVarMatchesAnyIgnoreCase(kEnvVar, {}));
+  EXPECT_FALSE(EnvVarMatchesAnyIgnoreCase(kEnvVar, {"value"}));
+  EXPECT_FALSE(EnvVarMatchesAnyIgnoreCase(kEnvVar, {""}));
+  EXPECT_FALSE(EnvVarMatchesAnyIgnoreCase(kEnvVar, {}));
 }
 
 }  // namespace

@@ -2,14 +2,13 @@
 #define PEREGRINE_SRC_UTIL_IPADDR_H_
 
 #include <netinet/in.h>
-#include <sys/types.h>
-#include <sys/uio.h>
 
 #include <cstddef>
 #include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 
 #include "absl/hash/hash.h"
@@ -47,14 +46,18 @@ class IpAddr final {
   // Otherwise, returns `std::nullopt`.
   static std::optional<IpAddr> Create(std::string_view ip);
 
+  // Parses the sockaddr `sa` and returns an `IpAddr` if successful.
+  // Otherwise, returns `std::nullopt`.
+  static std::optional<IpAddr> Create(const struct sockaddr& sa);
+
   // Default constructor.
   IpAddr() : ipaddr_() { DCHECK(IsIPv4()); }
 
   // Constructor for ipv4.
-  IpAddr(const ipv4_t& ip4) : ipaddr_(ip4) {}
+  explicit IpAddr(const ipv4_t& ip4) : ipaddr_(ip4) {}
 
   // Constructor for ipv6.
-  IpAddr(const ipv6_t& ip6) : ipaddr_(ip6) {}
+  explicit IpAddr(const ipv6_t& ip6) : ipaddr_(ip6) {}
 
   // Allows copy/move.
   ALLOW_COPY(IpAddr);
@@ -77,6 +80,16 @@ class IpAddr final {
 
   // Returns the ipv6 address.
   const ipv6_t& IPv6Addr() const { return std::get<ipv6_t>(ipaddr_); }
+
+  // Returns a const pointer to the raw ip address data and its length.
+  std::pair<const void*, size_t> RawAddrAndLen() const {
+    if (IsIPv4()) {
+      return {static_cast<const void*>(&IPv4Addr().s_addr), sizeof(ipv4_t)};
+    } else {
+      DCHECK(IsIPv6());
+      return {static_cast<const void*>(&IPv6Addr().s6_addr), sizeof(ipv6_t)};
+    }
+  }
 
   // Returns true iff the ip address is zero (i.e., "0.0.0.0" or "::").
   bool IsZero() const;

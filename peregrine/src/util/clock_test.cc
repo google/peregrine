@@ -8,8 +8,8 @@ namespace {
 
 TEST(ClockTest, MonotonicNow) {
   for (int i = 0; i < 1000; ++i) {
-    const absl::Duration a = util::MonotonicNow();
-    const absl::Duration b = util::MonotonicNow();
+    const absl::Duration a = MonotonicNow();
+    const absl::Duration b = MonotonicNow();
     EXPECT_LE(a, b);
   }
 }

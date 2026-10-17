@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <ifaddrs.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -16,24 +17,18 @@
 #include <utility>
 #include <vector>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "peregrine/src/util/errno.h"
 #include "peregrine/src/util/ipaddr.h"
 
 namespace peregrine::util {
-
-namespace {
-std::string ErrMsg(const std::string_view msg, const Errno err) {
-  return absl::StrFormat("%s errno=%d(%s)", msg, err.value(),
-                         std::strerror(err.value()));
-}
-}  // namespace
 
 absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics() {
   absl::flat_hash_map<std::string, std::vector<std::string>> ifc_ips;
@@ -41,13 +36,14 @@ absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics() {
   // Retrieve the interfaces list.
   struct ifaddrs* interfaces = nullptr;
   if (getifaddrs(&interfaces) < 0 || interfaces == nullptr) {
-    const Errno err(errno);
-    LOG(WARNING) << ErrMsg("getifaddrs", err);
+    LOG(WARNING) << absl::ErrnoToStatus(errno, "getifaddrs").ToString();
     return ifc_ips;
   }
 
+  // Free the interfaces list when done.
+  absl::Cleanup cleanup = [interfaces] { freeifaddrs(interfaces); };
+
   // Collect the IP addresses.
-  DCHECK_NE(interfaces, nullptr);
   for (struct ifaddrs* ifa = interfaces; ifa != nullptr; ifa = ifa->ifa_next) {
     const struct sockaddr* sa = ifa->ifa_addr;
     if (sa == nullptr) continue;
@@ -73,9 +69,38 @@ absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics() {
       ifc_ips[name].push_back(ip);
     }
   }
-
-  freeifaddrs(interfaces);
   return ifc_ips;
+}
+
+absl::StatusOr<int> FindNic(const IpAddr& ip) {
+  // Retrieve the interfaces list.
+  struct ifaddrs* interfaces = nullptr;
+  if (getifaddrs(&interfaces) < 0 || interfaces == nullptr) {
+    return absl::ErrnoToStatus(errno, "getifaddrs");
+  }
+
+  // Free the interfaces list when done.
+  absl::Cleanup cleanup = [interfaces] { freeifaddrs(interfaces); };
+
+  // Collect the interface index for the given IP address.
+  for (struct ifaddrs* ifa = interfaces; ifa != nullptr; ifa = ifa->ifa_next) {
+    const struct sockaddr* sa = ifa->ifa_addr;
+    if (sa == nullptr) continue;
+
+    const int family = sa->sa_family;
+    if (family != ip.AddressFamily()) continue;
+    if (IpAddr::Create(*sa) != ip) continue;
+
+    // if_nametoindex() returns 0 if it fails to find or resolve the nic.
+    const char* name = ifa->ifa_name;
+    const auto index = if_nametoindex(name);
+    if (index > 0) return index;
+
+    const std::string s = absl::StrCat("if_nametoindex(", name, ")");
+    return absl::ErrnoToStatus(errno, s);
+  }
+
+  return absl::NotFoundError(absl::StrCat("no nic found for ", ip.ToString()));
 }
 
 namespace {
@@ -98,18 +123,18 @@ bool IsRoutable(const struct in6_addr& addr) {
 }
 
 // Returns the ip addr in the given family if it is routable.
-std::optional<util::IpAddr> GetRoutableIpAddr(const std::string& ip,
-                                              const int family) {
+std::optional<IpAddr> GetRoutableIpAddr(const std::string& ip,
+                                        const int family) {
   if (family == AF_INET || family == AF_UNSPEC) {
     struct in_addr ip4;
     if (inet_pton(AF_INET, ip.c_str(), &ip4) == 1 && IsRoutable(ip4)) {
-      return util::IpAddr(ip4);
+      return IpAddr(ip4);
     }
   }
   if (family == AF_INET6 || family == AF_UNSPEC) {
     struct in6_addr ip6;
     if (inet_pton(AF_INET6, ip.c_str(), &ip6) == 1 && IsRoutable(ip6)) {
-      return util::IpAddr(ip6);
+      return IpAddr(ip6);
     }
   }
   return std::nullopt;
@@ -141,7 +166,7 @@ absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
 
     std::vector<IpAddr> addrs;
     for (const auto& ip : ips) {
-      const std::optional<util::IpAddr> a = GetRoutableIpAddr(ip, family);
+      const std::optional<IpAddr> a = GetRoutableIpAddr(ip, family);
       if (a.has_value()) addrs.push_back(*a);
     }
     if (!addrs.empty()) {

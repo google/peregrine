@@ -106,13 +106,10 @@ cc_library(
     srcs = ["ipaddr.cc"],
     hdrs = ["ipaddr.h"],
     deps = [
-        ":errno",
         ":macro",
         "@abseil-cpp//absl/hash",
-        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -132,13 +129,14 @@ cc_library(
     srcs = ["nic.cc"],
     hdrs = ["nic.h"],
     deps = [
-        ":errno",
         ":ipaddr",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/strings:str_format",
     ],
 )
 
@@ -150,6 +148,8 @@ cc_test(
         ":nic",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
     ],
 )
