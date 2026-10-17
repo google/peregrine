@@ -83,19 +83,19 @@ cc_test(
 )
 
 cc_library(
-    name = "env",
-    srcs = ["env.cc"],
-    hdrs = ["env.h"],
+    name = "envvar",
+    srcs = ["envvar.cc"],
+    hdrs = ["envvar.h"],
     deps = [
         "@abseil-cpp//absl/strings",
     ],
 )
 
 cc_test(
-    name = "env_test",
-    srcs = ["env_test.cc"],
+    name = "envvar_test",
+    srcs = ["envvar_test.cc"],
     deps = [
-        ":env",
+        ":envvar",
         ":macro",
         "@googletest//:gtest_main",
     ],
