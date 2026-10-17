@@ -5,7 +5,6 @@
 
 #include <cerrno>
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -14,8 +13,8 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/util/errno.h"
 
@@ -29,15 +28,15 @@ std::string OkMsg(std::string_view what, fd_t fd) {
 }
 
 std::string ErrMsg(const std::string_view what, const Errno err) {
-  return absl::StrFormat("epoll %s failed: errno=%d (%s)", what, err.value(),
-                         std::strerror(err.value()));
+  return absl::ErrnoToStatus(err.value(), what).ToString();
 }
 }  // namespace
 
 std::unique_ptr<Poller> Poller::Create() {
   const int ret = ::epoll_create1(/*flags=*/EPOLL_CLOEXEC);
   if ABSL_PREDICT_FALSE (ret < 0) {
-    LOG(ERROR) << ErrMsg("create", Errno(errno));
+    const Errno err(errno);
+    LOG(ERROR) << ErrMsg("epoll_create1", err);
     return nullptr;
   }
   const fd_t epoll_fd(ret);
@@ -58,7 +57,7 @@ int Poller::Register(const fd_t fd, const uint32_t events) {
   };
   if (::epoll_ctl(epoll_fd_.value(), EPOLL_CTL_ADD, fd.value(), &ev) < 0) {
     const Errno err(errno);
-    LOG(ERROR) << ErrMsg("register", err);
+    LOG(ERROR) << ErrMsg("epoll_ctl", err);
     return -1;
   }
   LOG(INFO) << OkMsg("registered", fd);
@@ -68,7 +67,7 @@ int Poller::Register(const fd_t fd, const uint32_t events) {
 int Poller::Unregister(const fd_t fd) {
   if (::epoll_ctl(epoll_fd_.value(), EPOLL_CTL_DEL, fd.value(), nullptr) < 0) {
     const Errno err(errno);
-    LOG(ERROR) << ErrMsg("unregister", err);
+    LOG(ERROR) << ErrMsg("epoll_ctl", err);
     return -1;
   }
   LOG(INFO) << OkMsg("unregistered", fd);
@@ -85,7 +84,7 @@ int Poller::BlockingWait(epoll_event* const events, const int max_events,
   if ABSL_PREDICT_FALSE (nfds < 0) {
     const Errno err(errno);
     if (err.value() == EINTR) return 0;
-    LOG_EVERY_N_SEC(ERROR, 1) << ErrMsg("blocking wait", err);
+    LOG_EVERY_N_SEC(ERROR, 1) << ErrMsg("epoll_wait", err);
   }
   return nfds;
 }

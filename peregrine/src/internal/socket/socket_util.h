@@ -9,8 +9,8 @@
 #include <string>
 #include <string_view>
 
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
-#include "absl/strings/str_format.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/util/errno.h"
@@ -89,15 +89,15 @@ inline std::string SuccessMsg(std::string_view who, std::string_view what,
 // Returns an error message for the last socket operation.
 inline std::string ErrorMsg(std::string_view who, std::string_view what,
                             fd_t fd, util::Errno err) {
-  return absl::StrFormat("%s socket %s failed: fd=%d %s errno=%d (%s)", who,
-                         what, fd.value(), AddrPortPair(fd), err.value(),
-                         std::strerror(err.value()));
+  const auto s = absl::StrCat(who, " socket ", what, " failed: fd=", fd.value(),
+                              " ", AddrPortPair(fd));
+  return absl::ErrnoToStatus(err.value(), s).ToString();
 }
 
 // Returns an error message for the last socket operation.
 inline std::string ErrorMsg(std::string_view what, util::Errno err) {
-  return absl::StrFormat("socket %s failed: errno=%d (%s)", what, err.value(),
-                         std::strerror(err.value()));
+  const auto s = absl::StrCat("socket ", what, " failed");
+  return absl::ErrnoToStatus(err.value(), s).ToString();
 }
 
 }  // namespace peregrine::internal

@@ -35,15 +35,14 @@ namespace peregrine::internal {
 namespace {
 using util::Errno;
 
-inline std::string ErrMsg(std::string_view what, fd_t fd, Errno err) {
-  return absl::StrFormat("tcp socket %s failed: fd=%d %s errno=%d (%s)", what,
-                         fd.value(), AddrPortPair(fd), err.value(),
-                         std::strerror(err.value()));
-}
-
 inline std::string ErrMsg(std::string_view what, fd_t fd) {
   return absl::StrFormat("tcp socket %s failed: fd=%d %s", what, fd.value(),
                          AddrPortPair(fd));
+}
+
+inline std::string ErrMsg(std::string_view what, fd_t fd, Errno err) {
+  const std::string s = ErrMsg(what, fd);
+  return absl::ErrnoToStatus(err.value(), s).ToString();
 }
 
 inline absl::Duration GetDeadline(int timeout_ms) {
