@@ -6,6 +6,30 @@ load("@rules_cc//cc:cc_test.bzl", "cc_test")
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "ip_util",
+    hdrs = ["ip_util.h"],
+    deps = [
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/socket:socket_util",
+    ],
+)
+
+cc_test(
+    name = "ip_util_test",
+    srcs = ["ip_util_test.cc"],
+    deps = [
+        ":ip_util",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/socket:socket_udp",
+        "//peregrine/src/internal/util:test_util",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "histogram",
     hdrs = ["histogram.h"],
     deps = [
