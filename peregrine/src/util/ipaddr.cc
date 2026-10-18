@@ -4,15 +4,46 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include <cstdint>
 #include <cstring>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/log/check.h"
 #include "absl/strings/match.h"
 
 namespace peregrine::util {
+
+namespace {
+// Returns true iff the ipv4 address is routable.
+bool IsIpv4Routable(const struct in_addr& addr) {
+  const uint32_t a = ntohl(addr.s_addr);
+  if (a == 0) return false;             // INADDR_ANY
+  if (a >> 28 == 0xE) return false;     // RFC 1112: Multicast (224.0.0.0/4)
+  if (a >> 16 == 0xA9FE) return false;  // RFC 3927: Link-Local (169.254.0.0/16)
+  return true;
+}
+
+// Returns true iff the ipv6 address is routable.
+bool IsIpv6Routable(const struct in6_addr& addr) {
+  if (IN6_IS_ADDR_UNSPECIFIED(&addr)) return false;
+  if (IN6_IS_ADDR_MULTICAST(&addr)) return false;
+  if (IN6_IS_ADDR_LINKLOCAL(&addr)) return false;
+  if (IN6_IS_ADDR_SITELOCAL(&addr)) return false;
+  return true;
+}
+}  // namespace
+
+bool IpAddr::IsRoutable() const {
+  if (IsIPv4()) {
+    return IsIpv4Routable(IPv4Addr());
+  } else {
+    DCHECK(IsIPv6());
+    return IsIpv6Routable(IPv6Addr());
+  }
+}
 
 bool IpAddr::IsZero() const {
   if (IsIPv4()) {
@@ -34,6 +65,15 @@ bool IpAddr::IsLoopback() const {
     if (IN6_IS_ADDR_LOOPBACK(&ip6)) return true;
     if (IN6_IS_ADDR_V4MAPPED(&ip6)) return ip6.s6_addr[12] == 0x7F;
     return false;
+  }
+}
+
+std::pair<const void*, size_t> IpAddr::RawAddrAndLen() const {
+  if (IsIPv4()) {
+    return {static_cast<const void*>(&IPv4Addr().s_addr), sizeof(ipv4_t)};
+  } else {
+    DCHECK(IsIPv6());
+    return {static_cast<const void*>(&IPv6Addr().s6_addr), sizeof(ipv6_t)};
   }
 }
 

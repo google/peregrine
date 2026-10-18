@@ -82,20 +82,16 @@ class IpAddr final {
   const ipv6_t& IPv6Addr() const { return std::get<ipv6_t>(ipaddr_); }
 
   // Returns a const pointer to the raw ip address data and its length.
-  std::pair<const void*, size_t> RawAddrAndLen() const {
-    if (IsIPv4()) {
-      return {static_cast<const void*>(&IPv4Addr().s_addr), sizeof(ipv4_t)};
-    } else {
-      DCHECK(IsIPv6());
-      return {static_cast<const void*>(&IPv6Addr().s6_addr), sizeof(ipv6_t)};
-    }
-  }
+  std::pair<const void*, size_t> RawAddrAndLen() const;
 
   // Returns true iff the ip address is zero (i.e., "0.0.0.0" or "::").
   bool IsZero() const;
 
   // Returns true iff the ip address is a loopback address.
   bool IsLoopback() const;
+
+  // Returns true iff the ip address is routable.
+  bool IsRoutable() const;
 
   // Equality operator.
   friend bool operator==(const IpAddr& a, const IpAddr& b);

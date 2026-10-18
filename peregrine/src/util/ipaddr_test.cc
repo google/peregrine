@@ -14,6 +14,31 @@
 namespace peregrine::util::testing {
 namespace {
 
+TEST(IpAddrTest, DefaultConstructedIsIPv4Zero) {
+  const IpAddr a;
+  EXPECT_TRUE(a.IsIPv4());
+  EXPECT_FALSE(a.IsIPv6());
+  EXPECT_TRUE(a.IsZero());
+  EXPECT_FALSE(a.IsLoopback());
+  EXPECT_FALSE(a.IsRoutable());
+  EXPECT_EQ(a, IpAddr::Create("0.0.0.0"));
+}
+
+TEST(IpAddrTest, EqualityAcrossFamilies) {
+  const IpAddr v4 = *IpAddr::Create("127.0.0.1");
+  const IpAddr v6 = *IpAddr::Create("::1");
+  const IpAddr mapped = *IpAddr::Create("::ffff:127.0.0.1");
+  const IpAddr zero4 = *IpAddr::Create("0.0.0.0");
+  const IpAddr zero6 = *IpAddr::Create("::");
+
+  EXPECT_NE(v4, v6);
+  EXPECT_NE(v4, mapped);
+  EXPECT_NE(v6, mapped);
+  EXPECT_NE(zero4, zero6);
+  EXPECT_EQ(v4, *IpAddr::Create("127.0.0.1"));
+  EXPECT_EQ(mapped, *IpAddr::Create("::ffff:7f00:1"));
+}
+
 TEST(IPv4AddrTest, ParseIPv4Addr) {
   const std::optional<ipv4_t> a = ParseIPv4Addr("0.0.0.0");
   EXPECT_TRUE(a.has_value());
@@ -150,6 +175,33 @@ TEST(IpAddrTest, CreateFromSockaddr) {
   EXPECT_FALSE(IpAddr::Create(unspec).has_value());
   const sockaddr packet = {.sa_family = AF_PACKET};
   EXPECT_FALSE(IpAddr::Create(packet).has_value());
+}
+
+TEST(IpAddrTest, IsRoutableIPv4) {
+  // Routable: loopback and private ranges.
+  for (const char* s :
+       {"127.0.0.1", "10.0.0.1", "172.16.0.1", "192.168.1.1", "8.8.8.8",
+        "1.0.0.1", "223.255.255.255", "169.253.255.255", "169.255.0.0"}) {
+    EXPECT_TRUE(IpAddr::Create(s)->IsRoutable()) << s;
+  }
+  // Non-routable: unspecified, multicast and link-local.
+  for (const char* s : {"0.0.0.0", "224.0.0.1", "239.255.255.255",
+                        "169.254.0.1", "169.254.255.255"}) {
+    EXPECT_FALSE(IpAddr::Create(s)->IsRoutable()) << s;
+  }
+}
+
+TEST(IpAddrTest, IsRoutableIPv6) {
+  // Routable: loopback, ULA (fc00::/7) and IPv4-mapped, etc.
+  for (const char* s : {"::1", "2001:db8::1", "2600::1", "fd00::1", "fc00::1",
+                        "::ffff:10.0.0.1", "fe7f::1"}) {
+    EXPECT_TRUE(IpAddr::Create(s)->IsRoutable()) << s;
+  }
+  // Non-routable: unspecified, multicast, link-local and site-local.
+  for (const char* s : {"::", "ff02::1", "ff0e::1", "fe80::1", "febf::1",
+                        "fec0::1", "feff::1"}) {
+    EXPECT_FALSE(IpAddr::Create(s)->IsRoutable()) << s;
+  }
 }
 
 }  // namespace
