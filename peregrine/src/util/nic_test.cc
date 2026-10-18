@@ -58,6 +58,17 @@ TEST(NicsTest, FindRoutableIpAddrs) {
   PrintIps("IPv6", FindRoutableIpAddrs(AF_INET6));
 }
 
+TEST(NicsTest, PickOneNonLoopbackIpAddr) {
+  for (int family : {AF_INET, AF_INET6}) {
+    const auto ip = TestOnly_PickOneNonLoopbackIpAddr(family);
+    if (ip.has_value()) {
+      LOG(INFO) << "Family " << family << ": " << *ip;
+    } else {
+      LOG(INFO) << "Family " << family << ": no non-loopback IP found";
+    }
+  }
+}
+
 TEST(NicsTest, ToString) {
   const IpAddr ip1 = *IpAddr::Create("192.168.1.1");
   const IpAddr ip2 = *IpAddr::Create("10.0.0.1");

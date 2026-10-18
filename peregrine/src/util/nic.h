@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 
 #include <cstdint>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -56,6 +57,10 @@ absl::StatusOr<int> FindNic(const IpAddr& target);
 // non-bridge interfaces matching `family` (AF_UNSPEC, AF_INET, or AF_INET6).
 absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     int family = AF_UNSPEC);
+
+// Returns an arbitrary non-loopback ip address of `family` (AF_INET/AF_INET6)
+// on this host, or std::nullopt if it has none.
+std::optional<IpAddr> TestOnly_PickOneNonLoopbackIpAddr(int family);
 
 }  // namespace peregrine::util
 

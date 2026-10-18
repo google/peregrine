@@ -160,6 +160,18 @@ absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
   return ifc_ips;
 }
 
+std::optional<IpAddr> TestOnly_PickOneNonLoopbackIpAddr(int family) {
+  for (const auto& [ifc, ips] : EnumerateNics()) {
+    if (IsBridgeInterface(ifc)) continue;
+    for (const auto& ip : ips) {
+      const std::optional<IpAddr> a = GetRoutableIpAddr(ip, family);
+      if (!a.has_value() || a->IsLoopback()) continue;
+      return a.value();
+    }
+  }
+  return std::nullopt;
+}
+
 std::string ToString(const NicType t) {
   switch (t) {
     case NicType::kIP:
