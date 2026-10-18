@@ -47,8 +47,9 @@ inline std::ostream& operator<<(std::ostream& os, const NicInfo& ni) {
 // Enumerates the network interface cards (NICs) on the local machine.
 absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics();
 
-// Returns the NIC index (>= 1) that owns the given `ip` address, or an error.
-absl::StatusOr<int> FindNic(const IpAddr& ip);
+// Returns the NIC index (>= 1) that owns the given `target` ip address.
+// Returns an error otherwise.
+absl::StatusOr<int> FindNic(const IpAddr& target);
 
 // Returns a map of `interface -> NicInfo` with routable IP addresses (including
 // loopback, excluding unspecified, multicast, link-local, and site-local) on

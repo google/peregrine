@@ -4,12 +4,10 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <netdb.h>
-#include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include <cerrno>
-#include <cstdint>
 #include <cstring>
 #include <optional>
 #include <string>
@@ -29,6 +27,45 @@
 #include "peregrine/src/util/ipaddr.h"
 
 namespace peregrine::util {
+
+namespace {
+// Returns true iff the file at `/sys/class/net/<ifc>/<suffix>` exists.
+bool Exists(const std::string_view ifc, const std::string_view suffix) {
+  const auto s = absl::StrCat("/sys/class/net/", ifc, suffix);
+  return access(s.c_str(), F_OK) == 0;
+}
+
+// Returns true iff the interface `ifc` is a software bridge (e.g., docker0,
+// virbr0, gbmcbr).
+bool IsBridgeInterface(const std::string_view ifc) {
+  return Exists(ifc, "/bridge");
+}
+
+// Returns true iff the interface `ifc` is under the RDMA/InfiniBand subsystem.
+bool IsRdmaInterface(const std::string_view ifc) {
+  return Exists(ifc, "/device/infiniband");
+}
+
+// Returns the ip addr in the given family if it is routable.
+std::optional<IpAddr> GetRoutableIpAddr(const std::string& ip,
+                                        const int family) {
+  if (family == AF_INET || family == AF_UNSPEC) {
+    struct in_addr ip4;
+    if (inet_pton(AF_INET, ip.c_str(), &ip4) == 1) {
+      const IpAddr a(ip4);
+      if (a.IsRoutable()) return a;
+    }
+  }
+  if (family == AF_INET6 || family == AF_UNSPEC) {
+    struct in6_addr ip6;
+    if (inet_pton(AF_INET6, ip.c_str(), &ip6) == 1) {
+      const IpAddr a(ip6);
+      if (a.IsRoutable()) return a;
+    }
+  }
+  return std::nullopt;
+}
+}  // namespace
 
 absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics() {
   absl::flat_hash_map<std::string, std::vector<std::string>> ifc_ips;
@@ -72,7 +109,7 @@ absl::flat_hash_map<std::string, std::vector<std::string>> EnumerateNics() {
   return ifc_ips;
 }
 
-absl::StatusOr<int> FindNic(const IpAddr& ip) {
+absl::StatusOr<int> FindNic(const IpAddr& target) {
   // Retrieve the interfaces list.
   struct ifaddrs* interfaces = nullptr;
   if (getifaddrs(&interfaces) < 0 || interfaces == nullptr) {
@@ -88,75 +125,21 @@ absl::StatusOr<int> FindNic(const IpAddr& ip) {
     if (sa == nullptr) continue;
 
     const int family = sa->sa_family;
-    if (family != ip.AddressFamily()) continue;
-    if (IpAddr::Create(*sa) != ip) continue;
+    if (family != target.AddressFamily()) continue;
+    if (IpAddr::Create(*sa) != target) continue;
 
     // if_nametoindex() returns 0 if it fails to find or resolve the nic.
     const char* name = ifa->ifa_name;
     const auto index = if_nametoindex(name);
     if (index > 0) return index;
 
-    const std::string s = absl::StrCat("if_nametoindex(", name, ")");
+    const auto s = absl::StrCat("if_nametoindex(", name, ")");
     return absl::ErrnoToStatus(errno, s);
   }
 
-  return absl::NotFoundError(absl::StrCat("no nic found for ", ip.ToString()));
+  const auto s = absl::StrCat("no nic found for ", target.ToString());
+  return absl::NotFoundError(s);
 }
-
-namespace {
-// Returns true iff the ipv4 address is routable.
-bool IsRoutable(const struct in_addr& addr) {
-  const uint32_t a = ntohl(addr.s_addr);
-  if (a == 0) return false;             // INADDR_ANY
-  if (a >> 28 == 0xE) return false;     // RFC 1112: Multicast (224.0.0.0/4)
-  if (a >> 16 == 0xA9FE) return false;  // RFC 3927: Link-Local (169.254.0.0/16)
-  return true;
-}
-
-// Returns true iff the ipv6 address is routable.
-bool IsRoutable(const struct in6_addr& addr) {
-  if (IN6_IS_ADDR_UNSPECIFIED(&addr)) return false;
-  if (IN6_IS_ADDR_MULTICAST(&addr)) return false;
-  if (IN6_IS_ADDR_LINKLOCAL(&addr)) return false;
-  if (IN6_IS_ADDR_SITELOCAL(&addr)) return false;
-  return true;
-}
-
-// Returns the ip addr in the given family if it is routable.
-std::optional<IpAddr> GetRoutableIpAddr(const std::string& ip,
-                                        const int family) {
-  if (family == AF_INET || family == AF_UNSPEC) {
-    struct in_addr ip4;
-    if (inet_pton(AF_INET, ip.c_str(), &ip4) == 1 && IsRoutable(ip4)) {
-      return IpAddr(ip4);
-    }
-  }
-  if (family == AF_INET6 || family == AF_UNSPEC) {
-    struct in6_addr ip6;
-    if (inet_pton(AF_INET6, ip.c_str(), &ip6) == 1 && IsRoutable(ip6)) {
-      return IpAddr(ip6);
-    }
-  }
-  return std::nullopt;
-}
-
-// Returns true iff the file at `/sys/class/net/<ifc>/<suffix>` exists.
-bool Exists(const std::string_view ifc, const std::string_view suffix) {
-  const std::string s = absl::StrCat("/sys/class/net/", ifc, suffix);
-  return access(s.c_str(), F_OK) == 0;
-}
-
-// Returns true iff the interface `ifc` is a software bridge (e.g., docker0,
-// virbr0, gbmcbr).
-bool IsBridgeInterface(const std::string_view ifc) {
-  return Exists(ifc, "/bridge");
-}
-
-// Returns true iff the interface `ifc` is under the RDMA/InfiniBand subsystem.
-bool IsRdmaInterface(const std::string_view ifc) {
-  return Exists(ifc, "/device/infiniband");
-}
-}  // namespace
 
 absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     const int family) {
