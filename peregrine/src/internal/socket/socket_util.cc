@@ -12,6 +12,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/util/errno.h"
@@ -48,6 +49,21 @@ bool IsBlockingMode(const fd_t fd) {
 bool IsNonBlockingMode(const fd_t fd) {
   const int flags = ::fcntl(fd.value(), F_GETFL);
   return flags >= 0 && (flags & O_NONBLOCK);
+}
+
+absl::Duration GetTimeout(const fd_t fd, const bool send) {
+  const int opt = send ? SO_SNDTIMEO : SO_RCVTIMEO;
+  timeval tv = {};
+  socklen_t len = sizeof(tv);
+  const int ret = GetSocketOption(fd, opt, &tv, &len);
+  return ret == 0 ? absl::DurationFromTimeval(tv) : absl::ZeroDuration();
+}
+
+int SetTimeout(fd_t fd, bool send, absl::Duration timeout) {
+  DCHECK_GE(timeout, absl::ZeroDuration());
+  const int opt = send ? SO_SNDTIMEO : SO_RCVTIMEO;
+  const timeval tv = absl::ToTimeval(timeout);
+  return SetSocketOption(fd, opt, &tv, sizeof(tv));
 }
 
 namespace {

@@ -17,6 +17,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -44,6 +45,7 @@ cc_test(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/util:test_param",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
 )
@@ -91,10 +93,12 @@ cc_library(
         "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/util:errno",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
     ],
 )
 

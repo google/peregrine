@@ -11,6 +11,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/time.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/util/errno.h"
@@ -48,6 +49,14 @@ bool IsNonBlockingMode(fd_t fd);
 inline bool MatchesBlockingMode(fd_t fd, bool blocking) {
   return blocking ? IsBlockingMode(fd) : IsNonBlockingMode(fd);
 }
+
+// Returns the SO_{SND|RCV}TIMEO value of the socket `fd`.
+// Returns absl::ZeroDuration() if unset or unreadable.
+absl::Duration GetTimeout(fd_t fd, bool send);
+
+// Sets the SO_{SND|RCV}TIMEO value for the socket `fd`.
+// Return 0 on success, -1 otherwise.
+int SetTimeout(fd_t fd, bool send, absl::Duration timeout);
 
 // Returns the address family of the socket `fd`.
 sa_family_t AddrFamily(fd_t fd);

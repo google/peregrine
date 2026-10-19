@@ -11,6 +11,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "absl/time/time.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/util/test_param.h"
@@ -64,6 +65,14 @@ TEST_P(SocketUtilTest, Basic) {
     int on = 1, off = 0;
     EXPECT_TRUE(!SetSocketOption(fd, SO_REUSEADDR, &on, sizeof(on)));
     EXPECT_TRUE(!SetSocketOption(fd, SO_REUSEADDR, &off, sizeof(off)));
+
+    for (bool send : {true, false}) {
+      EXPECT_EQ(GetTimeout(fd, send), absl::ZeroDuration());
+      EXPECT_EQ(SetTimeout(fd, send, absl::Seconds(1)), 0);
+      EXPECT_EQ(GetTimeout(fd, send), absl::Seconds(1));
+      EXPECT_EQ(SetTimeout(fd, send, absl::ZeroDuration()), 0);
+      EXPECT_EQ(GetTimeout(fd, send), absl::ZeroDuration());
+    }
 
     int err = -3;
     socklen_t len = sizeof(err);
