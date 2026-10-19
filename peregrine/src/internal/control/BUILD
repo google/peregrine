@@ -9,32 +9,38 @@ package(default_visibility = ["//peregrine/src/internal:internal_impl"])
 proto_library(
     name = "message_internal_proto",
     srcs = ["message_internal.proto"],
+    visibility = ["//visibility:public"],
 )
 
 cc_proto_library(
     name = "message_internal_cc_proto",
+    visibility = ["//visibility:public"],
     deps = [":message_internal_proto"],
 )
 
 proto_library(
     name = "message_proto",
     srcs = ["message.proto"],
+    visibility = ["//visibility:public"],
     deps = [":message_internal_proto"],
 )
 
 cc_proto_library(
     name = "message_cc_proto",
+    visibility = ["//visibility:public"],
     deps = [":message_proto"],
 )
 
 proto_library(
     name = "service_proto",
     srcs = ["service.proto"],
+    visibility = ["//visibility:public"],
     deps = [":message_proto"],  # Do NOT add any new dependencies here!
 )
 
 cc_proto_library(
     name = "service_cc_proto",
+    visibility = ["//visibility:public"],
     deps = [":service_proto"],
 )
 
@@ -42,6 +48,7 @@ cc_grpc_library(
     name = "service_cc_grpc_proto",
     srcs = [":service_proto"],
     grpc_only = True,
+    visibility = ["//visibility:public"],
     deps = [":service_cc_proto"],
 )
 
