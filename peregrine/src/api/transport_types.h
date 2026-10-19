@@ -8,6 +8,7 @@
 #include <ostream>
 #include <string>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/types/span.h"
 #include "peregrine/src/util/strong_int.h"
 
@@ -76,6 +77,11 @@ enum class Status : int {
   kSuccess = 0,
   kFailure = -1,
 };
+
+// Callback invoked on the receiver when an incoming `Post()` batch or
+// individual `Request` completes.
+using RecvCallback =
+    absl::AnyInvocable<void(Status, const Metadata& metadata) const>;
 
 // Returns true iff the transport operation is still in progress.
 constexpr bool IsInProgress(const Status s) { return s == Status::kInProgress; }

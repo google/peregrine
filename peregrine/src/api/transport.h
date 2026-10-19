@@ -47,6 +47,16 @@ class Transport {
   // call this `Poll()` function.
   virtual absl::StatusOr<Status> Poll(Handle handle) = 0;
 
+  // Sets the callback invoked on the receiver when all requests in an incoming
+  // `Post()` batch complete. If not set (or set to `nullptr`), no callback is
+  // invoked on post receive completion.
+  virtual void SetRecvPostCallback(RecvCallback callback) = 0;
+
+  // Sets the callback invoked on the receiver when an individual incoming
+  // request completes. If not set (or set to `nullptr`), no callback is
+  // invoked on request receive completion.
+  virtual void SetRecvReqCallback(RecvCallback callback) = 0;
+
   // Registers a contiguous memory buffer of `length` bytes at the base `addr`.
   //
   // Pins the memory buffer in physical address space for RDMA access.

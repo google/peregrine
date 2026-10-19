@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
@@ -61,6 +62,18 @@ class TransportImpl final : public Transport {
   // call this `Poll()` function.
   absl::StatusOr<Status> Poll(Handle handle) override {
     return engine_->QueryUpdate(handle);
+  }
+
+  // Sets the callback invoked on the receiver when all requests in an incoming
+  // `Post()` batch complete.
+  void SetRecvPostCallback(RecvCallback callback) override {
+    engine_->SetRecvPostCallback(std::move(callback));
+  }
+
+  // Sets the callback invoked on the receiver when an individual incoming
+  // request completes.
+  void SetRecvReqCallback(RecvCallback callback) override {
+    engine_->SetRecvReqCallback(std::move(callback));
   }
 
   // Registers a contiguous memory buffer of `length` bytes at the base `addr`.

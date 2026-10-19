@@ -136,6 +136,9 @@ TEST_P(TransportTest, Write) {
 
   // Post multiple write requests (local -> remote).
   Transport& lt = l_.GetTransport();
+  Transport& rt = r_.GetTransport();
+  rt.SetRecvPostCallback([](Status, const Metadata&) {});
+  rt.SetRecvReqCallback([](Status, const Metadata&) {});
   const std::string peer = r_.GetControlEndpoint();
   const Request req1 = {
       .op = Op::kWrite,
