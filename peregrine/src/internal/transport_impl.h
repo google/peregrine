@@ -48,7 +48,8 @@ class TransportImpl final : public Transport {
   // specified by the `request` until processing is complete.
   absl::StatusOr<Handle> Post(
       std::string_view peer, absl::Span<const Request> requests,
-      absl::AnyInvocable<void(Status)> on_complete = nullptr) override;
+      absl::AnyInvocable<void(Status)> on_complete = nullptr,
+      const Metadata& metadata = {}) override;
 
   // Polls the status of the transport request identified by the `handle`.
   //

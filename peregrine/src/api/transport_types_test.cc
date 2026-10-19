@@ -90,6 +90,10 @@ TEST(TransportRequest, RKeyAndEquality) {
   EXPECT_EQ(r1, r2);
   EXPECT_NE(r1, r3);
   EXPECT_NE(r1.ToString().find("rkey: 0xabcd"), std::string::npos);
+
+  Request r4 = r1;
+  r4.metadata[0] = 0x42;
+  EXPECT_NE(r1, r4);
 }
 
 }  // namespace
