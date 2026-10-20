@@ -5,8 +5,6 @@
 
 #include <cstring>
 #include <optional>
-#include <string_view>
-#include <utility>
 
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
@@ -154,8 +152,9 @@ TEST(IpAddrTest, CreateFromSockaddr) {
   const std::optional<IpAddr> a4 = IpAddr::Create(*sa);
   EXPECT_TRUE(a4.has_value());
   EXPECT_TRUE(a4->IsIPv4());
-  EXPECT_EQ(a4->RawAddrAndLen(),
-            std::make_pair(&a4->IPv4Addr().s_addr, sizeof(ipv4_t)));
+  const auto [addr4, len4] = a4->RawAddrAndLen();
+  EXPECT_EQ(addr4, &a4->IPv4Addr().s_addr);
+  EXPECT_EQ(len4, sizeof(ipv4_t));
   EXPECT_EQ(*a4, IpAddr::Create("127.0.0.1"));
 
   const sockaddr_in6 v6 = {
@@ -166,8 +165,9 @@ TEST(IpAddrTest, CreateFromSockaddr) {
   const std::optional<IpAddr> a6 = IpAddr::Create(*sa);
   EXPECT_TRUE(a6.has_value());
   EXPECT_TRUE(a6->IsIPv6());
-  EXPECT_EQ(a6->RawAddrAndLen(),
-            std::make_pair(a6->IPv6Addr().s6_addr, sizeof(ipv6_t)));
+  const auto [addr6, len6] = a6->RawAddrAndLen();
+  EXPECT_EQ(addr6, &a6->IPv6Addr().s6_addr);
+  EXPECT_EQ(len6, sizeof(ipv6_t));
   EXPECT_EQ(*a6, IpAddr::Create("::1"));
 
   // Unsupported families (e.g. AF_PACKET entries from getifaddrs()).
