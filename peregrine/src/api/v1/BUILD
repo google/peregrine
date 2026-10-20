@@ -7,10 +7,22 @@ package(default_visibility = ["//visibility:public"])
 
 cc_library(
     name = "ip_util",
+    srcs = ["ip_util.cc"],
     hdrs = ["ip_util.h"],
     deps = [
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/socket:socket_util",
+        "//peregrine/src/util:envvar",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
@@ -23,7 +35,10 @@ cc_test(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/socket:socket_udp",
         "//peregrine/src/internal/util:test_util",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
