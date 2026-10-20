@@ -12,6 +12,7 @@
 #include <string_view>
 
 #include "absl/log/check.h"
+#include "peregrine/src/internal/base/constants.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
@@ -41,7 +42,7 @@ class TcpSocket final : public SocketBase {
   int Bind(const Endpoint& local) const;
 
   // Listens on the `local` endpoint. Returns 0 on success, -1 on error.
-  int Listen(const Endpoint& local) const;
+  int Listen(const Endpoint& local, int backlog = kTcpListenBacklog) const;
 
   // Accepts a new connection to this listening socket, using `gen_blocking`
   // to set the blocking/non-blocking mode of the newly spawned socket.

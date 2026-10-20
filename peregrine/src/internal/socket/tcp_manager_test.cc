@@ -18,6 +18,7 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/lib/metric_counter.h"
+#include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_test_util.h"
 #include "peregrine/src/internal/util/test_param.h"
@@ -220,6 +221,43 @@ TEST_P(TcpManagerTest, StopWhileConnecting) {
   // Besides the listeners closed by Start(), no socket may remain open.
   const size_t sockets_after = CountOpenSocketFds();
   EXPECT_EQ(sockets_after, sockets_before - num_peer_endpoints_);
+}
+
+TEST_P(TcpManagerTest, ConnectTimeout) {
+  if (cfg_.blocking) {
+    GTEST_SKIP() << "timeout is only for non-blocking connects";
+  }
+
+  const BlackHoleListener blackhole(cfg_.family, /*timeout_ms=*/100);
+  ASSERT_TRUE(blackhole.IsFull());
+
+  const size_t sockets_before = CountOpenSocketFds();
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
+  ShortSleep();
+
+  // The SYN is dropped, so the connect is left in progress ...
+  const Endpoint kSelf = {};
+  const Endpoint peer = blackhole.GetEndpoint();
+  constexpr absl::Duration kTimeout = absl::Milliseconds(200);
+  ASSERT_EQ(mgr_->Connect(kSelf, peer, cfg_.blocking, kTimeout),
+            kConnectInProgress);
+  EXPECT_EQ(CountOpenSocketFds(), sockets_before + 1);
+
+  // ... until it expires, at which point it is closed and never produced.
+  LongSleep();  // >> kTimeout + kEpollWaitTimeoutMs
+  EXPECT_TRUE(mgr_->GetOutgoingSockets().empty());
+  EXPECT_EQ(CountOpenSocketFds(), sockets_before);
+
+  // Without a timeout the same connect stays pending.
+  ASSERT_EQ(mgr_->Connect(kSelf, peer, cfg_.blocking), kConnectInProgress);
+  LongSleep();
+  EXPECT_TRUE(mgr_->GetOutgoingSockets().empty());
+  EXPECT_EQ(CountOpenSocketFds(), sockets_before + 1);
+
+  // Stop() closes the pending connector along with the listeners.
+  mgr_->Stop();
+  ta.join();
+  EXPECT_EQ(CountOpenSocketFds(), sockets_before - num_peer_endpoints_);
 }
 
 }  // namespace

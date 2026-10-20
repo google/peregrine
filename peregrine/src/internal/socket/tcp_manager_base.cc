@@ -11,6 +11,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
@@ -83,20 +84,19 @@ void TcpManagerBase::Connectors::Seal() {
   sealed_ = true;
 }
 
-bool TcpManagerBase::Connectors::Add(const fd_t fd,
-                                     std::unique_ptr<TcpSocket> socket,
+bool TcpManagerBase::Connectors::Add(const fd_t fd, Connector connector,
                                      absl::FunctionRef<bool(fd_t)> on_add) {
-  DCHECK_EQ(fd, socket->fd());
-  DCHECK(!socket->IsConnected());
+  DCHECK_EQ(fd, connector.socket->fd());
+  DCHECK(!connector.socket->IsConnected());
   {
     absl::MutexLock _(mu_);
     if ABSL_PREDICT_TRUE (!sealed_ && !fd2cs_.contains(fd) && on_add(fd)) {
-      LOG(INFO) << "added socket " << *socket;
-      fd2cs_.emplace(fd, Connector{std::move(socket)});
+      LOG(INFO) << "added connector " << *connector.socket;
+      fd2cs_.emplace(fd, std::move(connector));
       return true;
     }
   }
-  LOG(WARNING) << "rejected connector " << *socket;
+  LOG(WARNING) << "rejected connector " << *connector.socket;
   return false;  // `socket` is closed outside the lock
 }
 
@@ -111,6 +111,23 @@ std::unique_ptr<TcpSocket> TcpManagerBase::Connectors::Remove(const fd_t fd) {
     DCHECK(!socket->IsConnected());
     return socket;
   }
+}
+
+std::vector<TcpManagerBase::Connector>
+TcpManagerBase::Connectors::RemoveExpired(const absl::Duration now) {
+  std::vector<Connector> expired;
+  {
+    absl::MutexLock _(mu_);
+    for (auto it = fd2cs_.begin(); it != fd2cs_.end();) {
+      const auto cur = it++;
+      if (Connector& c = cur->second; c.expiration <= now) {
+        DCHECK(!c.socket->IsConnected());
+        expired.emplace_back(std::move(c));
+        fd2cs_.erase(cur);
+      }
+    }
+  }
+  return expired;
 }
 
 void TcpManagerBase::Connectors::Close() {

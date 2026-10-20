@@ -93,12 +93,10 @@ cc_library(
         "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/util:errno",
         "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -171,6 +169,7 @@ cc_library(
     srcs = ["socket_test_util.cc"],
     hdrs = ["socket_test_util.h"],
     deps = [
+        ":socket_error",
         ":socket_tcp",
         ":socket_udp",
         ":tcp_manager",
@@ -182,6 +181,7 @@ cc_library(
         "//peregrine/src/internal/util:test_util",
         "//peregrine/src/util:nic",
         "//peregrine/src/util:thread",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/strings",
@@ -251,6 +251,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -270,6 +271,7 @@ cc_library(
         "//peregrine/src/internal/base:nicinfo",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/event:poller",
+        "//peregrine/src/util:clock",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
@@ -285,6 +287,7 @@ cc_test(
     srcs = ["tcp_manager_test.cc"],
     shard_count = 4,
     deps = [
+        ":socket_error",
         ":socket_tcp",
         ":socket_test_util",
         ":tcp_manager",
@@ -311,6 +314,7 @@ cc_library(
         ":socket_tcp",
         ":socket_util",
         "//peregrine/src/internal:assumptions",
+        "//peregrine/src/internal/base:constants",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/base:nicinfo",

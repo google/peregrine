@@ -12,7 +12,7 @@ inline constexpr int kTcpListenBacklog = 8192;
 
 // For epoll.
 inline constexpr int kEpollMaxNumEvents = 128;
-inline constexpr int kEpollWaitTimeoutMs = 50;
+inline constexpr int kEpollWaitTimeoutMs = 100;
 
 }  // namespace peregrine::internal
 

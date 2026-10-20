@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/socket/socket_test_util.h"
 
 #include <dirent.h>
+#include <poll.h>
 #include <unistd.h>
 
 #include <cstddef>
@@ -12,6 +13,7 @@
 #include <vector>
 
 #include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/strings/match.h"
 #include "absl/synchronization/notification.h"
@@ -23,6 +25,7 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
+#include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
@@ -167,6 +170,51 @@ std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data,
   iovecs.push_back({ptr + past, data.size() - past});
 
   return std::make_unique<IoVecCursor>(iovecs);
+}
+
+BlackHoleListener::BlackHoleListener(const int family, const int timeout_ms)
+    : full_(false),
+      endpoint_(TestOnly_LocalEndpoint(family, /*tcp=*/true)),
+      listener_(TcpSocket::Create(family, /*blocking=*/true)) {
+  fillAcceptQueue(family, timeout_ms);
+}
+
+size_t BlackHoleListener::fillAcceptQueue(const int family,
+                                          const int timeout_ms) {
+  constexpr int kBacklog = 3;
+  CHECK_EQ(listener_->Listen(endpoint_, kBacklog), 0);  // Crash OK
+
+  for (int i = 0; i < 10 * kBacklog; ++i) {
+    auto c = TcpSocket::Create(family, /*blocking=*/false);
+    bool connected = false;
+    switch (c->Connect(endpoint_)) {
+      case kConnectSuccess:
+        connected = true;
+        break;
+      case kConnectInProgress: {
+        const fd_t fd = c->fd();
+        struct pollfd pfd = {.fd = fd.value(), .events = POLLOUT};
+        if (poll(&pfd, 1, timeout_ms) == 0) {  // timeout, queue is full.
+          full_ = true;
+          const size_t n = connectors_.size();
+          LOG(INFO) << "timeout after " << timeout_ms << " ms, " << n
+                    << " sockets connected";
+          return n;
+        } else if (GetSocketError(fd) == 0) {
+          connected = true;
+        } else {
+          LOG(ERROR) << "connect failed: " << *c;
+        }
+        break;
+      }
+      case kConnectError:
+      default:
+        LOG(ERROR) << "connect failed: " << *c;
+        break;
+    }
+    if (connected) connectors_.push_back(std::move(c));
+  }
+  return connectors_.size();
 }
 
 }  // namespace peregrine::internal::testing

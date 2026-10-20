@@ -10,6 +10,7 @@
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
@@ -29,6 +30,7 @@ class TcpManagerBase {
   // A connecting socket.
   struct Connector {
     std::unique_ptr<TcpSocket> socket;
+    absl::Duration expiration;
   };
 
   // A map of non-blocking tcp listening sockets, each keyed by its file
@@ -84,12 +86,16 @@ class TcpManagerBase {
     // false. `on_add` is called with the internal lock held, so it must not
     // call back into this object.
     [[nodiscard("Must check if the socket was added successfully")]]
-    bool Add(fd_t fd, std::unique_ptr<TcpSocket> socket,
-             absl::FunctionRef<bool(fd_t)> on_add) ABSL_LOCKS_EXCLUDED(mu_);
+    bool Add(fd_t fd, Connector connector, absl::FunctionRef<bool(fd_t)> on_add)
+        ABSL_LOCKS_EXCLUDED(mu_);
 
     // Returns the connecting socket of the file descriptor `fd` and removes it
     // from the internal container. If `fd` does not exist, returns nullptr.
     std::unique_ptr<TcpSocket> Remove(fd_t fd) ABSL_LOCKS_EXCLUDED(mu_);
+
+    // Removes all the expired connecting sockets and returns them.
+    std::vector<Connector> RemoveExpired(absl::Duration now)
+        ABSL_LOCKS_EXCLUDED(mu_);
 
     // Removes and closes all the connecting sockets.
     void Close() ABSL_LOCKS_EXCLUDED(mu_);

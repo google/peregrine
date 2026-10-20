@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/time/time.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
@@ -38,7 +39,10 @@ class TcpManager : public TcpManagerBase {
   // Connects the `self` endpoint to the `peer` in blocking/non-blocking mode.
   // If `self` has nonzero ip address, binds to it before connecting.
   // Returns 0 on success, 1 on connect in progress, or -1 on error.
-  int Connect(const Endpoint& self, const Endpoint& peer, bool blocking);
+  // The `timeout` only works with non-blocking sockets: connect will fail
+  // if the connection is not established within the timeout period.
+  int Connect(const Endpoint& self, const Endpoint& peer, bool blocking,
+              absl::Duration timeout = absl::InfiniteDuration());
 
   // Returns all the accepted incoming sockets currently available.
   std::vector<std::unique_ptr<TcpSocket>> GetIncomingSockets() {
@@ -79,10 +83,13 @@ class TcpManager : public TcpManagerBase {
 
   // Creates a non-blocking tcp connecting socket to the `peer` endpoint.
   int connectNonBlocking(std::unique_ptr<TcpSocket> socket,
-                         const Endpoint& peer);
+                         const Endpoint& peer, absl::Duration timeout);
 
   // Handles one outgoing connection on the connecting socket `fd`.
   bool handleOneOutgoing(fd_t fd, uint32_t flag);
+
+  // Removes expired outgoing connections and unregisters them.
+  void removeExpiredOutgoing();
 
   // Adds a connected socket to the outgoing sockets.
   int addConnected(std::unique_ptr<TcpSocket> socket);

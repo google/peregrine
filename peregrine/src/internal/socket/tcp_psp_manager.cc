@@ -20,6 +20,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "peregrine/src/internal/assumptions.h"
+#include "peregrine/src/internal/base/constants.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
@@ -131,8 +132,8 @@ void PspTcpManager::Start(OnAccept on_accept, bool gen_blocking) {
   DCHECK(invariant());
   LOG(INFO) << "starting, " << self_;
 
-  constexpr int kTimeoutMs = 50;
-  constexpr int kMaxEvents = 64;
+  constexpr int kTimeoutMs = kEpollWaitTimeoutMs;
+  constexpr int kMaxEvents = kEpollMaxNumEvents;
   epoll_event events[kMaxEvents];
   while (!isStopped()) {
     const int nfds = poller_->BlockingWait(events, kMaxEvents, kTimeoutMs);

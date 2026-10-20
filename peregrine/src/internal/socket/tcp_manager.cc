@@ -28,6 +28,7 @@
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_util.h"
+#include "peregrine/src/util/clock.h"
 
 namespace peregrine::internal {
 
@@ -126,9 +127,10 @@ TcpManager::TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
 }
 
 int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
-                        const bool blocking) {
+                        const bool blocking, const absl::Duration timeout) {
   static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
   DCHECK(peer.HasNonzeroIpPort());
+  DCHECK(!blocking || timeout == absl::InfiniteDuration());
 
   if ABSL_PREDICT_FALSE (isStopped()) return kConnectError;
 
@@ -140,7 +142,7 @@ int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
     return kConnectError;
   } else {
     return blocking ? connectBlocking(std::move(socket), peer)
-                    : connectNonBlocking(std::move(socket), peer);
+                    : connectNonBlocking(std::move(socket), peer, timeout);
   }
 }
 
@@ -158,7 +160,8 @@ int TcpManager::connectBlocking(std::unique_ptr<TcpSocket> socket,
 }
 
 int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
-                                   const Endpoint& peer) {
+                                   const Endpoint& peer,
+                                   absl::Duration timeout) {
   DCHECK(socket->IsNonBlocking());
   switch (const int ret = socket->Connect(peer); ret) {
     case kConnectSuccess:
@@ -174,7 +177,9 @@ int TcpManager::connectNonBlocking(std::unique_ptr<TcpSocket> socket,
         static_assert((kOutgoingEvents & EPOLLET) == 0);
         return poller_->Register(added, kOutgoingEvents) == 0;
       };
-      return connectors_.Add(fd, std::move(socket), register_fd)
+      const absl::Duration expiration = util::MonotonicNow() + timeout;
+      Connector connector = {std::move(socket), expiration};
+      return connectors_.Add(fd, std::move(connector), register_fd)
                  ? kConnectInProgress
                  : kConnectError;
     }
@@ -252,16 +257,27 @@ bool TcpManager::handleOneOutgoing(const fd_t fd, const uint32_t flag) {
   return true;
 }
 
+void TcpManager::removeExpiredOutgoing() {
+  const absl::Duration now = util::MonotonicNow();
+  const auto expired = connectors_.RemoveExpired(now);
+  for (auto& connector : expired) {
+    LOG(WARNING) << "connect timed out " << *connector.socket;
+    poller_->Unregister(connector.socket->fd());
+  }
+  // All the `expired` connectors are closed here.
+}
+
 void TcpManager::Start(bool gen_blocking) {
   static_assert(assumptions::kTcpListeningSocketsAreNonBlocking);
   static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
   DCHECK(invariant());
   LOG(INFO) << "starting, " << self_;
 
+  constexpr int kTimeoutMs = kEpollWaitTimeoutMs;
+  constexpr int kMaxEvents = kEpollMaxNumEvents;
   epoll_event events[kEpollMaxNumEvents];
   while (!isStopped()) {
-    const int nfds =
-        poller_->BlockingWait(events, kEpollMaxNumEvents, kEpollWaitTimeoutMs);
+    const int nfds = poller_->BlockingWait(events, kMaxEvents, kTimeoutMs);
     if (isStopped()) break;
     if (nfds > 0) {
       for (int i = 0; i < nfds; ++i) {
@@ -275,7 +291,9 @@ void TcpManager::Start(bool gen_blocking) {
     } else if (nfds < 0) {
       LOG_EVERY_N_SEC(ERROR, 1) << "poller wait failed";
     }
+    removeExpiredOutgoing();
   }
+
   listeners_.Close();
   connectors_.Close();
 }
