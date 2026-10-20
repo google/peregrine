@@ -3,9 +3,9 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 
 #include "absl/log/log.h"
-#include "absl/strings/string_view.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/util/envvar.h"
@@ -71,14 +71,14 @@ inline bool SourceBindEnabled() {
 // Results are memoized for the lifetime of the process keyed by (source_ip,
 // peer) exactly as passed; host routing is assumed static for the job. Errors
 // are not memoized, so a transient failure is retried on the next call.
-absl::StatusOr<bool> SourceIpRoutesToPeer(absl::string_view source_ip,
-                                          absl::string_view peer);
+absl::StatusOr<bool> SourceIpRoutesToPeer(std::string_view source_ip,
+                                          std::string_view peer);
 
 // Test-only: drops every memoized SourceIpRoutesToPeer result.
-void ClearSourceIpRouteCacheForTesting();
+void TestOnly_ClearRouteCache();
 
 // Test-only: number of memoized SourceIpRoutesToPeer results.
-size_t SourceIpRouteCacheSizeForTesting();
+size_t TestOnly_RouteCacheSize();
 
 }  // namespace peregrine::v1
 

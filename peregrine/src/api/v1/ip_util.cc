@@ -20,6 +20,7 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -33,17 +34,16 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
-#include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 
 namespace peregrine::v1 {
 namespace {
 // Splits `peer` ("host:port" or "[v6]:port") into (host, port).
 absl::StatusOr<std::pair<std::string, std::string>> SplitHostPort(
-    absl::string_view peer) {
+    std::string_view peer) {
   if (!peer.empty() && peer.front() == '[') {
     size_t closing_bracket = peer.find(']');
-    if (closing_bracket == absl::string_view::npos ||
+    if (closing_bracket == std::string_view::npos ||
         closing_bracket + 1 >= peer.size() ||
         peer[closing_bracket + 1] != ':') {
       return absl::InvalidArgumentError(
@@ -72,7 +72,7 @@ struct RawIpAddress {
   }
 };
 
-absl::StatusOr<RawIpAddress> ParseIpAddress(absl::string_view ip) {
+absl::StatusOr<RawIpAddress> ParseIpAddress(std::string_view ip) {
   const std::string ip_str(ip);
   RawIpAddress out;
   if (inet_pton(AF_INET, ip_str.c_str(), out.bytes) == 1) {
@@ -133,7 +133,7 @@ absl::StatusOr<std::optional<RawIpAddress>> ResolvePeerAddress(
 // Index of the local interface that owns `address` (an exact match on one of
 // its getifaddrs() addresses). NotFound when no interface owns it.
 absl::StatusOr<int> OwningInterfaceIndex(const RawIpAddress& address,
-                                         absl::string_view source_ip) {
+                                         std::string_view source_ip) {
   ifaddrs* ifa_list = nullptr;
   if (getifaddrs(&ifa_list) != 0) {
     return absl::ErrnoToStatus(errno, "getifaddrs failed");
@@ -177,8 +177,8 @@ void AppendRouteAttribute(nlmsghdr* nlh, uint16_t type, const void* data,
 // what `ip route get <peer> from <source>` reports as `dev`).
 absl::StatusOr<int> RouteEgressInterfaceIndex(const RawIpAddress& source,
                                               const RawIpAddress& peer,
-                                              absl::string_view source_ip,
-                                              absl::string_view peer_str) {
+                                              std::string_view source_ip,
+                                              std::string_view peer_str) {
   const int fd = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
   if (fd < 0) {
     return absl::ErrnoToStatus(errno, "NETLINK_ROUTE socket failed");
@@ -247,8 +247,8 @@ absl::StatusOr<int> RouteEgressInterfaceIndex(const RawIpAddress& source,
 }
 
 // Uncached evaluation behind SourceIpRoutesToPeer.
-absl::StatusOr<bool> ComputeSourceIpRoutesToPeer(absl::string_view source_ip,
-                                                 absl::string_view peer) {
+absl::StatusOr<bool> ComputeSourceIpRoutesToPeer(std::string_view source_ip,
+                                                 std::string_view peer) {
   ABSL_ASSIGN_OR_RETURN(const auto host_port, SplitHostPort(peer));
   ABSL_ASSIGN_OR_RETURN(const RawIpAddress source, ParseIpAddress(source_ip));
   ABSL_ASSIGN_OR_RETURN(
@@ -283,8 +283,8 @@ SourceIpRouteCache& GetSourceIpRouteCache() {
 }
 }  // namespace
 
-absl::StatusOr<bool> SourceIpRoutesToPeer(absl::string_view source_ip,
-                                          absl::string_view peer) {
+absl::StatusOr<bool> SourceIpRoutesToPeer(std::string_view source_ip,
+                                          std::string_view peer) {
   SourceIpRouteCache& cache = GetSourceIpRouteCache();
   const SourceIpRouteCacheKey key{std::string(source_ip), std::string(peer)};
   {
@@ -302,13 +302,13 @@ absl::StatusOr<bool> SourceIpRoutesToPeer(absl::string_view source_ip,
   return routes_to_peer;
 }
 
-void ClearSourceIpRouteCacheForTesting() {
+void TestOnly_ClearRouteCache() {
   SourceIpRouteCache& cache = GetSourceIpRouteCache();
   absl::MutexLock lock(cache.mu);
   cache.routes.clear();
 }
 
-size_t SourceIpRouteCacheSizeForTesting() {
+size_t TestOnly_RouteCacheSize() {
   SourceIpRouteCache& cache = GetSourceIpRouteCache();
   absl::MutexLock lock(cache.mu);
   return cache.routes.size();

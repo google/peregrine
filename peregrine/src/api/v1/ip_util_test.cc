@@ -77,20 +77,20 @@ std::optional<std::string> FirstNonLoopbackIpv4Address() {
 }
 
 TEST(SourceIpRoutesToPeerTest, LoopbackSourceToLoopbackPeer) {
-  ClearSourceIpRouteCacheForTesting();
+  TestOnly_ClearRouteCache();
   EXPECT_THAT(SourceIpRoutesToPeer("127.0.0.3", "127.0.0.1:1"),
               IsOkAndHolds(true));
 }
 
 TEST(SourceIpRoutesToPeerTest, UnownedSourceIsNotFound) {
-  ClearSourceIpRouteCacheForTesting();
+  TestOnly_ClearRouteCache();
   // TEST-NET-1 is never assigned to a local interface.
   EXPECT_THAT(SourceIpRoutesToPeer("192.0.2.1", "127.0.0.1:1"),
               StatusIs(absl::StatusCode::kNotFound, HasSubstr("192.0.2.1")));
 }
 
 TEST(SourceIpRoutesToPeerTest, NonLoopbackSourceDoesNotRouteToLoopbackPeer) {
-  ClearSourceIpRouteCacheForTesting();
+  TestOnly_ClearRouteCache();
   const std::optional<std::string> nic_ip = FirstNonLoopbackIpv4Address();
   if (!nic_ip.has_value()) {
     GTEST_SKIP() << "host has no non-loopback IPv4 address";
@@ -101,45 +101,45 @@ TEST(SourceIpRoutesToPeerTest, NonLoopbackSourceDoesNotRouteToLoopbackPeer) {
 }
 
 TEST(SourceIpRoutesToPeerTest, InvalidPeerIsInvalidArgument) {
-  ClearSourceIpRouteCacheForTesting();
+  TestOnly_ClearRouteCache();
   EXPECT_THAT(SourceIpRoutesToPeer("127.0.0.1", "nocolon"),
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 
 TEST(SourceIpRoutesToPeerTest, SuccessfulResultsAreMemoizedPerSourceAndPeer) {
-  ClearSourceIpRouteCacheForTesting();
-  EXPECT_EQ(SourceIpRouteCacheSizeForTesting(), 0);
+  TestOnly_ClearRouteCache();
+  EXPECT_EQ(TestOnly_RouteCacheSize(), 0);
 
   EXPECT_THAT(SourceIpRoutesToPeer("127.0.0.3", "127.0.0.1:1"),
               IsOkAndHolds(true));
-  EXPECT_EQ(SourceIpRouteCacheSizeForTesting(), 1);
+  EXPECT_EQ(TestOnly_RouteCacheSize(), 1);
 
   // An identical call is served from the cache and adds no entry.
   EXPECT_THAT(SourceIpRoutesToPeer("127.0.0.3", "127.0.0.1:1"),
               IsOkAndHolds(true));
-  EXPECT_EQ(SourceIpRouteCacheSizeForTesting(), 1);
+  EXPECT_EQ(TestOnly_RouteCacheSize(), 1);
 
   // A different peer port is a distinct key.
   EXPECT_THAT(SourceIpRoutesToPeer("127.0.0.3", "127.0.0.1:2"),
               IsOkAndHolds(true));
-  EXPECT_EQ(SourceIpRouteCacheSizeForTesting(), 2);
+  EXPECT_EQ(TestOnly_RouteCacheSize(), 2);
 }
 
 TEST(SourceIpRoutesToPeerTest, ErrorsAreNotMemoized) {
-  ClearSourceIpRouteCacheForTesting();
+  TestOnly_ClearRouteCache();
   // TEST-NET-1 is never assigned to a local interface, so this fails uncached.
   EXPECT_THAT(SourceIpRoutesToPeer("192.0.2.1", "127.0.0.1:1"),
               StatusIs(absl::StatusCode::kNotFound));
-  EXPECT_EQ(SourceIpRouteCacheSizeForTesting(), 0);
+  EXPECT_EQ(TestOnly_RouteCacheSize(), 0);
 
   // Re-evaluated, not served from the cache: still the same error.
   EXPECT_THAT(SourceIpRoutesToPeer("192.0.2.1", "127.0.0.1:1"),
               StatusIs(absl::StatusCode::kNotFound));
-  EXPECT_EQ(SourceIpRouteCacheSizeForTesting(), 0);
+  EXPECT_EQ(TestOnly_RouteCacheSize(), 0);
 }
 
 TEST(SourceIpRoutesToPeerTest, HostnamePeerStillResolves) {
-  ClearSourceIpRouteCacheForTesting();
+  TestOnly_ClearRouteCache();
   // The numeric-only fast path must fall back to name resolution. The value
   // is not asserted: it is true if `localhost` resolves to 127.0.0.1 first
   // and false if it resolves only to ::1 (no IPv4 address for the peer).
