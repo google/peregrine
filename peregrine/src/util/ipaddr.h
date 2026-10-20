@@ -50,6 +50,12 @@ class IpAddr final {
   // Otherwise, returns `std::nullopt`.
   static std::optional<IpAddr> Create(const struct sockaddr& sa);
 
+  // Returns the first `family` (AF_INET/AF_INET6) address of `host`, which
+  // may be a numeric literal ("10.0.0.1", "::1") or a DNS name ("example.com").
+  // The latter triggers a blocking local resolver lookup, which may be slow.
+  // Returns `std::nullopt` if `host` is invalid.
+  static std::optional<IpAddr> Resolve(int family, const std::string& host);
+
   // Default constructor.
   IpAddr() : ipaddr_() { DCHECK(IsIPv4()); }
 

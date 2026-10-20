@@ -107,6 +107,7 @@ cc_library(
     hdrs = ["ipaddr.h"],
     deps = [
         ":macro",
+        "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/hash",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
@@ -119,7 +120,8 @@ cc_test(
     srcs = ["ipaddr_test.cc"],
     deps = [
         ":ipaddr",
-        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/hash",
+        "@abseil-cpp//absl/hash:hash_testing",
         "@googletest//:gtest_main",
     ],
 )

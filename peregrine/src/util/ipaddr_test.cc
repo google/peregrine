@@ -5,9 +5,11 @@
 
 #include <cstring>
 #include <optional>
+#include <sstream>
 
 #include "gtest/gtest.h"
-#include "absl/log/log.h"
+#include "absl/hash/hash.h"
+#include "absl/hash/hash_testing.h"
 
 namespace peregrine::util::testing {
 namespace {
@@ -20,6 +22,63 @@ TEST(IpAddrTest, DefaultConstructedIsIPv4Zero) {
   EXPECT_FALSE(a.IsLoopback());
   EXPECT_FALSE(a.IsRoutable());
   EXPECT_EQ(a, IpAddr::Create("0.0.0.0"));
+  EXPECT_EQ(a.ToString(), "0.0.0.0");
+}
+
+TEST(IpAddrTest, CreateFromString) {
+  // Valid literals of each family.
+  EXPECT_TRUE(IpAddr::Create("0.0.0.0")->IsIPv4());
+  EXPECT_TRUE(IpAddr::Create("255.255.255.255")->IsIPv4());
+  EXPECT_TRUE(IpAddr::Create("::")->IsIPv6());
+  EXPECT_TRUE(IpAddr::Create("::1")->IsIPv6());
+  EXPECT_TRUE(IpAddr::Create("2001:db8::1")->IsIPv6());
+  EXPECT_TRUE(IpAddr::Create("::ffff:10.0.0.1")->IsIPv6());
+  EXPECT_TRUE(IpAddr::Create("fe80::1")->IsIPv6());
+
+  // Anything that is not a bare numeric literal is rejected.
+  for (const char* s : {
+           "",                // empty
+           "?",               // garbage
+           "1.2.3",           // too few octets
+           "1.2.3.4.5",       // too many octets
+           "256.1.1.1",       // octet out of range
+           "01.2.3.4",        // leading zero (inet_pton rejects)
+           " 1.2.3.4",        // leading space
+           "1.2.3.4 ",        // trailing space
+           "1.2.3.4:80",      // host:port, not an address
+           "[::1]",           // bracketed
+           "[::1]:80",        // bracketed host:port
+           "fe80::1%eth0",    // zone id is not accepted
+           "2001:db8::1::2",  // two "::"
+           "12345::1",        // hextet out of range
+           "localhost",       // hostname, not a literal
+       }) {
+    EXPECT_FALSE(IpAddr::Create(s).has_value()) << "'" << s << "'";
+  }
+}
+
+TEST(IpAddrTest, ToStringRoundTrip) {
+  // Canonical forms print back identically and re-parse equal.
+  for (const char* s :
+       {"0.0.0.0", "127.0.0.1", "10.0.0.1", "192.168.1.1", "255.255.255.255",
+        "::", "::1", "2001:db8::1", "2001:db8::1:0:0:1", "fe80::1", "ff02::1",
+        "::ffff:10.0.0.1"}) {
+    const std::optional<IpAddr> ip = IpAddr::Create(s);
+    ASSERT_TRUE(ip.has_value()) << s;
+    EXPECT_EQ(ip->ToString(), s);
+    EXPECT_EQ(IpAddr::Create(ip->ToString()), ip) << s;
+  }
+
+  // Non-canonical input is normalised per RFC 5952.
+  EXPECT_EQ(IpAddr::Create("2001:0db8:0000::0001")->ToString(), "2001:db8::1");
+  EXPECT_EQ(IpAddr::Create("2001:DB8::1")->ToString(), "2001:db8::1");
+  EXPECT_EQ(IpAddr::Create("0:0:0:0:0:0:0:0")->ToString(), "::");
+}
+
+TEST(IpAddrTest, OutputOperator) {
+  std::ostringstream os;
+  os << *IpAddr::Create("10.1.2.3") << "|" << *IpAddr::Create("::1");
+  EXPECT_EQ(os.str(), "10.1.2.3|::1");
 }
 
 TEST(IpAddrTest, EqualityAcrossFamilies) {
@@ -100,8 +159,8 @@ TEST(IpAddrTest, IPv4) {
   EXPECT_EQ(a, a0);
   EXPECT_NE(a, b);
   EXPECT_EQ(a.Hash(), a0.Hash());
-  LOG(INFO) << a;
-  LOG(INFO) << b;
+  EXPECT_EQ(a.ToString(), "0.0.0.0");
+  EXPECT_EQ(b.ToString(), "127.0.0.1");
 }
 
 TEST(IpAddrTest, IPv6) {
@@ -117,8 +176,31 @@ TEST(IpAddrTest, IPv6) {
   EXPECT_EQ(a, a0);
   EXPECT_NE(a, b);
   EXPECT_EQ(a.Hash(), a0.Hash());
-  LOG(INFO) << a;
-  LOG(INFO) << b;
+  EXPECT_EQ(a.ToString(), "::");
+  EXPECT_EQ(b.ToString(), "::1");
+}
+
+TEST(IpAddrTest, AbslHash) {
+  // Distinct values must hash consistently with operator==; in particular the
+  // family is part of the identity, so 0.0.0.0 != :: and 127.0.0.1 !=
+  // ::ffff:127.0.0.1 even though their trailing bytes coincide.
+  EXPECT_TRUE(absl::VerifyTypeImplementsAbslHashCorrectly({
+      IpAddr(),
+      *IpAddr::Create("127.0.0.1"),
+      *IpAddr::Create("127.0.0.2"),
+      *IpAddr::Create("10.0.0.1"),
+      *IpAddr::Create("255.255.255.255"),
+      *IpAddr::Create("::"),
+      *IpAddr::Create("::1"),
+      *IpAddr::Create("::2"),
+      *IpAddr::Create("::ffff:127.0.0.1"),
+      *IpAddr::Create("2001:db8::1"),
+      *IpAddr::Create("fe80::1"),
+  }));
+
+  const IpAddr a = *IpAddr::Create("10.0.0.1");
+  EXPECT_EQ(a.Hash(), absl::Hash<IpAddr>{}(a));
+  EXPECT_EQ(a.Hash(), IpAddr::Hash(a));
 }
 
 TEST(IpAddrTest, IsLoopback) {
@@ -202,6 +284,27 @@ TEST(IpAddrTest, IsRoutableIPv6) {
                         "fec0::1", "feff::1"}) {
     EXPECT_FALSE(IpAddr::Create(s)->IsRoutable()) << s;
   }
+}
+
+TEST(IpAddrTest, Resolve) {
+  const IpAddr lo6 = IpAddr::Create("::1").value();
+  const IpAddr lo4 = IpAddr::Create("127.0.0.1").value();
+
+  EXPECT_EQ(IpAddr::Resolve(AF_INET6, "::1"), lo6);
+  EXPECT_EQ(IpAddr::Resolve(AF_INET, "127.0.0.1"), lo4);
+  EXPECT_EQ(IpAddr::Resolve(AF_UNSPEC, "127.0.0.1"), std::nullopt);
+
+  // A literal of the other family is rejected, not converted.
+  EXPECT_EQ(IpAddr::Resolve(AF_INET, "::1"), std::nullopt);
+  EXPECT_EQ(IpAddr::Resolve(AF_INET6, "127.0.0.1"), std::nullopt);
+
+  // Exercises the non-numeric fallback. /etc/hosts may map `localhost` to
+  // only one family, so require that at least one resolves.
+  EXPECT_TRUE(IpAddr::Resolve(AF_INET, "localhost").has_value() ||
+              IpAddr::Resolve(AF_INET6, "localhost").has_value());
+
+  // RFC 6761: *.invalid is reserved for testing.
+  EXPECT_EQ(IpAddr::Resolve(AF_INET, "no-such-host.invalid"), std::nullopt);
 }
 
 }  // namespace

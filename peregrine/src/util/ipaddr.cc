@@ -1,6 +1,7 @@
 #include "peregrine/src/util/ipaddr.h"
 
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 
@@ -11,6 +12,7 @@
 #include <string_view>
 #include <utility>
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/log/check.h"
 #include "absl/strings/match.h"
 
@@ -134,6 +136,32 @@ std::optional<IpAddr> IpAddr::Create(const struct sockaddr& sa) {
     default:
       return std::nullopt;
   }
+}
+
+std::optional<IpAddr> IpAddr::Resolve(const int family,
+                                      const std::string& host) {
+  if (family != AF_INET && family != AF_INET6) return std::nullopt;
+
+  struct addrinfo* result = nullptr;
+  struct addrinfo hints = {};
+  hints.ai_family = family;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_NUMERICHOST;
+  int ret = getaddrinfo(host.c_str(), nullptr, &hints, &result);
+  if (ret == EAI_NONAME) {
+    hints.ai_flags = 0;
+    ret = getaddrinfo(host.c_str(), nullptr, &hints, &result);
+  }
+  if (ret != 0 || result == nullptr) return std::nullopt;
+
+  absl::Cleanup cleanup = [result] { freeaddrinfo(result); };
+
+  for (const addrinfo* ai = result; ai != nullptr; ai = ai->ai_next) {
+    DCHECK_EQ(ai->ai_family, family);
+    if (ai->ai_addr == nullptr) continue;
+    return IpAddr::Create(*ai->ai_addr);
+  }
+  return std::nullopt;
 }
 
 bool operator==(const IpAddr& a, const IpAddr& b) {
