@@ -13,13 +13,16 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/internal/transport_impl.h"
+#include "peregrine/src/internal/transport_registry.h"
 
 namespace peregrine {
 
 using internal::Config;
 using internal::Endpoint;
+using internal::FindRegisteredTransport;
 using internal::RdmaDevice;
 using internal::TransportImpl;
+using internal::TransportRegistration;
 
 bool IsTransportSupported(TransportType t) {
   switch (t) {
@@ -31,8 +34,11 @@ bool IsTransportSupported(TransportType t) {
       auto dev = RdmaDevice::Create();
       return dev.ok() && !dev.value()->Contexts().empty();
     }
-    default:
-      return false;
+    default: {
+      // Transports not built into this library may be registered at runtime.
+      const TransportRegistration* r = FindRegisteredTransport(t);
+      return r != nullptr && r->is_supported();
+    }
   }
 }
 
@@ -54,6 +60,10 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
       .client_creds = grpc::InsecureChannelCredentials(),
   };
 
+  if (const TransportRegistration* r = FindRegisteredTransport(transport_type);
+      r != nullptr) {
+    return r->create(config, e, std::move(creds));
+  }
   return TransportImpl::Create(config, e, std::move(creds));
 }
 

@@ -3,18 +3,26 @@
 #include <sys/socket.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/str_format.h"
+#include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/config.h"
+#include "peregrine/src/internal/base/endpoint.h"
+#include "peregrine/src/internal/transport_registry.h"
 #include "peregrine/src/util/util.h"
 
 namespace peregrine::testing {
 namespace {
 
+using ::absl_testing::IsOk;
 using ::testing::IsNull;
 using ::testing::NotNull;
 using ::testing::StartsWith;
@@ -88,6 +96,52 @@ TEST(TransportUtilTest, TransportTypeRdma) {
         CreateTransport(ep_rdma, TransportType::kRdma, kNumConnsPerPeer),
         IsNull());
   }
+}
+
+TEST(TransportUtilTest, RegisteredTransportIsUsed) {
+  // An otherwise unused transport type, distinct from those tested above.
+  const auto kRegisteredType = static_cast<TransportType>(77);
+  EXPECT_FALSE(IsTransportSupported(kRegisteredType));
+
+  // Static because the registry (and thus the factory) outlives this test.
+  static int create_calls = 0;
+  static internal::Config created_config;
+  internal::TransportRegistration registration;
+  registration.create =
+      [](const internal::Config& config, const internal::Endpoint&,
+         internal::SecurityCredentials) -> std::unique_ptr<Transport> {
+    ++create_calls;
+    created_config = config;
+    return nullptr;
+  };
+  registration.is_supported = [] { return true; };
+  ASSERT_THAT(
+      internal::RegisterTransport(kRegisteredType, std::move(registration)),
+      IsOk());
+
+  EXPECT_TRUE(IsTransportSupported(kRegisteredType));
+  const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
+  EXPECT_THAT(CreateTransport(absl::StrFormat("127.0.0.1:%d", port),
+                              kRegisteredType, kNumConnsPerPeer),
+              IsNull());
+  EXPECT_EQ(create_calls, 1);
+  EXPECT_EQ(created_config.transport_type, kRegisteredType);
+  EXPECT_EQ(created_config.num_conns_per_peer, kNumConnsPerPeer);
+}
+
+TEST(TransportUtilTest, RegisteredTransportCanBeUnsupported) {
+  const auto kRegisteredType = static_cast<TransportType>(78);
+  internal::TransportRegistration registration;
+  registration.create =
+      [](const internal::Config&, const internal::Endpoint&,
+         internal::SecurityCredentials) -> std::unique_ptr<Transport> {
+    return nullptr;
+  };
+  registration.is_supported = [] { return false; };
+  ASSERT_THAT(
+      internal::RegisterTransport(kRegisteredType, std::move(registration)),
+      IsOk());
+  EXPECT_FALSE(IsTransportSupported(kRegisteredType));
 }
 
 }  // namespace
