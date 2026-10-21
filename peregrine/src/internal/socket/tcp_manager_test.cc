@@ -21,8 +21,10 @@
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_test_util.h"
+#include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
+#include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/thread.h"
 
 namespace peregrine::internal::testing {
@@ -135,6 +137,86 @@ TEST_P(TcpManagerTest, ConnectBeforeAccept) {
 
   mgr_->Stop();
   ta.join();
+}
+
+// Waits briefly for the manager to produce one accepted socket.
+std::unique_ptr<TcpSocket> WaitOneIncomingSocket(TcpManager& mgr) {
+  const absl::Time deadline = absl::Now() + absl::Seconds(1);
+  while (absl::Now() < deadline) {
+    if (auto s = GetOneIncomingSocket(mgr); s != nullptr) return s;
+    absl::SleepFor(absl::Milliseconds(10));
+  }
+  return nullptr;
+}
+
+// Checks that `s` is what the static Connect() promises: a connected socket
+// in blocking mode, of the peer's family, and that the listener accepted it.
+void ExpectConnected(TcpManager& mgr, const std::unique_ptr<TcpSocket>& s,
+                     const Endpoint& peer) {
+  ASSERT_NE(s, nullptr);
+  EXPECT_TRUE(s->IsConnected());
+  EXPECT_TRUE(s->IsBlocking());
+  EXPECT_EQ(PeerEndpoint(s->fd()), peer);
+  const std::unique_ptr<TcpSocket> accepted = WaitOneIncomingSocket(mgr);
+  ASSERT_NE(accepted, nullptr);
+  EXPECT_EQ(PeerEndpoint(accepted->fd()), SelfEndpoint(s->fd()));
+}
+
+TEST_P(TcpManagerTest, BlockingConnect) {
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
+  ShortSleep();
+
+  const Endpoint peer = peers_.front().endpoints.front();
+  const Endpoint any = {};
+
+  // No timeout: a plain blocking connect.
+  ExpectConnected(*mgr_, TcpManager::Connect(any, peer), peer);
+
+  // With a timeout: non-blocking connect + poll, then switched to blocking.
+  constexpr int kTimeoutMs = 1000;
+  ExpectConnected(*mgr_, TcpManager::Connect(any, peer, kTimeoutMs), peer);
+
+  // Binding `self` pins the local address (loopback here, ephemeral port).
+  const Endpoint self(peer.GetIpAddr(), /*port=*/0);
+  {
+    std::unique_ptr<TcpSocket> s = TcpManager::Connect(self, peer, kTimeoutMs);
+    ExpectConnected(*mgr_, s, peer);
+    EXPECT_EQ(SelfEndpoint(s->fd()).GetIpAddr(), self.GetIpAddr());
+  }
+
+  mgr_->Stop();
+  ta.join();
+}
+
+TEST_P(TcpManagerTest, BlockingConnectRefused) {
+  // Nobody listens on a freshly picked free port, so the kernel answers RST.
+  const Endpoint peer = TestOnly_LocalEndpoint(cfg_.family, /*tcp=*/true);
+  const size_t sockets_before = CountOpenSocketFds();
+
+  constexpr int kTimeoutMs = 1000;
+  EXPECT_EQ(TcpManager::Connect(/*self=*/{}, peer), nullptr);
+  EXPECT_EQ(TcpManager::Connect(/*self=*/{}, peer, kTimeoutMs), nullptr);
+
+  // A failed connect does not leak its socket.
+  EXPECT_EQ(CountOpenSocketFds(), sockets_before);
+}
+
+TEST_P(TcpManagerTest, BlockingConnectTimeout) {
+  constexpr int kTimeoutMs = 100;
+  const BlackHoleListener blackhole(cfg_.family, kTimeoutMs);
+  ASSERT_TRUE(blackhole.IsFull());
+  const size_t sockets_before = CountOpenSocketFds();
+
+  // The SYN is dropped, so the connect can only end by timing out.
+  const absl::Duration start = util::MonotonicNow();
+  const Endpoint peer = blackhole.GetEndpoint();
+  EXPECT_EQ(TcpManager::Connect(/*self=*/{}, peer, kTimeoutMs), nullptr);
+  const absl::Duration elapsed = util::MonotonicNow() - start;
+  EXPECT_GE(elapsed, absl::Milliseconds(kTimeoutMs));
+  EXPECT_LE(elapsed, absl::Milliseconds(10 * kTimeoutMs));
+
+  // The timed-out socket is closed.
+  EXPECT_EQ(CountOpenSocketFds(), sockets_before);
 }
 
 TEST_P(TcpManagerTest, ConcurrentConnects) {

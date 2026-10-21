@@ -36,6 +36,16 @@ class TcpManager : public TcpManagerBase {
   // produced, and `Start()` returns promptly.
   void Stop();
 
+  // Connects the `self` endpoint to the `peer` blockingly. If `self` has
+  // a nonzero ip address, binds to it before connecting. Returns the connected
+  // blocking socket on success, or nullptr on error. A non-positive
+  // `timeout_ms` means no timeout: the call blocks until the connection
+  // succeeds or fails. Otherwise, connect will fail if the connection is not
+  // established within the timeout period.
+  static std::unique_ptr<TcpSocket> Connect(const Endpoint& self,
+                                            const Endpoint& peer,
+                                            int timeout_ms = -1);
+
   // Connects the `self` endpoint to the `peer` in blocking/non-blocking mode.
   // If `self` has nonzero ip address, binds to it before connecting.
   // Returns 0 on success, 1 on connect in progress, or -1 on error.

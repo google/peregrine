@@ -1,8 +1,10 @@
 #include "peregrine/src/internal/socket/tcp_manager.h"
 
+#include <poll.h>
 #include <sys/epoll.h>
 
 #include <atomic>
+#include <cerrno>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -124,6 +126,53 @@ TcpManager::TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
       incoming_(),
       outgoing_() {
   DCHECK(invariant());
+}
+
+std::unique_ptr<TcpSocket> TcpManager::Connect(const Endpoint& self,
+                                               const Endpoint& peer,
+                                               int timeout_ms) {
+  static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
+  DCHECK(peer.HasNonzeroIpPort());
+
+  const int family = peer.GetIpAddr().AddressFamily();
+  const bool blocking = timeout_ms <= 0;
+  auto socket = TcpSocket::Create(family, blocking);
+  if ABSL_PREDICT_FALSE (socket == nullptr) {
+    return nullptr;
+  } else if (!self.HasZeroIpAddr() && socket->Bind(self) < 0) {
+    return nullptr;
+  }
+
+  switch (const int ret = socket->Connect(peer); ret) {
+    case kConnectError:
+      return nullptr;
+    case kConnectSuccess:
+      break;
+    case kConnectInProgress: {
+      DCHECK_GE(timeout_ms, 1);
+      DCHECK(socket->IsNonBlocking());
+      DCHECK(!socket->IsConnected());
+      LOG(INFO) << "connecting " << *socket;
+      const fd_t fd = socket->fd();
+      struct pollfd pfd = {.fd = fd.value(), .events = POLLOUT};
+      if (const int n = poll(&pfd, 1, timeout_ms); n < 0) {
+        LOG(ERROR) << "poll failed: errno=" << errno << ", " << *socket;
+        return nullptr;
+      } else if (n == 0) {
+        LOG(WARNING) << "timed out " << timeout_ms << " ms, " << *socket;
+        return nullptr;
+      } else if (GetSocketError(fd) != 0) {
+        LOG(ERROR) << "connect failed: " << *socket;
+        return nullptr;
+      }
+      socket->SetConnected();
+      break;
+    }
+  }
+
+  DCHECK(socket->IsConnected());
+  if (socket->SetBlocking(/*blocking=*/true) < 0) return nullptr;
+  return socket;
 }
 
 int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
