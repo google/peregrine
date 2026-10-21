@@ -87,7 +87,7 @@ std::unique_ptr<TcpSocket> PspTcpManager::ConnectPsp(
   if ABSL_PREDICT_FALSE (socket == nullptr) {
     return nullptr;
   }
-  if (!self.HasZeroIpAddr() && socket->Bind(self)) {
+  if (!self.HasZeroIpAddr() && socket->Bind(self) < 0) {
     return nullptr;
   }
 
@@ -96,7 +96,7 @@ std::unique_ptr<TcpSocket> PspTcpManager::ConnectPsp(
       ConfigPspToken(fd, peer, peer_control, psp_token_xchg);
   if (!self_token.ok() || !self_token->IsValid()) return nullptr;
 
-  socket = TcpManager::Connect(std::move(socket), peer, timeout_ms);
+  socket = TcpManager::connectSync(std::move(socket), peer, timeout_ms);
   if (socket == nullptr) return nullptr;
 
   if (!CheckPspToken(fd, self_token.value())) return nullptr;

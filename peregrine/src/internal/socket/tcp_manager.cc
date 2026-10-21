@@ -128,7 +128,7 @@ TcpManager::TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
   DCHECK(invariant());
 }
 
-std::unique_ptr<TcpSocket> TcpManager::Connect(
+std::unique_ptr<TcpSocket> TcpManager::connectSync(
     std::unique_ptr<TcpSocket> socket, const Endpoint& peer, int timeout_ms) {
   static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
   DCHECK_NE(socket, nullptr);
@@ -183,7 +183,7 @@ std::unique_ptr<TcpSocket> TcpManager::Connect(const Endpoint& self,
   } else if (!self.HasZeroIpAddr() && socket->Bind(self) < 0) {
     return nullptr;
   } else {
-    return Connect(std::move(socket), peer, timeout_ms);
+    return connectSync(std::move(socket), peer, timeout_ms);
   }
 }
 

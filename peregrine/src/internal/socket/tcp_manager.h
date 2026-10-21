@@ -37,17 +37,7 @@ class TcpManager : public TcpManagerBase {
   // produced, and `Start()` returns promptly.
   void Stop();
 
-  // Connects the given `socket` to the `peer` blockingly. Returns the
-  // connected socket on success, or nullptr on error. A non-positive
-  // `timeout_ms` means no timeout: the call blocks until the connection
-  // succeeds or fails. Otherwise, connect will fail if the connection is not
-  // established within the timeout period, in which case the given socket must
-  // be non-blocking.
-  static std::unique_ptr<TcpSocket> Connect(std::unique_ptr<TcpSocket> socket,
-                                            const Endpoint& peer,
-                                            int timeout_ms);
-
-  // Connects the `self` endpoint to the `peer` blockingly. If `self` has
+  // Connects the `self` endpoint to the `peer` synchronously. If `self` has
   // a nonzero ip address, binds to it before connecting. Returns the connected
   // blocking socket on success, or nullptr on error. A non-positive
   // `timeout_ms` means no timeout: the call blocks until the connection
@@ -82,6 +72,8 @@ class TcpManager : public TcpManagerBase {
   }
 
  private:
+  friend class PspTcpManager;
+
   // Constructor with a set of non-blocking tcp listening sockets.
   TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
              absl::flat_hash_map<fd_t, Listener> sockets);
@@ -105,6 +97,11 @@ class TcpManager : public TcpManagerBase {
   bool handleAllIncoming(fd_t fd, uint32_t flag, bool gen_blocking);
 
  private:
+  // Connects the `socket` to the `peer` synchronously within `timeout_ms`.
+  // Returns the connected blocking socket on success, or nullptr on error.
+  static std::unique_ptr<TcpSocket> connectSync(
+      std::unique_ptr<TcpSocket> socket, const Endpoint& peer, int timeout_ms);
+
   // Creates a blocking tcp connecting socket to the `peer` endpoint.
   int connectBlocking(std::unique_ptr<TcpSocket> socket, const Endpoint& peer);
 
