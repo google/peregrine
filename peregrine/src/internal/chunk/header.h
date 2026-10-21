@@ -11,6 +11,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/trace/chunk_trace_wire.h"
 
 namespace peregrine::internal {
 
@@ -100,7 +101,8 @@ struct alignas(8) DataHeader final : public HeaderBase {
   // (e.g., `index * chunk_size` for contiguous transfers, or the logical offset
   // within the transfer for non-contiguous recipes).
   uint64_t byte_offset;
-  addr_t raddr;  // REQUIRED: target chunk address on the remote peer
+  addr_t raddr;          // REQUIRED: target chunk address on the remote peer
+  ChunkTraceWire trace;  // OPTIONAL: per-chunk trace metadata
   // LINT.ThenChange(header.fbs:data_header)
 
   // Returns true iff this `DataHeader` is valid.
@@ -115,7 +117,7 @@ struct alignas(8) DataHeader final : public HeaderBase {
   // Equality operator.
   friend bool operator==(const DataHeader& a, const DataHeader& b) = default;
 };
-static_assert(sizeof(DataHeader) == 40);
+static_assert(sizeof(DataHeader) == 56);
 
 inline std::ostream& operator<<(std::ostream& os, const DataHeader& header) {
   return os << header.ToString();

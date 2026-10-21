@@ -36,6 +36,16 @@ struct PostInfoHeader {
 // LINT.ThenChange(header.h:post_info_header)
 }
 
+// `flatbuf::ChunkTraceWire` has a fixed size of 16 bytes. It is used to
+// serialize the in-memory struct `ChunkTraceWire` in chunk_trace_wire.h.
+struct ChunkTraceWire {
+  tx_send_mono_us:uint64;
+  rx_payload_us:uint32;
+  rx_acquire_us:uint16;
+  rx_worker_id:int8;
+  rx_chunk_status:uint8;
+}
+
 // `flatbuf::DataHeader` has a fixed size of 64 bytes. It is used for both
 // data chunks (`base.len > 0`) and chunk ACKs (`base.len == 0`).
 struct DataHeader {
@@ -46,11 +56,10 @@ struct DataHeader {
   padding0:uint32;
   byte_offset:uint64;
   raddr:uint64;
+  trace:ChunkTraceWire;
 
   // Paddings to keep the header size always 64 bytes.
   padding1:uint64;
-  padding2:uint64;
-  padding3:uint64;
 // LINT.ThenChange(header.h:data_header)
 }
 

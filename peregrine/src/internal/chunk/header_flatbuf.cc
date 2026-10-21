@@ -14,6 +14,7 @@
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_generated.h"
+#include "peregrine/src/internal/trace/chunk_trace_wire.h"
 
 namespace peregrine::internal {
 
@@ -196,10 +197,14 @@ std::string HeaderUtil::serializeV1(const DataHeader& header) {
   const flatbuf::HeaderBase base(kMagic, kVer,
                                  static_cast<uint8_t>(header.opcode),
                                  header.handle.value(), header.len);
+  const flatbuf::ChunkTraceWire trace(
+      header.trace.tx_send_mono_us, header.trace.rx_payload_us,
+      header.trace.rx_acquire_us, header.trace.rx_worker_id,
+      header.trace.rx_chunk_status);
   const flatbuf::DataHeader h(base, header.reqid.value(), header.index.value(),
                               /*padding0=*/0, header.byte_offset,
-                              header.raddr.value(),
-                              /*paddings=*/0, 0, 0);
+                              header.raddr.value(), trace,
+                              /*padding1=*/0);
   DCHECK_EQ(sizeof(h), kSize);
   return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
 }
@@ -240,6 +245,12 @@ bool HeaderUtil::deserializeV1(const flatbuf::DataHeader& h,
   header.index = chunk_t(h.index());
   header.byte_offset = h.byte_offset();
   header.raddr = addr_t(h.raddr());
+  const flatbuf::ChunkTraceWire& t = h.trace();
+  header.trace.tx_send_mono_us = t.tx_send_mono_us();
+  header.trace.rx_payload_us = t.rx_payload_us();
+  header.trace.rx_acquire_us = t.rx_acquire_us();
+  header.trace.rx_worker_id = t.rx_worker_id();
+  header.trace.rx_chunk_status = t.rx_chunk_status();
   return true;
 }
 

@@ -21,9 +21,11 @@ std::string PostInfoHeader::ToString() const {
 std::string DataHeader::ToString() const {
   return absl::StrFormat(
       "DataHeader: handle=0x%x, reqid=0x%x, index=%d, byte_offset=%llu, "
-      "len=%d, raddr=0x%llx",
+      "len=%d, raddr=0x%llx, trace={tx_send_mono_us=%llu, rx_payload_us=%u, "
+      "rx_acquire_us=%u, rx_worker_id=%d, rx_chunk_status=%u}",
       handle.value(), reqid.value(), index.value(), byte_offset, len,
-      raddr.value());
+      raddr.value(), trace.tx_send_mono_us, trace.rx_payload_us,
+      trace.rx_acquire_us, trace.rx_worker_id, trace.rx_chunk_status);
 }
 
 std::string RequestInfo::ToString() const {

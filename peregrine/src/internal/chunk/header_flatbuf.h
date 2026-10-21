@@ -21,6 +21,7 @@ class HeaderUtil final {
   static constexpr size_t kSize = 64;
   static constexpr size_t kRequestInfoSize = 128;
   static_assert(sizeof(flatbuf::HeaderBase) == 12);
+  static_assert(sizeof(flatbuf::ChunkTraceWire) == 16);
   static_assert(sizeof(flatbuf::PostInfoHeader) == kSize);
   static_assert(sizeof(flatbuf::DataHeader) == kSize);
   static_assert(sizeof(flatbuf::Recipe) == 40);

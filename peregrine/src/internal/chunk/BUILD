@@ -77,6 +77,7 @@ cc_library(
         ":chunk",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/trace:chunk_trace_wire",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
     ],
@@ -109,6 +110,7 @@ cc_library(
         ":header",
         ":header_cc_fbs",
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/trace:chunk_trace_wire",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/types:span",
@@ -124,6 +126,7 @@ cc_test(
         ":header",
         ":header_flatbuf",
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/trace:chunk_trace_wire",
         "@googletest//:gtest_main",
     ],
 )

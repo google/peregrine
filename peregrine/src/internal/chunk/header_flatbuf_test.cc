@@ -9,6 +9,7 @@
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
 #include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/trace/chunk_trace_wire.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -90,6 +91,36 @@ TEST(HeaderSerializationTest, DataAndAckHeaderSerde) {
   EXPECT_EQ(ack, ack_out);
   EXPECT_FALSE(ack_out.IsData());
   EXPECT_TRUE(ack_out.IsAck());
+}
+
+TEST(HeaderSerializationTest, DataAndAckHeaderSerdeWithTrace) {
+  DataHeader data = {};
+  data.opcode = Opcode::kData;
+  data.handle = kHandle;
+  data.len = kChunkSize;
+  data.reqid = kReqId;
+  data.index = kChunkIndex;
+  data.byte_offset = 16384;
+  data.raddr = kBufferBaseAddr;
+  data.trace.tx_send_mono_us = 123456789ULL;
+  data.trace.rx_payload_us = 450U;
+  data.trace.rx_acquire_us = 12U;
+  data.trace.rx_worker_id = -7;
+  data.trace.rx_chunk_status = 2U;
+  ASSERT_TRUE(data.IsValid());
+  ASSERT_TRUE(data.trace.IsTraced());
+
+  const std::string s = HeaderUtil::Serialize(data);
+  ASSERT_EQ(s.size(), HeaderUtil::kSize);
+
+  DataHeader output = {};
+  ASSERT_TRUE(HeaderUtil::Deserialize(s, output));
+  EXPECT_EQ(data, output);
+  EXPECT_EQ(output.trace.tx_send_mono_us, 123456789ULL);
+  EXPECT_EQ(output.trace.rx_payload_us, 450U);
+  EXPECT_EQ(output.trace.rx_acquire_us, 12U);
+  EXPECT_EQ(output.trace.rx_worker_id, -7);
+  EXPECT_EQ(output.trace.rx_chunk_status, 2U);
 }
 
 TEST(HeaderSerializationTest, InvalidHeaderBytes) {
