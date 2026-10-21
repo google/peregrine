@@ -9,6 +9,7 @@
 #include "absl/random/random.h"
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
+#include "peregrine/src/internal/trace/chunk_trace_wire.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -27,6 +28,29 @@ TEST(ChunkSerializationTest, Serde) {
   ASSERT_NE(chunk, output);
   ASSERT_TRUE(ChunkUtil::Deserialize(s, output));
   EXPECT_EQ(chunk, output);
+}
+
+TEST(ChunkSerializationTest, SerdeWithTrace) {
+  ChunkHeader chunk = GenChunkHeader();
+  chunk.trace.tx_send_mono_us = 123456789ULL;
+  chunk.trace.rx_payload_us = 450U;
+  chunk.trace.rx_acquire_us = 12U;
+  chunk.trace.rx_worker_id = -7;
+  chunk.trace.rx_chunk_status = 0;
+  ASSERT_TRUE(chunk.IsValid());
+  ASSERT_TRUE(chunk.trace.IsTraced());
+
+  const std::string s = ChunkUtil::Serialize(chunk);
+  ASSERT_EQ(s.size(), ChunkUtil::kSize);
+
+  ChunkHeader output;
+  ASSERT_TRUE(ChunkUtil::Deserialize(s, output));
+  EXPECT_EQ(chunk, output);
+  EXPECT_EQ(output.trace.tx_send_mono_us, 123456789ULL);
+  EXPECT_EQ(output.trace.rx_payload_us, 450U);
+  EXPECT_EQ(output.trace.rx_acquire_us, 12U);
+  EXPECT_EQ(output.trace.rx_worker_id, -7);
+  EXPECT_EQ(output.trace.rx_chunk_status, 0U);
 }
 
 TEST(ChunkSerializationTest, FixedSize) {

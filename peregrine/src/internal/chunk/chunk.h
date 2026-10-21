@@ -10,6 +10,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/trace/chunk_trace_wire.h"
 #include "peregrine/src/util/strong_int.h"
 
 namespace peregrine::internal {
@@ -29,7 +30,8 @@ struct alignas(8) ChunkHeader final {
   uint32_t nchunks;  // REQUIRED: total #chunks (fixed)
   chunk_t index;     // REQUIRED: chunk index (variable)
   addr_t addr;       // REQUIRED: chunk address (variable)
-  uint32_t size;     // REQUIRED: chunk size (variable)
+  uint32_t size;         // REQUIRED: chunk size (variable)
+  ChunkTraceWire trace;  // OPTIONAL: per-chunk trace metadata
   // LINT.ThenChange(chunk.fbs)
 
   // Returns true iff the chunk is valid.
@@ -51,10 +53,10 @@ struct alignas(8) ChunkHeader final {
   friend bool operator==(const ChunkHeader& a, const ChunkHeader& b) {
     return a.handle == b.handle && a.reqid == b.reqid &&
            a.nchunks == b.nchunks && a.index == b.index && a.addr == b.addr &&
-           a.size == b.size;
+           a.size == b.size && a.trace == b.trace;
   }
 };
-static_assert(sizeof(ChunkHeader) == 32);
+static_assert(sizeof(ChunkHeader) == 48);
 
 inline std::ostream& operator<<(std::ostream& os, const ChunkHeader& chunk) {
   return os << chunk.ToString();

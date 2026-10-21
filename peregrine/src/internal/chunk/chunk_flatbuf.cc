@@ -13,6 +13,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_generated.h"
+#include "peregrine/src/internal/trace/chunk_trace_wire.h"
 
 namespace peregrine::internal {
 
@@ -54,10 +55,14 @@ bool ChunkUtil::Deserialize(std::string_view s, ChunkHeader& chunk) {
 
 std::string ChunkUtil::serializeV1(const ChunkHeader& chunk) {
   constexpr uint16_t kVer = 1;
-  const flatbuf::ChunkHeader h(kMagic, kVer, chunk.handle.value(),
-                               chunk.reqid.value(), chunk.nchunks,
-                               chunk.index.value(), chunk.size,
-                               chunk.addr.value(), /*paddings=*/0, 0, 0, 0);
+  const flatbuf::ChunkTraceWire trace(
+      chunk.trace.tx_send_mono_us, chunk.trace.rx_payload_us,
+      chunk.trace.rx_acquire_us, chunk.trace.rx_worker_id,
+      chunk.trace.rx_chunk_status);
+  const flatbuf::ChunkHeader h(
+      kMagic, kVer, chunk.handle.value(), chunk.reqid.value(), chunk.nchunks,
+      chunk.index.value(), chunk.size, chunk.addr.value(), trace,
+      /*padding0=*/0, /*padding1=*/0);
   DCHECK_EQ(sizeof(h), kSize);
   return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
 }
@@ -71,6 +76,12 @@ void ChunkUtil::deserializeV1(const flatbuf::ChunkHeader& h,
   chunk.index = chunk_t(h.index());
   chunk.addr = addr_t(h.addr());
   chunk.size = h.size();
+  const flatbuf::ChunkTraceWire& t = h.trace();
+  chunk.trace.tx_send_mono_us = t.tx_send_mono_us();
+  chunk.trace.rx_payload_us = t.rx_payload_us();
+  chunk.trace.rx_acquire_us = t.rx_acquire_us();
+  chunk.trace.rx_worker_id = t.rx_worker_id();
+  chunk.trace.rx_chunk_status = t.rx_chunk_status();
 }
 
 }  // namespace peregrine::internal

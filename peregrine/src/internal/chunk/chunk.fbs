@@ -5,6 +5,16 @@ enum Constant:uint16 {
   MAGIC = 0x4750,  // 'PG' in little-endian order
 }
 
+// `flatbuf::ChunkTraceWire` has a fixed size of 16 bytes. It is used to
+// serialize the in-memory struct `ChunkTraceWire` in chunk_trace_wire.h.
+struct ChunkTraceWire {
+  tx_send_mono_us:uint64;
+  rx_payload_us:uint32;
+  rx_acquire_us:uint16;
+  rx_worker_id:int8;
+  rx_chunk_status:uint8;
+}
+
 // `flatbuf::ChunkHeader` has a fixed size of 64 bytes. It is used to serialize
 // the in-memory struct `ChunkHeader` in chunk.h. They must be kept in sync.
 struct ChunkHeader {
@@ -21,11 +31,10 @@ struct ChunkHeader {
   index:uint32;
   size:uint32;
   addr:uint64;
+  trace:ChunkTraceWire;
 
   // Paddings to keep the header size always 64 bytes.
   padding0:uint64;
   padding1:uint64;
-  padding2:uint64;
-  padding3:uint64;
 // LINT.ThenChange(chunk.h)
 }
