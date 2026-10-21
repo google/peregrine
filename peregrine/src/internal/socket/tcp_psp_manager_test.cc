@@ -4,7 +4,6 @@
 
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -22,6 +21,7 @@
 #include "peregrine/src/internal/socket/psp/psp_mock.h"
 #include "peregrine/src/internal/socket/psp/psp_util.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
+#include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -45,32 +45,27 @@ class PspTcpManagerTest : public TestWithParam<SocketTestParam> {
   PspTcpManagerTest()
       : cfg_(GetParam()),
         self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
-        mgr_(PspTcpManager::Create(self_)),
+        tcp_mgr_(TcpManager::Create(self_)),
         peers_(self_.data_plane_listeners),
         psp_syscalls_(psp::testing::FakePspTcpSyscalls::Create()),
         psp_token_xchg_([this](const PspToken& self_token, const Endpoint& peer,
                                const Endpoint& peer_control) {
-          return this->mgr_->ExchangePspTokens(self_token, peer);
+          return PspTcpManager::ExchangePspTokens(*tcp_mgr_, self_token, peer);
         }) {
     CHECK(self_.IsValid());
-    CHECK_NE(mgr_, nullptr);
+    CHECK_NE(tcp_mgr_, nullptr);
     CHECK_NE(psp_syscalls_, nullptr);
     psp::TestOnly_SetPspTcpSyscalls(psp_syscalls_.get());
   }
 
   ~PspTcpManagerTest() override { psp::TestOnly_SetPspTcpSyscalls(nullptr); }
 
-  static void OnAccept(std::unique_ptr<TcpSocket> socket) {
-    auto x = std::move(socket);
-    CHECK_NE(x, nullptr);
-  }
-
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(100)); }
 
  protected:
   const SocketTestConfig cfg_;
   HostInfo self_;
-  std::unique_ptr<PspTcpManager> mgr_;
+  std::unique_ptr<TcpManager> tcp_mgr_;
   const std::vector<NicInfo> peers_;
   std::unique_ptr<psp::testing::FakePspTcpSyscalls> psp_syscalls_;
   PspTcpManager::PspTokenExchange psp_token_xchg_;
@@ -90,12 +85,14 @@ TEST_P(PspTcpManagerTest, HandlePspTokenExchange) {
   const PspToken peer_token(Spi(1), Gen(9), {0xbe, 0xef});
   const NicInfo& nic = self_.data_plane_listeners[0];
   const Endpoint& self_target = nic.endpoints[0];
-  const auto self_token = mgr_->ExchangePspTokens(peer_token, self_target);
+  const auto self_token =
+      PspTcpManager::ExchangePspTokens(*tcp_mgr_, peer_token, self_target);
   ASSERT_TRUE(self_token.ok());
   EXPECT_TRUE(self_token->IsValid());
 
   const Endpoint unknown_target = Endpoint::Create("127.0.0.1:9999");
-  const auto status = mgr_->ExchangePspTokens(peer_token, unknown_target);
+  const auto status =
+      PspTcpManager::ExchangePspTokens(*tcp_mgr_, peer_token, unknown_target);
   EXPECT_THAT(status, StatusIs(kNotFound));
 }
 
@@ -104,7 +101,7 @@ TEST_P(PspTcpManagerTest, AcceptBeforeConnect) {
     GTEST_SKIP() << "psp not supported";
   }
 
-  util::Thread ta([&]() { mgr_->Start(OnAccept, cfg_.blocking); });
+  util::Thread ta([&]() { tcp_mgr_->Start(cfg_.blocking); });
 
   ShortSleep();
   util::Thread tc([&]() {
@@ -115,14 +112,14 @@ TEST_P(PspTcpManagerTest, AcceptBeforeConnect) {
       std::unique_ptr<TcpSocket> socket =
           PspTcpManager::ConnectPsp(self, peer, peer_control, psp_token_xchg_);
       CHECK_NE(socket, nullptr);
-      DCHECK(socket->IsBlocking());
-      DCHECK(socket->IsConnected());
-      DCHECK(psp::IsPspEnabled(socket->fd()));
+      CHECK(socket->IsBlocking());
+      CHECK(socket->IsConnected());
+      CHECK(psp::IsPspEnabled(socket->fd()));
     }
   });
 
   ShortSleep();
-  mgr_->Stop();
+  tcp_mgr_->Stop();
   ta.join();
   tc.join();
 }
@@ -147,10 +144,10 @@ TEST_P(PspTcpManagerTest, ConnectBeforeAccept) {
   });
 
   ShortSleep();
-  util::Thread ta([&]() { mgr_->Start(OnAccept, cfg_.blocking); });
+  util::Thread ta([&]() { tcp_mgr_->Start(cfg_.blocking); });
 
   ShortSleep();
-  mgr_->Stop();
+  tcp_mgr_->Stop();
   tc.join();
   ta.join();
 }
