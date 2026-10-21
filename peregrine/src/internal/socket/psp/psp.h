@@ -11,6 +11,8 @@
 #include "absl/strings/str_format.h"
 #include "peregrine/src/util/strong_int.h"
 
+// PSP (PSP Security Protocol) spec: https://github.com/google/psp
+
 namespace peregrine::internal {
 
 constexpr size_t kPspKeyLen = 16;

@@ -1,9 +1,7 @@
 #include "peregrine/src/internal/socket/psp/psp_util.h"
 
-#include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/string_view.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/psp/psp.h"
 

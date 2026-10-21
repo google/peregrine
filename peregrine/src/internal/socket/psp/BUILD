@@ -24,31 +24,25 @@ cc_test(
     ],
 )
 
-cc_library(
-    name = "psp_util",
-    srcs = ["psp_util.cc"],
-    hdrs = ["psp_util.h"],
-    deps = [
-        ":psp",
-        "//peregrine/src/internal/base:types",
-        "@abseil-cpp//absl/log:check",
-        "@abseil-cpp//absl/status",
-        "@abseil-cpp//absl/status:statusor",
-        "@abseil-cpp//absl/strings:string_view",
-    ],
-)
-
-cc_test(
-    name = "psp_util_test",
-    srcs = ["psp_util_test.cc"],
-    deps = [
-        ":psp_util",
-        "@googletest//:gtest_main",
-    ],
-)
+exports_files(["psp_util.h"])
 
 cc_library(
     name = "psp_mock",
     testonly = True,
     hdrs = ["psp_mock.h"],
+    deps = [
+        "//peregrine/src/internal/socket/psp/oss:psp_mock",
+    ],
+)
+
+cc_library(
+    name = "psp_util",
+    hdrs = ["psp_util.h"],
+    deps = [
+        ":psp",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/socket/psp/oss:psp_util",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
 )
