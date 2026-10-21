@@ -111,13 +111,15 @@ class Engine final {
   // Generates a unique handle.
   Handle genHandle() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     static_assert(std::is_same_v<Handle::ValueType, uint32_t>);
-    return Handle(++next_handle_);
+    if (++next_handle_ == kInvalidHandle.value()) ++next_handle_;
+    return Handle(next_handle_);
   }
 
   // Generates a unique request id.
   ReqId genReqId() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     static_assert(std::is_same_v<ReqId::ValueType, uint32_t>);
-    return ReqId(++next_reqid_);
+    if (++next_reqid_ == kInvalidReqId.value()) ++next_reqid_;
+    return ReqId(next_reqid_);
   }
 
   // Returns the tracker for the request.

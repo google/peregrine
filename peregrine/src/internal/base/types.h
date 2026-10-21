@@ -18,6 +18,7 @@ using IoVec = ::iovec;
 // `ReqId` uniquely identifies a read/write request in one process.
 // `Request` is defined in `src/api/transport_types.h`.
 DEFINE_STRONG_INT_TYPE(ReqId, uint32_t);
+inline constexpr ReqId kInvalidReqId(0);
 
 // Socket file descriptor.
 DEFINE_STRONG_INT_TYPE(fd_t, int);

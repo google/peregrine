@@ -24,6 +24,7 @@ using Metadata = std::array<Byte, kMetadataSize>;
 
 // `Handle` uniquely identifies a transport request within one process.
 DEFINE_STRONG_INT_TYPE(Handle, uint32_t);
+inline constexpr Handle kInvalidHandle(0);
 
 // Transport operation.
 enum class Op : uint8_t {
