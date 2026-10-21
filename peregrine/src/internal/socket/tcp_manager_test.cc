@@ -193,9 +193,10 @@ TEST_P(TcpManagerTest, BlockingConnectRefused) {
   const Endpoint peer = TestOnly_LocalEndpoint(cfg_.family, /*tcp=*/true);
   const size_t sockets_before = CountOpenSocketFds();
 
+  const Endpoint self = {};
   constexpr int kTimeoutMs = 1000;
-  EXPECT_EQ(TcpManager::Connect(/*self=*/{}, peer), nullptr);
-  EXPECT_EQ(TcpManager::Connect(/*self=*/{}, peer, kTimeoutMs), nullptr);
+  EXPECT_EQ(TcpManager::Connect(self, peer), nullptr);
+  EXPECT_EQ(TcpManager::Connect(self, peer, kTimeoutMs), nullptr);
 
   // A failed connect does not leak its socket.
   EXPECT_EQ(CountOpenSocketFds(), sockets_before);
@@ -209,8 +210,9 @@ TEST_P(TcpManagerTest, BlockingConnectTimeout) {
 
   // The SYN is dropped, so the connect can only end by timing out.
   const absl::Duration start = util::MonotonicNow();
+  const Endpoint self = {};
   const Endpoint peer = blackhole.GetEndpoint();
-  EXPECT_EQ(TcpManager::Connect(/*self=*/{}, peer, kTimeoutMs), nullptr);
+  EXPECT_EQ(TcpManager::Connect(self, peer, kTimeoutMs), nullptr);
   const absl::Duration elapsed = util::MonotonicNow() - start;
   EXPECT_GE(elapsed, absl::Milliseconds(kTimeoutMs));
   EXPECT_LE(elapsed, absl::Milliseconds(10 * kTimeoutMs));

@@ -135,7 +135,8 @@ TEST_P(PspTcpManagerTest, ConnectBeforeAccept) {
     for (const NicInfo& ni : peers_) {
       const Endpoint& peer = ni.endpoints[0];
       std::unique_ptr<TcpSocket> socket =
-          PspTcpManager::ConnectPsp(self, peer, peer_control, psp_token_xchg_);
+          PspTcpManager::ConnectPsp(self, peer, peer_control, psp_token_xchg_,
+                                    /*timeout_ms=*/500);
       CHECK_NE(socket, nullptr);
       DCHECK(socket->IsBlocking());
       DCHECK(socket->IsConnected());

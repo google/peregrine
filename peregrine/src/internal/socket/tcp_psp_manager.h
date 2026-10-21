@@ -31,9 +31,11 @@ class PspTcpManager {
   // exchanging PSP tokens with the `peer_control` endpoint. If `self` has
   // nonzero ip address, binds to it before connecting. Returns a connected
   // psp tcp socket if successful. Otherwise, returns a null pointer.
-  static std::unique_ptr<TcpSocket> ConnectPsp(
-      const Endpoint& self, const Endpoint& peer, const Endpoint& peer_control,
-      PspTokenExchange& psp_token_xchg);
+  static std::unique_ptr<TcpSocket> ConnectPsp(const Endpoint& self,
+                                               const Endpoint& peer,
+                                               const Endpoint& peer_control,
+                                               PspTokenExchange& psp_token_xchg,
+                                               int timeout_ms = -1);
 };
 
 }  // namespace peregrine::internal

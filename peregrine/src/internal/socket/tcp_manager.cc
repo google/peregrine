@@ -128,20 +128,13 @@ TcpManager::TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
   DCHECK(invariant());
 }
 
-std::unique_ptr<TcpSocket> TcpManager::Connect(const Endpoint& self,
-                                               const Endpoint& peer,
-                                               int timeout_ms) {
+std::unique_ptr<TcpSocket> TcpManager::Connect(
+    std::unique_ptr<TcpSocket> socket, const Endpoint& peer, int timeout_ms) {
   static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
+  DCHECK_NE(socket, nullptr);
+  DCHECK((socket->IsBlocking() && timeout_ms <= 0) ||
+         (socket->IsNonBlocking() && timeout_ms > 0));
   DCHECK(peer.HasNonzeroIpPort());
-
-  const int family = peer.GetIpAddr().AddressFamily();
-  const bool blocking = timeout_ms <= 0;
-  auto socket = TcpSocket::Create(family, blocking);
-  if ABSL_PREDICT_FALSE (socket == nullptr) {
-    return nullptr;
-  } else if (!self.HasZeroIpAddr() && socket->Bind(self) < 0) {
-    return nullptr;
-  }
 
   switch (const int ret = socket->Connect(peer); ret) {
     case kConnectError:
@@ -172,7 +165,26 @@ std::unique_ptr<TcpSocket> TcpManager::Connect(const Endpoint& self,
 
   DCHECK(socket->IsConnected());
   if (socket->SetBlocking(/*blocking=*/true) < 0) return nullptr;
+  LOG(INFO) << "made " << *socket;
   return socket;
+}
+
+std::unique_ptr<TcpSocket> TcpManager::Connect(const Endpoint& self,
+                                               const Endpoint& peer,
+                                               int timeout_ms) {
+  static_assert(assumptions::kTcpConnectingSocketsCanBeBlockingOrNonBlocking);
+  DCHECK(peer.HasNonzeroIpPort());
+
+  const int family = peer.GetIpAddr().AddressFamily();
+  const bool blocking = timeout_ms <= 0;
+  auto socket = TcpSocket::Create(family, blocking);
+  if ABSL_PREDICT_FALSE (socket == nullptr) {
+    return nullptr;
+  } else if (!self.HasZeroIpAddr() && socket->Bind(self) < 0) {
+    return nullptr;
+  } else {
+    return Connect(std::move(socket), peer, timeout_ms);
+  }
 }
 
 int TcpManager::Connect(const Endpoint& self, const Endpoint& peer,
