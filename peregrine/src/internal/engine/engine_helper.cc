@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -110,11 +109,15 @@ EngineHelper::Channels EngineHelper::Connect(const Endpoint& peer_control) {
 }
 
 namespace {
-std::optional<NicInfo> GetTcpListener(const HostInfo& peer_info) {
+std::vector<Endpoint> GetTcpListeners(const HostInfo& peer_info) {
+  std::vector<Endpoint> endpoints;
   for (const auto& nic : peer_info.data_plane_listeners) {
-    if (nic.type == util::NicType::kIP) return nic;
+    if (nic.type == util::NicType::kIP) {
+      endpoints.insert(endpoints.end(), nic.endpoints.begin(),
+                       nic.endpoints.end());
+    }
   }
-  return std::nullopt;
+  return endpoints;
 }
 }  // namespace
 
@@ -126,8 +129,8 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
                  << peer_info.status();
     return {};
   }
-  const auto nic = GetTcpListener(*peer_info);
-  if (!nic.has_value()) {
+  const std::vector<Endpoint> peers = GetTcpListeners(*peer_info);
+  if (peers.empty()) {
     LOG(WARNING) << "no tcp listener found for peer " << peer_control;
     return {};
   }
@@ -136,10 +139,10 @@ EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
   EngineHelper::Channels chs;
   // TODO(yongx): build connection locality group
   const Endpoint self = {};
-  const Endpoint& peer = nic.value().endpoints[0];
   uint64_t failures = 0;
   for (int i = 0; chs.size() < n && i < 2 * n; ++i) {
     DCHECK(!config_.require_dataplane_encryption);
+    const Endpoint& peer = peers[i % peers.size()];
     if (tcp_mgr_->Connect(self, peer, /*blocking=*/true) < 0) ++failures;
     for (auto& socket : tcp_mgr_->GetOutgoingSockets()) {
       DCHECK_NE(socket, nullptr);
