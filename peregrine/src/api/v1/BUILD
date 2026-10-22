@@ -45,6 +45,39 @@ cc_test(
 )
 
 cc_library(
+    name = "conn_util",
+    srcs = ["conn_util.cc"],
+    hdrs = ["conn_util.h"],
+    deps = [
+        ":ip_util",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/random",
+        "@abseil-cpp//absl/random:distributions",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+    ],
+)
+
+cc_test(
+    name = "conn_util_test",
+    srcs = ["conn_util_test.cc"],
+    deps = [
+        ":conn_util",
+        "@abseil-cpp//absl/cleanup",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "histogram",
     hdrs = ["histogram.h"],
     deps = [
