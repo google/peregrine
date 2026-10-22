@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -12,30 +11,24 @@
 
 namespace peregrine::internal {
 
-TraceBuffer::TraceBuffer(size_t capacity)
-    : capacity_(normalizeCapacity(capacity)),
-      mask_(capacity_ - 1),
-      events_(capacity_),
-      write_idx_(0) {}
-
 std::vector<TraceEvent> TraceBuffer::Snapshot() const {
   const uint64_t total = write_idx_.load(std::memory_order_acquire);
   if (total == 0) return {};
 
-  const uint64_t count = std::min<uint64_t>(total, capacity_);
+  const uint64_t count = std::min<uint64_t>(total, kCapacity);
   const uint64_t start = total - count;
   std::vector<TraceEvent> out;
   out.reserve(count);
   for (uint64_t i = 0; i < count; ++i) {
-    out.push_back(events_[(start + i) & mask_].LoadAcquire());
+    out.push_back(events_[(start + i) & kMask].LoadAcquire());
   }
   return out;
 }
 
 void TraceBuffer::Clear() noexcept {
   write_idx_.store(0, std::memory_order_release);
-  for (size_t i = 0; i < capacity_; ++i) {
-    events_[i].Clear();
+  for (Slot& slot : events_) {
+    slot.Clear();
   }
 }
 
@@ -63,11 +56,6 @@ void TraceBuffer::Slot::Clear() noexcept {
   for (auto& w : words) {
     w.store(0, std::memory_order_relaxed);
   }
-}
-
-size_t TraceBuffer::normalizeCapacity(size_t capacity) noexcept {
-  const size_t clamped = std::max<size_t>(capacity, 16);
-  return std::bit_ceil(clamped);
 }
 
 }  // namespace peregrine::internal

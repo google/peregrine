@@ -10,13 +10,16 @@
 namespace peregrine::internal::testing {
 namespace {
 
-TEST(TraceBufferTest, PowerOfTwoAndRingWraparound) {
-  TraceBuffer buf(20);
-  EXPECT_EQ(buf.Capacity(), 32);
+TEST(TraceBufferTest, RingWraparound) {
+  TraceBuffer buf;
+  EXPECT_EQ(buf.Capacity(), TraceBuffer::kCapacity);
   EXPECT_EQ(buf.TotalRecorded(), 0);
   EXPECT_TRUE(buf.Snapshot().empty());
 
-  for (uint32_t i = 1; i <= 50; ++i) {
+  constexpr uint32_t kExtraEvents = 18;
+  const uint32_t total_events =
+      static_cast<uint32_t>(TraceBuffer::kCapacity) + kExtraEvents;
+  for (uint32_t i = 1; i <= total_events; ++i) {
     buf.Record(TraceEvent{
         .timestamp_us = 1000 + i,
         .handle = i,
@@ -30,11 +33,11 @@ TEST(TraceBufferTest, PowerOfTwoAndRingWraparound) {
     });
   }
 
-  EXPECT_EQ(buf.TotalRecorded(), 50);
+  EXPECT_EQ(buf.TotalRecorded(), total_events);
   const std::vector<TraceEvent> snap = buf.Snapshot();
-  ASSERT_EQ(snap.size(), 32);
-  EXPECT_EQ(snap.front().handle, 19);
-  EXPECT_EQ(snap.back().handle, 50);
+  ASSERT_EQ(snap.size(), TraceBuffer::kCapacity);
+  EXPECT_EQ(snap.front().handle, kExtraEvents + 1);
+  EXPECT_EQ(snap.back().handle, total_events);
 
   buf.Clear();
   EXPECT_EQ(buf.TotalRecorded(), 0);
@@ -42,7 +45,7 @@ TEST(TraceBufferTest, PowerOfTwoAndRingWraparound) {
 }
 
 TEST(TraceBufferTest, ConcurrentMultiThreadedRecord) {
-  TraceBuffer buf(1024);
+  TraceBuffer buf;
   constexpr int kNumThreads = 4;
   constexpr int kEventsPerThread = 200;
 

@@ -3,6 +3,7 @@
 
 #include <array>
 #include <atomic>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -13,16 +14,17 @@
 
 namespace peregrine::internal {
 
-// Pre-allocated ring buffer for `TraceEvent` records supporting lock-free
-// atomic updates and zero heap allocation on `Record()`.
+// Pre-allocated ring buffer for TraceEvent records supporting lock-free
+// atomic updates and zero heap allocation on Record().
 class TraceBuffer final {
   static_assert(coding_style::kClassPrivateFunctionNamesStartWithLowercase);
   static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
 
  public:
-  static constexpr size_t kDefaultCapacity = 32768;
+  static constexpr size_t kCapacity = 32768;
+  static_assert(std::has_single_bit(kCapacity));
 
-  explicit TraceBuffer(size_t capacity = kDefaultCapacity);
+  TraceBuffer() = default;
 
   DISALLOW_COPY(TraceBuffer);
   DISALLOW_MOVE(TraceBuffer);
@@ -30,10 +32,10 @@ class TraceBuffer final {
   ~TraceBuffer() = default;
 
   // Returns the ring buffer capacity (always a power of two).
-  size_t Capacity() const noexcept { return capacity_; }
+  constexpr size_t Capacity() const noexcept { return kCapacity; }
 
-  // Returns the total number of events recorded since creation or `Clear()`.
-  // May exceed `Capacity()`, in which case older events are overwritten.
+  // Returns the total number of events recorded since creation or Clear().
+  // May exceed Capacity(), in which case older events are overwritten.
   uint64_t TotalRecorded() const noexcept {
     return write_idx_.load(std::memory_order_acquire);
   }
@@ -41,20 +43,22 @@ class TraceBuffer final {
   // Appends a trace event into the ring buffer without locks or allocations.
   void Record(const TraceEvent& ev) noexcept {
     const uint64_t idx = write_idx_.fetch_add(1, std::memory_order_relaxed);
-    events_[idx & mask_].StoreRelaxed(ev);
+    events_[idx & kMask].StoreRelaxed(ev);
   }
 
   // Returns a chronological snapshot of valid events currently in the buffer.
-  // Not atomic across slots or words; may race with concurrent `Record()` or
-  // `Clear()` calls.
+  // Not atomic across slots or words; may race with concurrent Record() or
+  // Clear() calls.
   std::vector<TraceEvent> Snapshot() const;
 
   // Resets the ring buffer.
-  // Not atomic across slots; may race with concurrent `Record()` or
-  // `Snapshot()` calls.
+  // Not atomic across slots; may race with concurrent Record() or
+  // Snapshot() calls.
   void Clear() noexcept;
 
  private:
+  static constexpr size_t kMask = kCapacity - 1;
+
   struct Slot final {
     static_assert(std::atomic<uint64_t>::is_always_lock_free);
     static_assert(sizeof(TraceEvent) % sizeof(uint64_t) == 0);
@@ -67,13 +71,9 @@ class TraceBuffer final {
   };
   static_assert(sizeof(Slot) == sizeof(TraceEvent));
 
-  static size_t normalizeCapacity(size_t capacity) noexcept;
-
  private:
-  const size_t capacity_;
-  const size_t mask_;
-  std::vector<Slot> events_;
-  std::atomic<uint64_t> write_idx_;
+  std::array<Slot, kCapacity> events_{};
+  std::atomic<uint64_t> write_idx_{0};
 };
 
 }  // namespace peregrine::internal
