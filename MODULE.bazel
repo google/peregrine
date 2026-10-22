@@ -9,11 +9,11 @@ module(
 # Keep modules in each section sorted alphabetically.
 
 # Bazel
-bazel_dep(name = "bazel_features", version = "1.52.0")
+bazel_dep(name = "bazel_features", version = "1.53.0")
 bazel_dep(name = "platforms", version = "1.1.0")
 bazel_dep(name = "rules_cc", version = "0.2.26")
 bazel_dep(name = "rules_proto", version = "7.1.0")
-bazel_dep(name = "rules_python", version = "2.4.2")
+bazel_dep(name = "rules_python", version = "2.4.3")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 
 # C++ Libraries
