@@ -24,6 +24,10 @@ inline bool IsEnvVarDisabled(const std::string& name) {
   return EnvVarMatchesAnyIgnoreCase(name, {"0", "false", "no", "off"});
 }
 
+// Returns the integer value of the environment variable `name`, or
+// `default_value` if it is not set or cannot be parsed as an integer.
+int ParseEnvVarInteger(const std::string& name, int default_value);
+
 }  // namespace peregrine::util
 
 #endif  // PEREGRINE_SRC_UTIL_ENVVAR_H_

@@ -84,5 +84,26 @@ TEST(EnvVarTest, EnvVarMatchesAnyIgnoreCaseUnset) {
   EXPECT_FALSE(EnvVarMatchesAnyIgnoreCase(kEnvVar, {}));
 }
 
+TEST(EnvVarTest, ParseEnvVarInteger) {
+  {
+    ScopedEnvVar ev(kEnvVar, "123");
+    EXPECT_EQ(ParseEnvVarInteger(kEnvVar, 0), 123);
+    EXPECT_EQ(ParseEnvVarInteger(kEnvVar, -1), 123);
+  }
+  {
+    ScopedEnvVar ev(kEnvVar, "\t -456");
+    EXPECT_EQ(ParseEnvVarInteger(kEnvVar, 0), -456);
+    EXPECT_EQ(ParseEnvVarInteger(kEnvVar, 1), -456);
+  }
+  {
+    ScopedEnvVar ev(kEnvVar, "10.357");
+    EXPECT_EQ(ParseEnvVarInteger(kEnvVar, 9), 9);
+  }
+  {
+    ScopedEnvVar ev(kEnvVar, "not_an_integer");
+    EXPECT_EQ(ParseEnvVarInteger(kEnvVar, -7), -7);
+  }
+}
+
 }  // namespace
 }  // namespace peregrine::util::testing
