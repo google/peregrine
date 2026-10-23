@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_BASE_NICINFO_H_
 #define PEREGRINE_SRC_INTERNAL_BASE_NICINFO_H_
 
+#include <optional>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -37,6 +38,14 @@ struct NicInfo {
   // including loopback interfaces iff `include_loopback` is true.
   static absl::flat_hash_map<std::string, NicInfo> GetTcpListenerCandidates(
       bool include_loopback);
+
+  // Returns an arbitrary valid ipv4 localhost endpoint,
+  // or std::nullopt if none exists.
+  std::optional<Endpoint> PickIPv4Localhost() const;
+
+  // Returns an arbitrary valid ipv6 localhost endpoint,
+  // or std::nullopt if none exists.
+  std::optional<Endpoint> PickIPv6Localhost() const;
 
   // Returns true iff the nic info is valid.
   bool IsValid() const;

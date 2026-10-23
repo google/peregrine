@@ -118,5 +118,11 @@ TEST(NicInfoTest, TcpListenerCandidates) {
   }
 }
 
+TEST(NicInfoTest, PickLocalhost) {
+  const NicInfo ni = NicInfo::Create("lo/ip/127.0.0.1:35247,[::1]:35247");
+  EXPECT_EQ(ni.PickIPv4Localhost(), Endpoint::Create("127.0.0.1:35247"));
+  EXPECT_EQ(ni.PickIPv6Localhost(), Endpoint::Create("[::1]:35247"));
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

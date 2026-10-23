@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/base/nicinfo.h"
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -85,6 +86,27 @@ absl::flat_hash_map<std::string, NicInfo> NicInfo::GetTcpListenerCandidates(
     }
   }
   return candidates;
+}
+
+namespace {
+template <int kFamily>
+std::optional<Endpoint> PickLocalhost(const std::vector<Endpoint>& endpoints) {
+  static_assert(kFamily == AF_INET || kFamily == AF_INET6);
+  for (const auto& e : endpoints) {
+    if (kFamily == AF_INET && !e.IsIPv4()) continue;
+    if (kFamily == AF_INET6 && !e.IsIPv6()) continue;
+    if (e.HasNonzeroIpPort() && e.GetIpAddr().IsLoopback()) return e;
+  }
+  return std::nullopt;
+}
+}  // namespace
+
+std::optional<Endpoint> NicInfo::PickIPv4Localhost() const {
+  return PickLocalhost<AF_INET>(endpoints);
+}
+
+std::optional<Endpoint> NicInfo::PickIPv6Localhost() const {
+  return PickLocalhost<AF_INET6>(endpoints);
 }
 
 }  // namespace peregrine::internal
