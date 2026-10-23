@@ -1,3 +1,5 @@
+include "chunk_trace_wire.fbs";
+
 namespace peregrine.internal.flatbuf;
 
 // Wire packet type carried in the common 12-byte `HeaderBase` prefix.
@@ -34,16 +36,6 @@ struct PostInfoHeader {
   padding1:uint64;
   padding2:uint64;
 // LINT.ThenChange(header.h:post_info_header)
-}
-
-// `flatbuf::ChunkTraceWire` has a fixed size of 16 bytes. It is used to
-// serialize the in-memory struct `ChunkTraceWire` in chunk_trace_wire.h.
-struct ChunkTraceWire {
-  tx_send_mono_us:uint64;
-  rx_payload_us:uint32;
-  rx_acquire_us:uint16;
-  rx_worker_id:int8;
-  rx_chunk_status:uint8;
 }
 
 // `flatbuf::DataHeader` has a fixed size of 64 bytes. It is used for both

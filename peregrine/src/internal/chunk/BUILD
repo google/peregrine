@@ -33,9 +33,23 @@ cc_test(
     ],
 )
 
+FLATC_ARGS = [
+    "--no-union-value-namespacing",
+    "--gen-object-api",
+    "--gen-generated",
+]
+
+flatbuffer_cc_library(
+    name = "chunk_trace_wire_cc_fbs",
+    srcs = ["chunk_trace_wire.fbs"],
+    flatc_args = FLATC_ARGS,
+)
+
 flatbuffer_cc_library(
     name = "chunk_cc_fbs",
     srcs = ["chunk.fbs"],
+    flatc_args = FLATC_ARGS,
+    includes = [":chunk_trace_wire_cc_fbs_includes"],
 )
 
 cc_library(
@@ -45,6 +59,7 @@ cc_library(
     deps = [
         ":chunk",
         ":chunk_cc_fbs",
+        ":chunk_trace_wire_cc_fbs",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:types",
@@ -99,6 +114,8 @@ cc_test(
 flatbuffer_cc_library(
     name = "header_cc_fbs",
     srcs = ["header.fbs"],
+    flatc_args = FLATC_ARGS,
+    includes = [":chunk_trace_wire_cc_fbs_includes"],
 )
 
 cc_library(
@@ -107,6 +124,7 @@ cc_library(
     hdrs = ["header_flatbuf.h"],
     deps = [
         ":chunk",
+        ":chunk_trace_wire_cc_fbs",
         ":header",
         ":header_cc_fbs",
         "//peregrine/src/api:transport_types",

@@ -1,18 +1,10 @@
+include "chunk_trace_wire.fbs";
+
 namespace peregrine.internal.flatbuf;
 
 // Do not change.
 enum Constant:uint16 {
   MAGIC = 0x4750,  // 'PG' in little-endian order
-}
-
-// `flatbuf::ChunkTraceWire` has a fixed size of 16 bytes. It is used to
-// serialize the in-memory struct `ChunkTraceWire` in chunk_trace_wire.h.
-struct ChunkTraceWire {
-  tx_send_mono_us:uint64;
-  rx_payload_us:uint32;
-  rx_acquire_us:uint16;
-  rx_worker_id:int8;
-  rx_chunk_status:uint8;
 }
 
 // `flatbuf::ChunkHeader` has a fixed size of 64 bytes. It is used to serialize
