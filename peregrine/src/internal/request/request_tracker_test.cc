@@ -2,7 +2,6 @@
 
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
@@ -32,7 +31,7 @@ class RequestTrackerTest : public ::testing::Test {
 
 TEST_F(RequestTrackerTest, Send) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
   ChunkTracker& send = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
@@ -49,7 +48,7 @@ TEST_F(RequestTrackerTest, Send) {
 
 TEST_F(RequestTrackerTest, Recv) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
   ChunkTracker& recv = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
@@ -67,7 +66,7 @@ TEST_F(RequestTrackerTest, Recv) {
 
 TEST_F(RequestTrackerTest, SetMethod) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
     rt_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
@@ -85,7 +84,7 @@ TEST_F(RequestTrackerTest, CompletionCallbackSingleRequest) {
     ++callback_count;
     completed_status = s;
   };
-  ASSERT_TRUE(rt_.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
 
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(callback_count, 0);
@@ -106,25 +105,26 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
     ++callback_count;
     completed_status = s;
   };
-  const std::vector<ReqId> reqs = {kReqId, kReqId2};
-  ASSERT_TRUE(rt_.Add(kHandle, reqs, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
+  rt_.FindOrCreate(kHandle, kReqId2, kNumChunks);
 
   // Complete first request.
   for (int i = 0; i < kNumChunks; ++i) {
-    rt_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId, chunk_t(i));
   }
   EXPECT_EQ(callback_count, 0);
   EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
 
   // Complete second request partially.
   for (int i = 0; i < kNumChunks - 1; ++i) {
-    rt_.Update(kHandle, kReqId2, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId2, chunk_t(i));
   }
   EXPECT_EQ(callback_count, 0);
   EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
 
   // Complete second request fully.
-  rt_.Update(kHandle, kReqId2, kNumChunks, chunk_t(kNumChunks - 1));
+  rt_.Update(kHandle, kReqId2, chunk_t(kNumChunks - 1));
   EXPECT_EQ(callback_count, 1);
   EXPECT_EQ(completed_status, Status::kSuccess);
   EXPECT_TRUE(rt_.IsEmpty());
@@ -133,18 +133,19 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
 
 TEST_F(RequestTrackerTest, MultipleRequestsPartialProgress) {
   RequestTracker::OnComplete on_complete = nullptr;
-  const std::vector<ReqId> reqs = {kReqId, kReqId2};
-  ASSERT_TRUE(rt_.Add(kHandle, reqs, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
+  rt_.FindOrCreate(kHandle, kReqId2, kNumChunks);
 
   // Complete the first request.
   for (int i = 0; i < kNumChunks; ++i) {
-    rt_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId, chunk_t(i));
   }
   EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
 
   // Complete the second request.
   for (int i = 0; i < kNumChunks; ++i) {
-    rt_.Update(kHandle, kReqId2, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId2, chunk_t(i));
   }
   EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 }

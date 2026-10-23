@@ -216,7 +216,9 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
 
   // Step 2: find chunk tracker for incoming data chunk.
   // TODO: Relax the assumption that `PostInfoHeader` has already been processed
-  // and registered in `incoming` before `DataHeader` chunks arrive.
+  // and registered in `incoming` before `DataHeader` chunks arrive. Also have
+  // `incoming.Find()` return `ChunkTracker*` to avoid the extra `Check()` lock
+  // + `isComplete()` scan and `.at()` abort on missing `reqid`.
   const size_t size = chunk.len;
   if ABSL_PREDICT_FALSE (incoming.Check(chunk.handle) == Status::kNotFound) {
     LOG(WARNING) << "unregistered handle for data chunk: " << chunk;
@@ -317,7 +319,9 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
 
   // Step 2: find chunk tracker for incoming data chunk.
   // TODO: Relax the assumption that `PostInfoHeader` has already been processed
-  // and registered in `incoming` before `DataHeader` chunks arrive.
+  // and registered in `incoming` before `DataHeader` chunks arrive. Also have
+  // `incoming.Find()` return `ChunkTracker*` to avoid the extra `Check()` lock
+  // + `isComplete()` scan and `.at()` abort on missing `reqid`.
   if ABSL_PREDICT_FALSE (incoming.Check(chunk.handle) == Status::kNotFound) {
     LOG(WARNING) << "unregistered handle for data chunk: " << chunk;
     return false;

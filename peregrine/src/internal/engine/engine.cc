@@ -28,6 +28,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/engine/engine_helper.h"
 #include "peregrine/src/internal/engine/worker.h"
@@ -130,29 +131,29 @@ void Engine::tcpmgrLoop() {
   }
 }
 
-bool Engine::hasWork() const { return !reqs_.empty() || stop_; }
+bool Engine::hasWork() const { return !posts_.empty() || stop_; }
 
 void Engine::mainLoop() {
   while (true) {
-    Entry entry;
-    {  // step 1: get an entry.
+    PostEntry post;
+    {  // step 1: get a post entry.
       absl::MutexLock _(mu_);
       mu_.Await(absl::Condition(this, &Engine::hasWork));
-      if (reqs_.empty()) {
+      if (posts_.empty()) {
         DCHECK(stop_);  // destructor called
         return;
       }
-      entry = std::move(reqs_.front());
-      reqs_.pop_front();
+      post = std::move(posts_.front());
+      posts_.pop_front();
     }
 
     // step 2: create send workers if needed.
-    if (send_workers_[entry.peer].size() < config_.num_conns_per_peer) {
-      createSendWorkers(entry.peer);
+    if (send_workers_[post.peer].size() < config_.num_conns_per_peer) {
+      createSendWorkers(post.peer);
     }
 
-    // step 3: process the entry.
-    process(entry);
+    // step 3: process the post.
+    process(post);
   }
 }
 
@@ -169,25 +170,17 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
   absl::MutexLock _(mu_);
   const Handle handle = genHandle();
 
-  std::vector<ReqId> reqids;
-  const auto& requests = item.requests;
-  reqids.reserve(requests.size());
-  for (int i = 0; i < requests.size(); ++i) {
-    reqids.push_back(genReqId());
-  }
-  DCHECK_EQ(reqids.size(), requests.size());
-
   // TODO(yongx): all the request ops are the same for now.
-  RequestTracker& tracker = getRequestTracker(requests[0]);
-  if (!tracker.Add(handle, reqids, item.start_time,
-                   std::move(item.on_complete))) {
+  RequestTracker& tracker = getRequestTracker(item.requests[0]);
+  if (!tracker.Add(handle, item.start_time, std::move(item.on_complete))) {
     return AlreadyExistsError(handle);
   }
-  OpMetrics& op_metrics = getOpMetrics(requests[0]);
-  for (int i = 0; i < requests.size(); ++i) {
-    reqs_.emplace_back(peer, handle, reqids[i], requests[i]);
-    op_metrics.request_size_bytes.Record(requests[i].len);
-  }
+  posts_.push_back(PostEntry{
+      .peer = peer,
+      .handle = handle,
+      .reqs = std::vector<Request>(item.requests.begin(), item.requests.end()),
+      .metadata = item.metadata,
+  });
   return handle;
 }
 
@@ -203,56 +196,102 @@ absl::StatusOr<Status> Engine::QueryUpdate(const Handle handle) {
   return NotFoundError(handle);
 }
 
-void Engine::process(const Entry& entry) {
-  if (entry.request.op == Op::kWrite) {
-    Workers& workers = send_workers_[entry.peer];
+void Engine::process(const PostEntry& post) {
+  DCHECK(!post.reqs.empty());
+  if (post.reqs[0].op == Op::kWrite) {
+    Workers& workers = send_workers_[post.peer];
     if ABSL_PREDICT_FALSE (workers.empty()) {
-      LOG(ERROR) << "failed to create send workers for " << entry.peer;
+      // TODO: Fail or remove `post.handle` in `outgoing_` when error handling
+      // is implemented.
+      LOG(ERROR) << "failed to create send workers for " << post.peer;
       metrics_.write.errors.Add(1);
     } else {
-      processWrite(workers, entry.handle, entry.reqid, entry.request);
+      processWrite(workers, post);
     }
   } else {
-    processRead(entry.handle, entry.reqid, entry.request);
+    for (const Request& req : post.reqs) {
+      processRead(post.handle, req);
+    }
+  }
+}
+
+void Engine::processWrite(Workers& workers, const PostEntry& post) {
+  DCHECK(!workers.empty());
+  const size_t num_reqs = post.reqs.size();
+  std::vector<RequestInfo> req_infos;
+  req_infos.reserve(num_reqs);
+  for (const Request& req : post.reqs) {
+    DCHECK(req.IsValid());
+    metrics_.write.request_size_bytes.Record(req.len);
+    const uint32_t nchunks = std::min(workers.size(), req.len);
+    DCHECK_GE(nchunks, 1);
+    req_infos.push_back(RequestInfo{
+        .reqid = genReqId(),
+        .nchunks = nchunks,
+        .raddr = addr_t(reinterpret_cast<uintptr_t>(req.raddr)),
+        .total_len = req.len,
+        .op = req.op,
+        .recipe = Recipe{.type = RecipeType::kContiguous, .params = {}},
+        .metadata = req.metadata,
+    });
+  }
+  outgoing_.Add(post.handle, req_infos);
+
+  const size_t info_len = num_reqs * kSerializedRequestInfoSize;
+  CHECK_LE(info_len, std::numeric_limits<uint32_t>::max());
+  PostInfoHeader post_info = {};
+  post_info.opcode = Opcode::kPostInfo;
+  post_info.handle = post.handle;
+  post_info.len = static_cast<uint32_t>(info_len);
+  post_info.metadata = post.metadata;
+  // TODO: Send `PostInfoHeader` on a single channel once out-of-order
+  // `DataHeader` arrival across multiple channels is supported.
+  for (auto& worker : workers) {
+    worker->EnqueueInfo(post_info, req_infos);
+  }
+
+  for (size_t i = 0; i < num_reqs; ++i) {
+    processWrite(workers, post.handle, post.reqs[i].laddr, req_infos[i]);
   }
 }
 
 void Engine::processWrite(Workers& workers, const Handle handle,
-                          const ReqId reqid, const Request& request) {
+                          const Byte* const laddr,
+                          const RequestInfo& req_info) {
   DCHECK(!workers.empty());
-  DCHECK(request.IsValid());
-  const size_t len = request.len;
-  const uint32_t nchunks = std::min(workers.size(), len);
+  DCHECK(req_info.IsValid());
+  const size_t len = req_info.total_len;
+  const uint32_t nchunks = req_info.nchunks;
   DCHECK_GE(nchunks, 1);
   const size_t q = len / nchunks;
   const size_t r = len % nchunks;
   uint64_t offset = 0;
   for (uint32_t i = 0; i < nchunks; ++i) {
-    const Byte* const chunk_src_addr = request.laddr + offset;
-    const Byte* const chunk_dst_addr = request.raddr + offset;
     // TODO(yongx): add a queue for chunks if `n` is too big (>= 8 MiB).
     const size_t n = i < r ? (q + 1) : q;
     CHECK_LE(n, std::numeric_limits<uint32_t>::max());  // Crash OK for now
     const uint32_t size = static_cast<uint32_t>(n);
+    DataHeader chunk = {};
+    chunk.opcode = Opcode::kData;
+    chunk.handle = handle;
+    chunk.len = size;
+    chunk.reqid = req_info.reqid;
+    chunk.index = chunk_t(i);
+    chunk.byte_offset = offset;
+    chunk.raddr = addr_t(req_info.raddr.value() + offset);
     offset += size;
-    const ChunkHeader chunk = {
-        .handle = handle,
-        .reqid = reqid,
-        .nchunks = nchunks,
-        .index = chunk_t(i),
-        .addr = addr_t(reinterpret_cast<uintptr_t>(chunk_dst_addr)),
-        .size = size,
-    };
-    workers[i]->EnqueueChunk(chunk_src_addr, chunk);
+    workers[i]->EnqueueChunk(laddr + chunk.byte_offset, chunk);
   }
   DCHECK_EQ(offset, len);
 }
 
-void Engine::processRead(const Handle handle, const ReqId reqid,
-                         const Request& request) {
+void Engine::processRead(const Handle handle, const Request& req) {
   // TODO(yongx): implement read.
-  std::memcpy(request.laddr, request.raddr, request.len);
-  incoming_.Update(handle, reqid, /*num_chunks=*/1, chunk_t(0));
+  metrics_.read.request_size_bytes.Record(req.len);
+  std::memcpy(req.laddr, req.raddr, req.len);
+  const ReqId reqid = genReqId();
+  incoming_.FindOrCreate(handle, reqid, /*num_chunks=*/1);
+  incoming_.Update(handle, reqid, chunk_t(0));
 }
 
 }  // namespace peregrine::internal

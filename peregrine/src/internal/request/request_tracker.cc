@@ -43,20 +43,9 @@ Status RequestTracker::Check(const Handle handle) const {
   return Status::kSuccess;
 }
 
-bool RequestTracker::Add(const Handle handle, absl::Span<const ReqId> reqids,
-                         const absl::Time start_time, OnComplete on_complete) {
-  DCHECK(!reqids.empty());
-
-  ReqMap req_map;
-  req_map.reserve(reqids.size());
-  for (const ReqId reqid : reqids) {
-    // ChunkTracker can only be created after its #chunks is known.
-    if (!req_map.try_emplace(reqid, /*chunk_tracker=*/nullptr).second) {
-      return false;
-    }
-  }
-
-  ReqsTracker rt(std::move(req_map), start_time, std::move(on_complete));
+bool RequestTracker::Add(const Handle handle, const absl::Time start_time,
+                         OnComplete on_complete) {
+  ReqsTracker rt(/*req_map=*/{}, start_time, std::move(on_complete));
   absl::MutexLock _(trackers_mu_);
   return trackers_.try_emplace(handle, std::move(rt)).second;
 }
@@ -65,9 +54,8 @@ bool RequestTracker::Add(const Handle handle,
                          absl::Span<const RequestInfo> reqs) {
   DCHECK(!reqs.empty());
   absl::MutexLock _(trackers_mu_);
-  auto [it, inserted] = trackers_.try_emplace(handle);
-  if (!inserted) return true;
-  ReqsTracker& rt = it->second;
+  ReqsTracker& rt = trackers_[handle];
+  if (!rt.req_map.empty()) return true;
   rt.req_map.reserve(reqs.size());
   for (const RequestInfo& req : reqs) {
     DCHECK(req.IsValid());

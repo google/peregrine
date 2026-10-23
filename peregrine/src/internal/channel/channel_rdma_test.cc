@@ -13,8 +13,8 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel_type.h"
-#include "peregrine/src/internal/chunk/chunk.h"
-#include "peregrine/src/internal/chunk/chunk_flatbuf.h"
+#include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/rdma/rdma_conn.h"
 #include "peregrine/src/internal/rdma/rdma_context.h"
 #include "peregrine/src/internal/rdma/rdma_device.h"
@@ -84,16 +84,17 @@ TEST(RdmaChannelTest, LoopbackWrite) {
   EXPECT_EQ(sender_ch.Write({}), -1);
   EXPECT_EQ(sender_ch.Write({{src_buf.data(), kBufSize}}), -1);
 
-  // Construct ChunkHeader pointing to destination memory address.
-  ChunkHeader chunk = {};
+  // Construct DataHeader pointing to destination memory address.
+  DataHeader chunk = {};
+  chunk.opcode = Opcode::kData;
   chunk.handle = Handle(1);
+  chunk.len = kBufSize;
   chunk.reqid = ReqId(100);
-  chunk.nchunks = 1;
   chunk.index = chunk_t(0);
-  chunk.addr = addr_t(reinterpret_cast<uintptr_t>(dst_buf.data()));
-  chunk.size = kBufSize;
+  chunk.byte_offset = 0;
+  chunk.raddr = addr_t(reinterpret_cast<uintptr_t>(dst_buf.data()));
 
-  const std::string serialized_hdr = ChunkUtil::Serialize(chunk);
+  const std::string serialized_hdr = HeaderUtil::Serialize(chunk);
   const std::array<const IoVec, 2> iovecs = {
       IoVec(const_cast<char*>(serialized_hdr.data()), serialized_hdr.size()),
       IoVec(src_buf.data(), src_buf.size()),

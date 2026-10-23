@@ -4,13 +4,16 @@
 #include <deque>
 #include <memory>
 #include <string_view>
+#include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/util/macro.h"
@@ -35,8 +38,12 @@ class Worker {
   // Destructor.
   ~Worker();
 
+  // Enqueues post info to be sent later.
+  void EnqueueInfo(const PostInfoHeader& info,
+                   absl::Span<const RequestInfo> reqs) ABSL_LOCKS_EXCLUDED(mu_);
+
   // Enqueues a chunk to be sent later.
-  void EnqueueChunk(const Byte* chunk_src_addr, const ChunkHeader& chunk)
+  void EnqueueChunk(const Byte* chunk_src_addr, const DataHeader& chunk)
       ABSL_LOCKS_EXCLUDED(mu_);
 
   // Runs a loop to send chunks until the destructor is called.
@@ -53,13 +60,18 @@ class Worker {
   void log(std::string_view msg) const;
 
  private:
-  struct Entry {
+  struct InfoEntry {
+    PostInfoHeader info;
+    std::vector<RequestInfo> reqs;
+  };
+
+  struct ChunkEntry {
     const Byte* chunk_src_addr;
-    ChunkHeader chunk;
+    DataHeader chunk;
 
     // Returns the chunk payload for sending.
     ChunkPayloadView GenPayload() const {
-      return ChunkPayloadView(chunk_src_addr, chunk.size);
+      return ChunkPayloadView(chunk_src_addr, chunk.len);
     }
   };
 
@@ -69,7 +81,8 @@ class Worker {
 
   mutable absl::Mutex mu_;
   bool stop_ ABSL_GUARDED_BY(mu_);
-  std::deque<Entry> chunks_ ABSL_GUARDED_BY(mu_);
+  std::deque<InfoEntry> infos_ ABSL_GUARDED_BY(mu_);
+  std::deque<ChunkEntry> chunks_ ABSL_GUARDED_BY(mu_);
 
   RequestTracker& outgoing_;
   RequestTracker& incoming_;

@@ -22,7 +22,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_test_util.h"
-#include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/util/test_param.h"
@@ -85,17 +85,39 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
     return i != kNumChunks - 1 ? kChunkSize : kLastChunkSize;
   }
 
-  ChunkHeader GenChunkHeader(uint32_t i) {
+  PostInfoHeader GenPostInfoHeader() {
+    PostInfoHeader info = {};
+    info.opcode = Opcode::kPostInfo;
+    info.handle = kHandle;
+    info.len = kSerializedRequestInfoSize;
+    return info;
+  }
+
+  RequestInfo GenRequestInfo() {
+    RequestInfo req = {};
+    req.reqid = kReqId;
+    req.nchunks = kNumChunks;
+    req.raddr = addr_t(reinterpret_cast<uintptr_t>(dst_.data()));
+    req.total_len = kBufSize;
+    req.op = Op::kWrite;
+    req.recipe.type = RecipeType::kContiguous;
+    return req;
+  }
+
+  DataHeader GenDataHeader(uint32_t i) {
     static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
     const uint64_t dst_buffer_addr(reinterpret_cast<uint64_t>(dst_.data()));
     const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
     const addr_t dst_chunk_addr(dst_buffer_addr + offset);
-    return ChunkHeader{.handle = kHandle,
-                       .reqid = kReqId,
-                       .nchunks = kNumChunks,
-                       .index = chunk_t(i),
-                       .addr = dst_chunk_addr,
-                       .size = GetChunkSize(i)};
+    DataHeader chunk = {};
+    chunk.opcode = Opcode::kData;
+    chunk.handle = kHandle;
+    chunk.len = GetChunkSize(i);
+    chunk.reqid = kReqId;
+    chunk.index = chunk_t(i);
+    chunk.byte_offset = offset;
+    chunk.raddr = dst_chunk_addr;
+    return chunk;
   }
 
  private:
@@ -139,17 +161,20 @@ INSTANTIATE_TEST_SUITE_P(, WorkerTest,
 TEST_P(WorkerTest, SendRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
-  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {kReqId}, absl::Now(),
+  const PostInfoHeader info = GenPostInfoHeader();
+  const RequestInfo req_info = GenRequestInfo();
+  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, absl::Now(),
                                  /*on_complete=*/nullptr));
-
+  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {req_info}));
   absl::Notification done;
   util::Thread s([&]() {
     while (sndr_.outgoing.Check(kHandle) != Status::kSuccess) {
+      sndr_.worker.EnqueueInfo(info, {req_info});
       for (int i = 0; i < kNumChunks; ++i) {
         if (sndr_.outgoing.Check(kHandle) == Status::kSuccess) break;
         const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
         const Byte* const chunk_src_addr = src_.data() + offset;
-        sndr_.worker.EnqueueChunk(chunk_src_addr, GenChunkHeader(i));
+        sndr_.worker.EnqueueChunk(chunk_src_addr, GenDataHeader(i));
       }
       absl::SleepFor(absl::Milliseconds(100));
     }

@@ -16,8 +16,8 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
-#include "peregrine/src/internal/chunk/chunk.h"
-#include "peregrine/src/internal/chunk/chunk_flatbuf.h"
+#include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/rdma/rdma_qpair.h"
 
 namespace peregrine::internal {
@@ -50,18 +50,18 @@ ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
   struct ibv_qp* const ibv_qp = qp->GetQp();
   if (ibv_qp == nullptr) return -1;
 
-  // One-sided RDMA requires exactly [ChunkHeader, Payload].
+  // One-sided RDMA requires exactly [DataHeader, Payload].
   if (iovecs.size() != 2) {
-    LOG(ERROR) << "Requires exactly 2 iovecs: [ChunkHeader, Payload]";
+    LOG(ERROR) << "Requires exactly 2 iovecs: [DataHeader, Payload]";
     return -1;
   }
 
-  // 1. Deserialize ChunkHeader from iovecs[0] to extract destination address
-  ChunkHeader chunk;
+  // 1. Deserialize DataHeader from iovecs[0] to extract destination address
+  DataHeader chunk;
   const std::string_view header_str(
       static_cast<const char*>(iovecs[0].iov_base), iovecs[0].iov_len);
-  if (!ChunkUtil::Deserialize(header_str, chunk) || !chunk.IsValid()) {
-    LOG(ERROR) << "failed to deserialize valid chunk header in RdmaChannel";
+  if (!HeaderUtil::Deserialize(header_str, chunk) || !chunk.IsData()) {
+    LOG(ERROR) << "failed to deserialize valid data header in RdmaChannel";
     return -1;
   }
 
@@ -71,7 +71,7 @@ ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
     LOG(ERROR) << "payload length " << payload_len << " exceeds uint32_t max";
     return -1;
   }
-  const uint64_t remote_dest_addr = chunk.addr.value();
+  const uint64_t remote_dest_addr = chunk.raddr.value();
 
   struct ibv_sge sge = {};
   sge.addr = reinterpret_cast<uintptr_t>(payload_addr);

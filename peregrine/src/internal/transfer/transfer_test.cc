@@ -167,8 +167,7 @@ TEST_P(TransferTest, SendRecv) {
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(
-      a_.outgoing.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(a_.outgoing.Add(kHandle, absl::Now(), std::move(on_complete)));
 
   // A sends data chunks to B.
   util::Thread a_send([&]() {
@@ -220,16 +219,15 @@ TEST_P(TransferTest, SendInfoAndSendRecvData) {
 
   // Precondition: dst is different from src.
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
+  const RequestInfo req = GenRequestInfo();
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(
-      a_.outgoing.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
-  (void)a_.outgoing.FindOrCreate(kHandle, kReqId, kNumChunks);
+  ASSERT_TRUE(a_.outgoing.Add(kHandle, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(a_.outgoing.Add(kHandle, {req}));
 
   // A sends PostInfoHeader + RequestInfo and DataHeader chunks to B.
   util::Thread a_send([&]() {
     Channel* const channel = chs.sndr.get();
     const PostInfoHeader info = GenPostInfoHeader();
-    const RequestInfo req = GenRequestInfo();
     while (!IsSendDone()) {
       CHECK(Transfer::SendInfo(channel, info, {req}));
       for (uint32_t i = 0; i < kNumChunks; ++i) {

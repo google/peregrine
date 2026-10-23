@@ -96,11 +96,11 @@ class Engine final {
   void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
 
  private:
-  struct Entry {
+  struct PostEntry {
     Endpoint peer;
     Handle handle;
-    ReqId reqid;
-    Request request;
+    std::vector<Request> reqs;
+    Metadata metadata;
   };
 
  private:
@@ -116,7 +116,7 @@ class Engine final {
   }
 
   // Generates a unique request id.
-  ReqId genReqId() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+  ReqId genReqId() {
     static_assert(std::is_same_v<ReqId::ValueType, uint32_t>);
     if (++next_reqid_ == kInvalidReqId.value()) ++next_reqid_;
     return ReqId(next_reqid_);
@@ -125,11 +125,6 @@ class Engine final {
   // Returns the tracker for the request.
   RequestTracker& getRequestTracker(const Request& request) {
     return request.op == Op::kWrite ? outgoing_ : incoming_;
-  }
-
-  // Returns the per-op metrics for the request.
-  OpMetrics& getOpMetrics(const Request& request) {
-    return request.op == Op::kWrite ? metrics_.write : metrics_.read;
   }
 
   // Runs in a tcp manager thread to create tcp channels.
@@ -156,16 +151,19 @@ class Engine final {
   // Creates recv workers for accepted channels.
   bool createRecvWorkers();
 
-  // Processes a single entry.
-  void process(const Entry& entry) ABSL_LOCKS_EXCLUDED(mu_);
+  // Processes a single post entry.
+  void process(const PostEntry& post) ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Processes write requests for a post.
+  void processWrite(Workers& workers, const PostEntry& post)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
   // Processes a write request.
-  void processWrite(Workers& workers, Handle handle, ReqId reqid,
-                    const Request& request) ABSL_LOCKS_EXCLUDED(mu_);
+  void processWrite(Workers& workers, Handle handle, const Byte* laddr,
+                    const RequestInfo& req_info) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Processes a read request.
-  void processRead(Handle handle, ReqId reqid, const Request& request)
-      ABSL_LOCKS_EXCLUDED(mu_);
+  void processRead(Handle handle, const Request& req) ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
   const Config& config_;
@@ -175,8 +173,8 @@ class Engine final {
   bool stop_ ABSL_GUARDED_BY(mu_);
   absl::BitGen bitgen_ ABSL_GUARDED_BY(mu_);
   Handle::ValueType next_handle_ ABSL_GUARDED_BY(mu_);
-  ReqId::ValueType next_reqid_ ABSL_GUARDED_BY(mu_);
-  std::deque<Entry> reqs_ ABSL_GUARDED_BY(mu_);
+  ReqId::ValueType next_reqid_;
+  std::deque<PostEntry> posts_ ABSL_GUARDED_BY(mu_);
   RecvCallback recv_post_callback_ ABSL_GUARDED_BY(mu_);
   RecvCallback recv_req_callback_ ABSL_GUARDED_BY(mu_);
 

@@ -20,6 +20,7 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/channel",
         "//peregrine/src/internal/chunk",
+        "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/control",
         "//peregrine/src/internal/control:message_cc_proto",
         "//peregrine/src/internal/control:message_internal_cc_proto",
@@ -87,6 +88,7 @@ cc_library(
         "//peregrine/src/internal/channel",
         "//peregrine/src/internal/channel:channel_type",
         "//peregrine/src/internal/chunk",
+        "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/metrics:engine_metrics",
         "//peregrine/src/internal/request:request_tracker",
         "//peregrine/src/internal/transfer",
@@ -96,6 +98,7 @@ cc_library(
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -111,7 +114,7 @@ cc_test(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/channel",
         "//peregrine/src/internal/channel:channel_test_util",
-        "//peregrine/src/internal/chunk",
+        "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/metrics:engine_metrics",
         "//peregrine/src/internal/request:request_tracker",
         "//peregrine/src/internal/util:test_param",

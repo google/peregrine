@@ -200,8 +200,8 @@ cc_library(
         ":channel_type",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/chunk",
-        "//peregrine/src/internal/chunk:chunk_flatbuf",
+        "//peregrine/src/internal/chunk:header",
+        "//peregrine/src/internal/chunk:header_flatbuf",
         "//peregrine/src/internal/rdma:rdma_conn",
         "//peregrine/src/internal/rdma:rdma_qpair",
         "@abseil-cpp//absl/log",
@@ -224,8 +224,8 @@ cc_test(
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/chunk",
-        "//peregrine/src/internal/chunk:chunk_flatbuf",
+        "//peregrine/src/internal/chunk:header",
+        "//peregrine/src/internal/chunk:header_flatbuf",
         "//peregrine/src/internal/rdma:rdma_conn",
         "//peregrine/src/internal/rdma:rdma_context",
         "//peregrine/src/internal/rdma:rdma_device",

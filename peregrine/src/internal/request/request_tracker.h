@@ -43,13 +43,13 @@ class RequestTracker {
   // Returns the status of the `handle`.
   Status Check(Handle handle) const ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Adds the tracker for the given `handle` and `reqids`.
+  // Adds the tracker for the given `handle`.
   // Returns true iff the handle was not already in the tracker.
-  bool Add(Handle handle, absl::Span<const ReqId> reqids, absl::Time start_time,
-           OnComplete on_complete) ABSL_LOCKS_EXCLUDED(trackers_mu_);
+  bool Add(Handle handle, absl::Time start_time, OnComplete on_complete)
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Adds the tracker for incoming `RequestInfo` descriptors of `handle`
-  // (idempotent if `handle` is already registered).
+  // Adds the `RequestInfo` descriptors for `handle` (idempotent if already
+  // populated).
   bool Add(Handle handle, absl::Span<const RequestInfo> reqs)
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
@@ -73,6 +73,9 @@ class RequestTracker {
 
   // Returns a reference to the chunk tracker for the given `handle` and
   // `reqid`.
+  // TODO: Return `ChunkTracker*` (`nullptr` if `handle` or `reqid` is missing)
+  // so callers avoid a prior `Check(handle)` call (which locks `trackers_mu_`
+  // twice and scans `req_map` via `isComplete()`) and `.at()` aborts.
   ChunkTracker& Find(Handle handle, ReqId reqid)
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 

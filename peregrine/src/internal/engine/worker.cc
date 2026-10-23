@@ -3,16 +3,18 @@
 #include <memory>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
-#include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/transfer/transfer.h"
@@ -30,6 +32,7 @@ Worker::Worker(int id, const HostInfo& self, RequestTracker& outgoing,
     : id_(id),
       self_(self),
       stop_(false),
+      infos_(),
       chunks_(),
       outgoing_(outgoing),
       incoming_(incoming),
@@ -51,38 +54,74 @@ Worker::~Worker() {
   log("destroyed");
 }
 
-void Worker::EnqueueChunk(const Byte* const chunk_src_addr,
-                          const ChunkHeader& chunk) {
-  DCHECK_NE(chunk_src_addr, nullptr);
-  DCHECK(chunk.IsValid());
-  DCHECK(!chunk.IsAck());
+void Worker::EnqueueInfo(const PostInfoHeader& info,
+                         absl::Span<const RequestInfo> reqs) {
+  DCHECK(info.IsValid());
+  DCHECK(!reqs.empty());
+  if (channel_->Type().IsOneSidedChannel()) return;
 
   absl::MutexLock _(mu_);
-  chunks_.emplace_back(chunk_src_addr, chunk);
+  infos_.push_back(
+      InfoEntry{info, std::vector<RequestInfo>(reqs.begin(), reqs.end())});
 }
 
-bool Worker::hasSendWork() const { return !chunks_.empty() || stop_; }
+void Worker::EnqueueChunk(const Byte* const chunk_src_addr,
+                          const DataHeader& chunk) {
+  DCHECK_NE(chunk_src_addr, nullptr);
+  DCHECK(chunk.IsData());
+
+  absl::MutexLock _(mu_);
+  chunks_.push_back(ChunkEntry{chunk_src_addr, chunk});
+}
+
+bool Worker::hasSendWork() const {
+  return !infos_.empty() || !chunks_.empty() || stop_;
+}
 
 void Worker::SendLoop() {
   log("send loop started");
   while (true) {
-    Entry entry;
+    bool is_info = false;
+    InfoEntry info_entry;
+    ChunkEntry chunk_entry;
     {
       absl::MutexLock _(mu_);
       mu_.Await(absl::Condition(this, &Worker::hasSendWork));
-      if (chunks_.empty()) {
+      if (!infos_.empty()) {
+        is_info = true;
+        info_entry = std::move(infos_.front());
+        infos_.pop_front();
+      } else if (!chunks_.empty()) {
+        chunk_entry = chunks_.front();
+        chunks_.pop_front();
+      } else {
         log("send loop stopped");
         DCHECK(stop_);
         return;
       }
-      entry = std::move(chunks_.front());
-      chunks_.pop_front();
     }
 
-    const ChunkHeader& chunk = entry.chunk;
-    DCHECK(chunk.IsValid());
-    const auto payload = entry.GenPayload();
-    if (!Transfer::SendChunk(channel_.get(), chunk, payload)) {
+    bool ok = false;
+    if (is_info) {
+      ok = Transfer::SendInfo(channel_.get(), info_entry.info, info_entry.reqs);
+    } else {
+      const DataHeader& chunk = chunk_entry.chunk;
+      DCHECK(chunk.IsData());
+      const auto payload = chunk_entry.GenPayload();
+      ok = Transfer::SendChunk(channel_.get(), chunk, payload);
+      if (ok) {
+        metrics_.write.bytes.Add(payload.size());
+        if (channel_->Type().IsOneSidedChannel()) {
+          // For one-sided RDMA channels, successful SendChunk completes the
+          // transfer at the hardware level (confirmed via CQE), with no
+          // software ACK chunk sent by the receiver.
+          static_assert(
+              assumptions::kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe);
+          outgoing_.Update(chunk.handle, chunk.reqid, chunk.index);
+        }
+      }
+    }
+    if (!ok) {
       if (channel_->Type().IsMessageChannel()) {
         absl::MutexLock _(mu_);
         if (!stop_) continue;
@@ -93,16 +132,6 @@ void Worker::SendLoop() {
       metrics_.write.errors.Add(1);
       LOG(WARNING) << "send chunk failed";
       break;
-    }
-    metrics_.write.bytes.Add(payload.size());
-
-    if (channel_->Type().IsOneSidedChannel()) {
-      // For one-sided RDMA channels, successful SendChunk completes the
-      // transfer at the hardware level (confirmed via CQE), with no software
-      // ACK chunk sent by the receiver.
-      static_assert(
-          assumptions::kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe);
-      outgoing_.Update(chunk.handle, chunk.reqid, chunk.nchunks, chunk.index);
     }
   }
 }
@@ -127,7 +156,7 @@ void Worker::RecvLoop() {
         return;
       }
     }
-    if (!Transfer::RecvChunk(channel_.get(), outgoing_, incoming_)) {
+    if (!Transfer::Recv(channel_.get(), outgoing_, incoming_)) {
       if (channel_->Type().IsMessageChannel()) {
         absl::MutexLock _(mu_);
         if (!stop_) continue;
