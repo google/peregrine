@@ -3,12 +3,16 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <variant>
 
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_flatbuf.h"
+#include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 
 namespace peregrine::internal {
@@ -19,6 +23,19 @@ class Transfer final {
   static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 
  public:
+  // Sends `PostInfoHeader` and its `RequestInfo` payload to the channel.
+  static bool SendInfo(Channel* channel, const PostInfoHeader& info,
+                       absl::Span<const RequestInfo> reqs);
+
+  // Sends `DataHeader` and payload to the channel.
+  static bool SendChunk(Channel* channel, const DataHeader& chunk,
+                        ChunkPayloadView payload);
+
+  // Receives a `PostInfoHeader` or `DataHeader` packet from the channel.
+  static bool Recv(Channel* channel, RequestTracker& outgoing,
+                   RequestTracker& incoming);
+
+  // TODO: Remove once Engine/Worker switch to PostInfoHeader + DataHeader.
   // Sends chunk header and payload to the channel.
   static bool SendChunk(Channel* channel, const ChunkHeader& chunk,
                         ChunkPayloadView payload);
@@ -28,13 +45,37 @@ class Transfer final {
                         RequestTracker& incoming);
 
  private:
-  // Deserializes chunk header and returns true iff the chunk is valid.
+  using Header = std::variant<PostInfoHeader, DataHeader>;
+
+  // Deserializes header and returns true iff the header is valid.
+  static bool deserialize(const Byte* buf, Header& header);
   static bool deserialize(const Byte* header, ChunkHeader& chunk);
 
   // Sends an ack chunk with no payload to the channel.
+  static bool sendAck(Channel* channel, DataHeader& chunk);
   static bool sendAck(Channel* channel, ChunkHeader& chunk);
 
  private:
+  // Receives `PostInfoHeader` or `DataHeader` packet from the reliable stream
+  // channel.
+  static bool recvStream(Channel* channel, RequestTracker& outgoing,
+                         RequestTracker& incoming);
+  static bool recvPostInfoStream(Channel* channel, const PostInfoHeader& info,
+                                 RequestTracker& incoming);
+  static bool recvDataStream(Channel* channel, DataHeader& chunk,
+                             RequestTracker& outgoing,
+                             RequestTracker& incoming);
+
+  // Receives `PostInfoHeader` or `DataHeader` packet from the message channel.
+  static bool recvMsg(Channel* channel, RequestTracker& outgoing,
+                      RequestTracker& incoming);
+  static bool recvPostInfoMsg(const PostInfoHeader& info,
+                              ChunkPayloadView payload,
+                              RequestTracker& incoming);
+  static bool recvDataMsg(Channel* channel, DataHeader& chunk,
+                          ChunkPayloadView payload, RequestTracker& outgoing,
+                          RequestTracker& incoming);
+
   // Receives chunk header and payload from the reliable stream channel.
   static bool recvChunkStream(Channel* channel, RequestTracker& outgoing,
                               RequestTracker& incoming);
@@ -49,6 +90,7 @@ class Transfer final {
  private:
   static_assert(assumptions::kNetworkMtuIsAtMostTenKiloBytes);
   static constexpr size_t kTmpBufSize = 10U << 10;
+  static_assert(HeaderUtil::kSize < kTmpBufSize);
   static_assert(ChunkUtil::kSize < kTmpBufSize);
 };
 

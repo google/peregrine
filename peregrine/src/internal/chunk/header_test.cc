@@ -27,6 +27,10 @@ TEST(HeaderTest, PostInfoDataAndAckProperties) {
   info.len = 0;
   EXPECT_FALSE(info.IsValid());
 
+  info.len = 100;
+  EXPECT_FALSE(info.IsValid());
+  EXPECT_FALSE(static_cast<const HeaderBase&>(info).IsValid());
+
   DataHeader data = {};
   data.opcode = Opcode::kData;
   data.handle = kHandle;

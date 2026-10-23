@@ -23,6 +23,9 @@ enum class Opcode : uint8_t {
   // LINT.ThenChange(header.fbs:opcode)
 };
 
+// Wire size of a single serialized `RequestInfo` entry in a `PostInfo` payload.
+inline constexpr size_t kSerializedRequestInfoSize = 128;
+
 // Common prefix fields shared by all 64-byte chunk headers (`PostInfoHeader`
 // and `DataHeader`).
 struct alignas(8) HeaderBase {
@@ -33,7 +36,10 @@ struct alignas(8) HeaderBase {
   // LINT.ThenChange(header.fbs:header_base)
 
   // Returns true iff this header is a `PostInfo` control header.
-  bool IsPostInfo() const { return opcode == Opcode::kPostInfo; }
+  bool IsPostInfo() const {
+    return opcode == Opcode::kPostInfo && len > 0 &&
+           len % kSerializedRequestInfoSize == 0;
+  }
 
   // Returns true iff this header is a `Data` chunk header carrying payload.
   bool IsData() const { return opcode == Opcode::kData && len > 0; }
@@ -43,9 +49,7 @@ struct alignas(8) HeaderBase {
   bool IsAck() const { return opcode == Opcode::kData && len == 0; }
 
   // Returns true iff the base header fields are valid.
-  bool IsValid() const {
-    return (opcode == Opcode::kPostInfo && len > 0) || opcode == Opcode::kData;
-  }
+  bool IsValid() const { return IsPostInfo() || IsData() || IsAck(); }
 
   // Returns a string representation for debugging/logging.
   std::string ToString() const;
@@ -71,7 +75,7 @@ struct alignas(8) PostInfoHeader final : public HeaderBase {
   // LINT.ThenChange(header.fbs:post_info_header)
 
   // Returns true iff this `PostInfoHeader` is valid.
-  bool IsValid() const { return opcode == Opcode::kPostInfo && len > 0; }
+  bool IsValid() const { return IsPostInfo(); }
 
   // Returns a string representation for debugging/logging.
   std::string ToString() const;
@@ -106,7 +110,7 @@ struct alignas(8) DataHeader final : public HeaderBase {
   // LINT.ThenChange(header.fbs:data_header)
 
   // Returns true iff this `DataHeader` is valid.
-  bool IsValid() const { return opcode == Opcode::kData; }
+  bool IsValid() const { return IsData() || IsAck(); }
 
   // Returns the destination memory address for this chunk.
   Byte* DstAddr() const { return reinterpret_cast<Byte*>(raddr.value()); }

@@ -19,7 +19,7 @@ namespace peregrine::internal {
 class HeaderUtil final {
  public:
   static constexpr size_t kSize = 64;
-  static constexpr size_t kRequestInfoSize = 128;
+  static constexpr size_t kRequestInfoSize = kSerializedRequestInfoSize;
   static_assert(sizeof(flatbuf::HeaderBase) == 12);
   static_assert(sizeof(flatbuf::ChunkTraceWire) == 16);
   static_assert(sizeof(flatbuf::PostInfoHeader) == kSize);

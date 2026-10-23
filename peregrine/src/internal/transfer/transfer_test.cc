@@ -22,6 +22,8 @@
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_test_util.h"
 #include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/util/test_param.h"
@@ -81,6 +83,39 @@ class TransferTest : public ::testing::TestWithParam<Param> {
         .addr =
             addr_t(reinterpret_cast<uintptr_t>(dst_.data() + i * kChunkSize)),
         .size = GetChunkSize(i)};
+  }
+
+  PostInfoHeader GenPostInfoHeader() const {
+    PostInfoHeader info{};
+    info.opcode = Opcode::kPostInfo;
+    info.handle = kHandle;
+    info.len = HeaderUtil::kRequestInfoSize;
+    return info;
+  }
+
+  RequestInfo GenRequestInfo() const {
+    RequestInfo req{};
+    req.reqid = kReqId;
+    req.nchunks = kNumChunks;
+    req.raddr = addr_t(reinterpret_cast<uintptr_t>(dst_.data()));
+    req.total_len = kBufSize;
+    req.op = Op::kWrite;
+    req.recipe.type = RecipeType::kContiguous;
+    return req;
+  }
+
+  DataHeader GenDataHeader(uint32_t i) {
+    DCHECK_LT(i, kNumChunks);
+    const uint64_t offset = static_cast<uint64_t>(i) * kChunkSize;
+    DataHeader chunk{};
+    chunk.opcode = Opcode::kData;
+    chunk.handle = kHandle;
+    chunk.len = GetChunkSize(i);
+    chunk.reqid = kReqId;
+    chunk.index = chunk_t(i);
+    chunk.byte_offset = offset;
+    chunk.raddr = addr_t(reinterpret_cast<uintptr_t>(dst_.data() + offset));
+    return chunk;
   }
 
   ChunkPayloadView GenPayload(uint32_t i) {
@@ -162,6 +197,64 @@ TEST_P(TransferTest, SendRecv) {
     Channel* const channel = chs.rcvr.get();
     while (!IsSendDone()) {
       if (!Transfer::RecvChunk(channel, b_.outgoing, b_.incoming)) {
+        util::Yield();
+      }
+    }
+  });
+
+  a_send.join();
+  a_recv.join();
+  chs.sndr->Shutdown();
+  chs.rcvr->Shutdown();
+  b_recv.join();
+
+  EXPECT_TRUE(IsSendDone());
+  EXPECT_TRUE(IsRecvDone());
+
+  // Postcondition: dst is the same as src.
+  EXPECT_THAT(dst_, Pointwise(Eq(), src_));
+}
+
+TEST_P(TransferTest, SendInfoAndSendRecvData) {
+  const auto chs = CreateTestChannelPair(p_);
+
+  // Precondition: dst is different from src.
+  ASSERT_THAT(dst_, Pointwise(Ne(), src_));
+  RequestTracker::OnComplete on_complete = nullptr;
+  ASSERT_TRUE(
+      a_.outgoing.Add(kHandle, {kReqId}, absl::Now(), std::move(on_complete)));
+  (void)a_.outgoing.FindOrCreate(kHandle, kReqId, kNumChunks);
+
+  // A sends PostInfoHeader + RequestInfo and DataHeader chunks to B.
+  util::Thread a_send([&]() {
+    Channel* const channel = chs.sndr.get();
+    const PostInfoHeader info = GenPostInfoHeader();
+    const RequestInfo req = GenRequestInfo();
+    while (!IsSendDone()) {
+      CHECK(Transfer::SendInfo(channel, info, {req}));
+      for (uint32_t i = 0; i < kNumChunks; ++i) {
+        if (IsSendDone()) break;
+        const DataHeader chunk = GenDataHeader(i);
+        const ChunkPayloadView payload = GenPayload(i);
+        CHECK(Transfer::SendChunk(channel, chunk, payload));
+      }
+    }
+  });
+  // A receives ack chunks from B.
+  util::Thread a_recv([&]() {
+    Channel* const channel = chs.sndr.get();
+    while (!IsSendDone()) {
+      if (!Transfer::Recv(channel, a_.outgoing, a_.incoming)) {
+        util::Yield();
+      }
+    }
+  });
+
+  // B receives PostInfoHeader and DataHeader chunks from A (and sends acks).
+  util::Thread b_recv([&]() {
+    Channel* const channel = chs.rcvr.get();
+    while (!IsSendDone()) {
+      if (!Transfer::Recv(channel, b_.outgoing, b_.incoming)) {
         util::Yield();
       }
     }
