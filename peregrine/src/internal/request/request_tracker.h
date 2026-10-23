@@ -17,6 +17,7 @@
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal {
@@ -28,7 +29,8 @@ class RequestTracker {
   using OnComplete = absl::AnyInvocable<void(Status)>;
 
   // Constructor.
-  explicit RequestTracker(EngineMetrics& metrics) : metrics_(metrics) {}
+  RequestTracker(EngineMetrics& metrics, TraceRecorder& tracer)
+      : metrics_(metrics), tracer_(tracer) {}
 
   // Disable copy and move.
   DISALLOW_COPY(RequestTracker);
@@ -111,6 +113,7 @@ class RequestTracker {
 
  private:
   EngineMetrics& metrics_;
+  TraceRecorder& tracer_;
 
   mutable absl::Mutex trackers_mu_;
   absl::flat_hash_map<Handle, ReqsTracker> trackers_

@@ -47,6 +47,8 @@ cc_library(
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/control",
         "//peregrine/src/internal/engine",
+        "//peregrine/src/internal/trace:trace_context",
+        "//peregrine/src/internal/trace:trace_recorder",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:any_invocable",

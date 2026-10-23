@@ -14,6 +14,7 @@ cc_library(
         "//peregrine/src/internal/chunk:chunk_tracker",
         "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/metrics:engine_metrics",
+        "//peregrine/src/internal/trace:trace_recorder",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -30,6 +31,7 @@ cc_test(
     srcs = ["request_tracker_test.cc"],
     deps = [
         ":request_tracker",
+        "//peregrine/src/api:transport_trace",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk",
@@ -37,6 +39,7 @@ cc_test(
         "//peregrine/src/internal/chunk:chunk_tracker",
         "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/metrics:engine_metrics",
+        "//peregrine/src/internal/trace:trace_recorder",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",

@@ -32,6 +32,7 @@ cc_test(
     shard_count = 10,
     deps = [
         ":transfer",
+        "//peregrine/src/api:transport_trace",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:types",
@@ -42,6 +43,7 @@ cc_test(
         "//peregrine/src/internal/chunk:header_flatbuf",
         "//peregrine/src/internal/metrics:engine_metrics",
         "//peregrine/src/internal/request:request_tracker",
+        "//peregrine/src/internal/trace:trace_recorder",
         "//peregrine/src/internal/util:test_param",
         "//peregrine/src/util",
         "//peregrine/src/util:thread",

@@ -16,6 +16,7 @@
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/time/clock.h"
+#include "peregrine/src/api/trace/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
@@ -26,6 +27,7 @@
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
@@ -133,9 +135,14 @@ class TransferTest : public ::testing::TestWithParam<Param> {
  private:
   struct Host {
     EngineMetrics metrics;
+    TraceRecorder tracer;
     RequestTracker outgoing;
     RequestTracker incoming;
-    Host() : metrics(), outgoing(metrics), incoming(metrics) {}
+    Host()
+        : metrics(),
+          tracer(TraceConfig{.sample_every_n = 0}),
+          outgoing(metrics, tracer),
+          incoming(metrics, tracer) {}
   };
 
  protected:
