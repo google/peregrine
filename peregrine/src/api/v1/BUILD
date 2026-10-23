@@ -79,6 +79,28 @@ cc_test(
 )
 
 cc_library(
+    name = "conn_pool",
+    srcs = ["conn_pool.cc"],
+    hdrs = ["conn_pool.h"],
+    deps = [
+        ":conn_util",
+        ":ip_util",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/log:vlog_is_on",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_macros",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_library(
     name = "histogram",
     hdrs = ["histogram.h"],
     deps = [
