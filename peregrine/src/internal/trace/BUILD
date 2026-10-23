@@ -9,6 +9,11 @@ cc_library(
 )
 
 cc_library(
+    name = "trace_context",
+    hdrs = ["trace_context.h"],
+)
+
+cc_library(
     name = "trace_event",
     hdrs = ["trace_event.h"],
 )
