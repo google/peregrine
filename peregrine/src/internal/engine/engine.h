@@ -47,6 +47,7 @@ namespace peregrine::internal {
 // It is thread-safe.
 class Engine final {
   static_assert(assumptions::kTransportImplementationHasItsOwnThreads);
+  static_assert(assumptions::kRecvCallbacksAreRegisteredBeforeAnyTransfer);
   static_assert(coding_style::kClassPrivateFunctionNamesStartWithLowercase);
   static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
 
@@ -82,14 +83,12 @@ class Engine final {
   absl::StatusOr<Status> QueryUpdate(Handle handle);
 
   // Sets the callback invoked when an incoming `Post()` batch completes.
-  void SetRecvPostCallback(RecvCallback callback) ABSL_LOCKS_EXCLUDED(mu_) {
-    absl::MutexLock _(mu_);
+  void SetRecvPostCallback(RecvPostCallback callback) {
     recv_post_callback_ = std::move(callback);
   }
 
   // Sets the callback invoked when an incoming request completes.
-  void SetRecvReqCallback(RecvCallback callback) ABSL_LOCKS_EXCLUDED(mu_) {
-    absl::MutexLock _(mu_);
+  void SetRecvReqCallback(RecvReqCallback callback) {
     recv_req_callback_ = std::move(callback);
   }
 
@@ -176,8 +175,8 @@ class Engine final {
   Handle::ValueType next_handle_ ABSL_GUARDED_BY(mu_);
   ReqId::ValueType next_reqid_;
   std::deque<PostEntry> posts_ ABSL_GUARDED_BY(mu_);
-  RecvCallback recv_post_callback_ ABSL_GUARDED_BY(mu_);
-  RecvCallback recv_req_callback_ ABSL_GUARDED_BY(mu_);
+  RecvPostCallback recv_post_callback_;
+  RecvReqCallback recv_req_callback_;
 
   RequestTracker outgoing_;
   RequestTracker incoming_;

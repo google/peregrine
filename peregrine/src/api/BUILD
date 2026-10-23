@@ -35,6 +35,7 @@ cc_test(
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )
