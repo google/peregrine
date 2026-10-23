@@ -100,6 +100,25 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "conn_pool_test",
+    srcs = ["conn_pool_test.cc"],
+    shard_count = 4,
+    deps = [
+        ":conn_pool",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:hostinfo",
+        "//peregrine/src/internal/socket:tcp_manager",
+        "//peregrine/src/internal/util:test_param",
+        "//peregrine/src/internal/util:test_util",
+        "//peregrine/src/util:thread",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@abseil-cpp//absl/time",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "histogram",
     hdrs = ["histogram.h"],
