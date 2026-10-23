@@ -9,6 +9,7 @@ cc_library(
     hdrs = ["request_tracker.h"],
     deps = [
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:chunk_tracker",
         "//peregrine/src/internal/chunk:header",
@@ -40,6 +41,7 @@ cc_test(
         "//peregrine/src/internal/trace:trace_recorder",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )

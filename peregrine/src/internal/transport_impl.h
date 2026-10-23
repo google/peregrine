@@ -66,13 +66,13 @@ class TransportImpl final : public Transport {
 
   // Sets the callback invoked on the receiver when all requests in an incoming
   // `Post()` batch complete.
-  void SetRecvPostCallback(RecvCallback callback) override {
+  void SetRecvPostCallback(RecvPostCallback callback) override {
     engine_->SetRecvPostCallback(std::move(callback));
   }
 
   // Sets the callback invoked on the receiver when an individual incoming
   // request completes.
-  void SetRecvReqCallback(RecvCallback callback) override {
+  void SetRecvReqCallback(RecvReqCallback callback) override {
     engine_->SetRecvReqCallback(std::move(callback));
   }
 

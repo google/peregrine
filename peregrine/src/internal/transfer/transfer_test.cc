@@ -16,6 +16,7 @@
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/time/clock.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/trace/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -47,6 +48,8 @@ using ::testing::Values;
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
 constexpr ReqId kReqId(0xbeef);
+constexpr Metadata kPostMetadata = {1, 2, 3};
+constexpr Metadata kReqMetadata = {4, 5, 6};
 constexpr uint32_t kNumChunks = 100;
 constexpr uint32_t kChunkSize = 16;
 constexpr uint32_t kLastChunkSize = kChunkSize - 1;
@@ -79,6 +82,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     info.opcode = Opcode::kPostInfo;
     info.handle = kHandle;
     info.len = HeaderUtil::kRequestInfoSize;
+    info.metadata = kPostMetadata;
     return info;
   }
 
@@ -90,6 +94,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     req.total_len = kBufSize;
     req.op = Op::kWrite;
     req.recipe.type = RecipeType::kContiguous;
+    req.metadata = kReqMetadata;
     return req;
   }
 
@@ -165,6 +170,25 @@ TEST_P(TransferTest, SendRecv) {
   ASSERT_TRUE(a_.outgoing.Add(kHandle, absl::Now(), std::move(on_complete)));
   ASSERT_TRUE(a_.outgoing.Add(kHandle, {req}));
 
+  struct PostEvent {
+    Status status;
+    Metadata post_meta;
+    std::vector<Metadata> req_metas;
+  };
+  std::vector<std::pair<Status, Metadata>> recv_reqs;
+  std::vector<PostEvent> recv_posts;
+  b_.incoming.SetRecvReqCallback([&](Status s, const Metadata& meta) {
+    recv_reqs.emplace_back(s, meta);
+  });
+  b_.incoming.SetRecvPostCallback([&](Status s, const Metadata& post_meta,
+                                      absl::Span<const Metadata> req_metas) {
+    recv_posts.push_back(PostEvent{
+        .status = s,
+        .post_meta = post_meta,
+        .req_metas = std::vector<Metadata>(req_metas.begin(), req_metas.end()),
+    });
+  });
+
   // A sends PostInfoHeader + RequestInfo and DataHeader chunks to B.
   util::Thread a_send([&]() {
     Channel* const channel = chs.sndr.get();
@@ -207,6 +231,13 @@ TEST_P(TransferTest, SendRecv) {
 
   EXPECT_TRUE(IsSendDone());
   EXPECT_TRUE(IsRecvDone());
+  ASSERT_EQ(recv_reqs.size(), 1);
+  EXPECT_EQ(recv_reqs[0].first, Status::kSuccess);
+  EXPECT_EQ(recv_reqs[0].second, kReqMetadata);
+  ASSERT_EQ(recv_posts.size(), 1);
+  EXPECT_EQ(recv_posts[0].status, Status::kSuccess);
+  EXPECT_EQ(recv_posts[0].post_meta, kPostMetadata);
+  EXPECT_THAT(recv_posts[0].req_metas, ::testing::ElementsAre(kReqMetadata));
 
   // Postcondition: dst is the same as src.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));

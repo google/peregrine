@@ -6,6 +6,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -13,9 +14,11 @@
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_metrics.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/app.h"
@@ -27,6 +30,7 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 using ::testing::TestParamInfo;
+using ::testing::UnorderedElementsAre;
 using ::testing::Values;
 
 using Param = std::tuple</*completion_callback=*/bool>;
@@ -137,8 +141,29 @@ TEST_P(TransportTest, Write) {
   // Post multiple write requests (local -> remote).
   Transport& lt = l_.GetTransport();
   Transport& rt = r_.GetTransport();
-  rt.SetRecvPostCallback([](Status, const Metadata&) {});
-  rt.SetRecvReqCallback([](Status, const Metadata&) {});
+  struct PostEvent {
+    Status status;
+    Metadata post_meta;
+    std::vector<Metadata> req_metas;
+  };
+  absl::Mutex cb_mu;
+  std::vector<std::pair<Status, Metadata>> recv_reqs;
+  std::vector<PostEvent> recv_posts;
+  size_t reqs_completed_before_post = 0;
+  rt.SetRecvReqCallback([&](Status s, const Metadata& meta) {
+    absl::MutexLock lock(cb_mu);
+    recv_reqs.emplace_back(s, meta);
+  });
+  rt.SetRecvPostCallback([&](Status s, const Metadata& post_meta,
+                             absl::Span<const Metadata> req_metas) {
+    absl::MutexLock lock(cb_mu);
+    reqs_completed_before_post = recv_reqs.size();
+    recv_posts.push_back(PostEvent{
+        .status = s,
+        .post_meta = post_meta,
+        .req_metas = std::vector<Metadata>(req_metas.begin(), req_metas.end()),
+    });
+  });
   const std::string peer = r_.GetControlEndpoint();
   const Request req1 = {
       .op = Op::kWrite,
@@ -165,9 +190,24 @@ TEST_P(TransportTest, Write) {
   WaitForCompletion(lt, *h);
   ASSERT_EQ(completed_status_, Status::kSuccess);
 
-  // Post-condition: all the remote bytes are equal to the local.
+  // Post-condition: all the remote bytes are equal to the local, and receiver
+  // callbacks fired with the expected status and metadata.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
+  {
+    absl::MutexLock lock(cb_mu);
+    EXPECT_THAT(recv_reqs,
+                UnorderedElementsAre(std::make_pair(Status::kSuccess,
+                                                    req1.metadata),
+                                     std::make_pair(Status::kSuccess,
+                                                    req2.metadata)));
+    ASSERT_EQ(recv_posts.size(), 1);
+    EXPECT_EQ(recv_posts[0].status, Status::kSuccess);
+    EXPECT_EQ(recv_posts[0].post_meta, post_metadata);
+    EXPECT_THAT(recv_posts[0].req_metas,
+                UnorderedElementsAre(req1.metadata, req2.metadata));
+    EXPECT_EQ(reqs_completed_before_post, 2);
+  }
 }
 
 }  // namespace

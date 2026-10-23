@@ -29,7 +29,7 @@ TEST(ChunkTrackerTest, OneWriter) {
   const chunk_t i0(0);
   EXPECT_EQ(tracker.Acquire(i0), kEmpty);
   EXPECT_TRUE(tracker.IsBusy(i0));
-  tracker.Release(i0, /*success=*/false);
+  EXPECT_FALSE(tracker.Release(i0, /*success=*/false));
   EXPECT_FALSE(tracker.IsBusy(i0));
   EXPECT_FALSE(tracker.IsDone());
   EXPECT_TRUE(tracker.IsEmpty());
@@ -37,7 +37,7 @@ TEST(ChunkTrackerTest, OneWriter) {
   // Acquire the chunk #0 again and write a DONE.
   EXPECT_EQ(tracker.Acquire(i0), kEmpty);
   EXPECT_TRUE(tracker.IsBusy(i0));
-  tracker.Release(i0, /*success=*/true);
+  EXPECT_FALSE(tracker.Release(i0, /*success=*/true));
   EXPECT_FALSE(tracker.IsBusy(i0));
   EXPECT_FALSE(tracker.IsDone());
   EXPECT_FALSE(tracker.IsEmpty());
@@ -46,7 +46,7 @@ TEST(ChunkTrackerTest, OneWriter) {
   const chunk_t i1(1);
   EXPECT_EQ(tracker.Acquire(i1), kEmpty);
   EXPECT_TRUE(tracker.IsBusy(i1));
-  tracker.Release(i1, /*success=*/true);
+  EXPECT_TRUE(tracker.Release(i1, /*success=*/true));
   EXPECT_FALSE(tracker.IsBusy(i1));
   EXPECT_TRUE(tracker.IsDone());
   EXPECT_FALSE(tracker.IsEmpty());

@@ -2,10 +2,13 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/time/clock.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/trace/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
@@ -177,6 +180,81 @@ TEST_F(RequestTrackerTest, RecvRequestInfo) {
     ASSERT_EQ(recv.Acquire(index), ChunkTracker::ChunkStatus::kEmpty);
     recv.Release(index, /*success=*/true);
   }
+  EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
+}
+
+TEST_F(RequestTrackerTest, RecvCallbacks) {
+  const Metadata kReqMeta1 = {1, 2, 3};
+  const Metadata kReqMeta2 = {4, 5, 6};
+  const Metadata kPostMeta = {7, 8, 9};
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = kNumChunks,
+       .raddr = kBufferBaseAddr,
+       .total_len = 2048,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous},
+       .metadata = kReqMeta1},
+      {.reqid = kReqId2,
+       .nchunks = kNumChunks,
+       .raddr = kBufferBaseAddr,
+       .total_len = 2048,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous},
+       .metadata = kReqMeta2},
+  };
+
+  struct PostEvent {
+    Status status;
+    Metadata post_meta;
+    std::vector<Metadata> req_metas;
+  };
+  std::vector<std::pair<Status, Metadata>> req_events;
+  std::vector<PostEvent> post_events;
+  rt_.SetRecvReqCallback([&](Status s, const Metadata& meta) {
+    req_events.emplace_back(s, meta);
+  });
+  rt_.SetRecvPostCallback([&](Status s, const Metadata& post_meta,
+                              absl::Span<const Metadata> req_metas) {
+    post_events.push_back(PostEvent{
+        .status = s,
+        .post_meta = post_meta,
+        .req_metas = std::vector<Metadata>(req_metas.begin(), req_metas.end()),
+    });
+  });
+
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, kPostMeta));
+  EXPECT_TRUE(rt_.Add(kHandle, reqs, kPostMeta));  // Idempotent on duplicate.
+
+  ChunkTracker& recv1 = rt_.Find(kHandle, kReqId);
+  for (int i = 0; i < kNumChunks; ++i) {
+    const chunk_t index(i);
+    ASSERT_EQ(recv1.Acquire(index), ChunkTracker::ChunkStatus::kEmpty);
+    if (recv1.Release(index, /*success=*/true)) {
+      rt_.OnReqComplete(kHandle, kReqId);
+    }
+  }
+  ASSERT_EQ(req_events.size(), 1);
+  EXPECT_EQ(req_events[0].first, Status::kSuccess);
+  EXPECT_EQ(req_events[0].second, kReqMeta1);
+  EXPECT_TRUE(post_events.empty());
+
+  ChunkTracker& recv2 = rt_.Find(kHandle, kReqId2);
+  for (int i = 0; i < kNumChunks; ++i) {
+    const chunk_t index(i);
+    ASSERT_EQ(recv2.Acquire(index), ChunkTracker::ChunkStatus::kEmpty);
+    if (recv2.Release(index, /*success=*/true)) {
+      rt_.OnReqComplete(kHandle, kReqId2);
+    }
+  }
+  ASSERT_EQ(req_events.size(), 2);
+  EXPECT_EQ(req_events[1].first, Status::kSuccess);
+  EXPECT_EQ(req_events[1].second, kReqMeta2);
+  ASSERT_EQ(post_events.size(), 1);
+  EXPECT_EQ(post_events[0].status, Status::kSuccess);
+  EXPECT_EQ(post_events[0].post_meta, kPostMeta);
+  EXPECT_THAT(post_events[0].req_metas,
+              ::testing::UnorderedElementsAre(kReqMeta1, kReqMeta2));
   EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 }
 

@@ -42,17 +42,19 @@ ChunkTracker::ChunkStatus ChunkTracker::Acquire(const chunk_t index) {
   return ChunkStatus::kEmpty;
 }
 
-void ChunkTracker::Release(const chunk_t index, bool success) {
+bool ChunkTracker::Release(const chunk_t index, bool success) {
   DCHECK(isValidChunk(index));
 
   absl::MutexLock lock(mu_);
   DCHECK(invariant());
   DCHECK(busy_chunks_.contains(index));
   DCHECK(!chunks_.Get(index.value()));
+  busy_chunks_.erase(index);
   if ABSL_PREDICT_TRUE (success) {
     chunks_.Set(index.value());
+    return chunks_.IsFull();
   }
-  busy_chunks_.erase(index);
+  return false;
 }
 
 std::string ChunkTracker::ToString() const {
