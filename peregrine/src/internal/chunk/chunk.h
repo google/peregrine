@@ -17,9 +17,6 @@ namespace peregrine::internal {
 
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 
-DEFINE_STRONG_INT_TYPE(addr_t, uintptr_t);
-DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
-
 // `ChunkHeader` defines chunk metadata.
 struct alignas(8) ChunkHeader final {
   static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);

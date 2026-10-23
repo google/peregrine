@@ -9,7 +9,7 @@
 #include "peregrine/src/api/trace/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
-#include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/coding_style.h"
 #include "peregrine/src/internal/trace/trace_buffer.h"
 #include "peregrine/src/internal/trace/trace_context.h"
@@ -77,22 +77,22 @@ class TraceRecorder final {
                            size_t num_workers) noexcept;
 
   // Records T_WorkerEnqueued for chunk index on Engine::main_thread_.
-  void RecordWorkerEnqueued(const TraceContext& ctx, ChunkHeader& chunk,
+  void RecordWorkerEnqueued(const TraceContext& ctx, DataHeader& chunk,
                             int send_worker_id, Op op) noexcept;
 
   // Records T_WorkerDequeued and stamps chunk.trace.tx_send_mono_us.
-  void RecordWorkerDequeued(ChunkHeader& chunk, int send_worker_id) noexcept;
+  void RecordWorkerDequeued(DataHeader& chunk, int send_worker_id) noexcept;
 
   // Records T_TxWriteDone.
-  void RecordTxWriteDone(const ChunkHeader& chunk, int send_worker_id) noexcept;
+  void RecordTxWriteDone(const DataHeader& chunk, int send_worker_id) noexcept;
 
   // Records T_TxAckRcvd on sender's Worker::recv_thread_, unpacking
   // piggybacked receiver timings from chunk.trace.
-  void RecordTxAckRcvd(const ChunkHeader& chunk) noexcept;
+  void RecordTxAckRcvd(const DataHeader& chunk) noexcept;
 
   // Records T_RxChunkDone locally on the receiver worker if receiver tracing
   // is enabled.
-  void RecordRxChunkDone(const ChunkHeader& chunk, uint64_t t_done_us) noexcept;
+  void RecordRxChunkDone(const DataHeader& chunk, uint64_t t_done_us) noexcept;
 
   // Records T_AllChunksDone when the final chunk of the final ReqId completes
   // in RequestTracker::Update().

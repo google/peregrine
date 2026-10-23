@@ -12,7 +12,7 @@
 #include "absl/random/random.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
 

@@ -10,7 +10,6 @@ cc_library(
     deps = [
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/chunk",
         "//peregrine/src/internal/chunk:chunk_tracker",
         "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/metrics:engine_metrics",
@@ -34,7 +33,6 @@ cc_test(
         "//peregrine/src/api:transport_trace",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/chunk",
         "//peregrine/src/internal/chunk:chunk_test_util",
         "//peregrine/src/internal/chunk:chunk_tracker",
         "//peregrine/src/internal/chunk:header",

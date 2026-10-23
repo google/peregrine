@@ -8,12 +8,20 @@
 #include <string>
 
 #include "absl/log/check.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
-#include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"
 
 namespace peregrine::internal {
+
+static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
+
+// `ChunkPayloadView` defines a read-only view to the chunk raw data bytes.
+static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
+using ChunkPayloadView = absl::Span<const Byte>;
+static_assert(sizeof(ChunkPayloadView) == 16);
 
 // Wire packet type carried in the common `HeaderBase` prefix.
 enum class Opcode : uint8_t {
@@ -29,6 +37,8 @@ inline constexpr size_t kSerializedRequestInfoSize = 128;
 // Common prefix fields shared by all 64-byte chunk headers (`PostInfoHeader`
 // and `DataHeader`).
 struct alignas(8) HeaderBase {
+  static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
+  static_assert(assumptions::kChunkHeaderHasBackwardForwardCompatibilityIssue);
   // LINT.IfChange(header_base)
   Opcode opcode;  // REQUIRED: packet type (`kPostInfo` or `kData`)
   Handle handle;  // REQUIRED: transport batch handle id

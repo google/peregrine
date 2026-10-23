@@ -7,7 +7,7 @@
 #include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
-#include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/base/types.h"
 
 namespace peregrine::internal {
 

@@ -3,7 +3,6 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "peregrine/src/api/transport_types.h"
-#include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
 
 namespace peregrine::internal::testing {

@@ -89,12 +89,13 @@ cc_library(
     srcs = ["header.cc"],
     hdrs = ["header.h"],
     deps = [
-        ":chunk",
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/trace:chunk_trace_wire",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -102,7 +103,6 @@ cc_test(
     name = "header_test",
     srcs = ["header_test.cc"],
     deps = [
-        ":chunk",
         ":chunk_test_util",
         ":header",
         "//peregrine/src/api:transport_types",
@@ -123,11 +123,11 @@ cc_library(
     srcs = ["header_flatbuf.cc"],
     hdrs = ["header_flatbuf.h"],
     deps = [
-        ":chunk",
         ":chunk_trace_wire_cc_fbs",
         ":header",
         ":header_cc_fbs",
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/trace:chunk_trace_wire",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
@@ -139,7 +139,6 @@ cc_test(
     name = "header_flatbuf_test",
     srcs = ["header_flatbuf_test.cc"],
     deps = [
-        ":chunk",
         ":chunk_test_util",
         ":header",
         ":header_flatbuf",
@@ -154,7 +153,7 @@ cc_library(
     srcs = ["chunk_tracker.cc"],
     hdrs = ["chunk_tracker.h"],
     deps = [
-        ":chunk",
+        "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/lib:bitset",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
@@ -169,8 +168,8 @@ cc_test(
     name = "chunk_tracker_test",
     srcs = ["chunk_tracker_test.cc"],
     deps = [
-        ":chunk",
         ":chunk_tracker",
+        "//peregrine/src/internal/base:types",
         "//peregrine/src/util",
         "//peregrine/src/util:thread",
         "@abseil-cpp//absl/log",
@@ -190,6 +189,7 @@ cc_library(
     hdrs = ["chunk_test_util.h"],
     deps = [
         ":chunk",
+        ":header",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:types",

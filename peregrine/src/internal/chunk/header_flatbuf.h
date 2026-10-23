@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "absl/types/span.h"
+#include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_generated.h"
 
@@ -17,6 +18,9 @@ namespace peregrine::internal {
 // `HeaderBase`, `PostInfoHeader`, `DataHeader`, and `RequestInfo`.
 // It is thread-safe since it has no data members.
 class HeaderUtil final {
+  static_assert(assumptions::kChunkHeaderSerializesTo64BytesFixedSizeFlatBuf);
+  static_assert(assumptions::kChunkHeaderHasBackwardForwardCompatibilityIssue);
+
  public:
   static constexpr size_t kSize = 64;
   static constexpr size_t kRequestInfoSize = kSerializedRequestInfoSize;

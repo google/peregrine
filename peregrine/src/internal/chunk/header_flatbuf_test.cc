@@ -6,7 +6,6 @@
 
 #include "gtest/gtest.h"
 #include "peregrine/src/api/transport_types.h"
-#include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"

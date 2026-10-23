@@ -20,6 +20,10 @@ using IoVec = ::iovec;
 DEFINE_STRONG_INT_TYPE(ReqId, uint32_t);
 inline constexpr ReqId kInvalidReqId(0);
 
+// Memory address and chunk index.
+DEFINE_STRONG_INT_TYPE(addr_t, uintptr_t);
+DEFINE_STRONG_INT_TYPE(chunk_t, uint32_t);
+
 // Socket file descriptor.
 DEFINE_STRONG_INT_TYPE(fd_t, int);
 

@@ -27,7 +27,6 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/engine/engine_helper.h"

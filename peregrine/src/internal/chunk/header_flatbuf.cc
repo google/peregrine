@@ -11,7 +11,6 @@
 #include "absl/log/log.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
-#include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_generated.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"

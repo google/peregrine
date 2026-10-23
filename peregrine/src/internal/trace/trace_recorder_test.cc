@@ -6,7 +6,7 @@
 #include "peregrine/src/api/trace/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
-#include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_event.h"
 
@@ -20,14 +20,13 @@ TEST(TraceRecorderTest, UntracedFastPathShortCircuits) {
 
   recorder.RecordEngineEnqueued(ctx, Handle(1), TraceRecorder::NowUs(), 1, 1024,
                                 Op::kWrite);
-  ChunkHeader chunk = {
-      .handle = Handle(1),
-      .reqid = ReqId(10),
-      .nchunks = 1,
-      .index = chunk_t(0),
-      .addr = addr_t(0x1000),
-      .size = 1024,
-  };
+  DataHeader chunk = {};
+  chunk.opcode = Opcode::kData;
+  chunk.handle = Handle(1);
+  chunk.len = 1024;
+  chunk.reqid = ReqId(10);
+  chunk.index = chunk_t(0);
+  chunk.raddr = addr_t(0x1000);
   recorder.RecordWorkerEnqueued(ctx, chunk, 1, Op::kWrite);
   EXPECT_FALSE(chunk.trace.IsTraced());
   EXPECT_EQ(recorder.Buffer().TotalRecorded(), 0);
@@ -79,14 +78,13 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   recorder.RecordGetPeerHostInfoDone(ctx, kHandle, kReqId);
   recorder.RecordConnSetupDone(ctx, kHandle, kReqId, /*num_workers=*/4);
 
-  ChunkHeader chunk = {
-      .handle = kHandle,
-      .reqid = kReqId,
-      .nchunks = 1,
-      .index = chunk_t(0),
-      .addr = addr_t(0x2000),
-      .size = 4096,
-  };
+  DataHeader chunk = {};
+  chunk.opcode = Opcode::kData;
+  chunk.handle = kHandle;
+  chunk.len = 4096;
+  chunk.reqid = kReqId;
+  chunk.index = chunk_t(0);
+  chunk.raddr = addr_t(0x2000);
   recorder.RecordWorkerEnqueued(ctx, chunk, /*send_worker_id=*/2, Op::kWrite);
   EXPECT_TRUE(chunk.trace.IsTraced());
 

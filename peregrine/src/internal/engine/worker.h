@@ -12,7 +12,6 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"

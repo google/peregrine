@@ -9,6 +9,7 @@
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/chunk/header.h"
 
 namespace peregrine::internal::testing {
 

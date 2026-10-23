@@ -8,7 +8,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/synchronization/mutex.h"
-#include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/lib/bitset.h"
 #include "peregrine/src/util/macro.h"
 

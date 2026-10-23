@@ -60,7 +60,7 @@ cc_library(
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal:coding_style",
         "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/chunk",
+        "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/util",
         "//peregrine/src/util:clock",
         "//peregrine/src/util:macro",
@@ -90,7 +90,7 @@ cc_test(
         "//peregrine/src/api:transport_trace",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/chunk",
+        "//peregrine/src/internal/chunk:header",
         "@googletest//:gtest_main",
     ],
 )

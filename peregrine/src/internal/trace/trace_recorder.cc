@@ -8,7 +8,7 @@
 #include "peregrine/src/api/trace/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
-#include "peregrine/src/internal/chunk/chunk.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/trace/trace_buffer.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_event.h"
@@ -110,7 +110,7 @@ void TraceRecorder::RecordConnSetupDone(const TraceContext& ctx, Handle handle,
 }
 
 void TraceRecorder::RecordWorkerEnqueued(const TraceContext& ctx,
-                                         ChunkHeader& chunk, int send_worker_id,
+                                         DataHeader& chunk, int send_worker_id,
                                          Op op) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
   const uint64_t now_us = NowUs();
@@ -125,11 +125,11 @@ void TraceRecorder::RecordWorkerEnqueued(const TraceContext& ctx,
       .metadata = static_cast<uint8_t>(op),
       .worker_id = ClampI16(send_worker_id),
       .chunk_idx = chunk.index.value(),
-      .metric1 = chunk.size,
+      .metric1 = chunk.len,
   });
 }
 
-void TraceRecorder::RecordWorkerDequeued(ChunkHeader& chunk,
+void TraceRecorder::RecordWorkerDequeued(DataHeader& chunk,
                                          int send_worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
   const uint64_t t_dequeued_us = NowUs();
@@ -141,11 +141,11 @@ void TraceRecorder::RecordWorkerDequeued(ChunkHeader& chunk,
       .stage = TraceStage::kWorkerDequeued,
       .worker_id = ClampI16(send_worker_id),
       .chunk_idx = chunk.index.value(),
-      .metric1 = chunk.size,
+      .metric1 = chunk.len,
   });
 }
 
-void TraceRecorder::RecordTxWriteDone(const ChunkHeader& chunk,
+void TraceRecorder::RecordTxWriteDone(const DataHeader& chunk,
                                       int send_worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
   const uint64_t t_done_us = NowUs();
@@ -156,11 +156,11 @@ void TraceRecorder::RecordTxWriteDone(const ChunkHeader& chunk,
       .stage = TraceStage::kTxWriteDone,
       .worker_id = ClampI16(send_worker_id),
       .chunk_idx = chunk.index.value(),
-      .metric1 = chunk.size,
+      .metric1 = chunk.len,
   });
 }
 
-void TraceRecorder::RecordTxAckRcvd(const ChunkHeader& chunk) noexcept {
+void TraceRecorder::RecordTxAckRcvd(const DataHeader& chunk) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
   buffer_.Record(TraceEvent{
       .timestamp_us = NowUs(),
@@ -175,7 +175,7 @@ void TraceRecorder::RecordTxAckRcvd(const ChunkHeader& chunk) noexcept {
   });
 }
 
-void TraceRecorder::RecordRxChunkDone(const ChunkHeader& chunk,
+void TraceRecorder::RecordRxChunkDone(const DataHeader& chunk,
                                       uint64_t t_done_us) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced() || !sampler_.IsEnabled()) {
     return;
