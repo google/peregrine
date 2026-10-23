@@ -24,12 +24,12 @@
 #include "absl/status/status_macros.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
-#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "peregrine/src/api/v1/ip_util.h"
+#include "peregrine/src/util/envvar.h"
 
 namespace peregrine::v1 {
 namespace {
@@ -63,21 +63,6 @@ constexpr int kDefaultConnectTimeoutMs = 3000;
 constexpr int kDefaultMaxConnectAttempts = 4;
 constexpr int kDefaultInitialBackoffMs = 200;
 constexpr absl::Duration kMaxConnectBackoff = absl::Seconds(4);
-
-int GetPositiveIntFromEnvOrDefault(const char* name, int default_val) {
-  const char* value = std::getenv(name);
-  if (value == nullptr || value[0] == '\0') {
-    return default_val;
-  }
-  int parsed = 0;
-  if (!absl::SimpleAtoi(value, &parsed) || parsed <= 0) {
-    LOG(WARNING) << name << "=\"" << value
-                 << "\" must be a positive integer; using default "
-                 << default_val;
-    return default_val;
-  }
-  return parsed;
-}
 
 // Sets SO_SNDTIMEO, which on Linux also bounds connect(). Zero means none.
 void SetSendTimeout(int fd, absl::Duration timeout) {
@@ -148,14 +133,13 @@ absl::StatusOr<int> ConnectToPeer(std::string_view peer,
   }
 
   const absl::Duration connect_timeout =
-      absl::Milliseconds(GetPositiveIntFromEnvOrDefault(
+      absl::Milliseconds(util::ParseEnvVarInteger(
           "TPU_RAIDEN_TCP_CONNECT_TIMEOUT_MS", kDefaultConnectTimeoutMs));
-  const int max_attempts = GetPositiveIntFromEnvOrDefault(
+  const int max_attempts = util::ParseEnvVarInteger(
       "TPU_RAIDEN_TCP_CONNECT_MAX_ATTEMPTS", kDefaultMaxConnectAttempts);
-  const absl::Duration initial_backoff =
-      absl::Milliseconds(GetPositiveIntFromEnvOrDefault(
-          "TPU_RAIDEN_TCP_CONNECT_INITIAL_BACKOFF_MS",
-          kDefaultInitialBackoffMs));
+  const absl::Duration initial_backoff = absl::Milliseconds(
+      util::ParseEnvVarInteger("TPU_RAIDEN_TCP_CONNECT_INITIAL_BACKOFF_MS",
+                               kDefaultInitialBackoffMs));
 
   int sock_fd = -1;
   int last_errno = 0;
