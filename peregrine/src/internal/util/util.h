@@ -3,7 +3,10 @@
 
 #include <sys/uio.h>
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -12,6 +15,25 @@
 #include "peregrine/src/internal/base/types.h"
 
 namespace peregrine::internal {
+
+// Clamps a uint64_t value to uint16_t::max.
+constexpr uint16_t ClampU16(uint64_t v) noexcept {
+  return static_cast<uint16_t>(
+      std::min<uint64_t>(v, std::numeric_limits<uint16_t>::max()));
+}
+
+// Clamps a uint64_t value to uint32_t::max.
+constexpr uint32_t ClampU32(uint64_t v) noexcept {
+  return static_cast<uint32_t>(
+      std::min<uint64_t>(v, std::numeric_limits<uint32_t>::max()));
+}
+
+// Clamps an int64_t value to [int16_t::min, int16_t::max].
+constexpr int16_t ClampI16(int64_t v) noexcept {
+  return static_cast<int16_t>(
+      std::clamp<int64_t>(v, std::numeric_limits<int16_t>::min(),
+                          std::numeric_limits<int16_t>::max()));
+}
 
 // Returns true iff the integer is a power of two.
 template <typename T>

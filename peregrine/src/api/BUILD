@@ -58,6 +58,11 @@ cc_test(
 )
 
 cc_library(
+    name = "transport_trace",
+    hdrs = ["trace/transport_trace.h"],
+)
+
+cc_library(
     name = "transport_types",
     srcs = ["transport_types.cc"],
     hdrs = ["transport_types.h"],

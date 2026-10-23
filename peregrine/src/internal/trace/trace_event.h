@@ -2,6 +2,7 @@
 #define PEREGRINE_SRC_INTERNAL_TRACE_TRACE_EVENT_H_
 
 #include <cstdint>
+#include <limits>
 
 namespace peregrine::internal {
 
@@ -19,9 +20,8 @@ enum class TraceStage : uint8_t {
   kEngineDequeued = 20,
   kConnSetupStart = 21,
   kGetPeerHostInfoDone = 22,
-  kChannelConnectDone = 23,
-  kConnSetupDone = 24,
-  kWorkerEnqueued = 25,
+  kConnSetupDone = 23,
+  kWorkerEnqueued = 24,
 
   // Per-Chunk level on Sender & Receiver Workers
   kWorkerDequeued = 40,
@@ -32,23 +32,22 @@ enum class TraceStage : uint8_t {
   kRxChunkDone = 45,  // Recorded locally on receiver if receiver tracing is on
 };
 
-// Fixed-size 40-byte trace record stored in `TraceBuffer`.
+// Fixed-size 32-byte trace record stored in `TraceBuffer`.
 struct TraceEvent final {
+  static constexpr uint32_t kNoChunk = std::numeric_limits<uint32_t>::max();
+
   uint64_t timestamp_us = 0;  // util::MonotonicNow() in microseconds
   uint32_t handle = 0;
   uint32_t reqid = 0;
-  uint32_t chunk_index = 0;
-  uint32_t duration_us =
-      0;  // Stage duration in us (e.g. chunk_rtt_us or tx_write_us)
-  uint32_t aux_value =
-      0;  // Secondary metric (e.g. rx_payload_us or size_bytes)
-  uint32_t aux2_value = 0;  // Tertiary metric (e.g. rx_acquire_us)
+  TraceStage stage = TraceStage::kPostEntry;  // Lifecycle stage enum
+  uint8_t metadata = 0;  // Extra metadata (e.g. ChunkStatus, Op, TransportType)
   int16_t worker_id =
       0;  // Worker ID (+k for send, -k for recv, 0 for engine/api)
-  TraceStage stage = TraceStage::kPostEntry;  // Lifecycle stage enum
-  uint8_t flags = 0;  // Extra metadata (e.g., ChunkStatus, Op, TransportType)
+  uint32_t chunk_idx = kNoChunk;
+  uint32_t metric1 = 0;  // E.g. rx_payload_us or size_bytes
+  uint32_t metric2 = 0;  // E.g. rx_acquire_us
 };
-static_assert(sizeof(TraceEvent) == 40);
+static_assert(sizeof(TraceEvent) == 32);
 
 }  // namespace peregrine::internal
 

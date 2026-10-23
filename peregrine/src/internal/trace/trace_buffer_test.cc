@@ -24,12 +24,10 @@ TEST(TraceBufferTest, RingWraparound) {
         .timestamp_us = 1000 + i,
         .handle = i,
         .reqid = i * 10,
-        .chunk_index = 0,
-        .duration_us = i,
-        .aux_value = 4096,
-        .worker_id = 1,
         .stage = TraceStage::kPostEntry,
-        .flags = 0,
+        .worker_id = 1,
+        .chunk_idx = 0,
+        .metric1 = 4096,
     });
   }
 
@@ -58,12 +56,10 @@ TEST(TraceBufferTest, ConcurrentMultiThreadedRecord) {
             .timestamp_us = static_cast<uint64_t>(t * 1000 + i),
             .handle = static_cast<uint32_t>(t + 1),
             .reqid = static_cast<uint32_t>(i),
-            .chunk_index = 0,
-            .duration_us = 10,
-            .aux_value = 1024,
-            .worker_id = static_cast<int16_t>(t + 1),
             .stage = TraceStage::kWorkerDequeued,
-            .flags = 0,
+            .worker_id = static_cast<int16_t>(t + 1),
+            .chunk_idx = 0,
+            .metric1 = 1024,
         });
       }
     });
