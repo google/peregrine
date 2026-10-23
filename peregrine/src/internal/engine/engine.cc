@@ -76,9 +76,10 @@ Engine::Engine(const Config& config, const HostInfo& self,
       next_reqid_(util::Random<ReqId::ValueType>(bitgen_)),
       recv_post_callback_(nullptr),
       recv_req_callback_(nullptr),
-      outgoing_(helper->Metrics()),
-      incoming_(helper->Metrics()),
+      outgoing_(helper->Metrics(), helper->Tracer()),
+      incoming_(helper->Metrics(), helper->Tracer()),
       metrics_(helper->Metrics()),
+      tracer_(helper->Tracer()),
       helper_(std::move(helper)) {
   DCHECK(config_.IsValid());
 

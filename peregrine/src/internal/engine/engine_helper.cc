@@ -11,6 +11,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "peregrine/src/api/trace/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/config.h"
@@ -69,6 +70,7 @@ EngineHelper::EngineHelper(const Config& config, const HostInfo& self,
     : config_(config),
       self_(self),
       control_(control),
+      tracer_(TraceConfig{.sample_every_n = 0}),
       tcp_mgr_(std::move(tcp_mgr)),
       rdma_mgr_(std::move(rdma_mgr)) {
   DCHECK(invariant());

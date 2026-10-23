@@ -16,6 +16,7 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "peregrine/src/api/trace/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/hostinfo.h"
@@ -25,6 +26,7 @@
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
 #include "peregrine/src/util/thread.h"
@@ -123,15 +125,18 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
  private:
   struct Host {
     EngineMetrics metrics;
+    TraceRecorder tracer;
     RequestTracker outgoing;
     RequestTracker incoming;
     Worker worker;
     explicit Host(int id, const HostInfo& self,
                   std::unique_ptr<Channel> channel)
         : metrics(),
-          outgoing(metrics),
-          incoming(metrics),
-          worker(id, self, outgoing, incoming, metrics, std::move(channel)) {}
+          tracer(TraceConfig{.sample_every_n = 0}),
+          outgoing(metrics, tracer),
+          incoming(metrics, tracer),
+          worker(id, self, outgoing, incoming, metrics, tracer,
+                 std::move(channel)) {}
   };
 
  protected:

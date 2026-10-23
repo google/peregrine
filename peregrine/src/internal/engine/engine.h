@@ -34,6 +34,7 @@
 #include "peregrine/src/internal/engine/worker.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
 
@@ -142,7 +143,7 @@ class Engine final {
   // Creates a worker, using positive/negative id for send/recv respectively.
   std::unique_ptr<Worker> createWorker(int id, std::unique_ptr<Channel> ch) {
     return std::make_unique<Worker>(id, self_, outgoing_, incoming_, metrics_,
-                                    std::move(ch));
+                                    tracer_, std::move(ch));
   }
 
   // Creates send workers for a `peer`.
@@ -182,6 +183,7 @@ class Engine final {
   RequestTracker incoming_;
 
   EngineMetrics& metrics_;
+  TraceRecorder& tracer_;
 
   absl_nonnull std::unique_ptr<EngineHelper> helper_;
   absl::flat_hash_map<Endpoint, Workers> send_workers_;

@@ -15,6 +15,7 @@
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/rdma/rdma_manager.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
 
@@ -39,6 +40,9 @@ class EngineHelper final {
 
   // Returns a mutable reference to engine metrics.
   EngineMetrics& Metrics() { return metrics_; }
+
+  // Returns a mutable reference to the trace recorder.
+  TraceRecorder& Tracer() { return tracer_; }
 
   // Creates a number of channels connected to the peer.
   Channels Connect(const Endpoint& peer_control);
@@ -79,6 +83,7 @@ class EngineHelper final {
   Control& control_;
 
   EngineMetrics metrics_;
+  TraceRecorder tracer_;
 
   absl_nonnull std::unique_ptr<TcpManager> tcp_mgr_;
   absl_nullable std::unique_ptr<RdmaManager> rdma_mgr_;

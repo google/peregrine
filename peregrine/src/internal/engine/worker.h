@@ -16,6 +16,7 @@
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
 
@@ -29,7 +30,7 @@ class Worker {
   // Constructor.
   Worker(int id, const HostInfo& self, RequestTracker& outgoing,
          RequestTracker& incoming, EngineMetrics& metrics,
-         std::unique_ptr<Channel> channel);
+         TraceRecorder& tracer, std::unique_ptr<Channel> channel);
 
   // Disallows copy and assign.
   DISALLOW_COPY(Worker);
@@ -88,6 +89,7 @@ class Worker {
   RequestTracker& incoming_;
 
   EngineMetrics& metrics_;
+  TraceRecorder& tracer_;
 
   std::unique_ptr<Channel> channel_;
 

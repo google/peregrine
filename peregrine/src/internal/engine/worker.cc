@@ -17,6 +17,7 @@
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/internal/transfer/transfer.h"
 #include "peregrine/src/util/thread.h"
 
@@ -28,7 +29,7 @@ void Worker::log(std::string_view msg) const {
 
 Worker::Worker(int id, const HostInfo& self, RequestTracker& outgoing,
                RequestTracker& incoming, EngineMetrics& metrics,
-               std::unique_ptr<Channel> channel)
+               TraceRecorder& tracer, std::unique_ptr<Channel> channel)
     : id_(id),
       self_(self),
       stop_(false),
@@ -37,6 +38,7 @@ Worker::Worker(int id, const HostInfo& self, RequestTracker& outgoing,
       outgoing_(outgoing),
       incoming_(incoming),
       metrics_(metrics),
+      tracer_(tracer),
       channel_(std::move(channel)) {
   DCHECK_NE(channel_, nullptr);
   send_thread_ = util::Jthread([this]() { SendLoop(); });
