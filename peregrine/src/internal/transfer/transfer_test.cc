@@ -22,7 +22,6 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_test_util.h"
-#include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
@@ -73,18 +72,6 @@ class TransferTest : public ::testing::TestWithParam<Param> {
   static uint32_t GetChunkSize(uint32_t i) {
     DCHECK_LT(i, kNumChunks);
     return i != kNumChunks - 1 ? kChunkSize : kLastChunkSize;
-  }
-
-  ChunkHeader GenChunkHeader(uint32_t i) {
-    DCHECK_LT(i, kNumChunks);
-    return ChunkHeader{
-        .handle = kHandle,
-        .reqid = kReqId,
-        .nchunks = kNumChunks,
-        .index = chunk_t(i),
-        .addr =
-            addr_t(reinterpret_cast<uintptr_t>(dst_.data() + i * kChunkSize)),
-        .size = GetChunkSize(i)};
   }
 
   PostInfoHeader GenPostInfoHeader() const {
@@ -169,59 +156,6 @@ INSTANTIATE_TEST_SUITE_P(, TransferTest,
                          ToString);
 
 TEST_P(TransferTest, SendRecv) {
-  const auto chs = CreateTestChannelPair(p_);
-
-  // Precondition: dst is different from src.
-  ASSERT_THAT(dst_, Pointwise(Ne(), src_));
-  RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(a_.outgoing.Add(kHandle, absl::Now(), std::move(on_complete)));
-
-  // A sends data chunks to B.
-  util::Thread a_send([&]() {
-    Channel* const channel = chs.sndr.get();
-    while (!IsSendDone()) {
-      for (uint32_t i = 0; i < kNumChunks; ++i) {
-        if (IsSendDone()) break;
-        const ChunkHeader chunk = GenChunkHeader(i);
-        const ChunkPayloadView payload = GenPayload(i);
-        CHECK(Transfer::SendChunk(channel, chunk, payload));
-      }
-    }
-  });
-  // A receives ack chunks from B.
-  util::Thread a_recv([&]() {
-    Channel* const channel = chs.sndr.get();
-    while (!IsSendDone()) {
-      if (!Transfer::RecvChunk(channel, a_.outgoing, a_.incoming)) {
-        util::Yield();
-      }
-    }
-  });
-
-  // B receives data chunks from A (and sends ack chunks to A).
-  util::Thread b_recv([&]() {
-    Channel* const channel = chs.rcvr.get();
-    while (!IsSendDone()) {
-      if (!Transfer::RecvChunk(channel, b_.outgoing, b_.incoming)) {
-        util::Yield();
-      }
-    }
-  });
-
-  a_send.join();
-  a_recv.join();
-  chs.sndr->Shutdown();
-  chs.rcvr->Shutdown();
-  b_recv.join();
-
-  EXPECT_TRUE(IsSendDone());
-  EXPECT_TRUE(IsRecvDone());
-
-  // Postcondition: dst is the same as src.
-  EXPECT_THAT(dst_, Pointwise(Eq(), src_));
-}
-
-TEST_P(TransferTest, SendInfoAndSendRecvData) {
   const auto chs = CreateTestChannelPair(p_);
 
   // Precondition: dst is different from src.

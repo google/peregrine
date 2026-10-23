@@ -9,8 +9,6 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/chunk/chunk.h"
-#include "peregrine/src/internal/chunk/chunk_flatbuf.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/request/request_tracker.h"
@@ -35,25 +33,14 @@ class Transfer final {
   static bool Recv(Channel* channel, RequestTracker& outgoing,
                    RequestTracker& incoming);
 
-  // TODO: Remove once Engine/Worker switch to PostInfoHeader + DataHeader.
-  // Sends chunk header and payload to the channel.
-  static bool SendChunk(Channel* channel, const ChunkHeader& chunk,
-                        ChunkPayloadView payload);
-
-  // Receives chunk header and payload from the channel.
-  static bool RecvChunk(Channel* channel, RequestTracker& outgoing,
-                        RequestTracker& incoming);
-
  private:
   using Header = std::variant<PostInfoHeader, DataHeader>;
 
   // Deserializes header and returns true iff the header is valid.
   static bool deserialize(const Byte* buf, Header& header);
-  static bool deserialize(const Byte* header, ChunkHeader& chunk);
 
   // Sends an ack chunk with no payload to the channel.
   static bool sendAck(Channel* channel, DataHeader& chunk);
-  static bool sendAck(Channel* channel, ChunkHeader& chunk);
 
  private:
   // Receives `PostInfoHeader` or `DataHeader` packet from the reliable stream
@@ -76,14 +63,6 @@ class Transfer final {
                           ChunkPayloadView payload, RequestTracker& outgoing,
                           RequestTracker& incoming);
 
-  // Receives chunk header and payload from the reliable stream channel.
-  static bool recvChunkStream(Channel* channel, RequestTracker& outgoing,
-                              RequestTracker& incoming);
-
-  // Receives chunk header and payload from the message channel.
-  static bool recvChunkMsg(Channel* channel, RequestTracker& outgoing,
-                           RequestTracker& incoming);
-
   // Discards chunk payload still buffered in the reliable stream channel.
   static bool drainStream(Channel* channel, uint32_t chunk_size);
 
@@ -91,7 +70,6 @@ class Transfer final {
   static_assert(assumptions::kNetworkMtuIsAtMostTenKiloBytes);
   static constexpr size_t kTmpBufSize = 10U << 10;
   static_assert(HeaderUtil::kSize < kTmpBufSize);
-  static_assert(ChunkUtil::kSize < kTmpBufSize);
 };
 
 }  // namespace peregrine::internal

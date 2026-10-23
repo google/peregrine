@@ -4,11 +4,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "absl/random/bit_gen_ref.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
-#include "peregrine/src/internal/chunk/chunk.h"
 #include "peregrine/src/internal/chunk/header.h"
 
 namespace peregrine::internal::testing {
@@ -23,18 +21,6 @@ constexpr ReqId kReqId2(0xdead);
 constexpr uint32_t kChunkSize = 1024;
 constexpr uint32_t kNumChunks = 10;
 constexpr chunk_t kChunkIndex(1);
-
-// Generates chunk header.
-void GenChunkHeader(ChunkHeader& chunk, chunk_t index = kChunkIndex);
-
-// Generates chunk header.
-ChunkHeader GenChunkHeader(chunk_t index = kChunkIndex);
-
-// Generates random chunk header.
-void GenChunkHeader(absl::BitGenRef bitgen, ChunkHeader& chunk);
-
-// Generates random chunk header.
-ChunkHeader GenChunkHeader(absl::BitGenRef bitgen);
 
 // Generates chunk payload view.
 ChunkPayloadView GenPayload(size_t size);

@@ -21,8 +21,6 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
-#include "peregrine/src/internal/chunk/chunk.h"
-#include "peregrine/src/internal/chunk/chunk_flatbuf.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
@@ -85,35 +83,6 @@ bool Transfer::Recv(Channel* const channel, RequestTracker& outgoing,
   }
 }
 
-bool Transfer::SendChunk(Channel* const channel, const ChunkHeader& chunk,
-                         const ChunkPayloadView payload) {
-  static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
-  DCHECK(IsMatch(chunk, payload));
-
-  // Step 1: build chunk header and payload.
-  const std::string header = ChunkUtil::Serialize(chunk);
-  const std::array<const IoVec, 2> iovecs = {
-      IoVec((void*)header.data(), header.size()),
-      IoVec((void*)payload.data(), payload.size()),
-  };
-
-  // Step 2: send them out.
-  const ssize_t len = channel->Write(iovecs);
-  return std::cmp_equal(len, header.size() + payload.size());
-}
-
-bool Transfer::RecvChunk(Channel* const channel, RequestTracker& outgoing,
-                         RequestTracker& incoming) {
-  static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
-  const ChannelType t = channel->Type();
-  if ABSL_PREDICT_TRUE (t.IsStreamChannel()) {
-    return recvChunkStream(channel, outgoing, incoming);
-  } else {
-    DCHECK(t.IsMessageChannel());
-    return recvChunkMsg(channel, outgoing, incoming);
-  }
-}
-
 bool Transfer::deserialize(const Byte* buf, Header& header) {
   std::string_view s(reinterpret_cast<const char*>(buf), HeaderUtil::kSize);
   if (DataHeader chunk; HeaderUtil::Deserialize(s, chunk)) {
@@ -127,28 +96,10 @@ bool Transfer::deserialize(const Byte* buf, Header& header) {
   return false;
 }
 
-bool Transfer::deserialize(const Byte* header, ChunkHeader& chunk) {
-  std::string_view s(reinterpret_cast<const char*>(header), ChunkUtil::kSize);
-  return ChunkUtil::Deserialize(s, chunk) && chunk.IsValid();
-}
-
 bool Transfer::sendAck(Channel* channel, DataHeader& chunk) {
   chunk.len = 0;
   DCHECK(chunk.IsAck());
   const std::string header = HeaderUtil::Serialize(chunk);
-  const IoVec iov[] = {{(void*)header.data(), header.size()}};
-  const ssize_t len = channel->Write(iov);
-  if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, header.size())) {
-    LOG(WARNING) << "failed to send ack: " << chunk;
-    return false;
-  }
-  return true;
-}
-
-bool Transfer::sendAck(Channel* channel, ChunkHeader& chunk) {
-  chunk.size = 0;
-  DCHECK(chunk.IsAck());
-  const std::string header = ChunkUtil::Serialize(chunk);
   const IoVec iov[] = {{(void*)header.data(), header.size()}};
   const ssize_t len = channel->Write(iov);
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, header.size())) {
@@ -329,127 +280,6 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
   ChunkTracker& tracker = incoming.Find(chunk.handle, chunk.reqid);
 
   // Step 3: process data chunk.
-  static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
-  static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-  const chunk_t index = chunk.index;
-  switch (tracker.Acquire(index)) {
-    case ChunkStatus::kEmpty:
-      std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
-      tracker.Release(index, true);
-      return sendAck(channel, chunk);
-    case ChunkStatus::kDone:
-      LOG(WARNING) << "done chunk #" << index.value();
-      return sendAck(channel, chunk);
-    case ChunkStatus::kBusy:
-      LOG(WARNING) << "busy chunk #" << index.value();
-      return true;
-  }
-}
-
-bool Transfer::recvChunkStream(Channel* const channel, RequestTracker& outgoing,
-                               RequestTracker& incoming) {
-  DCHECK(channel->Type().IsStreamChannel());
-  DCHECK(channel->Type().IsLosslessChannel());
-
-  // Step 1: read chunk header.
-  Byte buf[ChunkUtil::kSize];
-  IoVec iov[] = {{buf, sizeof(buf)}};
-  const ssize_t len = channel->Read(iov);
-  if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, sizeof(buf))) {
-    // TODO(yongx): drop this channel.
-    LOG(WARNING) << "failed to read chunk header: " << len;
-    return false;
-  }
-
-  // Step 2: deserialize chunk header.
-  ChunkHeader chunk;
-  if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
-    // TODO(yongx): drop this channel.
-    LOG(WARNING) << "invalid chunk header";
-    return false;
-  }
-
-  // Step 3: process ack chunk.
-  if (chunk.IsAck()) {
-    static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    outgoing.Update(chunk.handle, chunk.reqid, chunk.nchunks, chunk.index);
-    return true;
-  }
-
-  // Step 4: find chunk tracker for incoming data chunk.
-  ChunkTracker& tracker =
-      incoming.FindOrCreate(chunk.handle, chunk.reqid, chunk.nchunks);
-
-  // Step 5: process data chunk.
-  static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
-  static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-  const chunk_t index = chunk.index;
-  const size_t size = chunk.size;
-  const ChunkStatus s = tracker.Acquire(index);
-  if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
-    // Write permission granted, read payload and track data arrival.
-    // TODO(yongx): check if chunk.DstAddr() is within a trust boundary.
-    IoVec payload[] = {{chunk.DstAddr(), size}};
-    const ssize_t len = channel->Read(payload);
-    const bool success = std::cmp_equal(len, size);
-    tracker.Release(index, success);
-    return success && sendAck(channel, chunk);
-  } else {
-    DCHECK(s == ChunkStatus::kDone || s == ChunkStatus::kBusy);
-    const bool done = s == ChunkStatus::kDone;
-    LOG(WARNING) << (done ? "done" : "busy") << " chunk #" << index.value();
-    const bool drained = drainStream(channel, size);
-    const bool success = !done || sendAck(channel, chunk);
-    if (!drained) {
-      // TODO(yongx): drop this channel.
-      return false;
-    }
-    return success;
-  }
-}
-
-bool Transfer::recvChunkMsg(Channel* const channel, RequestTracker& outgoing,
-                            RequestTracker& incoming) {
-  DCHECK(channel->Type().IsMessageChannel());
-
-  // Step 1: read chunk header.
-  Byte buf[kTmpBufSize];
-  static_assert(ChunkUtil::kSize < kTmpBufSize);
-  IoVec iov[] = {{buf, kTmpBufSize}};
-  const ssize_t len = channel->Read(iov);
-  if ABSL_PREDICT_FALSE (std::cmp_less(len, ChunkUtil::kSize)) {
-    LOG(WARNING) << "failed to read chunk header: " << len;
-    return false;
-  }
-
-  // Step 2: deserialize chunk header.
-  ChunkHeader chunk;
-  if ABSL_PREDICT_FALSE (!deserialize(buf, chunk)) {
-    LOG(WARNING) << "invalid chunk header";
-    return false;
-  }
-
-  // Step 3: check chunk payload size.
-  const ChunkPayloadView payload(buf + ChunkUtil::kSize,
-                                 len - ChunkUtil::kSize);
-  if ABSL_PREDICT_FALSE (!IsMatch(chunk, payload)) {
-    LOG(WARNING) << "mismatched chunk header: " << chunk
-                 << " vs payload size: " << payload.size();
-    return false;
-  }
-
-  // Step 4: process ack chunk.
-  if (chunk.IsAck()) {
-    static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
-    outgoing.Update(chunk.handle, chunk.reqid, chunk.nchunks, chunk.index);
-    return true;
-  }
-
-  // Step 5: find chunk tracker for incoming data chunk.
-  ChunkTracker& tracker =
-      incoming.FindOrCreate(chunk.handle, chunk.reqid, chunk.nchunks);
-
-  // Step 6: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;

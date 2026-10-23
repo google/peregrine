@@ -72,9 +72,10 @@ TEST_F(RequestTrackerTest, Recv) {
 TEST_F(RequestTrackerTest, SetMethod) {
   RequestTracker::OnComplete on_complete = nullptr;
   ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
-    rt_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId, chunk_t(i));
   }
   EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
 
@@ -90,11 +91,12 @@ TEST_F(RequestTrackerTest, CompletionCallbackSingleRequest) {
     completed_status = s;
   };
   ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(callback_count, 0);
     EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
-    rt_.Update(kHandle, kReqId, kNumChunks, chunk_t(i));
+    rt_.Update(kHandle, kReqId, chunk_t(i));
   }
 
   EXPECT_EQ(callback_count, 1);

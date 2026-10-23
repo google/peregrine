@@ -65,13 +65,6 @@ class RequestTracker {
   void Update(Handle handle, ReqId reqid, chunk_t index)
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // TODO: Remove once ChunkHeader is replaced by PostInfoHeader + DataHeader.
-  void Update(Handle handle, ReqId reqid, uint32_t num_chunks, chunk_t index)
-      ABSL_LOCKS_EXCLUDED(trackers_mu_) {
-    FindOrCreate(handle, reqid, num_chunks);
-    Update(handle, reqid, index);
-  }
-
   // Returns a reference to the chunk tracker for the given `handle` and
   // `reqid`.
   // TODO: Return `ChunkTracker*` (`nullptr` if `handle` or `reqid` is missing)
