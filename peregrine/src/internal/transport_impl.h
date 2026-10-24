@@ -35,6 +35,11 @@ class TransportImpl final : public Transport {
                                                const Endpoint& endpoint,
                                                SecurityCredentials creds);
 
+  // Returns the (gRPC) control-plane endpoint of this transport instance.
+  std::string GetControlEndpoint() const override {
+    return self_.control_plane_listener.ToString();
+  }
+
   // Posts a batch of transport `requests` to communicate with the `peer`.
   //
   // On success, returns a process-level unique `handle`, which can be used to
@@ -94,11 +99,6 @@ class TransportImpl final : public Transport {
 
   // Returns a snapshot of metrics.
   TransportMetrics GetTransportMetrics() const override;
-
-  // Returns the control endpoint with the actual bound port.
-  std::string GetControlEndpoint() const override {
-    return self_.control_plane_listener.ToString();
-  }
 
  private:
   // Constructor.

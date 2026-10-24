@@ -20,6 +20,9 @@ class Transport {
   // Destructor.
   virtual ~Transport() = default;
 
+  // Returns the control-plane endpoint of this transport instance.
+  virtual std::string GetControlEndpoint() const = 0;
+
   // Posts a batch of transport `requests` to communicate with the `peer`.
   //
   // On success, returns a process-level unique `handle`, which can be used to
@@ -71,9 +74,6 @@ class Transport {
 
   // Returns a snapshot of transport metrics.
   virtual TransportMetrics GetTransportMetrics() const = 0;
-
-  // Returns the control endpoint with the actual bound port.
-  virtual std::string GetControlEndpoint() const = 0;
 };
 
 }  // namespace peregrine

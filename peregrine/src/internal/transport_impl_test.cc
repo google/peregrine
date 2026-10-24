@@ -102,8 +102,9 @@ TEST_P(TransportImplTest, Read) {
 
   // Use one thread to emulate a local process.
   util::Thread a([this]() {
-    Transport& t = a_.GetTransport();
-    const std::string peer = b_.GetControlEndpoint();
+    Transport& at = a_.GetTransport();
+    const Transport& bt = b_.GetTransport();
+    const std::string peer = bt.GetControlEndpoint();
     const Request req = {
         .op = Op::kRead,
         .laddr = a_.DataPtr(),
@@ -111,9 +112,9 @@ TEST_P(TransportImplTest, Read) {
         .len = a_.DataSize(),
     };
     const std::vector<Request> reqs = {req};
-    const absl::StatusOr<Handle> h = t.Post(peer, reqs);
+    const absl::StatusOr<Handle> h = at.Post(peer, reqs);
     ASSERT_TRUE(h.ok()) << h.status();
-    WaitForCompletion(t, *h, reqs);
+    WaitForCompletion(at, *h, reqs);
   });
 
   // Use another thread to emulate a remote process.
@@ -135,12 +136,13 @@ TEST_P(TransportImplTest, Write) {
 
   // Use one thread to emulate a local process.
   util::Thread a([this]() {
-    Transport& t = a_.GetTransport();
-    const std::string peer = b_.GetControlEndpoint();
+    Transport& at = a_.GetTransport();
+    const Transport& bt = b_.GetTransport();
+    const std::string peer = bt.GetControlEndpoint();
     const std::vector<Request> reqs = MakeRequests(Op::kWrite);
-    const absl::StatusOr<Handle> h = t.Post(peer, reqs);
+    const absl::StatusOr<Handle> h = at.Post(peer, reqs);
     ASSERT_TRUE(h.ok()) << h.status();
-    WaitForCompletion(t, *h, reqs);
+    WaitForCompletion(at, *h, reqs);
   });
 
   // Use another thread to emulate a remote process.

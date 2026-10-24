@@ -88,6 +88,7 @@ NB_MODULE(peregrine, m) {
 
   // Bind `Transport` interface and functions
   nb::class_<Transport>(m, "Transport")
+      .def("get_control_endpoint", &Transport::GetControlEndpoint)
       .def(
           "post",
           [](Transport& self, std::string_view peer,
@@ -120,10 +121,7 @@ NB_MODULE(peregrine, m) {
                 self.UnregisterMemory(reinterpret_cast<const void*>(addr)));
           },
           nb::arg("addr"))
-      .def("get_transport_metrics", &Transport::GetTransportMetrics,
-           "Returns transport metrics.")
-      .def("get_control_endpoint", &Transport::GetControlEndpoint,
-           "Returns the control endpoint with the actual bound port.");
+      .def("get_transport_metrics", &Transport::GetTransportMetrics);
 
   // Bind `Log2Histogram<32>`
   nb::class_<Log2Histogram<32>>(m, "Log2Histogram32")

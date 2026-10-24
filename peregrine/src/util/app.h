@@ -37,9 +37,6 @@ class App final {
     CHECK_NE(transport_, nullptr);  // Crash OK
   }
 
-  // Returns the control plane endpoint.
-  std::string GetControlEndpoint() const { return control_plane_listener_; }
-
   // Returns the transport.
   Transport& GetTransport() const { return *transport_; }
 

@@ -108,7 +108,8 @@ TEST_P(TransportTest, Read) {
 
   // Post a read request (local <- remote).
   Transport& lt = l_.GetTransport();
-  const std::string peer = r_.GetControlEndpoint();
+  const Transport& rt = r_.GetTransport();
+  const std::string peer = rt.GetControlEndpoint();
   const Request req = {
       .op = Op::kRead,
       .laddr = l_.DataPtr(),
@@ -139,7 +140,7 @@ TEST_P(TransportTest, Write) {
   Transport& rt = r_.GetTransport();
   rt.SetRecvPostCallback([](Status, const Metadata&) {});
   rt.SetRecvReqCallback([](Status, const Metadata&) {});
-  const std::string peer = r_.GetControlEndpoint();
+  const std::string peer = rt.GetControlEndpoint();
   const Request req1 = {
       .op = Op::kWrite,
       .laddr = l_.DataPtr(),
