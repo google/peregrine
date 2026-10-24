@@ -284,6 +284,14 @@ inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
 //  - Bind the property in `src/api/python/binding.cc`
 inline constexpr bool kRulesToFollowWhenAddingNewMetrics = true;
 
+// Assumptions about receiver callbacks.
+// ---------------------------------------------------------------------------
+//
+// Receiver callbacks (`SetRecvPostCallback`, `SetRecvReqCallback`) are
+// registered once by the application before any data transfers begin, and
+// remain immutable for the lifetime of the transport.
+inline constexpr bool kRecvCallbacksAreRegisteredBeforeAnyTransfer = true;
+
 }  // namespace peregrine::assumptions
 
 #endif  // PEREGRINE_SRC_INTERNAL_ASSUMPTIONS_H_
