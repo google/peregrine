@@ -16,6 +16,7 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_metrics.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/app.h"
@@ -137,7 +138,8 @@ TEST_P(TransportTest, Write) {
   // Post multiple write requests (local -> remote).
   Transport& lt = l_.GetTransport();
   Transport& rt = r_.GetTransport();
-  rt.SetRecvPostCallback([](Status, const Metadata&) {});
+  rt.SetRecvPostCallback(
+      [](Status, const Metadata&, absl::Span<const Metadata>) {});
   rt.SetRecvReqCallback([](Status, const Metadata&) {});
   const std::string peer = r_.GetControlEndpoint();
   const Request req1 = {

@@ -79,10 +79,15 @@ enum class Status : int {
   kFailure = -1,
 };
 
-// Callback invoked on the receiver when an incoming `Post()` batch or
-// individual `Request` completes.
-using RecvCallback =
-    absl::AnyInvocable<void(Status, const Metadata& metadata) const>;
+// Callback invoked on the receiver when an incoming `Post()` batch completes.
+using RecvPostCallback = absl::AnyInvocable<void(
+    Status, const Metadata& post_metadata,
+    absl::Span<const Metadata> req_metadata) const>;
+
+// Callback invoked on the receiver when an individual incoming `Request`
+// completes.
+using RecvReqCallback =
+    absl::AnyInvocable<void(Status, const Metadata& req_metadata) const>;
 
 // Returns true iff the transport operation is still in progress.
 constexpr bool IsInProgress(const Status s) { return s == Status::kInProgress; }
