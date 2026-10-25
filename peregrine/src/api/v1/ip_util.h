@@ -38,26 +38,6 @@ inline bool IsEnvVarDisabled(const std::string& name) {
   return util::IsEnvVarDisabled(name);
 }
 
-// Whether to pin the client-side source address of outbound data connections
-// (env TPU_RAIDEN_ENABLE_SOURCE_IP_BIND is "1", "true", "yes" or "on").
-//
-// Binding a source IP only steers egress onto a particular NIC when the host
-// has a policy routing rule for that address (`ip rule from <src> ...`). That
-// setup exists on multi-NIC deployments where peer addresses are not covered
-// by specific routes and would otherwise all leave via the control-plane NIC.
-//
-// Without such a rule the kernel still routes by destination, so the bound
-// address disagrees with the interface the packet leaves on, and cloud
-// anti-spoofing filters drop it. bind() itself succeeds and only the data path
-// breaks, so the failure surfaces as a hang rather than an error. Callers must
-// therefore only bind a source when the kernel's own route lookup confirms
-// that the source's NIC is the egress for that peer (SourceIpRoutesToPeer).
-// Binding stays opt-in because the policy routing that makes it useful is a
-// property of the host.
-inline bool SourceBindEnabled() {
-  return IsEnvVarEnabled("TPU_RAIDEN_ENABLE_SOURCE_IP_BIND");
-}
-
 // True when a socket bound to `source_ip` and connected to `peer`
 // ("host:port" or "[v6]:port") would egress through the interface that owns
 // `source_ip`, per the kernel's route lookup (RTM_GETROUTE with RTA_DST and
