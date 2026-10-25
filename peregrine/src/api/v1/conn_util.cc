@@ -29,6 +29,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "peregrine/src/api/v1/ip_util.h"
+#include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/envvar.h"
 
 namespace peregrine::v1 {
@@ -92,24 +93,23 @@ absl::Status ConnectWithTimeout(int fd, const addrinfo& addr,
     SetSendTimeout(fd, saved_timeout);
   };
 
-  absl::Time connect_start =
-      (timing != nullptr) ? absl::Now() : absl::InfinitePast();
+  const absl::Duration connect_start =
+      timing != nullptr ? util::MonotonicNow() : absl::ZeroDuration();
   if (connect(fd, addr.ai_addr, addr.ai_addrlen) == 0) {
     if (timing != nullptr) {
-      timing->connect_ms =
-          absl::ToDoubleMilliseconds(absl::Now() - connect_start);
-      timing->psp_key_exchange_ms = 0.0;
+      const auto t = util::MonotonicNow() - connect_start;
+      timing->connect_us = absl::ToInt64Microseconds(t);
+      timing->psp_key_xchg_us = -1;
     }
     return absl::OkStatus();
   }
 
   // On a blocking socket, connect() fails with EINPROGRESS when SO_SNDTIMEO
   // expires (see socket(7)), or EINTR if interrupted by a signal while waiting.
-  if (errno == EINPROGRESS || errno == ETIMEDOUT || errno == EINTR) {
-    return absl::DeadlineExceededError(absl::StrCat(
-        "connect timed out after ", absl::FormatDuration(timeout)));
-  }
-  return absl::ErrnoToStatus(errno, "connect failed");
+  return (errno == EINPROGRESS || errno == ETIMEDOUT || errno == EINTR)
+             ? absl::DeadlineExceededError(absl::StrCat(
+                   "connect timed out after ", absl::FormatDuration(timeout)))
+             : absl::ErrnoToStatus(errno, "connect failed");
 }
 }  // namespace
 
@@ -227,12 +227,9 @@ absl::StatusOr<int> ConnectToPeer(std::string_view peer,
   freeaddrinfo(result);
 
   if (sock_fd < 0) {
-    if (!last_status.ok()) {
-      return absl::UnavailableError(absl::StrCat(
-          "Failed to connect to peer ", peer, ": ", last_status.message()));
-    }
     return absl::UnavailableError(absl::StrCat(
-        "Failed to connect to peer ", peer, ": ", std::strerror(last_errno)));
+        "Failed to connect to peer ", peer, ": ",
+        last_status.ok() ? std::strerror(last_errno) : last_status.message()));
   }
 
   LOG(INFO) << absl::StrCat("connected tcp socket ", sock_fd, ": ",

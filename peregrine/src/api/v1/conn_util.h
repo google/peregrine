@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_API_V1_CONN_UTIL_H_
 #define PEREGRINE_SRC_API_V1_CONN_UTIL_H_
 
+#include <cstdint>
 #include <string_view>
 
 #include "absl/status/statusor.h"
@@ -8,8 +9,8 @@
 namespace peregrine::v1 {
 
 struct ConnectTiming {
-  double connect_ms = 0.0;
-  double psp_key_exchange_ms = 0.0;
+  int64_t connect_us = -1;
+  int64_t psp_key_xchg_us = -1;
 };
 
 // Connects to remote TCP peer with optional local IP binding.

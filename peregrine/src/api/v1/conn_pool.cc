@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -20,11 +21,11 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "grpcpp/channel.h"
 #include "peregrine/src/api/v1/conn_util.h"
 #include "peregrine/src/api/v1/ip_util.h"
+#include "peregrine/src/util/clock.h"
 
 namespace peregrine::v1 {
 
@@ -46,8 +47,9 @@ absl::StatusOr<int> ConnPool::Borrow(absl::string_view peer,
                                      bool require_psp,
                                      std::shared_ptr<grpc::Channel> channel) {
   const bool diag_vlog = VLOG_IS_ON(1);
-  absl::Time borrow_start =
-      ABSL_PREDICT_FALSE(diag_vlog) ? absl::Now() : absl::InfinitePast();
+  const absl::Duration borrow_start = ABSL_PREDICT_FALSE(diag_vlog)
+                                          ? util::MonotonicNow()
+                                          : absl::ZeroDuration();
   const Key key = GenPoolKey(peer, local_ip);
   int reused_fd = -1;
   size_t current_pool_size = 0;
@@ -75,8 +77,8 @@ absl::StatusOr<int> ConnPool::Borrow(absl::string_view peer,
   }
   if (reused_fd >= 0) {
     if (ABSL_PREDICT_FALSE(diag_vlog)) {
-      double wait_ms = absl::ToDoubleMilliseconds(absl::Now() - borrow_start);
-      if (wait_ms > 10.0) {
+      const auto t = util::MonotonicNow() - borrow_start;
+      if (const int64_t wait_ms = absl::ToInt64Milliseconds(t); wait_ms >= 10) {
         VLOG(1) << "conn borrow_wait wait_ms=" << wait_ms << " peer=" << peer
                 << " local_ip=" << local_ip;
       }
@@ -91,12 +93,11 @@ absl::StatusOr<int> ConnPool::Borrow(absl::string_view peer,
   if (ABSL_PREDICT_FALSE(diag_vlog)) {
     std::string local_endpoint = GetLocalEndpoint(sock_fd);
     std::string psp_str =
-        require_psp ? absl::StrCat(" psp_kex_ms=", timing.psp_key_exchange_ms)
-                    : "";
+        require_psp ? absl::StrCat(" psp_kex_us=", timing.psp_key_xchg_us) : "";
     VLOG(1) << "conn new_socket fd=" << sock_fd << " peer=" << peer
             << " local_ip=" << (local_ip.empty() ? local_endpoint : local_ip)
             << " bound_local=" << local_endpoint
-            << " connect_ms=" << timing.connect_ms << psp_str
+            << " connect_us=" << timing.connect_us << psp_str
             << " pool_size=" << current_pool_size;
   }
   return sock_fd;

@@ -50,6 +50,7 @@ cc_library(
     hdrs = ["conn_util.h"],
     deps = [
         ":ip_util",
+        "//peregrine/src/util:clock",
         "//peregrine/src/util:envvar",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/log",
@@ -85,6 +86,7 @@ cc_library(
     deps = [
         ":conn_util",
         ":ip_util",
+        "//peregrine/src/util:clock",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
