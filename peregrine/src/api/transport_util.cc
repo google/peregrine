@@ -11,30 +11,13 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
-#include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/internal/transport_impl.h"
 
 namespace peregrine {
 
 using internal::Config;
 using internal::Endpoint;
-using internal::RdmaDevice;
 using internal::TransportImpl;
-
-bool IsTransportSupported(TransportType t) {
-  switch (t) {
-    case TransportType::kTcp:
-      return true;
-    case TransportType::kRdma: {
-      // TODO: Instead of relying on internal::RdmaDevice, consider
-      // querying the underlying OS or NIC driver for RDMA support.
-      auto dev = RdmaDevice::Create();
-      return dev.ok() && !dev.value()->Contexts().empty();
-    }
-    default:
-      return false;
-  }
-}
 
 std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
                                            TransportType transport_type,
