@@ -155,6 +155,7 @@ NB_MODULE(peregrine, m) {
 
   // Bind `TransportType` enum
   nb::enum_<TransportType>(m, "TransportType")
+      .value("ANY", TransportType::kAny)
       .value("TCP", TransportType::kTcp)
       .value("RDMA", TransportType::kRdma);
 

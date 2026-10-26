@@ -34,6 +34,7 @@ enum class Op : uint8_t {
 
 // Supported underlying data plane transports.
 enum class TransportType : uint8_t {
+  kAny = 0,
   kTcp = 1,
   kRdma = 2,
 };

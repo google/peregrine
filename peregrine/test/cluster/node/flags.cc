@@ -77,6 +77,9 @@ namespace {
 
 absl::StatusOr<TransportType> ParseTransportFlag(std::string_view raw) {
   std::string_view s = absl::StripAsciiWhitespace(raw);
+  if (absl::EqualsIgnoreCase(s, "any")) {
+    return TransportType::kAny;
+  }
   if (absl::EqualsIgnoreCase(s, "tcp")) {
     return TransportType::kTcp;
   }
@@ -84,7 +87,7 @@ absl::StatusOr<TransportType> ParseTransportFlag(std::string_view raw) {
     return TransportType::kRdma;
   }
   return absl::InvalidArgumentError(absl::StrCat(
-      "Invalid --transport '", raw, "': expected 'tcp' or 'rdma'"));
+      "Invalid --transport '", raw, "': expected 'any', 'tcp' or 'rdma'"));
 }
 
 absl::StatusOr<workloads::WorkloadType> ParseWorkloadFlag(

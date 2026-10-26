@@ -54,7 +54,9 @@ namespace peregrine::benchmark {
 
 peregrine::TransportType ParseTransportType() {
   const std::string s = absl::GetFlag(FLAGS_transport);
-  if (absl::EqualsIgnoreCase(s, "tcp")) {
+  if (absl::EqualsIgnoreCase(s, "any")) {
+    return peregrine::TransportType::kAny;
+  } else if (absl::EqualsIgnoreCase(s, "tcp")) {
     return peregrine::TransportType::kTcp;
   } else if (absl::EqualsIgnoreCase(s, "rdma")) {
     return peregrine::TransportType::kRdma;

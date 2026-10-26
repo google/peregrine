@@ -26,7 +26,8 @@ struct Config {
 
   // Returns true iff the config is valid.
   bool IsValid() const {
-    return (transport_type == TransportType::kTcp ||
+    return (transport_type == TransportType::kAny ||
+            transport_type == TransportType::kTcp ||
             transport_type == TransportType::kRdma) &&
            1 <= num_conns_per_peer && num_conns_per_peer <= 100;
   }

@@ -17,6 +17,7 @@ TEST(TransportOp, ToString) {
 }
 
 TEST(TransportType, Values) {
+  EXPECT_EQ(static_cast<int>(TransportType::kAny), 0);
   EXPECT_EQ(static_cast<int>(TransportType::kTcp), 1);
   EXPECT_EQ(static_cast<int>(TransportType::kRdma), 2);
 }

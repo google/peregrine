@@ -22,7 +22,7 @@ ABSL_DECLARE_FLAG(std::string, workload);
 
 namespace peregrine::benchmark {
 
-// Parses the transport type ('tcp' or 'rdma').
+// Parses the transport type ('any', 'tcp' or 'rdma').
 peregrine::TransportType ParseTransportType();
 
 // Parses the client/server role from a string.
