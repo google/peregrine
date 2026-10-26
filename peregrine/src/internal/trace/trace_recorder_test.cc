@@ -18,7 +18,7 @@ TEST(TraceRecorderTest, UntracedFastPathShortCircuits) {
   const TraceContext ctx = recorder.MaybeStartTrace();
   EXPECT_FALSE(ctx.is_traced);
 
-  recorder.RecordEngineEnqueued(ctx, Handle(1), TraceRecorder::NowUs(), 1, 1024,
+  recorder.RecordEngineEnqueued(ctx, Handle(1), TraceRecorder::NowUs(), 1,
                                 Op::kWrite);
   DataHeader chunk = {};
   chunk.opcode = Opcode::kData;
@@ -40,7 +40,7 @@ TEST(TraceRecorderTest, ConfigureRuntimeAndClear) {
   EXPECT_TRUE(recorder.Sampler().IsEnabled());
   const TraceContext ctx = recorder.MaybeStartTrace();
   EXPECT_TRUE(ctx.is_traced);
-  recorder.RecordEngineEnqueued(ctx, Handle(1), TraceRecorder::NowUs(), 1, 1024,
+  recorder.RecordEngineEnqueued(ctx, Handle(1), TraceRecorder::NowUs(), 1,
                                 Op::kWrite);
   EXPECT_EQ(recorder.Buffer().TotalRecorded(), 2);
 
@@ -70,13 +70,12 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   };
 
   recorder.RecordEngineEnqueued(ctx, kHandle, TraceRecorder::NowUs(),
-                                /*num_requests=*/2, /*total_bytes=*/8192,
-                                Op::kWrite);
+                                /*num_requests=*/2, Op::kWrite);
   recorder.RecordEngineDequeued(ctx, kHandle, kReqId, req);
 
-  recorder.RecordConnSetupStart(ctx, kHandle, kReqId, /*num_conns=*/4);
-  recorder.RecordGetPeerHostInfoDone(ctx, kHandle, kReqId);
-  recorder.RecordConnSetupDone(ctx, kHandle, kReqId, /*num_workers=*/4);
+  recorder.RecordConnSetupStart(ctx, kHandle, /*num_conns=*/4);
+  recorder.RecordGetPeerHostInfoDone(ctx, kHandle);
+  recorder.RecordConnSetupDone(ctx, kHandle, /*num_workers=*/4);
 
   DataHeader chunk = {};
   chunk.opcode = Opcode::kData;
@@ -110,8 +109,7 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   EXPECT_EQ(events[0].stage, TraceStage::kPostEntry);
   EXPECT_EQ(events[0].handle, kHandle.value());
   EXPECT_EQ(events[0].chunk_idx, TraceEvent::kNoChunk);
-  EXPECT_EQ(events[0].metric1, 8192);
-  EXPECT_EQ(events[0].metric2, 2);
+  EXPECT_EQ(events[0].metric1, 2);
 
   EXPECT_EQ(events[1].stage, TraceStage::kEngineEnqueued);
   EXPECT_EQ(events[1].metric1, 2);

@@ -58,22 +58,22 @@ class TraceRecorder final {
   // Engine::Enqueue().
   void RecordEngineEnqueued(const TraceContext& ctx, Handle handle,
                             uint64_t start_mono_us, size_t num_requests,
-                            size_t total_bytes, Op op) noexcept;
+                            Op op) noexcept;
 
   // Records T_EngineDequeued on Engine::main_thread_.
   void RecordEngineDequeued(const TraceContext& ctx, Handle handle, ReqId reqid,
                             const Request& req) noexcept;
 
   // Records start of lazy connection setup (T_ConnSetupStart).
-  void RecordConnSetupStart(const TraceContext& ctx, Handle handle, ReqId reqid,
+  void RecordConnSetupStart(const TraceContext& ctx, Handle handle,
                             int num_conns) noexcept;
 
   // Records completion of Control::GetPeerHostInfo (T_GetPeerHostInfoDone).
-  void RecordGetPeerHostInfoDone(const TraceContext& ctx, Handle handle,
-                                 ReqId reqid) noexcept;
+  void RecordGetPeerHostInfoDone(const TraceContext& ctx,
+                                 Handle handle) noexcept;
 
   // Records T_ConnSetupDone on Engine::main_thread_.
-  void RecordConnSetupDone(const TraceContext& ctx, Handle handle, ReqId reqid,
+  void RecordConnSetupDone(const TraceContext& ctx, Handle handle,
                            size_t num_workers) noexcept;
 
   // Records T_WorkerEnqueued for chunk index on Engine::main_thread_.

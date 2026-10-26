@@ -26,6 +26,7 @@
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
+#include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/util/nic.h"
 #include "peregrine/src/util/thread.h"
 
@@ -101,13 +102,19 @@ EngineHelper::Channels EngineHelper::GetAcceptedChannels() {
   return chs;
 }
 
-EngineHelper::Channels EngineHelper::Connect(const Endpoint& peer_control) {
+EngineHelper::Channels EngineHelper::Connect(const Endpoint& peer_control,
+                                             const TraceContext& trace_ctx,
+                                             const Handle handle) {
   const int n = config_.num_conns_per_peer;
+  tracer_.RecordConnSetupStart(trace_ctx, handle, n);
+  Channels chs;
   if (config_.transport_type == TransportType::kRdma) {
-    return connectRdma(peer_control, n);
+    chs = connectRdma(peer_control, n);
   } else {
-    return connectTcp(peer_control, n);
+    chs = connectTcp(peer_control, n, trace_ctx, handle);
   }
+  tracer_.RecordConnSetupDone(trace_ctx, handle, chs.size());
+  return chs;
 }
 
 namespace {
@@ -124,8 +131,11 @@ std::vector<Endpoint> GetTcpListeners(const HostInfo& peer_info) {
 }  // namespace
 
 EngineHelper::Channels EngineHelper::connectTcp(const Endpoint& peer_control,
-                                                const int n) {
+                                                const int n,
+                                                const TraceContext& trace_ctx,
+                                                const Handle handle) {
   const auto peer_info = control_.GetPeerHostInfo(peer_control);
+  tracer_.RecordGetPeerHostInfoDone(trace_ctx, handle);
   if (!peer_info.ok()) {
     LOG(WARNING) << "failed to get host info for peer " << peer_control << ": "
                  << peer_info.status();

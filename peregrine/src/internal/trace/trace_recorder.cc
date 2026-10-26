@@ -20,13 +20,12 @@ namespace {
 
 // Records a connection-setup stage event.
 void RecordConnSetupStage(TraceBuffer& buffer, const TraceContext& ctx,
-                          Handle handle, ReqId reqid, uint32_t metric1,
+                          Handle handle, uint32_t metric1,
                           TraceStage stage) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
   buffer.Record(TraceEvent{
       .timestamp_us = TraceRecorder::NowUs(),
       .handle = handle.value(),
-      .reqid = reqid.value(),
       .stage = stage,
       .metric1 = metric1,
   });
@@ -49,11 +48,9 @@ TraceContext TraceRecorder::MaybeStartTrace() noexcept {
 
 void TraceRecorder::RecordEngineEnqueued(const TraceContext& ctx, Handle handle,
                                          uint64_t start_mono_us,
-                                         size_t num_requests,
-                                         size_t total_bytes, Op op) noexcept {
+                                         size_t num_requests, Op op) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
   const uint64_t t_enqueued_us = NowUs();
-  const uint8_t post_metadata = static_cast<uint8_t>(op);
   // Handle is generated inside Engine::Enqueue(), after Post() captures
   // start_mono_us at API entry. Emitting kPostEntry here where both
   // kPostEntry and kEngineEnqueued can be tagged with handle.
@@ -61,15 +58,14 @@ void TraceRecorder::RecordEngineEnqueued(const TraceContext& ctx, Handle handle,
       .timestamp_us = start_mono_us,
       .handle = handle.value(),
       .stage = TraceStage::kPostEntry,
-      .metadata = post_metadata,
-      .metric1 = ClampU32(total_bytes),
-      .metric2 = ClampU32(num_requests),
+      .metadata = static_cast<uint8_t>(op),
+      .metric1 = ClampU32(num_requests),
   });
   buffer_.Record(TraceEvent{
       .timestamp_us = t_enqueued_us,
       .handle = handle.value(),
       .stage = TraceStage::kEngineEnqueued,
-      .metadata = post_metadata,
+      .metadata = static_cast<uint8_t>(op),
       .metric1 = ClampU32(num_requests),
   });
 }
@@ -89,23 +85,21 @@ void TraceRecorder::RecordEngineDequeued(const TraceContext& ctx, Handle handle,
 }
 
 void TraceRecorder::RecordConnSetupStart(const TraceContext& ctx, Handle handle,
-                                         ReqId reqid, int num_conns) noexcept {
-  RecordConnSetupStage(buffer_, ctx, handle, reqid,
+                                         int num_conns) noexcept {
+  RecordConnSetupStage(buffer_, ctx, handle,
                        static_cast<uint32_t>(std::max(0, num_conns)),
                        TraceStage::kConnSetupStart);
 }
 
 void TraceRecorder::RecordGetPeerHostInfoDone(const TraceContext& ctx,
-                                              Handle handle,
-                                              ReqId reqid) noexcept {
-  RecordConnSetupStage(buffer_, ctx, handle, reqid, /*metric1=*/0,
+                                              Handle handle) noexcept {
+  RecordConnSetupStage(buffer_, ctx, handle, /*metric1=*/0,
                        TraceStage::kGetPeerHostInfoDone);
 }
 
 void TraceRecorder::RecordConnSetupDone(const TraceContext& ctx, Handle handle,
-                                        ReqId reqid,
                                         size_t num_workers) noexcept {
-  RecordConnSetupStage(buffer_, ctx, handle, reqid, ClampU32(num_workers),
+  RecordConnSetupStage(buffer_, ctx, handle, ClampU32(num_workers),
                        TraceStage::kConnSetupDone);
 }
 
@@ -148,9 +142,8 @@ void TraceRecorder::RecordWorkerDequeued(DataHeader& chunk,
 void TraceRecorder::RecordTxWriteDone(const DataHeader& chunk,
                                       int send_worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
-  const uint64_t t_done_us = NowUs();
   buffer_.Record(TraceEvent{
-      .timestamp_us = t_done_us,
+      .timestamp_us = NowUs(),
       .handle = chunk.handle.value(),
       .reqid = chunk.reqid.value(),
       .stage = TraceStage::kTxWriteDone,
@@ -210,9 +203,8 @@ void TraceRecorder::RecordAllChunksDone(const TraceContext& ctx, Handle handle,
 void TraceRecorder::RecordCallbackDone(const TraceContext& ctx, Handle handle,
                                        int worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
-  const uint64_t t_cb_done_us = NowUs();
   buffer_.Record(TraceEvent{
-      .timestamp_us = t_cb_done_us,
+      .timestamp_us = NowUs(),
       .handle = handle.value(),
       .stage = TraceStage::kCallbackDone,
       .worker_id = ClampI16(worker_id),
