@@ -5,7 +5,7 @@
 #include <cstdint>
 
 #include "absl/base/optimization.h"
-#include "peregrine/src/api/trace/transport_trace.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/header.h"

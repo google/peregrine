@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "peregrine/src/api/trace/transport_trace.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/header.h"

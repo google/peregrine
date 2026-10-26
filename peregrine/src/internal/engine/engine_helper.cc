@@ -11,7 +11,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
-#include "peregrine/src/api/trace/transport_trace.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/config.h"

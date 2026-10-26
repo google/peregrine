@@ -1,5 +1,5 @@
-#ifndef PEREGRINE_SRC_API_TRACE_TRANSPORT_TRACE_H_
-#define PEREGRINE_SRC_API_TRACE_TRANSPORT_TRACE_H_
+#ifndef PEREGRINE_SRC_API_TRANSPORT_TRACE_H_
+#define PEREGRINE_SRC_API_TRANSPORT_TRACE_H_
 
 #include <cstdint>
 
@@ -16,4 +16,4 @@ struct TraceConfig final {
 
 }  // namespace peregrine
 
-#endif  // PEREGRINE_SRC_API_TRACE_TRANSPORT_TRACE_H_
+#endif  // PEREGRINE_SRC_API_TRANSPORT_TRACE_H_

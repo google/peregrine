@@ -59,7 +59,7 @@ cc_test(
 
 cc_library(
     name = "transport_trace",
-    hdrs = ["trace/transport_trace.h"],
+    hdrs = ["transport_trace.h"],
 )
 
 cc_library(

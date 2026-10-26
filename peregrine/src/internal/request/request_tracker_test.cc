@@ -6,7 +6,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/time/clock.h"
-#include "peregrine/src/api/trace/transport_trace.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
