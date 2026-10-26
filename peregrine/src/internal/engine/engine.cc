@@ -209,9 +209,7 @@ void Engine::process(const PostEntry& post) {
       processWrite(workers, post);
     }
   } else {
-    for (const Request& req : post.reqs) {
-      processRead(post.handle, req);
-    }
+    processRead(post);
   }
 }
 
@@ -285,13 +283,15 @@ void Engine::processWrite(Workers& workers, const Handle handle,
   DCHECK_EQ(offset, len);
 }
 
-void Engine::processRead(const Handle handle, const Request& req) {
+void Engine::processRead(const PostEntry& post) {
   // TODO(yongx): implement read.
-  metrics_.read.request_size_bytes.Record(req.len);
-  std::memcpy(req.laddr, req.raddr, req.len);
-  const ReqId reqid = genReqId();
-  incoming_.FindOrCreate(handle, reqid, /*num_chunks=*/1);
-  incoming_.Update(handle, reqid, chunk_t(0));
+  for (const Request& req : post.reqs) {
+    metrics_.read.request_size_bytes.Record(req.len);
+    std::memcpy(req.laddr, req.raddr, req.len);
+    const ReqId reqid = genReqId();
+    incoming_.FindOrCreate(post.handle, reqid, /*num_chunks=*/1);
+    incoming_.Update(post.handle, reqid, chunk_t(0));
+  }
 }
 
 }  // namespace peregrine::internal
