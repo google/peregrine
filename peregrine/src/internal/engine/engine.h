@@ -66,8 +66,9 @@ class Engine final {
   };
 
   // Creates an engine.
-  static std::unique_ptr<Engine> Create(const Config& config, HostInfo& self,
-                                        Control& control);
+  static std::unique_ptr<Engine> Create(
+      const Config& config, HostInfo& self, Control& control,
+      RecvPostCallback recv_post_callback = nullptr);
 
   // Disallows copy and move.
   DISALLOW_COPY(Engine);
@@ -85,18 +86,6 @@ class Engine final {
   // Queries and updates the transport request identified by the `handle`.
   absl::StatusOr<Status> QueryUpdate(Handle handle);
 
-  // Sets the callback invoked when an incoming `Post()` batch completes.
-  void SetRecvPostCallback(RecvCallback callback) ABSL_LOCKS_EXCLUDED(mu_) {
-    absl::MutexLock _(mu_);
-    recv_post_callback_ = std::move(callback);
-  }
-
-  // Sets the callback invoked when an incoming request completes.
-  void SetRecvReqCallback(RecvCallback callback) ABSL_LOCKS_EXCLUDED(mu_) {
-    absl::MutexLock _(mu_);
-    recv_req_callback_ = std::move(callback);
-  }
-
   // Takes a snapshot of engine metrics.
   void GetMetrics(TransportMetrics& m) const { metrics_.Snapshot(m); }
 
@@ -112,7 +101,8 @@ class Engine final {
  private:
   // Constructor.
   Engine(const Config& config, const HostInfo& self,
-         std::unique_ptr<EngineHelper> helper);
+         std::unique_ptr<EngineHelper> helper,
+         RecvPostCallback recv_post_callback);
 
   // Generates a unique handle.
   Handle genHandle() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
@@ -183,8 +173,6 @@ class Engine final {
   Handle::ValueType next_handle_ ABSL_GUARDED_BY(mu_);
   ReqId::ValueType next_reqid_;
   std::deque<PostEntry> posts_ ABSL_GUARDED_BY(mu_);
-  RecvCallback recv_post_callback_ ABSL_GUARDED_BY(mu_);
-  RecvCallback recv_req_callback_ ABSL_GUARDED_BY(mu_);
 
   RequestTracker outgoing_;
   RequestTracker incoming_;

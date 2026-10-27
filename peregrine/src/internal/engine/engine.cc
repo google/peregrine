@@ -52,7 +52,8 @@ absl::Status NotFoundError(const Handle h) {
 }  // namespace
 
 std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
-                                       Control& control) {
+                                       Control& control,
+                                       RecvPostCallback recv_post_callback) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
 
   if ABSL_PREDICT_FALSE (!config.IsValid()) {
@@ -65,20 +66,21 @@ std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
     return nullptr;
   }
   DCHECK(self.IsDataPlaneValid());
-  return absl::WrapUnique(new Engine(config, self, std::move(helper)));
+  return absl::WrapUnique(new Engine(config, self, std::move(helper),
+                                     std::move(recv_post_callback)));
 }
 
 Engine::Engine(const Config& config, const HostInfo& self,
-               std::unique_ptr<EngineHelper> helper)
+               std::unique_ptr<EngineHelper> helper,
+               RecvPostCallback recv_post_callback)
     : config_(config),
       self_(self),
       stop_(false),
       next_handle_(util::Random<Handle::ValueType>(bitgen_)),
       next_reqid_(util::Random<ReqId::ValueType>(bitgen_)),
-      recv_post_callback_(nullptr),
-      recv_req_callback_(nullptr),
       outgoing_(helper->Metrics(), helper->Tracer()),
-      incoming_(helper->Metrics(), helper->Tracer()),
+      incoming_(helper->Metrics(), helper->Tracer(),
+                std::move(recv_post_callback)),
       metrics_(helper->Metrics()),
       tracer_(helper->Tracer()),
       helper_(std::move(helper)) {

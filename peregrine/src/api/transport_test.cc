@@ -16,6 +16,7 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_metrics.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/app.h"
@@ -47,7 +48,8 @@ class TransportTest : public ::testing::TestWithParam<Param> {
         completed_status_(Status::kNotFound),
         partial_(kBufSize / 2),
         l_(kBufSize, kNumConnsPerPeer),
-        r_(kBufSize, kNumConnsPerPeer) {
+        r_(kBufSize, kNumConnsPerPeer,
+           [](Status, const Metadata&, absl::Span<const Metadata>) {}) {
     CHECK(1 <= partial_ && partial_ < l_.DataSize());
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
   }
@@ -137,9 +139,7 @@ TEST_P(TransportTest, Write) {
 
   // Post multiple write requests (local -> remote).
   Transport& lt = l_.GetTransport();
-  Transport& rt = r_.GetTransport();
-  rt.SetRecvPostCallback([](Status, const Metadata&) {});
-  rt.SetRecvReqCallback([](Status, const Metadata&) {});
+  const Transport& rt = r_.GetTransport();
   const std::string peer = rt.GetControlEndpoint();
   const Request req1 = {
       .op = Op::kWrite,

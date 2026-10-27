@@ -17,6 +17,10 @@ struct Options {
 
   // The #connections to maintain b/t this process and each peer (in [1, 100]).
   int num_parallel_connections = 8;
+
+  // Callback invoked on the receiver when an incoming `Post()` batch completes.
+  // If `nullptr`, no callback is invoked on post receive completion.
+  RecvPostCallback recv_post_callback = nullptr;
 };
 
 // Creates a new transport instance that listens for control messages on

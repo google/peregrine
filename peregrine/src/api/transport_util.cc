@@ -36,7 +36,8 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
       .client_creds = grpc::InsecureChannelCredentials(),
   };
 
-  return TransportImpl::Create(config, e, std::move(creds));
+  return TransportImpl::Create(config, e, std::move(creds),
+                               std::move(options.recv_post_callback));
 }
 
 std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,

@@ -31,7 +31,8 @@
 namespace peregrine::internal {
 
 std::unique_ptr<TransportImpl> TransportImpl::Create(
-    const Config& config, const Endpoint& endpoint, SecurityCredentials creds) {
+    const Config& config, const Endpoint& endpoint, SecurityCredentials creds,
+    RecvPostCallback recv_post_callback) {
   if ABSL_PREDICT_FALSE (!config.IsValid()) {
     LOG(ERROR) << "invalid config";
     return nullptr;
@@ -56,7 +57,8 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(
   }
 
   // Create data plane, which will populate host info.
-  t->engine_ = Engine::Create(t->config_, t->self_, *t->control_);
+  t->engine_ = Engine::Create(t->config_, t->self_, *t->control_,
+                              std::move(recv_post_callback));
   if ABSL_PREDICT_FALSE (t->engine_ == nullptr) {
     LOG(ERROR) << "failed to create data plane for " << t->self_;
     return nullptr;

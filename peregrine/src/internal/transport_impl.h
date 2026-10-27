@@ -31,9 +31,9 @@ namespace peregrine::internal {
 class TransportImpl final : public Transport {
  public:
   // Creates a transport with the given `config` and control `endpoint`.
-  static std::unique_ptr<TransportImpl> Create(const Config& config,
-                                               const Endpoint& endpoint,
-                                               SecurityCredentials creds);
+  static std::unique_ptr<TransportImpl> Create(
+      const Config& config, const Endpoint& endpoint, SecurityCredentials creds,
+      RecvPostCallback recv_post_callback = nullptr);
 
   // Returns the (gRPC) control-plane endpoint of this transport instance.
   std::string GetControlEndpoint() const override {
@@ -67,18 +67,6 @@ class TransportImpl final : public Transport {
   // call this `Poll()` function.
   absl::StatusOr<Status> Poll(Handle handle) override {
     return engine_->QueryUpdate(handle);
-  }
-
-  // Sets the callback invoked on the receiver when all requests in an incoming
-  // `Post()` batch complete.
-  void SetRecvPostCallback(RecvCallback callback) override {
-    engine_->SetRecvPostCallback(std::move(callback));
-  }
-
-  // Sets the callback invoked on the receiver when an individual incoming
-  // request completes.
-  void SetRecvReqCallback(RecvCallback callback) override {
-    engine_->SetRecvReqCallback(std::move(callback));
   }
 
   // Registers a contiguous memory buffer of `length` bytes at the base `addr`.

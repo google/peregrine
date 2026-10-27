@@ -29,8 +29,11 @@ class RequestTracker {
   using OnComplete = absl::AnyInvocable<void(Status)>;
 
   // Constructor.
-  RequestTracker(EngineMetrics& metrics, TraceRecorder& tracer)
-      : metrics_(metrics), tracer_(tracer) {}
+  RequestTracker(EngineMetrics& metrics, TraceRecorder& tracer,
+                 RecvPostCallback recv_post_callback = nullptr)
+      : metrics_(metrics),
+        tracer_(tracer),
+        recv_post_callback_(std::move(recv_post_callback)) {}
 
   // Disable copy and move.
   DISALLOW_COPY(RequestTracker);
@@ -114,6 +117,7 @@ class RequestTracker {
   mutable absl::Mutex trackers_mu_;
   absl::flat_hash_map<Handle, ReqsTracker> trackers_
       ABSL_GUARDED_BY(trackers_mu_);
+  const RecvPostCallback recv_post_callback_;
 };
 
 }  // namespace peregrine::internal
