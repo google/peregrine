@@ -63,6 +63,43 @@ cc_library(
     ],
 )
 
+# Runtime registry for transports that are not built into
+# `src/api:transport_util`.
+cc_library(
+    name = "transport_registry",
+    srcs = ["transport_registry.cc"],
+    hdrs = ["transport_registry.h"],
+    deps = [
+        "//peregrine/src/api:transport",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:config",
+        "//peregrine/src/internal/base:endpoint",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/container:node_hash_map",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "transport_registry_test",
+    srcs = ["transport_registry_test.cc"],
+    deps = [
+        ":transport_registry",
+        "//peregrine/src/api:transport",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:config",
+        "//peregrine/src/internal/base:endpoint",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_test(
     name = "transport_impl_test",
     srcs = ["transport_impl_test.cc"],

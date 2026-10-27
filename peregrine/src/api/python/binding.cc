@@ -154,8 +154,8 @@ NB_MODULE(peregrine, m) {
                 kTransportMetricsFieldsCount);
 
   // Bind `TransportType` enum
-  nb::enum_<TransportType>(m, "TransportType")
-      .value("ANY", TransportType::kAny)
+  auto transport_type = nb::enum_<TransportType>(m, "TransportType");
+  transport_type.value("ANY", TransportType::kAny)
       .value("TCP", TransportType::kTcp)
       .value("RDMA", TransportType::kRdma);
 

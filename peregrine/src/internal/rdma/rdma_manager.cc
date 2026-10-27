@@ -234,7 +234,7 @@ absl::Status RdmaManager::handleConnect(const proto::RdmaConnReq& req,
   auto status = qp->Connect(req.qpn(), remote_gid, req.psn(), local_psn);
   if (!status.ok()) return status;
 
-  const auto local_gid = ctx->LocalGid().raw;
+  const auto& local_gid = ctx->LocalGid().raw;
   resp->set_qpn(qp->Qpn());
   resp->set_psn(local_psn);
   resp->set_gid(std::string_view(reinterpret_cast<const char*>(local_gid),

@@ -60,10 +60,9 @@ peregrine::TransportType ParseTransportType() {
     return peregrine::TransportType::kTcp;
   } else if (absl::EqualsIgnoreCase(s, "rdma")) {
     return peregrine::TransportType::kRdma;
-  } else {
-    LOG(FATAL) << "invalid transport type: " << s
-               << ". Expected 'tcp' or 'rdma'.";
   }
+  LOG(FATAL) << "invalid transport type: " << s
+             << ". Expected 'tcp' or 'rdma'.";
 }
 
 Role ParseRole() {
