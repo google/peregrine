@@ -70,8 +70,9 @@ void RunServer(std::string_view ip, uint16_t peregrine_control_port,
                TransportType transport_type) {
   // Create transport.
   const std::string self = GenEndpoint(ip, peregrine_control_port);
-  const std::unique_ptr<Transport> transport =
-      CreateTransport(self, transport_type, nconns);
+  const std::unique_ptr<Transport> transport = CreateTransport(
+      self,
+      {.transport_type = transport_type, .num_parallel_connections = nconns});
   CHECK(transport != nullptr) << "Failed to create transport";
 
   // Wait for client's control connection.
@@ -278,8 +279,9 @@ void RunClient(std::string_view ip, uint16_t peregrine_control_port,
 
   // Create transport.
   const std::string self = GenEndpoint(ip, /*port=*/0);
-  const std::unique_ptr<Transport> transport =
-      CreateTransport(self, transport_type, nconns);
+  const std::unique_ptr<Transport> transport = CreateTransport(
+      self,
+      {.transport_type = transport_type, .num_parallel_connections = nconns});
   CHECK(transport != nullptr) << "Failed to create transport";
 
   const std::string server_endpoint =

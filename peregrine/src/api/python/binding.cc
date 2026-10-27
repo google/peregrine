@@ -159,9 +159,20 @@ NB_MODULE(peregrine, m) {
       .value("TCP", TransportType::kTcp)
       .value("RDMA", TransportType::kRdma);
 
-  m.def("create_transport", &CreateTransport, nb::arg("control_endpoint"),
-        nb::arg("transport_type") = TransportType::kTcp,
-        nb::arg("num_conns_per_peer") = 8);
+  m.def(
+      "create_transport",
+      [](std::string_view control_endpoint, TransportType transport_type,
+         int num_conns_per_peer) {
+        return CreateTransport(
+            control_endpoint,
+            Options{
+                .transport_type = transport_type,
+                .num_parallel_connections = num_conns_per_peer,
+            });
+      },
+      nb::arg("control_endpoint"),
+      nb::arg("transport_type") = TransportType::kTcp,
+      nb::arg("num_conns_per_peer") = 8);
 
   // Bind `Status` enum and helper functions
   nb::enum_<Status>(m, "Status")

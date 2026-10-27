@@ -98,8 +98,9 @@ BindTransportWithRetry(int idx, const NodeConfig& config,
     }
     std::string endpoint =
         FormatEndpoint(config.ip, static_cast<uint16_t>(candidate));
-    std::unique_ptr<Transport> transport =
-        CreateTransport(endpoint, config.transport_type, config.num_conns);
+    std::unique_ptr<Transport> transport = CreateTransport(
+        endpoint, {.transport_type = config.transport_type,
+                   .num_parallel_connections = config.num_conns});
     if (transport != nullptr) {
       return std::make_pair(std::move(endpoint), std::move(transport));
     }

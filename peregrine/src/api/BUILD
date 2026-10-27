@@ -95,6 +95,7 @@ cc_library(
         "//peregrine/src/internal:transport_impl",
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
+        "@abseil-cpp//absl/base:core_headers",
         "@grpc//:grpc++",
     ],
 )

@@ -27,8 +27,10 @@ TEST(TransportUtilTest, ValidEndpoints) {
     const uint16_t port = util::FindFreePort(family, /*tcp=*/true);
     const std::string ep = absl::StrFormat("%s:%d", ip, port);
     EXPECT_THAT(CreateTransport(ep), NotNull());
-    EXPECT_THAT(CreateTransport(ep, TransportType::kTcp, kNumConnsPerPeer),
-                NotNull());
+    EXPECT_THAT(
+        CreateTransport(ep, {.transport_type = TransportType::kTcp,
+                             .num_parallel_connections = kNumConnsPerPeer}),
+        NotNull());
   }
 }
 
@@ -64,8 +66,10 @@ TEST(TransportUtilTest, NonLocalAddress) {
 TEST(TransportUtilTest, TransportTypeTcp) {
   const uint16_t port_tcp = util::FindFreePort(AF_INET, /*tcp=*/true);
   const std::string ep_tcp = absl::StrFormat("127.0.0.1:%d", port_tcp);
-  EXPECT_THAT(CreateTransport(ep_tcp, TransportType::kTcp, kNumConnsPerPeer),
-              NotNull());
+  EXPECT_THAT(
+      CreateTransport(ep_tcp, {.transport_type = TransportType::kTcp,
+                               .num_parallel_connections = kNumConnsPerPeer}),
+      NotNull());
 }
 
 }  // namespace

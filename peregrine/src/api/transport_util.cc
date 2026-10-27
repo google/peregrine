@@ -20,13 +20,12 @@ using internal::Endpoint;
 using internal::TransportImpl;
 
 std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
-                                           TransportType transport_type,
-                                           int num_conns_per_peer) {
+                                           Options options) {
   const Endpoint e = Endpoint::Create(endpoint);
 
-  const int n = std::min(std::max(1, num_conns_per_peer), 100);
+  const int n = std::min(std::max(1, options.num_parallel_connections), 100);
   const Config config = {
-      .transport_type = transport_type,
+      .transport_type = options.transport_type,
       .num_conns_per_peer = n,
       .require_dataplane_encryption = false,
   };
@@ -38,6 +37,16 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
   };
 
   return TransportImpl::Create(config, e, std::move(creds));
+}
+
+std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
+                                           const TransportType transport_type,
+                                           const int num_conns_per_peer) {
+  return CreateTransport(endpoint,
+                         Options{
+                             .transport_type = transport_type,
+                             .num_parallel_connections = num_conns_per_peer,
+                         });
 }
 
 }  // namespace peregrine
