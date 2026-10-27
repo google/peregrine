@@ -12,13 +12,14 @@
 #include "absl/status/statusor.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
+#include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
+#include "peregrine/src/util/nic.h"
 #include "peregrine/src/util/thread.h"
 
 namespace peregrine::v1::testing {
@@ -27,6 +28,7 @@ namespace {
 using ::absl_testing::IsOk;
 using internal::HostInfo;
 using internal::IsValidSocket;
+using internal::NicInfo;
 using internal::TcpManager;
 using internal::testing::SocketTestConfig;
 using internal::testing::SocketTestParam;
@@ -47,14 +49,26 @@ class ConnPoolTest : public TestWithParam<SocketTestParam> {
         self_(TestOnly_LocalHostInfo(cfg_.family, /*tcp=*/true)),
         mgr_(internal::TcpManager::Create(self_)) {
     CHECK(self_.IsValid());
-    const auto& ni = self_.data_plane_listeners.front();
-    const auto v4 = ni.PickIPv4Localhost();
-    const auto v6 = ni.PickIPv6Localhost();
+    const auto* ni = LoopbackNic();
+    CHECK_NE(ni, nullptr);
+    const auto v4 = ni->PickIPv4Localhost();
+    const auto v6 = ni->PickIPv6Localhost();
     CHECK(v4.has_value() || v6.has_value());
     local_ip1_ = v4.has_value() ? "127.0.0.1" : "::1";
     local_ip2_ = v4.has_value() ? "127.0.0.2" : "::2";
     peer_ = (v4.has_value() ? v4 : v6).value().ToString();
     CHECK_NE(mgr_, nullptr);
+  }
+
+  const NicInfo* LoopbackNic() const {
+    for (const auto& ni : self_.data_plane_listeners) {
+      if (ni.type != util::NicType::kIP) continue;
+      if (ni.name == "lo") return &ni;
+      for (const auto& e : ni.endpoints) {
+        if (e.GetIpAddr().IsLoopback()) return &ni;
+      }
+    }
+    return nullptr;
   }
 
   static void ShortSleep() { absl::SleepFor(absl::Milliseconds(100)); }
