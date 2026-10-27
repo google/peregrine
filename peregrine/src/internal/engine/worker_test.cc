@@ -26,6 +26,7 @@
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
@@ -169,7 +170,7 @@ TEST_P(WorkerTest, SendRecv) {
   const PostInfoHeader info = GenPostInfoHeader();
   const RequestInfo req_info = GenRequestInfo();
   ASSERT_TRUE(sndr_.outgoing.Add(kHandle, absl::Now(),
-                                 /*on_complete=*/nullptr));
+                                 /*on_complete=*/nullptr, TraceContext{}));
   ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {req_info}));
   absl::Notification done;
   util::Thread s([&]() {

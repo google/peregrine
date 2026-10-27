@@ -97,14 +97,13 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   recorder.RecordRxChunkDone(chunk, TraceRecorder::NowUs());
   recorder.RecordTxAckRcvd(chunk);
 
-  recorder.RecordPollInProgress(ctx, kHandle, TraceRecorder::NowUs());
   recorder.RecordAllChunksDone(ctx, kHandle, kReqId, chunk_t(0),
                                /*worker_id=*/2);
   recorder.RecordCallbackDone(ctx, kHandle, /*worker_id=*/2);
-  recorder.RecordPollReaped(ctx, kHandle, TraceRecorder::NowUs());
+  recorder.RecordPollReaped(ctx, kHandle);
 
   const std::vector<TraceEvent> events = recorder.Buffer().Snapshot();
-  ASSERT_EQ(events.size(), 15);
+  ASSERT_EQ(events.size(), 14);
 
   EXPECT_EQ(events[0].stage, TraceStage::kPostEntry);
   EXPECT_EQ(events[0].handle, kHandle.value());
@@ -143,14 +142,11 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   EXPECT_EQ(events[10].metric2, 12);
   EXPECT_EQ(events[10].worker_id, -3);
 
-  EXPECT_EQ(events[11].stage, TraceStage::kPollInProgress);
-  EXPECT_GE(events[11].metric1, 1);
+  EXPECT_EQ(events[11].stage, TraceStage::kAllChunksDone);
+  EXPECT_EQ(events[11].worker_id, 2);
 
-  EXPECT_EQ(events[12].stage, TraceStage::kAllChunksDone);
-  EXPECT_EQ(events[12].worker_id, 2);
-
-  EXPECT_EQ(events[13].stage, TraceStage::kCallbackDone);
-  EXPECT_EQ(events[14].stage, TraceStage::kPollReaped);
+  EXPECT_EQ(events[12].stage, TraceStage::kCallbackDone);
+  EXPECT_EQ(events[13].stage, TraceStage::kPollReaped);
 }
 
 }  // namespace

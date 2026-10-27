@@ -16,6 +16,7 @@
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
+#include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 
@@ -46,8 +47,8 @@ class RequestTracker {
 
   // Adds the tracker for the given `handle`.
   // Returns true iff the handle was not already in the tracker.
-  bool Add(Handle handle, absl::Time start_time, OnComplete on_complete)
-      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+  bool Add(Handle handle, absl::Time start_time, OnComplete on_complete,
+           const TraceContext& trace_ctx) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Adds the `RequestInfo` descriptors for `handle` (idempotent if already
   // populated).
@@ -86,15 +87,18 @@ class RequestTracker {
     ReqMap req_map;
     absl::Time start_time;
     OnComplete on_complete;
+    TraceContext trace_ctx;
 
     // Default constructor.
     ReqsTracker() : start_time(kInvalidTime) {}
 
     // Constructor.
-    ReqsTracker(ReqMap req_map, absl::Time start_time, OnComplete on_complete)
+    ReqsTracker(ReqMap req_map, absl::Time start_time, OnComplete on_complete,
+                const TraceContext& trace_ctx)
         : req_map(std::move(req_map)),
           start_time(start_time),
-          on_complete(std::move(on_complete)) {}
+          on_complete(std::move(on_complete)),
+          trace_ctx(trace_ctx) {}
 
     static constexpr absl::Time kInvalidTime = absl::InfinitePast();
   };

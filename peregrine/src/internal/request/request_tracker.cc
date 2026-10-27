@@ -14,6 +14,8 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal {
 
@@ -43,8 +45,9 @@ Status RequestTracker::Check(const Handle handle) const {
 }
 
 bool RequestTracker::Add(const Handle handle, const absl::Time start_time,
-                         OnComplete on_complete) {
-  ReqsTracker rt(/*req_map=*/{}, start_time, std::move(on_complete));
+                         OnComplete on_complete,
+                         const TraceContext& trace_ctx) {
+  ReqsTracker rt(/*req_map=*/{}, start_time, std::move(on_complete), trace_ctx);
   absl::MutexLock _(trackers_mu_);
   return trackers_.try_emplace(handle, std::move(rt)).second;
 }
@@ -65,7 +68,10 @@ bool RequestTracker::Add(const Handle handle,
 
 void RequestTracker::Remove(const Handle handle) {
   absl::MutexLock _(trackers_mu_);
-  trackers_.erase(handle);
+  auto it = trackers_.find(handle);
+  if (it == trackers_.end()) return;
+  tracer_.RecordPollReaped(it->second.trace_ctx, handle);
+  trackers_.erase(it);
 }
 
 void RequestTracker::Update(const Handle handle, const ReqId reqid,

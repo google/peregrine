@@ -211,27 +211,13 @@ void TraceRecorder::RecordCallbackDone(const TraceContext& ctx, Handle handle,
   });
 }
 
-void TraceRecorder::RecordPollInProgress(const TraceContext& ctx, Handle handle,
-                                         uint64_t poll_start_us) noexcept {
+void TraceRecorder::RecordPollReaped(const TraceContext& ctx,
+                                     Handle handle) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
-  const uint64_t now_us = NowUs();
   buffer_.Record(TraceEvent{
-      .timestamp_us = poll_start_us,
-      .handle = handle.value(),
-      .stage = TraceStage::kPollInProgress,
-      .metric1 = std::max<uint32_t>(1, ClampU32(now_us - poll_start_us)),
-  });
-}
-
-void TraceRecorder::RecordPollReaped(const TraceContext& ctx, Handle handle,
-                                     uint64_t poll_start_us) noexcept {
-  if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
-  const uint64_t now_us = NowUs();
-  buffer_.Record(TraceEvent{
-      .timestamp_us = poll_start_us,
+      .timestamp_us = NowUs(),
       .handle = handle.value(),
       .stage = TraceStage::kPollReaped,
-      .metric1 = std::max<uint32_t>(1, ClampU32(now_us - poll_start_us)),
   });
 }
 

@@ -26,6 +26,7 @@
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/util/thread.h"
@@ -162,7 +163,8 @@ TEST_P(TransferTest, SendRecv) {
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
   const RequestInfo req = GenRequestInfo();
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(a_.outgoing.Add(kHandle, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(a_.outgoing.Add(kHandle, absl::Now(), std::move(on_complete),
+                              TraceContext{}));
   ASSERT_TRUE(a_.outgoing.Add(kHandle, {req}));
 
   // A sends PostInfoHeader + RequestInfo and DataHeader chunks to B.

@@ -103,13 +103,8 @@ class TraceRecorder final {
   void RecordCallbackDone(const TraceContext& ctx, Handle handle,
                           int worker_id) noexcept;
 
-  // Records T_PollInProgress when Poll(handle) returns Status::kInProgress.
-  void RecordPollInProgress(const TraceContext& ctx, Handle handle,
-                            uint64_t poll_start_us) noexcept;
-
   // Records T_PollReaped when Poll(handle) reaps a completed handle.
-  void RecordPollReaped(const TraceContext& ctx, Handle handle,
-                        uint64_t poll_start_us) noexcept;
+  void RecordPollReaped(const TraceContext& ctx, Handle handle) noexcept;
 
  private:
   TraceSampler sampler_;

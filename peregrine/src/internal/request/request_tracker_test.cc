@@ -2,6 +2,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
@@ -13,6 +14,8 @@
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
+#include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_event.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal::testing {
@@ -36,7 +39,8 @@ class RequestTrackerTest : public ::testing::Test {
 
 TEST_F(RequestTrackerTest, Send) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(
+      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
   ChunkTracker& send = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
@@ -53,7 +57,8 @@ TEST_F(RequestTrackerTest, Send) {
 
 TEST_F(RequestTrackerTest, Recv) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(
+      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
   ChunkTracker& recv = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
@@ -71,7 +76,8 @@ TEST_F(RequestTrackerTest, Recv) {
 
 TEST_F(RequestTrackerTest, SetMethod) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(
+      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
   rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
@@ -90,7 +96,8 @@ TEST_F(RequestTrackerTest, CompletionCallbackSingleRequest) {
     ++callback_count;
     completed_status = s;
   };
-  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(
+      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
   rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
@@ -112,7 +119,8 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
     ++callback_count;
     completed_status = s;
   };
-  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(
+      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
   rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
   rt_.FindOrCreate(kHandle, kReqId2, kNumChunks);
 
@@ -140,7 +148,8 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
 
 TEST_F(RequestTrackerTest, MultipleRequestsPartialProgress) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(rt_.Add(kHandle, absl::Now(), std::move(on_complete)));
+  ASSERT_TRUE(
+      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
   rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
   rt_.FindOrCreate(kHandle, kReqId2, kNumChunks);
 
@@ -178,6 +187,26 @@ TEST_F(RequestTrackerTest, RecvRequestInfo) {
     recv.Release(index, /*success=*/true);
   }
   EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
+}
+
+TEST_F(RequestTrackerTest, PollTraceEvents) {
+  tracer_.Configure(TraceConfig{.sample_every_n = 1});
+  const TraceContext trace_ctx = tracer_.MaybeStartTrace();
+  ASSERT_TRUE(trace_ctx.is_traced);
+  ASSERT_TRUE(
+      rt_.Add(kHandle, absl::Now(), /*on_complete=*/nullptr, trace_ctx));
+  ChunkTracker& send = rt_.FindOrCreate(kHandle, kReqId, /*num_chunks=*/1);
+
+  EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
+  send.Set(chunk_t(0));
+  EXPECT_EQ(rt_.Check(kHandle), Status::kSuccess);
+  rt_.Remove(kHandle);
+
+  const std::vector<TraceEvent> events = tracer_.Buffer().Snapshot();
+  ASSERT_EQ(events.size(), 1);
+  EXPECT_EQ(events[0].stage, TraceStage::kPollReaped);
+  EXPECT_EQ(events[0].handle, kHandle.value());
+  EXPECT_GT(events[0].timestamp_us, 0);
 }
 
 }  // namespace

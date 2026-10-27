@@ -177,7 +177,8 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
 
   // TODO(yongx): all the request ops are the same for now.
   RequestTracker& tracker = getRequestTracker(item.requests[0]);
-  if (!tracker.Add(handle, item.start_time, std::move(item.on_complete))) {
+  if (!tracker.Add(handle, item.start_time, std::move(item.on_complete),
+                   trace_ctx)) {
     return AlreadyExistsError(handle);
   }
   posts_.push_back(PostEntry{

@@ -13,8 +13,7 @@ enum class TraceStage : uint8_t {
   kEngineEnqueued = 2,
   kAllChunksDone = 3,
   kCallbackDone = 4,
-  kPollInProgress = 5,
-  kPollReaped = 6,
+  kPollReaped = 5,
 
   // Per-Request (ReqId) level on Engine::main_thread_
   kEngineDequeued = 20,

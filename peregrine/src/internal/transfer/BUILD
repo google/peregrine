@@ -40,6 +40,7 @@ cc_test(
         "//peregrine/src/internal/chunk:header_flatbuf",
         "//peregrine/src/internal/metrics:engine_metrics",
         "//peregrine/src/internal/request:request_tracker",
+        "//peregrine/src/internal/trace:trace_context",
         "//peregrine/src/internal/trace:trace_recorder",
         "//peregrine/src/internal/util:test_param",
         "//peregrine/src/util",
