@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_REQUEST_REQUEST_TRACKER_H_
 #define PEREGRINE_SRC_INTERNAL_REQUEST_REQUEST_TRACKER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -53,13 +54,18 @@ class RequestTracker {
   bool Add(Handle handle, absl::Time start_time, OnComplete on_complete,
            const TraceContext& trace_ctx) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Adds the `RequestInfo` descriptors for `handle` (idempotent if already
-  // populated).
-  bool Add(Handle handle, absl::Span<const RequestInfo> reqs)
-      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+  // Adds the `RequestInfo` descriptors (and optional post-level `metadata`) for
+  // `handle` (idempotent if already populated).
+  bool Add(Handle handle, absl::Span<const RequestInfo> reqs,
+           const Metadata& metadata = {}) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Removes the tracker for the given `handle`.
   void Remove(Handle handle) ABSL_LOCKS_EXCLUDED(trackers_mu_);
+
+  // Updates pending request count when an incoming request in `handle`
+  // completes all of its chunks, and invokes `recv_post_callback_` once all
+  // requests in the `Post()` batch have completed.
+  void OnReqComplete(Handle handle) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Sets the chunk at `index` as completed for the given `handle` and `reqid`.
   // If this completes all chunks of all requests for the `handle`:
@@ -84,19 +90,28 @@ class RequestTracker {
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
  private:
-  using ReqMap = absl::flat_hash_map<ReqId, std::unique_ptr<ChunkTracker>>;
+  struct ReqTracker {
+    ChunkTracker chunks;
+    Metadata metadata = {};
 
-  struct ReqsTracker {
+    explicit ReqTracker(uint32_t num_chunks, const Metadata& metadata = {})
+        : chunks(num_chunks), metadata(metadata) {}
+  };
+  using ReqMap = absl::flat_hash_map<ReqId, std::unique_ptr<ReqTracker>>;
+
+  struct PostTracker {
     ReqMap req_map;
+    size_t pending_reqs = 0;
+    Metadata metadata = {};
     absl::Time start_time;
     OnComplete on_complete;
     TraceContext trace_ctx;
 
     // Default constructor.
-    ReqsTracker() : start_time(kInvalidTime) {}
+    PostTracker() : start_time(kInvalidTime) {}
 
     // Constructor.
-    ReqsTracker(ReqMap req_map, absl::Time start_time, OnComplete on_complete,
+    PostTracker(ReqMap req_map, absl::Time start_time, OnComplete on_complete,
                 const TraceContext& trace_ctx)
         : req_map(std::move(req_map)),
           start_time(start_time),
@@ -106,8 +121,8 @@ class RequestTracker {
     static constexpr absl::Time kInvalidTime = absl::InfinitePast();
   };
 
-  // Returns true iff all the requests tracked by `rt` are complete.
-  bool isComplete(const ReqsTracker& rt) const
+  // Returns true iff all the requests tracked by `pt` are complete.
+  bool isComplete(const PostTracker& pt) const
       ABSL_SHARED_LOCKS_REQUIRED(trackers_mu_);
 
  private:
@@ -115,7 +130,7 @@ class RequestTracker {
   TraceRecorder& tracer_;
 
   mutable absl::Mutex trackers_mu_;
-  absl::flat_hash_map<Handle, ReqsTracker> trackers_
+  absl::flat_hash_map<Handle, PostTracker> trackers_
       ABSL_GUARDED_BY(trackers_mu_);
   const RecvPostCallback recv_post_callback_;
 };

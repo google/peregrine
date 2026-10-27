@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
@@ -24,10 +25,10 @@ bool RequestTracker::IsEmpty() const {
   return trackers_.empty();
 }
 
-bool RequestTracker::isComplete(const ReqsTracker& rt) const {
-  if (rt.req_map.empty()) return false;
-  for (const auto& [reqid, tracker] : rt.req_map) {
-    if (tracker == nullptr || !tracker->IsDone()) return false;
+bool RequestTracker::isComplete(const PostTracker& pt) const {
+  if (pt.req_map.empty()) return false;
+  for (const auto& [reqid, req] : pt.req_map) {
+    if (req == nullptr || !req->chunks.IsDone()) return false;
   }
   return true;
 }
@@ -47,21 +48,25 @@ Status RequestTracker::Check(const Handle handle) const {
 bool RequestTracker::Add(const Handle handle, const absl::Time start_time,
                          OnComplete on_complete,
                          const TraceContext& trace_ctx) {
-  ReqsTracker rt(/*req_map=*/{}, start_time, std::move(on_complete), trace_ctx);
+  PostTracker pt(/*req_map=*/{}, start_time, std::move(on_complete), trace_ctx);
   absl::MutexLock _(trackers_mu_);
-  return trackers_.try_emplace(handle, std::move(rt)).second;
+  return trackers_.try_emplace(handle, std::move(pt)).second;
 }
 
 bool RequestTracker::Add(const Handle handle,
-                         absl::Span<const RequestInfo> reqs) {
+                         absl::Span<const RequestInfo> reqs,
+                         const Metadata& metadata) {
   DCHECK(!reqs.empty());
   absl::MutexLock _(trackers_mu_);
-  ReqsTracker& rt = trackers_[handle];
-  if (!rt.req_map.empty()) return true;
-  rt.req_map.reserve(reqs.size());
+  PostTracker& pt = trackers_[handle];
+  if (!pt.req_map.empty()) return true;
+  pt.metadata = metadata;
+  pt.pending_reqs = reqs.size();
+  pt.req_map.reserve(reqs.size());
   for (const RequestInfo& req : reqs) {
     DCHECK(req.IsValid());
-    rt.req_map[req.reqid] = std::make_unique<ChunkTracker>(req.nchunks);
+    pt.req_map[req.reqid] =
+        std::make_unique<ReqTracker>(req.nchunks, req.metadata);
   }
   return true;
 }
@@ -74,31 +79,56 @@ void RequestTracker::Remove(const Handle handle) {
   trackers_.erase(it);
 }
 
+void RequestTracker::OnReqComplete(const Handle handle) {
+  if (recv_post_callback_ == nullptr) return;
+
+  Metadata post_meta = {};
+  std::vector<Metadata> req_metas;
+  {
+    absl::MutexLock _(trackers_mu_);
+    const auto it = trackers_.find(handle);
+    if ABSL_PREDICT_FALSE (it == trackers_.end()) return;
+
+    PostTracker& pt = it->second;
+    DCHECK_GT(pt.pending_reqs, 0);
+    if (--pt.pending_reqs != 0) return;
+
+    post_meta = pt.metadata;
+    req_metas.reserve(pt.req_map.size());
+    for (const auto& [reqid, req] : pt.req_map) {
+      req_metas.push_back(req->metadata);
+    }
+    // TODO: Evict `it` once `PostInfoHeader` is only sent on active data
+    // channels and `sendAck` is called before `OnReqComplete`.
+  }
+  recv_post_callback_(Status::kSuccess, post_meta, req_metas);
+}
+
 void RequestTracker::Update(const Handle handle, const ReqId reqid,
                             const chunk_t index, const int worker_id) {
   OnComplete callback = nullptr;
-  absl::Time start_time = ReqsTracker::kInvalidTime;
+  absl::Time start_time = PostTracker::kInvalidTime;
   TraceContext trace_ctx;
   {
     absl::MutexLock lock(trackers_mu_);
     auto it = trackers_.find(handle);
     if ABSL_PREDICT_FALSE (it == trackers_.end()) return;
 
-    ReqsTracker& rt = it->second;
-    ChunkTracker& tracker = *rt.req_map.at(reqid);
+    PostTracker& pt = it->second;
+    ChunkTracker& tracker = pt.req_map.at(reqid)->chunks;
     tracker.Set(index);
 
-    if (tracker.IsDone() && isComplete(rt)) {
-      start_time = rt.start_time;
-      trace_ctx = rt.trace_ctx;
+    if (tracker.IsDone() && isComplete(pt)) {
+      start_time = pt.start_time;
+      trace_ctx = pt.trace_ctx;
       tracer_.RecordAllChunksDone(trace_ctx, handle, reqid, index, worker_id);
-      if (rt.on_complete != nullptr) {
-        callback = std::move(rt.on_complete);
+      if (pt.on_complete != nullptr) {
+        callback = std::move(pt.on_complete);
         trackers_.erase(it);
       }
     }
   }
-  if (start_time != ReqsTracker::kInvalidTime) {
+  if (start_time != PostTracker::kInvalidTime) {
     const int64_t us = absl::ToInt64Microseconds(absl::Now() - start_time);
     if (us >= 0) metrics_.write.e2e_latency_us.Record(us);
   }
@@ -110,19 +140,20 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
 
 ChunkTracker& RequestTracker::Find(const Handle handle, const ReqId reqid) {
   absl::MutexLock _(trackers_mu_);
-  return *trackers_.at(handle).req_map.at(reqid);
+  return trackers_.at(handle).req_map.at(reqid)->chunks;
 }
 
 ChunkTracker& RequestTracker::FindOrCreate(const Handle handle,
                                            const ReqId reqid,
                                            const uint32_t num_chunks) {
   absl::MutexLock _(trackers_mu_);
-  ReqsTracker& rt = trackers_[handle];
-  std::unique_ptr<ChunkTracker>& tracker = rt.req_map[reqid];
-  if ABSL_PREDICT_FALSE (tracker == nullptr) {
-    tracker = std::make_unique<ChunkTracker>(num_chunks);
+  PostTracker& pt = trackers_[handle];
+  std::unique_ptr<ReqTracker>& req = pt.req_map[reqid];
+  if ABSL_PREDICT_FALSE (req == nullptr) {
+    req = std::make_unique<ReqTracker>(num_chunks);
+    ++pt.pending_reqs;
   }
-  return *tracker;
+  return req->chunks;
 }
 
 }  // namespace peregrine::internal

@@ -6,13 +6,16 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/log/check.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -28,6 +31,7 @@ using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
 using ::testing::TestParamInfo;
+using ::testing::UnorderedElementsAre;
 using ::testing::Values;
 
 using Param = std::tuple</*completion_callback=*/bool>;
@@ -43,13 +47,28 @@ class TransportTest : public ::testing::TestWithParam<Param> {
   static constexpr int kNumConnsPerPeer = 4;
 
  protected:
+  struct PostEvent {
+    Status status;
+    Metadata post_meta;
+    std::vector<Metadata> req_metas;
+  };
+
   TransportTest()
       : completion_callback_(std::get<0>(GetParam())),
         completed_status_(Status::kNotFound),
         partial_(kBufSize / 2),
         l_(kBufSize, kNumConnsPerPeer),
         r_(kBufSize, kNumConnsPerPeer,
-           [](Status, const Metadata&, absl::Span<const Metadata>) {}) {
+           [this](Status s, const Metadata& post_meta,
+                  absl::Span<const Metadata> req_metas) {
+             absl::MutexLock lock(cb_mu_);
+             recv_posts_.push_back(PostEvent{
+                 .status = s,
+                 .post_meta = post_meta,
+                 .req_metas =
+                     std::vector<Metadata>(req_metas.begin(), req_metas.end()),
+             });
+           }) {
     CHECK(1 <= partial_ && partial_ < l_.DataSize());
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
   }
@@ -94,6 +113,8 @@ class TransportTest : public ::testing::TestWithParam<Param> {
   Status completed_status_;
   absl::Notification done_;
   const size_t partial_;
+  absl::Mutex cb_mu_;
+  std::vector<PostEvent> recv_posts_ ABSL_GUARDED_BY(cb_mu_);
   util::App l_;  // local
   util::App r_;  // remote
 };
@@ -166,9 +187,18 @@ TEST_P(TransportTest, Write) {
   WaitForCompletion(lt, *h);
   ASSERT_EQ(completed_status_, Status::kSuccess);
 
-  // Post-condition: all the remote bytes are equal to the local.
+  // Post-condition: all the remote bytes are equal to the local, and receiver
+  // post callback fired with the expected status and metadata.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
+  {
+    absl::MutexLock lock(cb_mu_);
+    ASSERT_EQ(recv_posts_.size(), 1);
+    EXPECT_EQ(recv_posts_[0].status, Status::kSuccess);
+    EXPECT_EQ(recv_posts_[0].post_meta, post_metadata);
+    EXPECT_THAT(recv_posts_[0].req_metas,
+                UnorderedElementsAre(req1.metadata, req2.metadata));
+  }
 }
 
 }  // namespace

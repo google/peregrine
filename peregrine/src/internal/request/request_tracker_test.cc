@@ -4,9 +4,11 @@
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
 #include "absl/time/clock.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
@@ -20,6 +22,8 @@
 
 namespace peregrine::internal::testing {
 namespace {
+
+using ::testing::UnorderedElementsAre;
 
 class RequestTrackerTest : public ::testing::Test {
  protected:
@@ -248,5 +252,80 @@ TEST_F(RequestTrackerTest, CompletionTraceEvents) {
   EXPECT_EQ(events[2].worker_id, 4);
 }
 
+TEST_F(RequestTrackerTest, RecvPostCallback) {
+  constexpr Metadata kReqMeta1 = {1, 2, 3};
+  constexpr Metadata kReqMeta2 = {4, 5, 6};
+  constexpr Metadata kPostMeta = {7, 8, 9};
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = kNumChunks,
+       .raddr = kBufferBaseAddr,
+       .total_len = 2048,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous},
+       .metadata = kReqMeta1},
+      {.reqid = kReqId2,
+       .nchunks = kNumChunks,
+       .raddr = kBufferBaseAddr,
+       .total_len = 2048,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous},
+       .metadata = kReqMeta2},
+  };
+
+  struct PostEvent {
+    Status status;
+    Metadata post_meta;
+    std::vector<Metadata> req_metas;
+  };
+  std::vector<PostEvent> post_events;
+  RequestTracker rt(metrics_, tracer_,
+                    [&](Status s, const Metadata& post_meta,
+                        absl::Span<const Metadata> req_metas) {
+                      post_events.push_back(PostEvent{
+                          .status = s,
+                          .post_meta = post_meta,
+                          .req_metas = std::vector<Metadata>(req_metas.begin(),
+                                                             req_metas.end()),
+                      });
+                    });
+
+  ASSERT_TRUE(rt.Add(kHandle, reqs, kPostMeta));
+
+  ChunkTracker& recv1 = rt.Find(kHandle, kReqId);
+  for (int i = 0; i < kNumChunks - 1; ++i) {
+    const chunk_t index(i);
+    ASSERT_EQ(recv1.Acquire(index), ChunkTracker::ChunkStatus::kEmpty)
+        << "i=" << i;
+    EXPECT_FALSE(recv1.Release(index, /*success=*/true)) << "i=" << i;
+  }
+  const chunk_t last_index(kNumChunks - 1);
+  ASSERT_EQ(recv1.Acquire(last_index), ChunkTracker::ChunkStatus::kEmpty);
+  ASSERT_TRUE(recv1.Release(last_index, /*success=*/true));
+  rt.OnReqComplete(kHandle);
+  EXPECT_TRUE(post_events.empty());
+
+  // Duplicate Add after partial progress must not reset pending_reqs or
+  // metadata.
+  EXPECT_TRUE(rt.Add(kHandle, reqs, Metadata{9, 9, 9}));
+
+  ChunkTracker& recv2 = rt.Find(kHandle, kReqId2);
+  for (int i = 0; i < kNumChunks - 1; ++i) {
+    const chunk_t index(i);
+    ASSERT_EQ(recv2.Acquire(index), ChunkTracker::ChunkStatus::kEmpty)
+        << "i=" << i;
+    EXPECT_FALSE(recv2.Release(index, /*success=*/true)) << "i=" << i;
+  }
+  ASSERT_EQ(recv2.Acquire(last_index), ChunkTracker::ChunkStatus::kEmpty);
+  ASSERT_TRUE(recv2.Release(last_index, /*success=*/true));
+  rt.OnReqComplete(kHandle);
+
+  ASSERT_EQ(post_events.size(), 1);
+  EXPECT_EQ(post_events[0].status, Status::kSuccess);
+  EXPECT_EQ(post_events[0].post_meta, kPostMeta);
+  EXPECT_THAT(post_events[0].req_metas,
+              UnorderedElementsAre(kReqMeta1, kReqMeta2));
+  EXPECT_EQ(rt.Check(kHandle), Status::kSuccess);
+}
 }  // namespace
 }  // namespace peregrine::internal::testing

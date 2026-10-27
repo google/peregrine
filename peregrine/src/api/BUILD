@@ -29,6 +29,7 @@ cc_test(
         ":transport_metrics",
         ":transport_types",
         "//peregrine/src/util:app",
+        "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/status:statusor",

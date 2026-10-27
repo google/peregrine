@@ -43,6 +43,7 @@ cc_test(
         "//peregrine/src/internal/trace:trace_recorder",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )

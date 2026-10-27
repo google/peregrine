@@ -16,6 +16,7 @@
 #include "absl/log/log.h"
 #include "absl/random/random.h"
 #include "absl/time/clock.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -40,6 +41,7 @@ using TestChannelType::kMemMsg;
 using TestChannelType::kMemStream;
 using TestChannelType::kTcp;
 using TestChannelType::kUdp;
+using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::Ne;
 using ::testing::Pointwise;
@@ -49,6 +51,8 @@ using ::testing::Values;
 static_assert(assumptions::kBufferIsDividedIntoFixedSizeChunks);
 constexpr Handle kHandle(0x1234);
 constexpr ReqId kReqId(0xbeef);
+constexpr Metadata kPostMetadata = {1, 2, 3};
+constexpr Metadata kReqMetadata = {4, 5, 6};
 constexpr uint32_t kNumChunks = 100;
 constexpr uint32_t kChunkSize = 16;
 constexpr uint32_t kLastChunkSize = kChunkSize - 1;
@@ -63,7 +67,26 @@ std::string ToString(const ::testing::TestParamInfo<Param>& info) {
 
 class TransferTest : public ::testing::TestWithParam<Param> {
  protected:
-  TransferTest() : p_(GetParam()), src_(kBufSize), dst_(kBufSize), a_(), b_() {
+  struct PostEvent {
+    Status status;
+    Metadata post_meta;
+    std::vector<Metadata> req_metas;
+  };
+
+  TransferTest()
+      : p_(GetParam()),
+        src_(kBufSize),
+        dst_(kBufSize),
+        a_(),
+        b_([this](Status s, const Metadata& post_meta,
+                  absl::Span<const Metadata> req_metas) {
+          recv_posts_.push_back(PostEvent{
+              .status = s,
+              .post_meta = post_meta,
+              .req_metas =
+                  std::vector<Metadata>(req_metas.begin(), req_metas.end()),
+          });
+        }) {
     for (size_t i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = static_cast<Byte>(0);
@@ -81,6 +104,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     info.opcode = Opcode::kPostInfo;
     info.handle = kHandle;
     info.len = HeaderUtil::kRequestInfoSize;
+    info.metadata = kPostMetadata;
     return info;
   }
 
@@ -92,6 +116,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     req.total_len = kBufSize;
     req.op = Op::kWrite;
     req.recipe.type = RecipeType::kContiguous;
+    req.metadata = kReqMetadata;
     return req;
   }
 
@@ -128,11 +153,11 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     TraceRecorder tracer;
     RequestTracker outgoing;
     RequestTracker incoming;
-    Host()
+    explicit Host(RecvPostCallback recv_post_callback = nullptr)
         : metrics(),
           tracer(TraceConfig{.sample_every_n = 1}),
           outgoing(metrics, tracer),
-          incoming(metrics, tracer) {}
+          incoming(metrics, tracer, std::move(recv_post_callback)) {}
   };
 
  protected:
@@ -140,6 +165,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
+  std::vector<PostEvent> recv_posts_;
   Host a_;
   Host b_;
 };
@@ -214,6 +240,10 @@ TEST_P(TransferTest, SendRecv) {
 
   EXPECT_TRUE(IsSendDone());
   EXPECT_TRUE(IsRecvDone());
+  ASSERT_EQ(recv_posts_.size(), 1);
+  EXPECT_EQ(recv_posts_[0].status, Status::kSuccess);
+  EXPECT_EQ(recv_posts_[0].post_meta, kPostMetadata);
+  EXPECT_THAT(recv_posts_[0].req_metas, ElementsAre(kReqMetadata));
 
   // Postcondition: dst is the same as src.
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));

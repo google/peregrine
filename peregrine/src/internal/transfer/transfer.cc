@@ -166,7 +166,7 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
     LOG(WARNING) << "invalid post info payload";
     return false;
   }
-  return incoming.Add(info.handle, reqs);
+  return incoming.Add(info.handle, reqs, info.metadata);
 }
 
 bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
@@ -207,7 +207,11 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
     IoVec payload[] = {{chunk.DstAddr(), size}};
     const ssize_t len = channel->Read(payload);
     const bool success = std::cmp_equal(len, size);
-    tracker.Release(index, success);
+    // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
+    // in `OnReqComplete`.
+    if (tracker.Release(index, success)) {
+      incoming.OnReqComplete(chunk.handle);
+    }
     if (!success) return false;
     StampRxTrace(chunk, worker_id, s, t_start_us, t_acquired_us);
     return sendAck(channel, chunk);
@@ -276,7 +280,7 @@ bool Transfer::recvPostInfoMsg(const PostInfoHeader& info,
     LOG(WARNING) << "invalid post info payload";
     return false;
   }
-  return incoming.Add(info.handle, reqs);
+  return incoming.Add(info.handle, reqs, info.metadata);
 }
 
 bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
@@ -320,7 +324,11 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
   switch (s) {
     case ChunkStatus::kEmpty:
       std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
-      tracker.Release(index, true);
+      // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
+      // in `OnReqComplete`.
+      if (tracker.Release(index, true)) {
+        incoming.OnReqComplete(chunk.handle);
+      }
       StampRxTrace(chunk, worker_id, s, t_start_us, t_acquired_us);
       return sendAck(channel, chunk);
     case ChunkStatus::kDone:

@@ -90,8 +90,10 @@ class ChunkTracker final {
   ChunkStatus Acquire(chunk_t index) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Releases the exclusive data write access to the `index`-th chunk.
+  // Returns true if `success` is true and this chunk was the last pending
+  // chunk for the request.
   // PRECONDITION: The caller must have called Acquire() and it returned kEmpty.
-  void Release(chunk_t index, bool success) ABSL_LOCKS_EXCLUDED(mu_);
+  bool Release(chunk_t index, bool success) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Returns a string representation of the tracker.
   std::string ToString() const ABSL_LOCKS_EXCLUDED(mu_);
