@@ -31,6 +31,21 @@ void RecordConnSetupStage(TraceBuffer& buffer, const TraceContext& ctx,
   });
 }
 
+// Records a sender worker chunk stage event.
+void RecordSendChunkStage(TraceBuffer& buffer, const DataHeader& chunk,
+                          int send_worker_id, uint64_t timestamp_us,
+                          TraceStage stage) noexcept {
+  buffer.Record(TraceEvent{
+      .timestamp_us = timestamp_us,
+      .handle = chunk.handle.value(),
+      .reqid = chunk.reqid.value(),
+      .stage = stage,
+      .worker_id = ClampI16(send_worker_id),
+      .chunk_idx = chunk.index.value(),
+      .metric1 = chunk.len,
+  });
+}
+
 }  // namespace
 
 void TraceRecorder::Configure(const TraceConfig& config) noexcept {
@@ -103,24 +118,11 @@ void TraceRecorder::RecordConnSetupDone(const TraceContext& ctx, Handle handle,
                        TraceStage::kConnSetupDone);
 }
 
-void TraceRecorder::RecordWorkerEnqueued(const TraceContext& ctx,
-                                         DataHeader& chunk, int send_worker_id,
-                                         Op op) noexcept {
-  if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
-  const uint64_t now_us = NowUs();
-  // Mark the chunk header as traced so Worker::SendLoop stamps
-  // T_WorkerDequeued.
-  chunk.trace.tx_send_mono_us = now_us;
-  buffer_.Record(TraceEvent{
-      .timestamp_us = now_us,
-      .handle = chunk.handle.value(),
-      .reqid = chunk.reqid.value(),
-      .stage = TraceStage::kWorkerEnqueued,
-      .metadata = static_cast<uint8_t>(op),
-      .worker_id = ClampI16(send_worker_id),
-      .chunk_idx = chunk.index.value(),
-      .metric1 = chunk.len,
-  });
+void TraceRecorder::RecordWorkerEnqueued(const DataHeader& chunk,
+                                         int send_worker_id) noexcept {
+  if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
+  RecordSendChunkStage(buffer_, chunk, send_worker_id, NowUs(),
+                       TraceStage::kWorkerEnqueued);
 }
 
 void TraceRecorder::RecordWorkerDequeued(DataHeader& chunk,
@@ -128,29 +130,15 @@ void TraceRecorder::RecordWorkerDequeued(DataHeader& chunk,
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
   const uint64_t t_dequeued_us = NowUs();
   chunk.trace.tx_send_mono_us = t_dequeued_us;
-  buffer_.Record(TraceEvent{
-      .timestamp_us = t_dequeued_us,
-      .handle = chunk.handle.value(),
-      .reqid = chunk.reqid.value(),
-      .stage = TraceStage::kWorkerDequeued,
-      .worker_id = ClampI16(send_worker_id),
-      .chunk_idx = chunk.index.value(),
-      .metric1 = chunk.len,
-  });
+  RecordSendChunkStage(buffer_, chunk, send_worker_id, t_dequeued_us,
+                       TraceStage::kWorkerDequeued);
 }
 
 void TraceRecorder::RecordTxWriteDone(const DataHeader& chunk,
                                       int send_worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
-  buffer_.Record(TraceEvent{
-      .timestamp_us = NowUs(),
-      .handle = chunk.handle.value(),
-      .reqid = chunk.reqid.value(),
-      .stage = TraceStage::kTxWriteDone,
-      .worker_id = ClampI16(send_worker_id),
-      .chunk_idx = chunk.index.value(),
-      .metric1 = chunk.len,
-  });
+  RecordSendChunkStage(buffer_, chunk, send_worker_id, NowUs(),
+                       TraceStage::kTxWriteDone);
 }
 
 void TraceRecorder::RecordTxAckRcvd(const DataHeader& chunk) noexcept {
@@ -160,24 +148,6 @@ void TraceRecorder::RecordTxAckRcvd(const DataHeader& chunk) noexcept {
       .handle = chunk.handle.value(),
       .reqid = chunk.reqid.value(),
       .stage = TraceStage::kTxAckRcvd,
-      .metadata = chunk.trace.rx_chunk_status,
-      .worker_id = static_cast<int16_t>(chunk.trace.rx_worker_id),
-      .chunk_idx = chunk.index.value(),
-      .metric1 = chunk.trace.rx_payload_us,
-      .metric2 = chunk.trace.rx_acquire_us,
-  });
-}
-
-void TraceRecorder::RecordRxChunkDone(const DataHeader& chunk,
-                                      uint64_t t_done_us) noexcept {
-  if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced() || !sampler_.IsEnabled()) {
-    return;
-  }
-  buffer_.Record(TraceEvent{
-      .timestamp_us = t_done_us,
-      .handle = chunk.handle.value(),
-      .reqid = chunk.reqid.value(),
-      .stage = TraceStage::kRxChunkDone,
       .metadata = chunk.trace.rx_chunk_status,
       .worker_id = static_cast<int16_t>(chunk.trace.rx_worker_id),
       .chunk_idx = chunk.index.value(),

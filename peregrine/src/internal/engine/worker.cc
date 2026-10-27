@@ -72,6 +72,8 @@ void Worker::EnqueueChunk(const Byte* const chunk_src_addr,
   DCHECK_NE(chunk_src_addr, nullptr);
   DCHECK(chunk.IsData());
 
+  tracer_.RecordWorkerEnqueued(chunk, id_);
+
   absl::MutexLock _(mu_);
   chunks_.push_back(ChunkEntry{chunk_src_addr, chunk});
 }
@@ -107,19 +109,21 @@ void Worker::SendLoop() {
     if (is_info) {
       ok = Transfer::SendInfo(channel_.get(), info_entry.info, info_entry.reqs);
     } else {
-      const DataHeader& chunk = chunk_entry.chunk;
+      DataHeader& chunk = chunk_entry.chunk;
       DCHECK(chunk.IsData());
+      tracer_.RecordWorkerDequeued(chunk, id_);
       const auto payload = chunk_entry.GenPayload();
       ok = Transfer::SendChunk(channel_.get(), chunk, payload);
       if (ok) {
         metrics_.write.bytes.Add(payload.size());
+        tracer_.RecordTxWriteDone(chunk, id_);
         if (channel_->Type().IsOneSidedChannel()) {
           // For one-sided RDMA channels, successful SendChunk completes the
           // transfer at the hardware level (confirmed via CQE), with no
           // software ACK chunk sent by the receiver.
           static_assert(
               assumptions::kOneSidedRdmaCompletionIsTrackedBySenderHardwareCqe);
-          outgoing_.Update(chunk.handle, chunk.reqid, chunk.index);
+          outgoing_.Update(chunk.handle, chunk.reqid, chunk.index, id_);
         }
       }
     }
@@ -158,7 +162,7 @@ void Worker::RecvLoop() {
         return;
       }
     }
-    if (!Transfer::Recv(channel_.get(), outgoing_, incoming_)) {
+    if (!Transfer::Recv(channel_.get(), outgoing_, incoming_, id_, tracer_)) {
       if (channel_->Type().IsMessageChannel()) {
         absl::MutexLock _(mu_);
         if (!stop_) continue;

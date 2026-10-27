@@ -3,6 +3,9 @@
 
 #include <cstdint>
 
+#include "peregrine/src/internal/chunk/chunk_tracker.h"
+#include "peregrine/src/internal/util/util.h"
+
 namespace peregrine::internal {
 
 // Wire-level per-chunk trace metadata serialized in data chunks.
@@ -21,6 +24,19 @@ struct ChunkTraceWire final {
         rx_chunk_status(0) {}
 
   constexpr bool IsTraced() const { return tx_send_mono_us != 0; }
+
+  // Marks the chunk as traced before enqueuing so worker probes record stages.
+  // Worker::SendLoop overwrites tx_send_mono_us with T_WorkerDequeued.
+  constexpr void SetTraced() noexcept { tx_send_mono_us = 1; }
+
+  constexpr void SetRx(int worker_id, ChunkTracker::ChunkStatus s,
+                       uint64_t t_start_us, uint64_t t_acquired_us,
+                       uint64_t t_done_us) noexcept {
+    rx_worker_id = ClampI8(worker_id);
+    rx_chunk_status = static_cast<uint8_t>(s);
+    rx_acquire_us = ClampU16(t_acquired_us - t_start_us);
+    rx_payload_us = ClampU32(t_done_us - t_acquired_us);
+  }
 
   friend constexpr bool operator==(const ChunkTraceWire& a,
                                    const ChunkTraceWire& b) = default;

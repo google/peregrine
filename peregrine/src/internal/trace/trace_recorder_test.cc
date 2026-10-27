@@ -27,7 +27,7 @@ TEST(TraceRecorderTest, UntracedFastPathShortCircuits) {
   chunk.reqid = ReqId(10);
   chunk.index = chunk_t(0);
   chunk.raddr = addr_t(0x1000);
-  recorder.RecordWorkerEnqueued(ctx, chunk, 1, Op::kWrite);
+  recorder.RecordWorkerEnqueued(chunk, 1);
   EXPECT_FALSE(chunk.trace.IsTraced());
   EXPECT_EQ(recorder.Buffer().TotalRecorded(), 0);
 }
@@ -84,17 +84,17 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   chunk.reqid = kReqId;
   chunk.index = chunk_t(0);
   chunk.raddr = addr_t(0x2000);
-  recorder.RecordWorkerEnqueued(ctx, chunk, /*send_worker_id=*/2, Op::kWrite);
-  EXPECT_TRUE(chunk.trace.IsTraced());
+  chunk.trace.SetTraced();
+  recorder.RecordWorkerEnqueued(chunk, /*send_worker_id=*/2);
 
   recorder.RecordWorkerDequeued(chunk, /*send_worker_id=*/2);
+  EXPECT_GT(chunk.trace.tx_send_mono_us, 1);
   recorder.RecordTxWriteDone(chunk, /*send_worker_id=*/2);
 
   chunk.trace.rx_worker_id = -3;
   chunk.trace.rx_chunk_status = 0;
   chunk.trace.rx_acquire_us = 12;
   chunk.trace.rx_payload_us = 150;
-  recorder.RecordRxChunkDone(chunk, TraceRecorder::NowUs());
   recorder.RecordTxAckRcvd(chunk);
 
   recorder.RecordAllChunksDone(ctx, kHandle, kReqId, chunk_t(0),
@@ -103,7 +103,7 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   recorder.RecordPollReaped(ctx, kHandle);
 
   const std::vector<TraceEvent> events = recorder.Buffer().Snapshot();
-  ASSERT_EQ(events.size(), 14);
+  ASSERT_EQ(events.size(), 13);
 
   EXPECT_EQ(events[0].stage, TraceStage::kPostEntry);
   EXPECT_EQ(events[0].handle, kHandle.value());
@@ -132,21 +132,16 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
 
   EXPECT_EQ(events[8].stage, TraceStage::kTxWriteDone);
 
-  EXPECT_EQ(events[9].stage, TraceStage::kRxChunkDone);
+  EXPECT_EQ(events[9].stage, TraceStage::kTxAckRcvd);
   EXPECT_EQ(events[9].metric1, 150);
   EXPECT_EQ(events[9].metric2, 12);
   EXPECT_EQ(events[9].worker_id, -3);
 
-  EXPECT_EQ(events[10].stage, TraceStage::kTxAckRcvd);
-  EXPECT_EQ(events[10].metric1, 150);
-  EXPECT_EQ(events[10].metric2, 12);
-  EXPECT_EQ(events[10].worker_id, -3);
+  EXPECT_EQ(events[10].stage, TraceStage::kAllChunksDone);
+  EXPECT_EQ(events[10].worker_id, 2);
 
-  EXPECT_EQ(events[11].stage, TraceStage::kAllChunksDone);
-  EXPECT_EQ(events[11].worker_id, 2);
-
-  EXPECT_EQ(events[12].stage, TraceStage::kCallbackDone);
-  EXPECT_EQ(events[13].stage, TraceStage::kPollReaped);
+  EXPECT_EQ(events[11].stage, TraceStage::kCallbackDone);
+  EXPECT_EQ(events[12].stage, TraceStage::kPollReaped);
 }
 
 }  // namespace

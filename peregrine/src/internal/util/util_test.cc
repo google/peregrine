@@ -15,6 +15,15 @@ TEST(UtilTest, IsPowerOfTwo) {
   EXPECT_TRUE(IsPowerOfTwo(16));
 }
 
+TEST(UtilTest, ClampI8) {
+  EXPECT_EQ(ClampI8(0), 0);
+  EXPECT_EQ(ClampI8(127), 127);
+  EXPECT_EQ(ClampI8(128), 127);
+  EXPECT_EQ(ClampI8(-128), -128);
+  EXPECT_EQ(ClampI8(-129), -128);
+  EXPECT_EQ(ClampI8(-200), -128);
+}
+
 TEST(UtilTest, IsValid) {
   void* non_null = reinterpret_cast<void*>(0xffff);
   ASSERT_NE(non_null, nullptr);

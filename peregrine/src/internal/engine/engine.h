@@ -167,7 +167,8 @@ class Engine final {
 
   // Processes a write request.
   void processWrite(Workers& workers, Handle handle, const Byte* laddr,
-                    const RequestInfo& req_info) ABSL_LOCKS_EXCLUDED(mu_);
+                    const RequestInfo& req_info, const TraceContext& trace_ctx)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
   // Processes read requests for a post.
   void processRead(const PostEntry& post) ABSL_LOCKS_EXCLUDED(mu_);

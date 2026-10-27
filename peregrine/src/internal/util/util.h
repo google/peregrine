@@ -28,6 +28,13 @@ constexpr uint32_t ClampU32(uint64_t v) noexcept {
       std::min<uint64_t>(v, std::numeric_limits<uint32_t>::max()));
 }
 
+// Clamps an int64_t value to [int8_t::min, int8_t::max].
+constexpr int8_t ClampI8(int64_t v) noexcept {
+  return static_cast<int8_t>(
+      std::clamp<int64_t>(v, std::numeric_limits<int8_t>::min(),
+                          std::numeric_limits<int8_t>::max()));
+}
+
 // Clamps an int64_t value to [int16_t::min, int16_t::max].
 constexpr int16_t ClampI16(int64_t v) noexcept {
   return static_cast<int16_t>(

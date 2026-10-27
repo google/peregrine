@@ -27,8 +27,7 @@ enum class TraceStage : uint8_t {
   kTxWriteDone = 41,
   kRdmaPostSend = 42,
   kRdmaCqeReaped = 43,
-  kTxAckRcvd = 44,    // Also records piggybacked rx_acquire_us / rx_payload_us
-  kRxChunkDone = 45,  // Recorded locally on receiver if receiver tracing is on
+  kTxAckRcvd = 44,  // Also records piggybacked rx_acquire_us / rx_payload_us
 };
 
 // Fixed-size 32-byte trace record stored in `TraceBuffer`.

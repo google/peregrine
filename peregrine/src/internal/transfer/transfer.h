@@ -12,6 +12,7 @@
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal {
 
@@ -31,7 +32,8 @@ class Transfer final {
 
   // Receives a `PostInfoHeader` or `DataHeader` packet from the channel.
   static bool Recv(Channel* channel, RequestTracker& outgoing,
-                   RequestTracker& incoming);
+                   RequestTracker& incoming, int worker_id,
+                   TraceRecorder& tracer);
 
  private:
   using Header = std::variant<PostInfoHeader, DataHeader>;
@@ -46,22 +48,25 @@ class Transfer final {
   // Receives `PostInfoHeader` or `DataHeader` packet from the reliable stream
   // channel.
   static bool recvStream(Channel* channel, RequestTracker& outgoing,
-                         RequestTracker& incoming);
+                         RequestTracker& incoming, int worker_id,
+                         TraceRecorder& tracer);
   static bool recvPostInfoStream(Channel* channel, const PostInfoHeader& info,
                                  RequestTracker& incoming);
   static bool recvDataStream(Channel* channel, DataHeader& chunk,
-                             RequestTracker& outgoing,
-                             RequestTracker& incoming);
+                             RequestTracker& outgoing, RequestTracker& incoming,
+                             int worker_id, TraceRecorder& tracer);
 
   // Receives `PostInfoHeader` or `DataHeader` packet from the message channel.
   static bool recvMsg(Channel* channel, RequestTracker& outgoing,
-                      RequestTracker& incoming);
+                      RequestTracker& incoming, int worker_id,
+                      TraceRecorder& tracer);
   static bool recvPostInfoMsg(const PostInfoHeader& info,
                               ChunkPayloadView payload,
                               RequestTracker& incoming);
   static bool recvDataMsg(Channel* channel, DataHeader& chunk,
                           ChunkPayloadView payload, RequestTracker& outgoing,
-                          RequestTracker& incoming);
+                          RequestTracker& incoming, int worker_id,
+                          TraceRecorder& tracer);
 
   // Discards chunk payload still buffered in the reliable stream channel.
   static bool drainStream(Channel* channel, uint32_t chunk_size);

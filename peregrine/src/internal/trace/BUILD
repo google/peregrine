@@ -6,6 +6,10 @@ package(default_visibility = ["//peregrine/src/internal:internal_impl"])
 cc_library(
     name = "chunk_trace_wire",
     hdrs = ["chunk_trace_wire.h"],
+    deps = [
+        "//peregrine/src/internal/chunk:chunk_tracker",
+        "//peregrine/src/internal/util",
+    ],
 )
 
 cc_library(
