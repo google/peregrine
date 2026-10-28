@@ -4,7 +4,6 @@
 #include <memory>
 #include <string_view>
 
-#include "absl/base/attributes.h"
 #include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_types.h"
 
@@ -31,13 +30,6 @@ struct Options {
 // hardcoding insecure credentials.
 std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
                                            Options options = {});
-
-// Legacy overload for backward compatibility.
-// TODO: Remove once callers are migrated to the `Options` overload.
-ABSL_DEPRECATED("Use the Options overload")
-std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
-                                           TransportType transport_type,
-                                           int num_conns_per_peer = 8);
 
 }  // namespace peregrine
 

@@ -40,14 +40,4 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
                                std::move(options.recv_post_callback));
 }
 
-std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
-                                           const TransportType transport_type,
-                                           const int num_conns_per_peer) {
-  return CreateTransport(endpoint,
-                         Options{
-                             .transport_type = transport_type,
-                             .num_parallel_connections = num_conns_per_peer,
-                         });
-}
-
 }  // namespace peregrine
