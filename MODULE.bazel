@@ -19,7 +19,7 @@ bazel_dep(name = "rules_shell", version = "0.8.0")
 # C++ Libraries
 bazel_dep(name = "abseil-cpp", version = "20260817.0")
 bazel_dep(name = "envoy_api", version = "0.0.0-20260901-005c18a.bcr.1")
-bazel_dep(name = "grpc", version = "1.84.0")
+bazel_dep(name = "grpc", version = "1.85.0")
 bazel_dep(name = "xxhash", version = "0.8.3.bcr.1")
 
 # Python Bindings
