@@ -156,15 +156,16 @@ void TraceRecorder::RecordTxAckRcvd(const DataHeader& chunk) noexcept {
   });
 }
 
-void TraceRecorder::RecordAllChunksDone(const TraceContext& ctx, Handle handle,
-                                        ReqId reqid, chunk_t index,
-                                        int worker_id) noexcept {
+void TraceRecorder::RecordAllRequestsDone(const TraceContext& ctx,
+                                          Handle handle, ReqId reqid,
+                                          chunk_t index,
+                                          int worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
   buffer_.Record(TraceEvent{
       .timestamp_us = NowUs(),
       .handle = handle.value(),
       .reqid = reqid.value(),
-      .stage = TraceStage::kAllChunksDone,
+      .stage = TraceStage::kAllRequestsDone,
       .worker_id = ClampI16(worker_id),
       .chunk_idx = index.value(),
   });

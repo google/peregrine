@@ -11,7 +11,7 @@ enum class TraceStage : uint8_t {
   // Handle / Request batch level
   kPostEntry = 1,
   kEngineEnqueued = 2,
-  kAllChunksDone = 3,
+  kAllRequestsDone = 3,
   kCallbackDone = 4,
   kPollReaped = 5,
 

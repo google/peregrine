@@ -97,8 +97,8 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   chunk.trace.rx_payload_us = 150;
   recorder.RecordTxAckRcvd(chunk);
 
-  recorder.RecordAllChunksDone(ctx, kHandle, kReqId, chunk_t(0),
-                               /*worker_id=*/2);
+  recorder.RecordAllRequestsDone(ctx, kHandle, kReqId, chunk_t(0),
+                                 /*worker_id=*/2);
   recorder.RecordCallbackDone(ctx, kHandle, /*worker_id=*/2);
   recorder.RecordPollReaped(ctx, kHandle);
 
@@ -137,7 +137,7 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   EXPECT_EQ(events[9].metric2, 12);
   EXPECT_EQ(events[9].worker_id, -3);
 
-  EXPECT_EQ(events[10].stage, TraceStage::kAllChunksDone);
+  EXPECT_EQ(events[10].stage, TraceStage::kAllRequestsDone);
   EXPECT_EQ(events[10].worker_id, 2);
 
   EXPECT_EQ(events[11].stage, TraceStage::kCallbackDone);

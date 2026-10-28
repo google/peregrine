@@ -218,14 +218,14 @@ TEST_F(RequestTrackerTest, CompletionTraceEvents) {
   const TraceContext trace_ctx = tracer_.MaybeStartTrace();
   ASSERT_TRUE(trace_ctx.is_traced);
 
-  // 1. Polled handle: records kAllChunksDone on the last chunk only.
+  // 1. Polled handle: records kAllRequestsDone on the last chunk only.
   ASSERT_TRUE(
       rt_.Add(kHandle, absl::Now(), /*on_complete=*/nullptr, trace_ctx));
   rt_.FindOrCreate(kHandle, kReqId, /*num_chunks=*/2);
   rt_.Update(kHandle, kReqId, chunk_t(0), /*worker_id=*/3);
   rt_.Update(kHandle, kReqId, chunk_t(1), /*worker_id=*/3);
 
-  // 2. Callback handle: records kAllChunksDone and kCallbackDone.
+  // 2. Callback handle: records kAllRequestsDone and kCallbackDone.
   constexpr Handle kHandle2(0x5678);
   bool callback_invoked = false;
   ASSERT_TRUE(rt_.Add(
@@ -237,13 +237,13 @@ TEST_F(RequestTrackerTest, CompletionTraceEvents) {
 
   const std::vector<TraceEvent> events = tracer_.Buffer().Snapshot();
   ASSERT_EQ(events.size(), 3);
-  EXPECT_EQ(events[0].stage, TraceStage::kAllChunksDone);
+  EXPECT_EQ(events[0].stage, TraceStage::kAllRequestsDone);
   EXPECT_EQ(events[0].handle, kHandle.value());
   EXPECT_EQ(events[0].reqid, kReqId.value());
   EXPECT_EQ(events[0].chunk_idx, 1);
   EXPECT_EQ(events[0].worker_id, 3);
 
-  EXPECT_EQ(events[1].stage, TraceStage::kAllChunksDone);
+  EXPECT_EQ(events[1].stage, TraceStage::kAllRequestsDone);
   EXPECT_EQ(events[1].handle, kHandle2.value());
   EXPECT_EQ(events[1].worker_id, 4);
 

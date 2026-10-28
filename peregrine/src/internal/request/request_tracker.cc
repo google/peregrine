@@ -121,7 +121,7 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
     if (tracker.IsDone() && isComplete(pt)) {
       start_time = pt.start_time;
       trace_ctx = pt.trace_ctx;
-      tracer_.RecordAllChunksDone(trace_ctx, handle, reqid, index, worker_id);
+      tracer_.RecordAllRequestsDone(trace_ctx, handle, reqid, index, worker_id);
       if (pt.on_complete != nullptr) {
         callback = std::move(pt.on_complete);
         trackers_.erase(it);
