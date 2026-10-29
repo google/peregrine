@@ -79,6 +79,12 @@ cc_library(
     hdrs = ["chrome_trace_exporter.h"],
     deps = [
         ":trace_event",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -105,6 +111,19 @@ cc_test(
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:header",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "chrome_trace_exporter_test",
+    srcs = ["chrome_trace_exporter_test.cc"],
+    deps = [
+        ":chrome_trace_exporter",
+        ":trace_event",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/strings",
         "@googletest//:gtest_main",
     ],
 )

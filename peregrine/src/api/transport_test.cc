@@ -29,7 +29,9 @@ namespace peregrine::testing {
 namespace {
 
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::Ne;
+using ::testing::Not;
 using ::testing::Pointwise;
 using ::testing::TestParamInfo;
 using ::testing::UnorderedElementsAre;
@@ -208,9 +210,20 @@ TEST_P(TransportTest, Write) {
                 UnorderedElementsAre(req1.metadata, req2.metadata));
   }
 
-  // Stubbed until ChromeTraceExporter is implemented.
-  EXPECT_TRUE(lt.ExportChromeTraceJson().empty());
+  // Verify end-to-end Chrome Trace JSON export.
+  const std::string json = lt.ExportChromeTraceJson();
+  EXPECT_THAT(json, HasSubstr("\"traceEvents\""));
+  EXPECT_THAT(json, HasSubstr("TransportImpl::Post("));
+  EXPECT_THAT(json, HasSubstr("Engine::createSendWorkers"));
+  EXPECT_THAT(json, HasSubstr("SendChunk("));
+  EXPECT_THAT(json, HasSubstr("RecvChunk("));
+  EXPECT_THAT(json, HasSubstr("RecvAck & Update("));
+  EXPECT_THAT(json, HasSubstr("kRequestDone (req="));
+  EXPECT_THAT(json, HasSubstr("kAllRequestsDone"));
+
   lt.ClearTrace();
+  EXPECT_THAT(lt.ExportChromeTraceJson(),
+              Not(HasSubstr("TransportImpl::Post(")));
 }
 
 }  // namespace
