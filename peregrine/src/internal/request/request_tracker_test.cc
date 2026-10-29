@@ -182,8 +182,6 @@ TEST_F(RequestTrackerTest, RecvRequestInfo) {
 
   ASSERT_TRUE(rt_.Add(kHandle, reqs));
   EXPECT_TRUE(rt_.Add(kHandle, reqs));  // Duplicate POST_INFO is idempotent.
-  EXPECT_EQ(rt_.GetChunkAddr(kHandle, kReqId, 512),
-            reinterpret_cast<Byte*>(kBufferBaseAddr.value() + 512));
 
   ChunkTracker& recv = rt_.Find(kHandle, kReqId);
   for (int i = 0; i < kNumChunks; ++i) {
@@ -371,53 +369,6 @@ TEST_F(RequestTrackerTest, RecvPostCallback) {
   EXPECT_THAT(post_events[0].req_metas,
               UnorderedElementsAre(kReqMeta1, kReqMeta2));
   EXPECT_EQ(rt.Check(kHandle), Status::kSuccess);
-}
-
-TEST_F(RequestTrackerTest, ResolveAddrCallback) {
-  constexpr Metadata kReqMeta1 = {1, 2, 3};
-  constexpr Metadata kReqMeta2 = {4, 5, 6};
-  Byte buf1[1024] = {};
-  Byte buf2[1024] = {};
-  const RequestInfo reqs[] = {
-      {.reqid = kReqId,
-       .nchunks = kNumChunks,
-       .raddr = addr_t(0),
-       .total_len = sizeof(buf1),
-       .op = Op::kWrite,
-       .recipe = {.type = RecipeType::kContiguous},
-       .metadata = kReqMeta1},
-      {.reqid = kReqId2,
-       .nchunks = kNumChunks,
-       .raddr = addr_t(0),
-       .total_len = sizeof(buf2),
-       .op = Op::kWrite,
-       .recipe = {.type = RecipeType::kContiguous},
-       .metadata = kReqMeta2},
-  };
-
-  // Without `resolve_addr_callback`, `raddr == 0` on receiver fails `Add`.
-  EXPECT_FALSE(rt_.Add(kHandle, reqs));
-  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
-
-  int resolve_calls = 0;
-  RequestTracker rt(metrics_, tracer_, /*recv_post_callback=*/nullptr,
-                    [&](const Metadata& req_meta) -> Byte* {
-                      ++resolve_calls;
-                      if (req_meta == kReqMeta1) return buf1;
-                      if (req_meta == kReqMeta2) return buf2;
-                      return nullptr;
-                    });
-
-  ASSERT_TRUE(rt.Add(kHandle, reqs));
-  EXPECT_EQ(resolve_calls, 2);
-
-  // Duplicate `Add` is idempotent and does not re-invoke callback.
-  EXPECT_TRUE(rt.Add(kHandle, reqs));
-  EXPECT_EQ(resolve_calls, 2);
-
-  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 128), buf1 + 128);
-  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId2, 256), buf2 + 256);
-  EXPECT_EQ(rt.GetChunkAddr(Handle(0x9999), kReqId, 0), nullptr);
 }
 }  // namespace
 }  // namespace peregrine::internal::testing

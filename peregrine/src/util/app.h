@@ -30,16 +30,14 @@ class App final {
  public:
   // Constructor.
   App(size_t size, int num_conns_per_peer,
-      RecvPostCallback recv_post_callback = nullptr,
-      ResolveAddrCallback resolve_addr_callback = nullptr)
+      RecvPostCallback recv_post_callback = nullptr)
       : data_(size),
         control_plane_listener_(createEndpoint(AF_INET)),
         transport_(CreateTransport(
             control_plane_listener_,
             {.transport_type = TransportType::kTcp,
              .num_parallel_connections = num_conns_per_peer,
-             .recv_post_callback = std::move(recv_post_callback),
-             .resolve_addr_callback = std::move(resolve_addr_callback)})) {
+             .recv_post_callback = std::move(recv_post_callback)})) {
     DCHECK_GT(size, 0U);
     CHECK_NE(transport_, nullptr);  // Crash OK
   }

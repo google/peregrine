@@ -62,15 +62,6 @@ TEST(TransportRequest, Validity) {
   EXPECT_TRUE(rv.IsValid());
   EXPECT_TRUE(IsValid({rv}));
   LOG(INFO) << rv;
-
-  const Request rv_null_raddr = {
-      .op = Op::kWrite,
-      .laddr = reinterpret_cast<Byte*>(0x1234),
-      .raddr = nullptr,
-      .len = 1,
-  };
-  EXPECT_TRUE(rv_null_raddr.IsValid());
-  EXPECT_TRUE(IsValid({rv_null_raddr}));
 }
 
 TEST(TransportRequest, RKeyAndEquality) {

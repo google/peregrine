@@ -42,6 +42,7 @@ TEST(HeaderTest, PostInfoDataAndAckProperties) {
   EXPECT_TRUE(data.IsData());
   EXPECT_FALSE(data.IsAck());
   EXPECT_TRUE(data.IsValid());
+  EXPECT_EQ(data.DstAddr(), reinterpret_cast<Byte*>(kBufferBaseAddr.value()));
   EXPECT_TRUE(IsMatch(data, GenPayload(kChunkSize)));
   EXPECT_FALSE(IsMatch(data, GenPayload(kChunkSize - 1)));
   EXPECT_EQ(data, data);
@@ -74,9 +75,6 @@ TEST(RequestInfoTest, ValidationAndEquality) {
   EXPECT_TRUE(req.IsValid());
   EXPECT_EQ(req, req);
   LOG(INFO) << req;
-
-  req.raddr = addr_t(0);
-  EXPECT_TRUE(req.IsValid());
 }
 
 }  // namespace

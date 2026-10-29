@@ -37,8 +37,7 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
   };
 
   return TransportImpl::Create(config, e, std::move(creds),
-                               std::move(options.recv_post_callback),
-                               std::move(options.resolve_addr_callback));
+                               std::move(options.recv_post_callback));
 }
 
 }  // namespace peregrine

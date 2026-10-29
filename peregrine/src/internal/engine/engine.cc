@@ -51,10 +51,9 @@ absl::Status NotFoundError(const Handle h) {
 }
 }  // namespace
 
-std::unique_ptr<Engine> Engine::Create(
-    const Config& config, HostInfo& self, Control& control,
-    RecvPostCallback recv_post_callback,
-    ResolveAddrCallback resolve_addr_callback) {
+std::unique_ptr<Engine> Engine::Create(const Config& config, HostInfo& self,
+                                       Control& control,
+                                       RecvPostCallback recv_post_callback) {
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
 
   if ABSL_PREDICT_FALSE (!config.IsValid()) {
@@ -68,14 +67,12 @@ std::unique_ptr<Engine> Engine::Create(
   }
   DCHECK(self.IsDataPlaneValid());
   return absl::WrapUnique(new Engine(config, self, std::move(helper),
-                                     std::move(recv_post_callback),
-                                     std::move(resolve_addr_callback)));
+                                     std::move(recv_post_callback)));
 }
 
 Engine::Engine(const Config& config, const HostInfo& self,
                std::unique_ptr<EngineHelper> helper,
-               RecvPostCallback recv_post_callback,
-               ResolveAddrCallback resolve_addr_callback)
+               RecvPostCallback recv_post_callback)
     : config_(config),
       self_(self),
       stop_(false),
@@ -83,8 +80,7 @@ Engine::Engine(const Config& config, const HostInfo& self,
       next_reqid_(util::Random<ReqId::ValueType>(bitgen_)),
       outgoing_(helper->Metrics(), helper->Tracer()),
       incoming_(helper->Metrics(), helper->Tracer(),
-                std::move(recv_post_callback),
-                std::move(resolve_addr_callback)),
+                std::move(recv_post_callback)),
       metrics_(helper->Metrics()),
       tracer_(helper->Tracer()),
       helper_(std::move(helper)) {
@@ -295,9 +291,7 @@ void Engine::processWrite(Workers& workers, const Handle handle,
     chunk.reqid = req_info.reqid;
     chunk.index = chunk_t(i);
     chunk.byte_offset = offset;
-    chunk.raddr = req_info.raddr.value() == 0
-                      ? addr_t(0)
-                      : addr_t(req_info.raddr.value() + offset);
+    chunk.raddr = addr_t(req_info.raddr.value() + offset);
     if ABSL_PREDICT_FALSE (trace_ctx.is_traced) {
       chunk.trace.SetTraced();
     }

@@ -51,7 +51,9 @@ struct Request final {
   Metadata metadata = {};  // optional opaque per-request metadata
 
   // Returns true iff the request is valid.
-  constexpr bool IsValid() const { return laddr != nullptr && 1 <= len; }
+  constexpr bool IsValid() const {
+    return laddr != nullptr && raddr != nullptr && 1 <= len;
+  }
 
   // Returns true iff the requests are equal.
   friend bool operator==(const Request& a, const Request& b) {
@@ -82,11 +84,6 @@ enum class Status : int {
 using RecvPostCallback =
     absl::AnyInvocable<void(Status, const Metadata& post_metadata,
                             absl::Span<const Metadata> req_metadata) const>;
-
-// Callback invoked on the receiver to resolve the target buffer address for an
-// incoming request when `Request::raddr` is not provided by the sender.
-using ResolveAddrCallback =
-    absl::AnyInvocable<Byte*(const Metadata& req_metadata) const>;
 
 // Returns true iff the transport operation is still in progress.
 constexpr bool IsInProgress(const Status s) { return s == Status::kInProgress; }

@@ -20,11 +20,6 @@ struct Options {
   // Callback invoked on the receiver when an incoming `Post()` batch completes.
   // If `nullptr`, no callback is invoked on post receive completion.
   RecvPostCallback recv_post_callback = nullptr;
-
-  // Callback invoked on the receiver to resolve the target buffer address for
-  // an incoming request when `Request::raddr` is not provided by the sender.
-  // If `nullptr`, incoming requests with a null `raddr` are rejected.
-  ResolveAddrCallback resolve_addr_callback = nullptr;
 };
 
 // Creates a new transport instance that listens for control messages on
