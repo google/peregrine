@@ -78,15 +78,19 @@ class TransferTest : public ::testing::TestWithParam<Param> {
         src_(kBufSize),
         dst_(kBufSize),
         a_(),
-        b_([this](Status s, const Metadata& post_meta,
-                  absl::Span<const Metadata> req_metas) {
-          recv_posts_.push_back(PostEvent{
-              .status = s,
-              .post_meta = post_meta,
-              .req_metas =
-                  std::vector<Metadata>(req_metas.begin(), req_metas.end()),
-          });
-        }) {
+        b_(
+            [this](Status s, const Metadata& post_meta,
+                   absl::Span<const Metadata> req_metas) {
+              recv_posts_.push_back(PostEvent{
+                  .status = s,
+                  .post_meta = post_meta,
+                  .req_metas =
+                      std::vector<Metadata>(req_metas.begin(), req_metas.end()),
+              });
+            },
+            [this](const Metadata& req_meta) -> Byte* {
+              return req_meta == kReqMetadata ? dst_.data() : nullptr;
+            }) {
     for (size_t i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = static_cast<Byte>(0);
@@ -112,7 +116,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     RequestInfo req{};
     req.reqid = kReqId;
     req.nchunks = kNumChunks;
-    req.raddr = addr_t(reinterpret_cast<uintptr_t>(dst_.data()));
+    req.raddr = addr_t(0);
     req.total_len = kBufSize;
     req.op = Op::kWrite;
     req.recipe.type = RecipeType::kContiguous;
@@ -130,7 +134,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     chunk.reqid = kReqId;
     chunk.index = chunk_t(i);
     chunk.byte_offset = offset;
-    chunk.raddr = addr_t(reinterpret_cast<uintptr_t>(dst_.data() + offset));
+    chunk.raddr = addr_t(0);
     chunk.trace.tx_send_mono_us = TraceRecorder::NowUs();
     return chunk;
   }
@@ -153,11 +157,13 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     TraceRecorder tracer;
     RequestTracker outgoing;
     RequestTracker incoming;
-    explicit Host(RecvPostCallback recv_post_callback = nullptr)
+    explicit Host(RecvPostCallback recv_post_callback = nullptr,
+                  ResolveAddrCallback resolve_addr_callback = nullptr)
         : metrics(),
           tracer(TraceConfig{.sample_every_n = 1}),
           outgoing(metrics, tracer),
-          incoming(metrics, tracer, std::move(recv_post_callback)) {}
+          incoming(metrics, tracer, std::move(recv_post_callback),
+                   std::move(resolve_addr_callback)) {}
   };
 
  protected:

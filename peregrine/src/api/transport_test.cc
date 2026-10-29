@@ -58,17 +58,23 @@ class TransportTest : public ::testing::TestWithParam<Param> {
         completed_status_(Status::kNotFound),
         partial_(kBufSize / 2),
         l_(kBufSize, kNumConnsPerPeer),
-        r_(kBufSize, kNumConnsPerPeer,
-           [this](Status s, const Metadata& post_meta,
-                  absl::Span<const Metadata> req_metas) {
-             absl::MutexLock lock(cb_mu_);
-             recv_posts_.push_back(PostEvent{
-                 .status = s,
-                 .post_meta = post_meta,
-                 .req_metas =
-                     std::vector<Metadata>(req_metas.begin(), req_metas.end()),
-             });
-           }) {
+        r_(
+            kBufSize, kNumConnsPerPeer,
+            [this](Status s, const Metadata& post_meta,
+                   absl::Span<const Metadata> req_metas) {
+              absl::MutexLock lock(cb_mu_);
+              recv_posts_.push_back(PostEvent{
+                  .status = s,
+                  .post_meta = post_meta,
+                  .req_metas =
+                      std::vector<Metadata>(req_metas.begin(), req_metas.end()),
+              });
+            },
+            [this](const Metadata& req_meta) -> Byte* {
+              if (req_meta == Metadata{1, 2, 3}) return r_.DataPtr();
+              if (req_meta == Metadata{4, 5, 6}) return r_.DataPtr() + partial_;
+              return nullptr;
+            }) {
     CHECK(1 <= partial_ && partial_ < l_.DataSize());
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
   }
@@ -172,7 +178,7 @@ TEST_P(TransportTest, Write) {
   const Request req2 = {
       .op = Op::kWrite,
       .laddr = l_.DataPtr() + partial_,
-      .raddr = r_.DataPtr() + partial_,
+      .raddr = nullptr,
       .len = l_.DataSize() - partial_,
       .metadata = {4, 5, 6},
   };

@@ -32,7 +32,8 @@ class TransportImpl final : public Transport {
   // Creates a transport with the given `config` and control `endpoint`.
   static std::unique_ptr<TransportImpl> Create(
       const Config& config, const Endpoint& endpoint, SecurityCredentials creds,
-      RecvPostCallback recv_post_callback = nullptr);
+      RecvPostCallback recv_post_callback = nullptr,
+      ResolveAddrCallback resolve_addr_callback = nullptr);
 
   // Returns the (gRPC) control-plane endpoint of this transport instance.
   std::string GetControlEndpoint() const override {

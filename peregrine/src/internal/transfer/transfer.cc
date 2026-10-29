@@ -195,6 +195,13 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
     (void)drainStream(channel, size);
     return false;
   }
+  Byte* const dst_addr =
+      incoming.GetChunkAddr(chunk.handle, chunk.reqid, chunk.byte_offset);
+  if ABSL_PREDICT_FALSE (dst_addr == nullptr) {
+    LOG(WARNING) << "unresolved address for data chunk: " << chunk;
+    (void)drainStream(channel, size);
+    return false;
+  }
   ChunkTracker& tracker = incoming.Find(chunk.handle, chunk.reqid);
 
   // Step 3: process data chunk.
@@ -204,7 +211,7 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
   const ChunkStatus s = tracker.Acquire(index);
   const uint64_t t_acquired_us = is_traced ? TraceRecorder::NowUs() : 0;
   if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
-    IoVec payload[] = {{chunk.DstAddr(), size}};
+    IoVec payload[] = {{dst_addr, size}};
     const ssize_t len = channel->Read(payload);
     const bool success = std::cmp_equal(len, size);
     // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
@@ -313,6 +320,12 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
     LOG(WARNING) << "unregistered handle for data chunk: " << chunk;
     return false;
   }
+  Byte* const dst_addr =
+      incoming.GetChunkAddr(chunk.handle, chunk.reqid, chunk.byte_offset);
+  if ABSL_PREDICT_FALSE (dst_addr == nullptr) {
+    LOG(WARNING) << "unresolved address for data chunk: " << chunk;
+    return false;
+  }
   ChunkTracker& tracker = incoming.Find(chunk.handle, chunk.reqid);
 
   // Step 3: process data chunk.
@@ -323,7 +336,7 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
   const uint64_t t_acquired_us = is_traced ? TraceRecorder::NowUs() : 0;
   switch (s) {
     case ChunkStatus::kEmpty:
-      std::memcpy(chunk.DstAddr(), payload.data(), payload.size());
+      std::memcpy(dst_addr, payload.data(), payload.size());
       // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
       // in `OnReqComplete`.
       if (tracker.Release(index, true)) {

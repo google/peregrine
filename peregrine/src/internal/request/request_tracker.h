@@ -31,10 +31,12 @@ class RequestTracker {
 
   // Constructor.
   RequestTracker(EngineMetrics& metrics, TraceRecorder& tracer,
-                 RecvPostCallback recv_post_callback = nullptr)
+                 RecvPostCallback recv_post_callback = nullptr,
+                 ResolveAddrCallback resolve_addr_callback = nullptr)
       : metrics_(metrics),
         tracer_(tracer),
-        recv_post_callback_(std::move(recv_post_callback)) {}
+        recv_post_callback_(std::move(recv_post_callback)),
+        resolve_addr_callback_(std::move(resolve_addr_callback)) {}
 
   // Disable copy and move.
   DISALLOW_COPY(RequestTracker);
@@ -75,6 +77,11 @@ class RequestTracker {
   void Update(Handle handle, ReqId reqid, chunk_t index, int worker_id)
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
+  // Returns the target buffer address for a chunk at `byte_offset` within
+  // `(handle, reqid)`, or `nullptr` if not found or unresolved.
+  Byte* GetChunkAddr(Handle handle, ReqId reqid, uint64_t byte_offset) const
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+
   // Returns a reference to the chunk tracker for the given `handle` and
   // `reqid`.
   // TODO: Return `ChunkTracker*` (`nullptr` if `handle` or `reqid` is missing)
@@ -92,10 +99,12 @@ class RequestTracker {
  private:
   struct ReqTracker {
     ChunkTracker chunks;
+    addr_t raddr = addr_t(0);
     Metadata metadata = {};
 
-    explicit ReqTracker(uint32_t num_chunks, const Metadata& metadata = {})
-        : chunks(num_chunks), metadata(metadata) {}
+    explicit ReqTracker(uint32_t num_chunks, addr_t raddr = addr_t(0),
+                        const Metadata& metadata = {})
+        : chunks(num_chunks), raddr(raddr), metadata(metadata) {}
   };
   using ReqMap = absl::flat_hash_map<ReqId, std::unique_ptr<ReqTracker>>;
 
@@ -133,6 +142,7 @@ class RequestTracker {
   absl::flat_hash_map<Handle, PostTracker> trackers_
       ABSL_GUARDED_BY(trackers_mu_);
   const RecvPostCallback recv_post_callback_;
+  const ResolveAddrCallback resolve_addr_callback_;
 };
 
 }  // namespace peregrine::internal

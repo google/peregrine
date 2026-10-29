@@ -58,15 +58,30 @@ bool RequestTracker::Add(const Handle handle,
                          const Metadata& metadata) {
   DCHECK(!reqs.empty());
   absl::MutexLock _(trackers_mu_);
-  PostTracker& pt = trackers_[handle];
+  auto [it, inserted] = trackers_.try_emplace(handle);
+  PostTracker& pt = it->second;
   if (!pt.req_map.empty()) return true;
   pt.metadata = metadata;
   pt.pending_reqs = reqs.size();
   pt.req_map.reserve(reqs.size());
   for (const RequestInfo& req : reqs) {
     DCHECK(req.IsValid());
+    addr_t raddr = req.raddr;
+    if (raddr.value() == 0 && resolve_addr_callback_ != nullptr) {
+      raddr = addr_t(
+          reinterpret_cast<uintptr_t>(resolve_addr_callback_(req.metadata)));
+    }
+    if (pt.start_time == PostTracker::kInvalidTime && raddr.value() == 0) {
+      if (inserted) {
+        trackers_.erase(it);
+      } else {
+        pt.req_map.clear();
+        pt.pending_reqs = 0;
+      }
+      return false;
+    }
     pt.req_map[req.reqid] =
-        std::make_unique<ReqTracker>(req.nchunks, req.metadata);
+        std::make_unique<ReqTracker>(req.nchunks, raddr, req.metadata);
   }
   return true;
 }
@@ -136,6 +151,18 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
     std::move(callback)(Status::kSuccess);
     tracer_.RecordCallbackDone(trace_ctx, handle, worker_id);
   }
+}
+
+Byte* RequestTracker::GetChunkAddr(const Handle handle, const ReqId reqid,
+                                   const uint64_t byte_offset) const {
+  absl::MutexLock _(trackers_mu_);
+  const auto it = trackers_.find(handle);
+  if ABSL_PREDICT_FALSE (it == trackers_.end()) return nullptr;
+  const auto req_it = it->second.req_map.find(reqid);
+  if ABSL_PREDICT_FALSE (req_it == it->second.req_map.end()) return nullptr;
+  const uintptr_t base = req_it->second->raddr.value();
+  if ABSL_PREDICT_FALSE (base == 0) return nullptr;
+  return reinterpret_cast<Byte*>(base + byte_offset);
 }
 
 ChunkTracker& RequestTracker::Find(const Handle handle, const ReqId reqid) {
