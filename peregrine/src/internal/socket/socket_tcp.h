@@ -81,6 +81,10 @@ class TcpSocket final : public SocketBase {
     DCHECK(invariant());
   }
 
+  // Sets TCP_NODELAY to disable Nagle's algorithm.
+  // Returns 0 on success, -1 on error.
+  int setNoDelay() const;
+
  private:
   // Returns a success message for the last socket operation.
   static std::string okMsg(std::string_view func, fd_t fd) {

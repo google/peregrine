@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -34,17 +35,24 @@ std::unique_ptr<TcpSocket> TcpSocket::Create(int family, bool blocking) {
   const fd_t fd = CreateSocket(family, SOCK_STREAM, blocking);
   if ABSL_PREDICT_FALSE (fd.value() < 0) {
     return nullptr;
-  } else {
-    LOG(INFO) << okMsg("created", fd);
-    return absl::WrapUnique(
-        new TcpSocket(fd, family, blocking, /*connected=*/false));
   }
+  auto socket = absl::WrapUnique(
+      new TcpSocket(fd, family, blocking, /*connected=*/false));
+  if ABSL_PREDICT_FALSE (socket->setNoDelay() < 0) {
+    return nullptr;
+  }
+  LOG(INFO) << okMsg("created", fd);
+  return socket;
 }
 
 std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family,
                                              bool blocking) {
-  return absl::WrapUnique(
-      new TcpSocket(fd, family, blocking, /*connected=*/true));
+  auto socket =
+      absl::WrapUnique(new TcpSocket(fd, family, blocking, /*connected=*/true));
+  if ABSL_PREDICT_FALSE (socket->setNoDelay() < 0) {
+    return nullptr;
+  }
+  return socket;
 }
 
 TcpSocket::~TcpSocket() {
@@ -63,6 +71,18 @@ void TcpSocket::Shutdown() {
   ::shutdown(fd_.value(), SHUT_RDWR);
   connected_ = false;
   DCHECK(invariant());
+}
+
+int TcpSocket::setNoDelay() const {
+  DCHECK(invariant());
+  int on = 1;
+  if ABSL_PREDICT_FALSE (::setsockopt(fd_.value(), IPPROTO_TCP, TCP_NODELAY,
+                                      &on, sizeof(on)) < 0) {
+    const Errno err(errno);
+    LOG(WARNING) << errMsg("set TCP_NODELAY", err);
+    return -1;
+  }
+  return 0;
 }
 
 int TcpSocket::Bind(const Endpoint& local) const {

@@ -1,5 +1,7 @@
 #include "peregrine/src/internal/socket/socket_tcp.h"
 
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -135,6 +137,20 @@ TEST_P(TcpSocketTest, ScatterGather) {
 
   // Check that the recv buffer matches the send buffer.
   EXPECT_THAT(recv_buf, Pointwise(Eq(), send_buf));
+}
+
+TEST_P(TcpSocketTest, TcpNoDelay) {
+  int opt = 0;
+  socklen_t len = sizeof(opt);
+  ASSERT_EQ(::getsockopt(listener_->fd().value(), IPPROTO_TCP, TCP_NODELAY,
+                         &opt, &len),
+            0);
+  EXPECT_NE(opt, 0);
+
+  ASSERT_EQ(::getsockopt(connector_->fd().value(), IPPROTO_TCP, TCP_NODELAY,
+                         &opt, &len),
+            0);
+  EXPECT_NE(opt, 0);
 }
 
 }  // namespace
