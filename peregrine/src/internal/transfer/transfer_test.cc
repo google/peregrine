@@ -255,6 +255,7 @@ TEST_P(TransferTest, SendRecv) {
   EXPECT_THAT(dst_, Pointwise(Eq(), src_));
 
   bool saw_ack_rcvd = false;
+  bool saw_request_done = false;
   bool saw_all_requests_done = false;
   for (const TraceEvent& ev : a_.tracer.Buffer().Snapshot()) {
     if (ev.stage == TraceStage::kTxAckRcvd) {
@@ -262,6 +263,11 @@ TEST_P(TransferTest, SendRecv) {
       EXPECT_EQ(ev.handle, kHandle.value());
       EXPECT_EQ(ev.reqid, kReqId.value());
       EXPECT_EQ(ev.worker_id, -3);
+    } else if (ev.stage == TraceStage::kRequestDone) {
+      saw_request_done = true;
+      EXPECT_EQ(ev.handle, kHandle.value());
+      EXPECT_EQ(ev.reqid, kReqId.value());
+      EXPECT_EQ(ev.worker_id, -1);
     } else if (ev.stage == TraceStage::kAllRequestsDone) {
       saw_all_requests_done = true;
       EXPECT_EQ(ev.handle, kHandle.value());
@@ -270,6 +276,7 @@ TEST_P(TransferTest, SendRecv) {
     }
   }
   EXPECT_TRUE(saw_ack_rcvd);
+  EXPECT_TRUE(saw_request_done);
   EXPECT_TRUE(saw_all_requests_done);
 
   EXPECT_EQ(b_.tracer.Buffer().TotalRecorded(), 0);

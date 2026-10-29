@@ -21,6 +21,7 @@ enum class TraceStage : uint8_t {
   kGetPeerHostInfoDone = 22,
   kConnSetupDone = 23,
   kWorkerEnqueued = 24,
+  kRequestDone = 25,  // On the thread that completes the request's last chunk
 
   // Per-Chunk level on Sender & Receiver Workers
   kWorkerDequeued = 40,

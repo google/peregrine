@@ -90,6 +90,11 @@ class TraceRecorder final {
   // piggybacked receiver timings from chunk.trace.
   void RecordTxAckRcvd(const DataHeader& chunk) noexcept;
 
+  // Records T_RequestDone when the last chunk of reqid completes in
+  // RequestTracker::Update().
+  void RecordRequestDone(const TraceContext& ctx, Handle handle, ReqId reqid,
+                         chunk_t index, int worker_id) noexcept;
+
   // Records T_AllRequestsDone when all requests of `handle` complete in
   // RequestTracker::Update().
   void RecordAllRequestsDone(const TraceContext& ctx, Handle handle,

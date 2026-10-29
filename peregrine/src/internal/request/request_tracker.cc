@@ -132,15 +132,17 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
     PostTracker& pt = it->second;
     ChunkTracker& tracker = pt.req_map.at(reqid)->chunks;
     tracker.Set(index);
+    if (!tracker.IsDone()) return;
 
-    if (tracker.IsDone() && isComplete(pt)) {
-      start_time = pt.start_time;
-      trace_ctx = pt.trace_ctx;
-      tracer_.RecordAllRequestsDone(trace_ctx, handle, reqid, index, worker_id);
-      if (pt.on_complete != nullptr) {
-        callback = std::move(pt.on_complete);
-        trackers_.erase(it);
-      }
+    tracer_.RecordRequestDone(pt.trace_ctx, handle, reqid, index, worker_id);
+    if (!isComplete(pt)) return;
+
+    start_time = pt.start_time;
+    trace_ctx = pt.trace_ctx;
+    tracer_.RecordAllRequestsDone(trace_ctx, handle, reqid, index, worker_id);
+    if (pt.on_complete != nullptr) {
+      callback = std::move(pt.on_complete);
+      trackers_.erase(it);
     }
   }
   if (start_time != PostTracker::kInvalidTime) {

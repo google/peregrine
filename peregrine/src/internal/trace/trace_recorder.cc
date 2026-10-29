@@ -46,6 +46,21 @@ void RecordSendChunkStage(TraceBuffer& buffer, const DataHeader& chunk,
   });
 }
 
+// Records a request completion stage event.
+void RecordCompletionStage(TraceBuffer& buffer, const TraceContext& ctx,
+                           Handle handle, ReqId reqid, chunk_t index,
+                           int worker_id, TraceStage stage) noexcept {
+  if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
+  buffer.Record(TraceEvent{
+      .timestamp_us = TraceRecorder::NowUs(),
+      .handle = handle.value(),
+      .reqid = reqid.value(),
+      .stage = stage,
+      .worker_id = ClampI16(worker_id),
+      .chunk_idx = index.value(),
+  });
+}
+
 }  // namespace
 
 void TraceRecorder::Configure(const TraceConfig& config) noexcept {
@@ -156,19 +171,19 @@ void TraceRecorder::RecordTxAckRcvd(const DataHeader& chunk) noexcept {
   });
 }
 
+void TraceRecorder::RecordRequestDone(const TraceContext& ctx, Handle handle,
+                                      ReqId reqid, chunk_t index,
+                                      int worker_id) noexcept {
+  RecordCompletionStage(buffer_, ctx, handle, reqid, index, worker_id,
+                        TraceStage::kRequestDone);
+}
+
 void TraceRecorder::RecordAllRequestsDone(const TraceContext& ctx,
                                           Handle handle, ReqId reqid,
                                           chunk_t index,
                                           int worker_id) noexcept {
-  if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
-  buffer_.Record(TraceEvent{
-      .timestamp_us = NowUs(),
-      .handle = handle.value(),
-      .reqid = reqid.value(),
-      .stage = TraceStage::kAllRequestsDone,
-      .worker_id = ClampI16(worker_id),
-      .chunk_idx = index.value(),
-  });
+  RecordCompletionStage(buffer_, ctx, handle, reqid, index, worker_id,
+                        TraceStage::kAllRequestsDone);
 }
 
 void TraceRecorder::RecordCallbackDone(const TraceContext& ctx, Handle handle,

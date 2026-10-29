@@ -220,14 +220,16 @@ TEST_F(RequestTrackerTest, CompletionTraceEvents) {
   const TraceContext trace_ctx = tracer_.MaybeStartTrace();
   ASSERT_TRUE(trace_ctx.is_traced);
 
-  // 1. Polled handle: records kAllRequestsDone on the last chunk only.
+  // 1. Polled handle: records kRequestDone and kAllRequestsDone on the last
+  // chunk only.
   ASSERT_TRUE(
       rt_.Add(kHandle, absl::Now(), /*on_complete=*/nullptr, trace_ctx));
   rt_.FindOrCreate(kHandle, kReqId, /*num_chunks=*/2);
   rt_.Update(kHandle, kReqId, chunk_t(0), /*worker_id=*/3);
   rt_.Update(kHandle, kReqId, chunk_t(1), /*worker_id=*/3);
 
-  // 2. Callback handle: records kAllRequestsDone and kCallbackDone.
+  // 2. Callback handle: records kRequestDone, kAllRequestsDone, and
+  // kCallbackDone.
   constexpr Handle kHandle2(0x5678);
   bool callback_invoked = false;
   ASSERT_TRUE(rt_.Add(
@@ -238,20 +240,61 @@ TEST_F(RequestTrackerTest, CompletionTraceEvents) {
   EXPECT_TRUE(callback_invoked);
 
   const std::vector<TraceEvent> events = tracer_.Buffer().Snapshot();
-  ASSERT_EQ(events.size(), 3);
-  EXPECT_EQ(events[0].stage, TraceStage::kAllRequestsDone);
+  ASSERT_EQ(events.size(), 5);
+  EXPECT_EQ(events[0].stage, TraceStage::kRequestDone);
   EXPECT_EQ(events[0].handle, kHandle.value());
   EXPECT_EQ(events[0].reqid, kReqId.value());
   EXPECT_EQ(events[0].chunk_idx, 1);
   EXPECT_EQ(events[0].worker_id, 3);
 
   EXPECT_EQ(events[1].stage, TraceStage::kAllRequestsDone);
-  EXPECT_EQ(events[1].handle, kHandle2.value());
-  EXPECT_EQ(events[1].worker_id, 4);
+  EXPECT_EQ(events[1].handle, kHandle.value());
+  EXPECT_EQ(events[1].reqid, kReqId.value());
+  EXPECT_EQ(events[1].chunk_idx, 1);
+  EXPECT_EQ(events[1].worker_id, 3);
 
-  EXPECT_EQ(events[2].stage, TraceStage::kCallbackDone);
+  EXPECT_EQ(events[2].stage, TraceStage::kRequestDone);
   EXPECT_EQ(events[2].handle, kHandle2.value());
   EXPECT_EQ(events[2].worker_id, 4);
+
+  EXPECT_EQ(events[3].stage, TraceStage::kAllRequestsDone);
+  EXPECT_EQ(events[3].handle, kHandle2.value());
+  EXPECT_EQ(events[3].worker_id, 4);
+
+  EXPECT_EQ(events[4].stage, TraceStage::kCallbackDone);
+  EXPECT_EQ(events[4].handle, kHandle2.value());
+  EXPECT_EQ(events[4].worker_id, 4);
+}
+
+TEST_F(RequestTrackerTest, RequestDoneTraceEventsPerRequest) {
+  tracer_.Configure(TraceConfig{.sample_every_n = 1});
+  const TraceContext trace_ctx = tracer_.MaybeStartTrace();
+  ASSERT_TRUE(trace_ctx.is_traced);
+  ASSERT_TRUE(
+      rt_.Add(kHandle, absl::Now(), /*on_complete=*/nullptr, trace_ctx));
+  rt_.FindOrCreate(kHandle, kReqId, /*num_chunks=*/2);
+  rt_.FindOrCreate(kHandle, kReqId2, /*num_chunks=*/1);
+
+  rt_.Update(kHandle, kReqId, chunk_t(0), /*worker_id=*/1);
+  EXPECT_EQ(tracer_.Buffer().TotalRecorded(), 0);
+  rt_.Update(kHandle, kReqId, chunk_t(1), /*worker_id=*/2);
+  rt_.Update(kHandle, kReqId2, chunk_t(0), /*worker_id=*/3);
+
+  const std::vector<TraceEvent> events = tracer_.Buffer().Snapshot();
+  ASSERT_EQ(events.size(), 3);
+  EXPECT_EQ(events[0].stage, TraceStage::kRequestDone);
+  EXPECT_EQ(events[0].reqid, kReqId.value());
+  EXPECT_EQ(events[0].chunk_idx, 1);
+  EXPECT_EQ(events[0].worker_id, 2);
+
+  EXPECT_EQ(events[1].stage, TraceStage::kRequestDone);
+  EXPECT_EQ(events[1].reqid, kReqId2.value());
+  EXPECT_EQ(events[1].chunk_idx, 0);
+  EXPECT_EQ(events[1].worker_id, 3);
+
+  EXPECT_EQ(events[2].stage, TraceStage::kAllRequestsDone);
+  EXPECT_EQ(events[2].reqid, kReqId2.value());
+  EXPECT_EQ(events[2].worker_id, 3);
 }
 
 TEST_F(RequestTrackerTest, RecvPostCallback) {
