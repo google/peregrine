@@ -1,6 +1,9 @@
 """Unit tests for node_executor.py."""
 
+import io
+import os
 import socket
+import tarfile
 import tempfile
 from unittest import mock
 
@@ -109,6 +112,73 @@ class NodeExecutorTest(absltest.TestCase):
           called_argv[4],
           "pkill -9 -f '^/tmp/peregrine_node_test1234( |$)' 2>/dev/null ||"
           " true; rm -f /tmp/peregrine_node_test1234",
+      )
+
+  def test_collect_traces_copies_local_and_cleanup_removes_staging_dir(self):
+    executor = node_executor.NodeExecutor(session_id="local123")
+    staging_dir = executor.prepare_trace_dir("localhost")
+    os.makedirs(staging_dir, exist_ok=True)
+    with open(
+        os.path.join(staging_dir, "node_0_inst_0.json"), "w", encoding="utf-8"
+    ) as f:
+      f.write('{"traceEvents":[]}')
+    with open(
+        os.path.join(staging_dir, "ignored.txt"), "w", encoding="utf-8"
+    ) as f:
+      f.write("ignore")
+
+    out_traces = os.path.join(self.create_tempdir().full_path, "traces")
+    collected = executor.collect_traces(
+        ["localhost", "127.0.0.1"], out_traces
+    )
+    expected_dst = os.path.join(out_traces, "node_0_inst_0.json")
+    self.assertEqual(collected, [expected_dst])
+    self.assertFalse(os.path.exists(os.path.join(out_traces, "ignored.txt")))
+
+    executor.cleanup()
+    self.assertFalse(os.path.exists(staging_dir))
+    self.assertTrue(os.path.isfile(expected_dst))
+
+  def test_collect_traces_streams_tar_gz_from_remote_and_cleans_up(self):
+    executor = node_executor.NodeExecutor(
+        ssh_cmd="ssh -p 2222", remote_dir="/tmp", session_id="test1234"
+    )
+    remote_dir = executor.prepare_trace_dir("remote-host-1")
+    self.assertEqual(remote_dir, "/tmp/peregrine_traces_test1234")
+
+    tar_buf = io.BytesIO()
+    with tarfile.open(fileobj=tar_buf, mode="w:gz") as tf:
+      payload = b'{"traceEvents":[{"ph":"X"}]}'
+      info = tarfile.TarInfo(name="./node_0_inst_0.json")
+      info.size = len(payload)
+      tf.addfile(info, io.BytesIO(payload))
+
+    completed = mock.MagicMock()
+    completed.returncode = 0
+    completed.stdout = tar_buf.getvalue()
+    completed.stderr = b""
+
+    out_traces = os.path.join(self.create_tempdir().full_path, "traces")
+    with mock.patch.object(
+        node_executor.subprocess, "run", return_value=completed
+    ) as mock_run:
+      collected = executor.collect_traces(["remote-host-1"], out_traces)
+      expected_dst = os.path.join(out_traces, "node_0_inst_0.json")
+      self.assertEqual(collected, [expected_dst])
+      with open(expected_dst, "rb") as f:
+        self.assertEqual(f.read(), b'{"traceEvents":[{"ph":"X"}]}')
+      called_argv = mock_run.call_args[0][0]
+      self.assertEqual(called_argv[:4], ["ssh", "-p", "2222", "remote-host-1"])
+      self.assertIn(
+          "tar -czf - -C /tmp/peregrine_traces_test1234 .", called_argv[4]
+      )
+
+    with mock.patch.object(node_executor.subprocess, "run") as mock_cleanup:
+      executor.cleanup()
+      mock_cleanup.assert_called_once()
+      cleanup_argv = mock_cleanup.call_args[0][0]
+      self.assertEqual(
+          cleanup_argv[4], "rm -rf /tmp/peregrine_traces_test1234"
       )
 
 

@@ -34,8 +34,10 @@ Each `bipartite_runner` session executes the following steps:
    `PEREGRINE_WORKLOAD_DONE`.
 5. **Teardown & Reporting**: Broadcasts `STOP` to collect final
    `PEREGRINE_NODE_DONE` snapshots (`TransportMetrics` and `CpuStats`) from all
-   nodes, cleans up remote binaries, and prints the cluster-wide throughput,
-   latency percentile, CPU, and transport metrics summary.
+   nodes, optionally collects `results.json` and Chrome trace files into
+   `--output_dir`, cleans up remote staging artifacts, and prints the
+   cluster-wide throughput, latency percentile, CPU, and transport metrics
+   summary.
 
 ## Running the Fan-In TCP Accept Test ($N=1, N_p=1,000, M=1, M_p=1$)
 
@@ -74,8 +76,35 @@ $ bazelisk run -c opt //peregrine/test/cluster/orchestrator:bipartite_runner -- 
     --xfer_size=1 \
     --num_xfers=1 \
     --traffic_pattern=all_to_all \
-    --output_json=/tmp/bipartite_results.json
+    --output_dir=/tmp/bipartite_results
 ```
+
+## Profiling with Chrome Trace / Perfetto
+
+Pass `--trace_every_n=<N>` with `--output_dir=<dir>` to sample `1` in every `N`
+`Post()` calls across client instances without perturbing reported `CpuStats` or
+latency snapshots (trace export runs during teardown after metrics are captured,
+then temporary node trace files are copied into `<output_dir>/traces/` and
+cleaned up):
+
+```bash
+$ bazelisk run -c opt //peregrine/test/cluster/orchestrator:bipartite_runner -- \
+    --client_nodes=localhost \
+    --server_nodes=localhost \
+    --clients_per_node=4 \
+    --servers_per_node=1 \
+    --transport=tcp \
+    --conn=1 \
+    --workload=serial_fixed_write \
+    --xfer_size=1048576 \
+    --num_xfers=10 \
+    --trace_every_n=1 \
+    --output_dir=/tmp/peregrine_run
+```
+
+This writes `<output_dir>/results.json` along with per-instance Perfetto trace
+files under `<output_dir>/traces/node_<node_index>_inst_<idx>.json` (openable in
+`https://ui.perfetto.dev`).
 
 ### Running Across Virtual Machines (VMs)
 

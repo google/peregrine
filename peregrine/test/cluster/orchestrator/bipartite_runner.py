@@ -1,7 +1,6 @@
 """CLI orchestrator for the Peregrine Cluster Bipartite Benchmark."""
 
 from collections.abc import Sequence
-import json
 
 from absl import app
 from absl import flags
@@ -131,8 +130,17 @@ _WORKLOAD_TIMEOUT_SEC = flags.DEFINE_float(
     "Timeout in seconds waiting for active nodes to emit"
     " PEREGRINE_WORKLOAD_DONE.",
 )
-_OUTPUT_JSON = flags.DEFINE_string(
-    "output_json", "", "Optional file path to write aggregated JSON results."
+_OUTPUT_DIR = flags.DEFINE_string(
+    "output_dir",
+    "",
+    "Optional directory to write results.json and, when --trace_every_n > 0,"
+    " per-instance Chrome trace JSON files under traces/.",
+)
+_TRACE_EVERY_N = flags.DEFINE_integer(
+    "trace_every_n",
+    0,
+    "Sample 1 in every N Post() calls for Chrome trace export (0 disables"
+    " tracing; requires --output_dir when > 0).",
 )
 
 
@@ -140,6 +148,10 @@ def main(argv: Sequence[str]) -> None:
   """Runs the Peregrine bipartite cluster benchmark CLI."""
   if len(argv) > 1:
     raise app.UsageError(f"Unrecognized positional arguments: {argv[1:]}")
+  if _TRACE_EVERY_N.value < 0:
+    raise app.UsageError("--trace_every_n must be >= 0")
+  if _TRACE_EVERY_N.value > 0 and not _OUTPUT_DIR.value:
+    raise app.UsageError("--trace_every_n > 0 requires --output_dir")
 
   logging.set_stderrthreshold(logging.INFO)
 
@@ -171,15 +183,13 @@ def main(argv: Sequence[str]) -> None:
       min_somaxconn=_MIN_SOMAXCONN.value,
       ready_timeout_sec=_READY_TIMEOUT_SEC.value,
       workload_timeout_sec=_WORKLOAD_TIMEOUT_SEC.value,
+      output_dir=_OUTPUT_DIR.value,
+      trace_every_n=_TRACE_EVERY_N.value,
   )
 
   results = cluster_session.run_bipartite_session(cfg)
 
   print(report.format_summary_table(results))
-  if _OUTPUT_JSON.value:
-    with open(_OUTPUT_JSON.value, "w", encoding="utf-8") as f:
-      json.dump(results, f, indent=2)
-    logging.info("Wrote aggregated JSON report to %s", _OUTPUT_JSON.value)
 
 
 if __name__ == "__main__":

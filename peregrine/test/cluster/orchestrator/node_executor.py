@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from concurrent import futures
+import io
 import ipaddress
 import os
 import resource
@@ -9,6 +10,8 @@ import shlex
 import shutil
 import socket
 import subprocess
+import tarfile
+import tempfile
 import uuid
 
 from absl import logging
@@ -115,6 +118,7 @@ class NodeExecutor:
     self._remote_dir = remote_dir.rstrip("/") or "/tmp"
     self._session_id = session_id or uuid.uuid4().hex[:8]
     self._staged_remotes: dict[str, str] = {}
+    self._trace_dirs: dict[str, str] = {}
 
   def _build_ssh_cmd(self, host: str, remote_shell_cmd: str) -> list[str]:
     if self._ssh_argv and os.path.basename(self._ssh_argv[0]) == "gcloud":
@@ -277,22 +281,133 @@ class NodeExecutor:
         bufsize=1,
     )
 
-  def cleanup(self) -> None:
-    """Terminates any lingering remote processes and removes staged binaries."""
-    if self._staged_remotes:
-      logging.info(
-          "Cleaning up staged :node binary on %d remote host(s)...",
-          len(self._staged_remotes),
+  def prepare_trace_dir(self, host: str) -> str:
+    """Returns a session-isolated trace directory on `host`."""
+    existing = self._trace_dirs.get(host)
+    if existing is not None:
+      return existing
+    if is_local_node(host) and self._remote_dir == "/tmp":
+      base_dir = tempfile.gettempdir().rstrip("/") or "/tmp"
+    else:
+      base_dir = self._remote_dir
+    trace_dir = f"{base_dir}/peregrine_traces_{self._session_id}"
+    self._trace_dirs[host] = trace_dir
+    return trace_dir
+
+  def _collect_from_single_remote(
+      self, host: str, remote_trace_dir: str, local_traces_dir: str
+  ) -> list[str]:
+    """Streams `.json` trace files from `remote_trace_dir` on `host`."""
+    quoted_dir = shlex.quote(remote_trace_dir)
+    remote_cmd = (
+        f"if [ -d {quoted_dir} ]; then tar -czf - -C {quoted_dir} .; fi"
+    )
+    res = subprocess.run(
+        self._build_ssh_cmd(host, remote_cmd),
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        timeout=120,
+        check=False,
+    )
+    if res.returncode != 0:
+      err_msg = res.stderr.decode("utf-8", errors="replace").strip()
+      raise RuntimeError(
+          f"Failed to collect traces from '{host}:{remote_trace_dir}':"
+          f" {err_msg}"
       )
-    for host, remote_path in list(self._staged_remotes.items()):
-      try:
+    if not res.stdout:
+      return []
+    collected: list[str] = []
+    with tarfile.open(fileobj=io.BytesIO(res.stdout), mode="r:gz") as tf:
+      for member in tf.getmembers():
+        if not member.isfile() or not member.name.endswith(".json"):
+          continue
+        basename = os.path.basename(member.name)
+        if not basename:
+          continue
+        extracted = tf.extractfile(member)
+        if extracted is None:
+          continue
+        dst_path = os.path.join(local_traces_dir, basename)
+        with open(dst_path, "wb") as dst_file:
+          shutil.copyfileobj(extracted, dst_file)
+        collected.append(dst_path)
+    return collected
+
+  def collect_traces(
+      self, hosts: Sequence[str], local_traces_dir: str
+  ) -> list[str]:
+    """Copies `.json` trace files from `hosts` into `local_traces_dir`."""
+    os.makedirs(local_traces_dir, exist_ok=True)
+    collected: list[str] = []
+    seen_local_dirs: set[str] = set()
+    remote_targets: dict[str, str] = {}
+
+    for h in dict.fromkeys(hosts):
+      trace_dir = self._trace_dirs.get(h)
+      if not trace_dir:
+        continue
+      if is_local_node(h):
+        if trace_dir in seen_local_dirs or not os.path.isdir(trace_dir):
+          continue
+        seen_local_dirs.add(trace_dir)
+        for name in sorted(os.listdir(trace_dir)):
+          if not name.endswith(".json"):
+            continue
+          src_path = os.path.join(trace_dir, name)
+          if not os.path.isfile(src_path):
+            continue
+          dst_path = os.path.join(local_traces_dir, name)
+          shutil.copy2(src_path, dst_path)
+          collected.append(dst_path)
+      else:
+        remote_targets[h] = trace_dir
+
+    if remote_targets:
+      with futures.ThreadPoolExecutor(
+          max_workers=min(16, len(remote_targets))
+      ) as pool:
+        future_map = {
+            pool.submit(
+                self._collect_from_single_remote, h, rdir, local_traces_dir
+            ): h
+            for h, rdir in remote_targets.items()
+        }
+        for fut in futures.as_completed(future_map):
+          collected.extend(fut.result())
+
+    return sorted(collected)
+
+  def cleanup(self) -> None:
+    """Terminates any lingering remote processes and removes staged artifacts."""
+    remote_hosts = list(
+        dict.fromkeys([
+            *self._staged_remotes.keys(),
+            *(h for h in self._trace_dirs if not is_local_node(h)),
+        ])
+    )
+    if remote_hosts:
+      logging.info(
+          "Cleaning up staged :node artifacts on %d remote host(s)...",
+          len(remote_hosts),
+      )
+    for host in remote_hosts:
+      cmd_parts: list[str] = []
+      remote_path = self._staged_remotes.get(host)
+      if remote_path is not None:
         pattern = shlex.quote(f"^{remote_path}( |$)")
         quoted_path = shlex.quote(remote_path)
-        remote_cmd = (
+        cmd_parts.append(
             f"pkill -9 -f {pattern} 2>/dev/null || true; rm -f {quoted_path}"
         )
+      remote_trace_dir = self._trace_dirs.get(host)
+      if remote_trace_dir is not None:
+        cmd_parts.append(f"rm -rf {shlex.quote(remote_trace_dir)}")
+      if not cmd_parts:
+        continue
+      try:
         subprocess.run(
-            self._build_ssh_cmd(host, remote_cmd),
+            self._build_ssh_cmd(host, "; ".join(cmd_parts)),
             stdin=subprocess.DEVNULL,
             capture_output=True,
             timeout=15,
@@ -300,4 +415,10 @@ class NodeExecutor:
         )
       except OSError:
         pass
+
+    for host, trace_dir in list(self._trace_dirs.items()):
+      if is_local_node(host):
+        shutil.rmtree(trace_dir, ignore_errors=True)
+
     self._staged_remotes.clear()
+    self._trace_dirs.clear()

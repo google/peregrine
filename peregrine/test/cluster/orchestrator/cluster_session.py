@@ -3,6 +3,8 @@
 from collections.abc import Mapping, Sequence
 from concurrent import futures
 import dataclasses
+import json
+import os
 import subprocess
 import threading
 from typing import Any
@@ -45,6 +47,8 @@ class BipartiteSessionConfig:
   min_somaxconn: int = 0
   ready_timeout_sec: float = 120.0
   workload_timeout_sec: float = 600.0
+  output_dir: str = ""
+  trace_every_n: int = 0
 
 
 class _ManagedNodeProcess:
@@ -197,6 +201,7 @@ def _spawn_node_group(
     executor: node_executor.NodeExecutor,
     host_to_bin: Mapping[str, str],
     target_nofile: int,
+    trace_every_n: int = 0,
 ) -> list[_ManagedNodeProcess]:
   """Spawns a group of server or client `:node` processes across `hosts`."""
   port_stride = max(100, instances_per_node * 2)
@@ -205,12 +210,20 @@ def _spawn_node_group(
     explicit_ip = explicit_ips[idx] if idx < len(explicit_ips) else ""
     bind_ip = executor.resolve_bind_ip(host, explicit_ip)
     node_base_port = base_port + idx * port_stride
+    trace_flags: list[str] = []
+    if trace_every_n > 0:
+      trace_dir = executor.prepare_trace_dir(host)
+      trace_flags = [
+          f"--trace_every_n={trace_every_n}",
+          f"--trace_dir={trace_dir}",
+      ]
     args = [
         f"--ip={bind_ip}",
         f"--num_instances={instances_per_node}",
         f"--node_index={idx}",
         f"--base_control_port={node_base_port}",
         *extra_flags,
+        *trace_flags,
         *common_flags,
     ]
     logging.info(
@@ -302,6 +315,11 @@ def _stop_and_collect_nodes(
 
 def run_bipartite_session(cfg: BipartiteSessionConfig) -> dict[str, Any]:
   """Runs the full 4-phase bipartite benchmark session across all nodes."""
+  if cfg.trace_every_n < 0:
+    raise ValueError(f"trace_every_n must be >= 0, got {cfg.trace_every_n}")
+  if cfg.trace_every_n > 0 and not cfg.output_dir:
+    raise ValueError("trace_every_n > 0 requires output_dir")
+
   all_hosts = [*cfg.server_nodes, *cfg.client_nodes]
   unique_hosts = list(dict.fromkeys(all_hosts))
   server_set = {
@@ -409,6 +427,7 @@ def run_bipartite_session(cfg: BipartiteSessionConfig) -> dict[str, Any]:
         executor=executor,
         host_to_bin=host_to_bin,
         target_nofile=target_nofile,
+        trace_every_n=cfg.trace_every_n,
     )
     _wait_for_nodes_ready(client_procs, cfg.ready_timeout_sec)
     logging.info("[Step 4/7] All %d client node(s) ready.", len(client_procs))
@@ -461,8 +480,9 @@ def run_bipartite_session(cfg: BipartiteSessionConfig) -> dict[str, Any]:
         "conn": cfg.conn,
         "num_xfers": cfg.num_xfers,
         "cpu_affinity": cfg.cpu_affinity,
+        "trace_every_n": cfg.trace_every_n,
     }
-    return report.aggregate_cluster_results(
+    results = report.aggregate_cluster_results(
         config_summary=config_summary,
         sender_workload_snapshots=[
             cp.workload_done_payload
@@ -480,6 +500,21 @@ def run_bipartite_session(cfg: BipartiteSessionConfig) -> dict[str, Any]:
             if sp.node_done_payload is not None
         ],
     )
+    if cfg.output_dir:
+      os.makedirs(cfg.output_dir, exist_ok=True)
+      if cfg.trace_every_n > 0:
+        traces_dir = os.path.join(cfg.output_dir, "traces")
+        collected = executor.collect_traces(cfg.client_nodes, traces_dir)
+        logging.info(
+            "Collected %d Chrome trace file(s) into %s",
+            len(collected),
+            traces_dir,
+        )
+      results_path = os.path.join(cfg.output_dir, "results.json")
+      with open(results_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+      logging.info("Wrote aggregated JSON report to %s", results_path)
+    return results
   finally:
     for p in [*client_procs, *server_procs]:
       p.terminate()
