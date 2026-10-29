@@ -41,6 +41,7 @@ cc_library(
         ":assumptions",
         "//peregrine/src/api:transport",
         "//peregrine/src/api:transport_metrics",
+        "//peregrine/src/api:transport_trace",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",

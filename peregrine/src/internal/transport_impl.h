@@ -13,6 +13,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_metrics.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
@@ -87,6 +88,19 @@ class TransportImpl final : public Transport {
 
   // Returns a snapshot of metrics.
   TransportMetrics GetTransportMetrics() const override;
+
+  // Dynamically updates the trace configuration.
+  void ConfigureTrace(const TraceConfig& config) override {
+    engine_->Helper()->ConfigureTrace(config);
+  }
+
+  // Clears all buffered Post() trace records.
+  void ClearTrace() override { engine_->Helper()->ClearTrace(); }
+
+  // Exports buffered Post() trace records in Chrome Trace Event JSON format.
+  std::string ExportChromeTraceJson() const override {
+    return engine_->Helper()->ExportChromeTraceJson();
+  }
 
  private:
   // Constructor.

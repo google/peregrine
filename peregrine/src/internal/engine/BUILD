@@ -68,6 +68,7 @@ cc_library(
         "//peregrine/src/internal/socket:socket_tcp",
         "//peregrine/src/internal/socket:socket_util",
         "//peregrine/src/internal/socket:tcp_manager",
+        "//peregrine/src/internal/trace:chrome_trace_exporter",
         "//peregrine/src/internal/trace:trace_context",
         "//peregrine/src/internal/trace:trace_recorder",
         "//peregrine/src/util:macro",

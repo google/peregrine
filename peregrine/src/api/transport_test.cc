@@ -21,6 +21,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_metrics.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/app.h"
 
@@ -77,6 +78,7 @@ class TransportTest : public ::testing::TestWithParam<Param> {
             }) {
     CHECK(1 <= partial_ && partial_ < l_.DataSize());
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
+    l_.GetTransport().ConfigureTrace(TraceConfig{.sample_every_n = 1});
   }
 
   absl::AnyInvocable<void(Status)> GetCompletionCallback() {
@@ -205,6 +207,10 @@ TEST_P(TransportTest, Write) {
     EXPECT_THAT(recv_posts_[0].req_metas,
                 UnorderedElementsAre(req1.metadata, req2.metadata));
   }
+
+  // Stubbed until ChromeTraceExporter is implemented.
+  EXPECT_TRUE(lt.ExportChromeTraceJson().empty());
+  lt.ClearTrace();
 }
 
 }  // namespace

@@ -73,6 +73,16 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "chrome_trace_exporter",
+    srcs = ["chrome_trace_exporter.cc"],
+    hdrs = ["chrome_trace_exporter.h"],
+    deps = [
+        ":trace_event",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
 cc_test(
     name = "trace_buffer_test",
     srcs = ["trace_buffer_test.cc"],
