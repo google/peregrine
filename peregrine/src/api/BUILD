@@ -122,6 +122,7 @@ nanobind_extension(
     deps = [
         ":transport",
         ":transport_metrics",
+        ":transport_trace",
         ":transport_types",
         ":transport_util",
         "@abseil-cpp//absl/status",

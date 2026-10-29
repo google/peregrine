@@ -1,5 +1,6 @@
 import ctypes
 import datetime
+import json
 import socket
 import time
 
@@ -109,6 +110,84 @@ class BindTest(absltest.TestCase):
     self.assertIsInstance(metrics, pg.TransportMetrics)
     self.assertIsInstance(metrics.write, pg.OpMetrics)
     self.assertIsInstance(metrics.read, pg.OpMetrics)
+
+  def test_tracing(self):
+    lbuf = ctypes.create_string_buffer(2048)
+    rbuf = ctypes.create_string_buffer(2048)
+
+    port1 = util.find_free_port(socket.AF_INET, tcp=True)
+    port2 = util.find_free_port(socket.AF_INET, tcp=True)
+    local = f"127.0.0.1:{port1}"
+    remote = f"127.0.0.1:{port2}"
+
+    local_transport = pg.create_transport(local, num_conns_per_peer=2)
+    self.assertIsNotNone(local_transport)
+    remote_transport = pg.create_transport(remote, num_conns_per_peer=2)
+    self.assertIsNotNone(remote_transport)
+    trace_cfg = pg.TraceConfig(sample_every_n=1)
+    local_transport.configure_trace(trace_cfg)
+
+    req = pg.Request(
+        op=pg.Op.WRITE,
+        laddr=ctypes.addressof(lbuf),
+        raddr=ctypes.addressof(rbuf),
+        len=2048,
+    )
+    handle = local_transport.post(remote, [req])
+    end_time = time.monotonic() + 10.0
+    while time.monotonic() < end_time:
+      status = local_transport.poll(handle)
+      if pg.is_completed(status):
+        self.assertEqual(status, pg.Status.SUCCESS)
+        break
+      time.sleep(0.05)
+    else:
+      self.fail("transport timed out")
+
+    events = json.loads(local_transport.export_chrome_trace_json())[
+        "traceEvents"
+    ]
+    conn_events = [
+        ev
+        for ev in events
+        if ev["name"].startswith("Engine::createSendWorkers")
+    ]
+    self.assertLen(conn_events, 1)
+    self.assertGreater(conn_events[0]["args"]["conn_setup_us"], 0)
+
+    send_events = [ev for ev in events if ev["name"].startswith("SendChunk(")]
+    self.assertLen(send_events, 2)
+
+    all_done_events = [
+        ev for ev in events if ev["name"].startswith("kAllRequestsDone")
+    ]
+    self.assertLen(all_done_events, 1)
+    self.assertEqual(all_done_events[0]["args"]["handle"], hex(handle.value()))
+    transport_e2e_us = all_done_events[0]["args"]["transport_e2e_us"]
+    self.assertGreater(transport_e2e_us, 0)
+
+    req_done_events = [
+        ev for ev in events if ev["name"].startswith("kRequestDone")
+    ]
+    self.assertLen(req_done_events, 1)
+    request_e2e_us = req_done_events[0]["args"]["request_e2e_us"]
+    self.assertGreater(request_e2e_us, 0)
+    self.assertLessEqual(request_e2e_us, transport_e2e_us)
+
+    poll_events = [
+        ev for ev in events if ev["name"].startswith("TransportImpl::Poll(")
+    ]
+    self.assertLen(poll_events, 1)
+    self.assertIn("completion_pickup_us", poll_events[0]["args"])
+
+    local_transport.clear_trace()
+    cleared_events = json.loads(local_transport.export_chrome_trace_json())[
+        "traceEvents"
+    ]
+    self.assertEmpty(
+        [ev for ev in cleared_events if ev["cat"] != "__metadata"]
+    )
+
 
 if __name__ == "__main__":
   absltest.main()

@@ -15,6 +15,7 @@
 #include "nanobind/stl/vector.h"
 #include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_metrics.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/api/transport_util.h"
 
@@ -121,7 +122,29 @@ NB_MODULE(peregrine, m) {
                 self.UnregisterMemory(reinterpret_cast<const void*>(addr)));
           },
           nb::arg("addr"))
-      .def("get_transport_metrics", &Transport::GetTransportMetrics);
+      .def("get_transport_metrics", &Transport::GetTransportMetrics)
+      .def("configure_trace", &Transport::ConfigureTrace, nb::arg("config"),
+           "Dynamically updates the trace configuration.")
+      .def("clear_trace", &Transport::ClearTrace,
+           "Clears all buffered Post() trace records.")
+      .def("export_chrome_trace_json", &Transport::ExportChromeTraceJson,
+           "Exports Post() trace records in Chrome Trace Event JSON format.");
+
+  // Bind TraceConfig
+  constexpr size_t kTraceConfigFieldsCount = 1;
+  nb::class_<TraceConfig>(m, "TraceConfig")
+      .def(nb::init<>())
+      .def(
+          "__init__",
+          [](TraceConfig* c, uint32_t sample_every_n) {
+            new (c) TraceConfig{
+                .sample_every_n = sample_every_n,
+            };
+          },
+          nb::arg("sample_every_n") = 0)
+      .def_rw("sample_every_n", &TraceConfig::sample_every_n);
+  static_assert(CountFields<peregrine::TraceConfig>() ==
+                kTraceConfigFieldsCount);
 
   // Bind `Log2Histogram<32>`
   nb::class_<Log2Histogram<32>>(m, "Log2Histogram32")
