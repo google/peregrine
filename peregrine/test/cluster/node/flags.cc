@@ -72,6 +72,14 @@ ABSL_FLAG(std::string, cpu_affinity, "",
 ABSL_FLAG(absl::Duration, metrics_interval, absl::Seconds(1),
           "Periodic sampling interval for TransportMetrics and CPU usage.");
 
+ABSL_FLAG(uint32_t, trace_every_n, 0,
+          "Sample 1 in every N Post() calls for Chrome trace export (0 "
+          "disables tracing).");
+
+ABSL_FLAG(std::string, trace_dir, "/tmp",
+          "Directory where per-instance Chrome trace JSON files are written "
+          "when --trace_every_n > 0.");
+
 namespace peregrine::cluster {
 namespace {
 
@@ -181,6 +189,13 @@ absl::StatusOr<NodeConfig> ReadNodeConfig() {
   cfg.cpu_affinity = std::move(*affinity_or);
 
   cfg.metrics_interval = absl::GetFlag(FLAGS_metrics_interval);
+  cfg.trace_every_n = absl::GetFlag(FLAGS_trace_every_n);
+  cfg.trace_dir =
+      std::string(absl::StripAsciiWhitespace(absl::GetFlag(FLAGS_trace_dir)));
+  if (cfg.trace_every_n > 0 && cfg.trace_dir.empty()) {
+    return absl::InvalidArgumentError(
+        "--trace_dir must not be empty when --trace_every_n > 0");
+  }
   return cfg;
 }
 

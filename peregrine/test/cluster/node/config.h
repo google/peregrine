@@ -48,6 +48,8 @@ struct NodeConfig {
   bool share_buffer = true;
   std::string cpu_affinity;
   absl::Duration metrics_interval = absl::Seconds(1);
+  uint32_t trace_every_n = 0;
+  std::string trace_dir = "/tmp";
 };
 
 }  // namespace peregrine::cluster

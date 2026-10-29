@@ -53,5 +53,22 @@ TEST(FlagsTest, ReadNodeConfigParsesFlags) {
   absl::SetFlag(&FLAGS_cpu_affinity, "");
 }
 
+TEST(FlagsTest, ReadNodeConfigParsesAndValidatesTraceFlags) {
+  auto default_cfg = ReadNodeConfig();
+  ASSERT_TRUE(default_cfg.ok()) << default_cfg.status();
+  EXPECT_EQ(default_cfg->trace_every_n, 0);
+  EXPECT_EQ(default_cfg->trace_dir, "/tmp");
+
+  absl::SetFlag(&FLAGS_trace_every_n, 4);
+  absl::SetFlag(&FLAGS_trace_dir, "  /var/tmp/pg_traces  ");
+  auto custom_cfg = ReadNodeConfig();
+  ASSERT_TRUE(custom_cfg.ok()) << custom_cfg.status();
+  EXPECT_EQ(custom_cfg->trace_every_n, 4);
+  EXPECT_EQ(custom_cfg->trace_dir, "/var/tmp/pg_traces");
+
+  absl::SetFlag(&FLAGS_trace_dir, "   ");
+  EXPECT_FALSE(ReadNodeConfig().ok());
+}
+
 }  // namespace
 }  // namespace peregrine::cluster

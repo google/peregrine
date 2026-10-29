@@ -24,6 +24,8 @@ ABSL_DECLARE_FLAG(uint32_t, num_xfers);
 ABSL_DECLARE_FLAG(bool, share_buffer);
 ABSL_DECLARE_FLAG(std::string, cpu_affinity);
 ABSL_DECLARE_FLAG(absl::Duration, metrics_interval);
+ABSL_DECLARE_FLAG(uint32_t, trace_every_n);
+ABSL_DECLARE_FLAG(std::string, trace_dir);
 
 namespace peregrine::cluster {
 

@@ -25,6 +25,7 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/api/transport_util.h"
 #include "peregrine/src/util/thread.h"
@@ -118,6 +119,9 @@ absl::StatusOr<std::unique_ptr<NodeInstance>> CreateSingleInstance(
     return bound_or.status();
   }
   auto [bound_endpoint, transport] = std::move(*bound_or);
+  if (config.trace_every_n > 0) {
+    transport->ConfigureTrace({.sample_every_n = config.trace_every_n});
+  }
 
   std::unique_ptr<RegisteredBuffer> owned_buf;
   RegisteredBuffer* target_buf = shared_buf;

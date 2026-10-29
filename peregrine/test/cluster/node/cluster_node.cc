@@ -4,17 +4,25 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <filesystem>  // NOLINT(build/c++17)
+#include <fstream>
 #include <functional>
+#include <ios>
 #include <memory>
 #include <string>
+#include <system_error>  // NOLINT(build/c++11)
 #include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/test/cluster/node/affinity.h"
@@ -188,6 +196,44 @@ class ScopedMetricsSampler {
   util::Thread thread_;
 };
 
+absl::Status ExportTraces(
+    const NodeConfig& config,
+    absl::Span<const std::unique_ptr<NodeInstance>> instances) {
+  if (config.trace_every_n == 0) {
+    return absl::OkStatus();
+  }
+  const std::filesystem::path trace_dir(config.trace_dir);
+  bool dir_created = false;
+  for (size_t i = 0; i < instances.size(); ++i) {
+    const std::string json =
+        instances[i]->GetTransport().ExportChromeTraceJson();
+    if (!absl::StrContains(json, R"("ph":"X")")) {
+      continue;
+    }
+    if (!dir_created) {
+      std::error_code ec;
+      std::filesystem::create_directories(trace_dir, ec);
+      if (ec) {
+        return absl::InternalError(absl::StrCat("Failed to create trace_dir '",
+                                                config.trace_dir,
+                                                "': ", ec.message()));
+      }
+      dir_created = true;
+    }
+    const std::filesystem::path file_path =
+        trace_dir /
+        absl::StrFormat("node_%d_inst_%zu.json", config.node_index, i);
+    std::ofstream out(file_path, std::ios::binary | std::ios::trunc);
+    out.write(json.data(), static_cast<std::streamsize>(json.size()));
+    out.close();
+    if (!out) {
+      return absl::InternalError(absl::StrCat(
+          "Failed to write Chrome trace JSON to '", file_path.string(), "'"));
+    }
+  }
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::Status ClusterNode::Run(const NodeConfig& config,
@@ -244,7 +290,12 @@ absl::Status ClusterNode::Run(const NodeConfig& config,
   // Phase 4: Wait for STOP signal before tearing down Transport listeners.
   channel.WaitForCommand(kStopCommand);
   sampler.Stop();
-  channel.EmitNodeDone(snapshot_fn());
+  const NodeMetricsSnapshot final_snapshot = snapshot_fn();
+  if (absl::Status s = ExportTraces(config, instances); !s.ok()) {
+    DestroyInstances(instances);
+    return s;
+  }
+  channel.EmitNodeDone(final_snapshot);
 
   DestroyInstances(instances);
   return absl::OkStatus();
