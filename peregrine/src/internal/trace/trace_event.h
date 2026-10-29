@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <limits>
 
+#include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/types.h"
+
 namespace peregrine::internal {
 
 // Lifecycle stages recorded for a traced `Transport::Post()` operation.
@@ -36,8 +39,8 @@ struct TraceEvent final {
   static constexpr uint32_t kNoChunk = std::numeric_limits<uint32_t>::max();
 
   uint64_t timestamp_us = 0;  // util::MonotonicNow() in microseconds
-  uint32_t handle = 0;
-  uint32_t reqid = 0;
+  uint32_t handle = kInvalidHandle.value();
+  uint32_t reqid = kInvalidReqId.value();
   TraceStage stage = TraceStage::kPostEntry;  // Lifecycle stage enum
   uint8_t metadata = 0;  // Extra metadata (e.g. ChunkStatus, Op, TransportType)
   int16_t worker_id =
