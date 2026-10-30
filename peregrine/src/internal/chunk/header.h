@@ -11,6 +11,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"
 
@@ -79,6 +80,8 @@ struct alignas(8) PostInfoHeader final : public HeaderBase {
   static constexpr size_t kMetadataSize = 32;
 
   // LINT.IfChange(post_info_header)
+  // Control plane endpoint of the sending peer process.
+  Endpoint peer;
   // OPTIONAL: opaque application-level metadata for the entire `Post()` batch,
   // delivered to the receiver on batch completion.
   std::array<Byte, kMetadataSize> metadata;
@@ -94,7 +97,7 @@ struct alignas(8) PostInfoHeader final : public HeaderBase {
   friend bool operator==(const PostInfoHeader& a,
                          const PostInfoHeader& b) = default;
 };
-static_assert(sizeof(PostInfoHeader) == 48);
+static_assert(sizeof(PostInfoHeader) == 72);
 
 inline std::ostream& operator<<(std::ostream& os,
                                 const PostInfoHeader& header) {

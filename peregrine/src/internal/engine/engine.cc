@@ -259,6 +259,7 @@ void Engine::processWrite(Workers& workers, const PostEntry& post) {
   post_info.opcode = Opcode::kPostInfo;
   post_info.handle = post.handle;
   post_info.len = static_cast<uint32_t>(info_len);
+  post_info.peer = self_.control_plane_listener;
   post_info.metadata = post.metadata;
   // TODO: Send `PostInfoHeader` on a single channel once out-of-order
   // `DataHeader` arrival across multiple channels is supported.

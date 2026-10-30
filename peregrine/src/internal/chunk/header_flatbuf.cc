@@ -1,5 +1,6 @@
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -11,9 +12,11 @@
 #include "absl/log/log.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_generated.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"
+#include "peregrine/src/util/ipaddr.h"
 
 namespace peregrine::internal {
 
@@ -185,7 +188,13 @@ std::string HeaderUtil::serializeV1(const PostInfoHeader& header) {
   const flatbuf::HeaderBase base(kMagic, kVer,
                                  static_cast<uint8_t>(header.opcode),
                                  header.handle.value(), header.len);
-  const flatbuf::PostInfoHeader h(base, header.metadata, /*paddings=*/0, 0, 0);
+  std::array<uint8_t, 16> ip = {};
+  const auto [raw_addr, raw_len] = header.peer.GetIpAddr().RawAddrAndLen();
+  DCHECK_LE(raw_len, ip.size());
+  std::memcpy(ip.data(), raw_addr, raw_len);
+  const flatbuf::Endpoint peer(ip, header.peer.Port(), header.peer.IsIPv6(),
+                               /*padding0=*/0);
+  const flatbuf::PostInfoHeader h(base, peer, header.metadata);
   DCHECK_EQ(sizeof(h), kSize);
   return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
 }
@@ -225,6 +234,16 @@ bool HeaderUtil::deserializeV1(const flatbuf::PostInfoHeader& h,
   header.len = h.base().len();
   if (!header.IsValid()) {
     return false;
+  }
+  const flatbuf::Endpoint& fb_peer = h.peer();
+  if (fb_peer.is_ipv6()) {
+    util::ipv6_t ip6 = {};
+    std::memcpy(ip6.s6_addr, fb_peer.ip()->Data(), sizeof(ip6.s6_addr));
+    header.peer = Endpoint(ip6, fb_peer.port());
+  } else {
+    util::ipv4_t ip4 = {};
+    std::memcpy(&ip4.s_addr, fb_peer.ip()->Data(), sizeof(ip4.s_addr));
+    header.peer = Endpoint(ip4, fb_peer.port());
   }
   std::memcpy(header.metadata.data(), h.metadata()->Data(),
               header.metadata.size());

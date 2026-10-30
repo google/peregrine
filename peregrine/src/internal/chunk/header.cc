@@ -14,8 +14,8 @@ std::string HeaderBase::ToString() const {
 }
 
 std::string PostInfoHeader::ToString() const {
-  return absl::StrFormat("PostInfoHeader: handle=0x%x, len=%d", handle.value(),
-                         len);
+  return absl::StrFormat("PostInfoHeader: handle=0x%x, len=%d, peer=%v",
+                         handle.value(), len, peer);
 }
 
 std::string DataHeader::ToString() const {

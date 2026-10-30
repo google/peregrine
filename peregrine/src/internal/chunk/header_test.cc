@@ -3,6 +3,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
 
 namespace peregrine::internal::testing {
@@ -13,6 +14,7 @@ TEST(HeaderTest, PostInfoDataAndAckProperties) {
   info.opcode = Opcode::kPostInfo;
   info.handle = kHandle;
   info.len = 128;
+  info.peer = Endpoint::Create("127.0.0.1:8080");
   info.metadata[0] = 0x42;
   EXPECT_TRUE(info.IsPostInfo());
   EXPECT_FALSE(info.IsData());

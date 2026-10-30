@@ -6,6 +6,7 @@
 
 #include "gtest/gtest.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"
@@ -18,6 +19,7 @@ TEST(HeaderSerializationTest, PostInfoHeaderSerde) {
   info.opcode = Opcode::kPostInfo;
   info.handle = kHandle;
   info.len = 256;
+  info.peer = Endpoint::Create("192.168.1.42:5678");
   info.metadata = {1, 2, 3, 4, 5};
   ASSERT_TRUE(info.IsValid());
 
@@ -38,7 +40,16 @@ TEST(HeaderSerializationTest, PostInfoHeaderSerde) {
   PostInfoHeader output = {};
   ASSERT_TRUE(HeaderUtil::Deserialize(s, output));
   EXPECT_EQ(info, output);
+  EXPECT_EQ(output.peer, Endpoint::Create("192.168.1.42:5678"));
   EXPECT_TRUE(output.IsPostInfo());
+
+  PostInfoHeader info_v6 = info;
+  info_v6.peer = Endpoint::Create("[2001:db8::1]:9090");
+  const std::string s_v6 = HeaderUtil::Serialize(info_v6);
+  PostInfoHeader output_v6 = {};
+  ASSERT_TRUE(HeaderUtil::Deserialize(s_v6, output_v6));
+  EXPECT_EQ(info_v6, output_v6);
+  EXPECT_EQ(output_v6.peer, Endpoint::Create("[2001:db8::1]:9090"));
 
   DataHeader wrong_type = {};
   EXPECT_FALSE(HeaderUtil::Deserialize(s, wrong_type));

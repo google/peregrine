@@ -24,17 +24,21 @@ struct HeaderBase {
 // LINT.ThenChange(header.h:header_base)
 }
 
+// `flatbuf::Endpoint` has a fixed size of 20 bytes.
+struct Endpoint {
+  ip:[uint8:16];
+  port:uint16;
+  is_ipv6:bool;
+  padding0:uint8;
+}
+
 // `flatbuf::PostInfoHeader` has a fixed size of 64 bytes. Its wire payload is
 // a sequence of `flatbuf::RequestInfo` structs (`len` bytes total).
 struct PostInfoHeader {
   // LINT.IfChange(post_info_header)
   base:HeaderBase;
+  peer:Endpoint;
   metadata:[uint8:32];
-
-  // Paddings to keep the header size always 64 bytes.
-  padding0:uint32;
-  padding1:uint64;
-  padding2:uint64;
 // LINT.ThenChange(header.h:post_info_header)
 }
 
