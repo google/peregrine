@@ -122,9 +122,6 @@ struct alignas(8) DataHeader final : public HeaderBase {
   // Returns true iff this `DataHeader` is valid.
   bool IsValid() const { return IsData() || IsAck(); }
 
-  // Returns the destination memory address for this chunk.
-  Byte* DstAddr() const { return reinterpret_cast<Byte*>(raddr.value()); }
-
   // Returns a string representation for debugging/logging.
   std::string ToString() const;
 
@@ -189,8 +186,8 @@ struct alignas(8) RequestInfo final {
 
   // Returns true iff this `RequestInfo` is valid.
   bool IsValid() const {
-    return (op == Op::kRead || op == Op::kWrite) && raddr.value() != 0 &&
-           total_len > 0 && nchunks > 0 && recipe.IsValid();
+    return (op == Op::kRead || op == Op::kWrite) && total_len > 0 &&
+           nchunks > 0 && recipe.IsValid();
   }
 
   // Returns a string representation for debugging/logging.

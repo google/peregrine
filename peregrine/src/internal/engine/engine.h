@@ -68,7 +68,8 @@ class Engine final {
   // Creates an engine.
   static std::unique_ptr<Engine> Create(
       const Config& config, HostInfo& self, Control& control,
-      RecvPostCallback recv_post_callback = nullptr);
+      RecvPostCallback recv_post_callback = nullptr,
+      ResolveAddrCallback resolve_addr_callback = nullptr);
 
   // Disallows copy and move.
   DISALLOW_COPY(Engine);
@@ -102,7 +103,8 @@ class Engine final {
   // Constructor.
   Engine(const Config& config, const HostInfo& self,
          std::unique_ptr<EngineHelper> helper,
-         RecvPostCallback recv_post_callback);
+         RecvPostCallback recv_post_callback,
+         ResolveAddrCallback resolve_addr_callback);
 
   // Generates a unique handle.
   Handle genHandle() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
