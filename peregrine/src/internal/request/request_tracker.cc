@@ -12,6 +12,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
@@ -55,35 +56,52 @@ bool RequestTracker::Add(const Handle handle, const absl::Time start_time,
 
 bool RequestTracker::Add(const Handle handle,
                          absl::Span<const RequestInfo> reqs,
-                         const Metadata& metadata) {
+                         const Metadata& metadata, const Endpoint& peer) {
   DCHECK(!reqs.empty());
-  absl::MutexLock _(trackers_mu_);
-  auto [it, inserted] = trackers_.try_emplace(handle);
-  PostTracker& pt = it->second;
-  if (!pt.req_map.empty()) return true;
-  pt.metadata = metadata;
-  pt.pending_reqs = reqs.size();
-  pt.req_map.reserve(reqs.size());
-  for (const RequestInfo& req : reqs) {
-    DCHECK(req.IsValid());
-    addr_t raddr = req.raddr;
-    if (raddr.value() == 0 && resolve_addr_callback_ != nullptr) {
-      raddr = addr_t(reinterpret_cast<uintptr_t>(
-          resolve_addr_callback_(metadata, req.metadata)));
+  // True if this is a remote `Op::kRead` request received by the responder.
+  bool is_responder_read = false;
+  std::vector<RequestInfo> resolved_reqs;
+  {
+    absl::MutexLock _(trackers_mu_);
+    auto [it, inserted] = trackers_.try_emplace(handle);
+    PostTracker& pt = it->second;
+    if (!pt.req_map.empty()) return true;
+    pt.metadata = metadata;
+    is_responder_read = reqs[0].op == Op::kRead && !pt.is_initiator;
+    pt.pending_reqs = is_responder_read ? 1 : reqs.size();
+    if (is_responder_read) {
+      resolved_reqs.reserve(reqs.size());
     }
-    if (pt.start_time == PostTracker::kInvalidTime && raddr.value() == 0) {
-      // TODO: Send a NACK / error header back to the sender when address
-      // resolution fails so the sender can complete with `Status::kFailure`.
-      if (inserted) {
-        trackers_.erase(it);
-      } else {
-        pt.req_map.clear();
-        pt.pending_reqs = 0;
+    pt.req_map.reserve(reqs.size());
+    for (const RequestInfo& req : reqs) {
+      DCHECK(req.IsValid());
+      addr_t raddr = req.raddr;
+      if (raddr.value() == 0 && resolve_addr_callback_ != nullptr) {
+        raddr = addr_t(reinterpret_cast<uintptr_t>(
+            resolve_addr_callback_(metadata, req.metadata)));
       }
-      return false;
+      if (!pt.is_initiator && raddr.value() == 0) {
+        // TODO: Send a NACK / error header back to the sender when address
+        // resolution fails so the sender can complete with `Status::kFailure`.
+        if (inserted) {
+          trackers_.erase(it);
+        } else {
+          pt.req_map.clear();
+          pt.pending_reqs = 0;
+        }
+        return false;
+      }
+      pt.req_map[req.reqid] =
+          std::make_unique<ReqTracker>(req.nchunks, raddr, req.metadata);
+      if (is_responder_read) {
+        RequestInfo resolved = req;
+        resolved.raddr = raddr;
+        resolved_reqs.push_back(resolved);
+      }
     }
-    pt.req_map[req.reqid] =
-        std::make_unique<ReqTracker>(req.nchunks, raddr, req.metadata);
+  }
+  if (is_responder_read && on_recv_read_ != nullptr) {
+    on_recv_read_(peer, handle, resolved_reqs);
   }
   return true;
 }
@@ -97,8 +115,8 @@ void RequestTracker::Remove(const Handle handle) {
 }
 
 void RequestTracker::OnReqComplete(const Handle handle) {
-  if (recv_post_callback_ == nullptr) return;
-
+  OnComplete callback = nullptr;
+  bool is_initiator = false;
   Metadata post_meta = {};
   std::vector<Metadata> req_metas;
   {
@@ -110,15 +128,32 @@ void RequestTracker::OnReqComplete(const Handle handle) {
     DCHECK_GT(pt.pending_reqs, 0);
     if (--pt.pending_reqs != 0) return;
 
-    post_meta = pt.metadata;
-    req_metas.reserve(pt.req_map.size());
-    for (const auto& [reqid, req] : pt.req_map) {
-      req_metas.push_back(req->metadata);
+    is_initiator = pt.is_initiator;
+    if (is_initiator) {
+      if (pt.start_time != PostTracker::kInvalidTime) {
+        const int64_t us =
+            absl::ToInt64Microseconds(absl::Now() - pt.start_time);
+        if (us >= 0) metrics_.read.e2e_latency_us.Record(us);
+      }
+      if (pt.on_complete != nullptr) {
+        callback = std::move(pt.on_complete);
+        trackers_.erase(it);
+      }
+    } else if (recv_post_callback_ != nullptr) {
+      post_meta = pt.metadata;
+      req_metas.reserve(pt.req_map.size());
+      for (const auto& [reqid, req] : pt.req_map) {
+        req_metas.push_back(req->metadata);
+      }
+      // TODO: Evict `it` once `PostInfoHeader` is only sent on active data
+      // channels and `sendAck` is called before `OnReqComplete`.
     }
-    // TODO: Evict `it` once `PostInfoHeader` is only sent on active data
-    // channels and `sendAck` is called before `OnReqComplete`.
   }
-  recv_post_callback_(Status::kSuccess, post_meta, req_metas);
+  if (callback != nullptr) {
+    std::move(callback)(Status::kSuccess);
+  } else if (!is_initiator && recv_post_callback_ != nullptr) {
+    recv_post_callback_(Status::kSuccess, post_meta, req_metas);
+  }
 }
 
 void RequestTracker::Update(const Handle handle, const ReqId reqid,

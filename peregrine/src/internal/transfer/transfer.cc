@@ -166,7 +166,7 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
     LOG(WARNING) << "invalid post info payload";
     return false;
   }
-  return incoming.Add(info.handle, reqs, info.metadata);
+  return incoming.Add(info.handle, reqs, info.metadata, info.peer);
 }
 
 bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
@@ -287,7 +287,7 @@ bool Transfer::recvPostInfoMsg(const PostInfoHeader& info,
     LOG(WARNING) << "invalid post info payload";
     return false;
   }
-  return incoming.Add(info.handle, reqs, info.metadata);
+  return incoming.Add(info.handle, reqs, info.metadata, info.peer);
 }
 
 bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,

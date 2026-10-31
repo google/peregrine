@@ -1,5 +1,6 @@
 #include "peregrine/src/internal/request/request_tracker.h"
 
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -11,6 +12,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
@@ -421,6 +423,84 @@ TEST_F(RequestTrackerTest, ResolveAddrCallback) {
   EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 128), buf1 + 128);
   EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId2, 256), buf2 + 256);
   EXPECT_EQ(rt.GetChunkAddr(Handle(0x9999), kReqId, 0), nullptr);
+}
+
+TEST_F(RequestTrackerTest, ReadInitiatorCompletion) {
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = kBufferBaseAddr,
+       .total_len = 1024,
+       .op = Op::kRead,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+
+  int callback_count = 0;
+  Status completed_status = Status::kNotFound;
+  ASSERT_TRUE(rt_.Add(
+      kHandle, absl::Now(),
+      [&](Status s) {
+        ++callback_count;
+        completed_status = s;
+      },
+      TraceContext{}));
+  ASSERT_TRUE(rt_.Add(kHandle, reqs));
+
+  ChunkTracker& recv = rt_.Find(kHandle, kReqId);
+  ASSERT_EQ(recv.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
+  ASSERT_TRUE(recv.Release(chunk_t(0), /*success=*/true));
+  EXPECT_EQ(callback_count, 0);
+
+  rt_.OnReqComplete(kHandle);
+  EXPECT_EQ(callback_count, 1);
+  EXPECT_EQ(completed_status, Status::kSuccess);
+  EXPECT_TRUE(rt_.IsEmpty());
+}
+
+TEST_F(RequestTrackerTest, ReadResponderOnRecvRead) {
+  constexpr Metadata kPostMeta = {7, 8, 9};
+  constexpr Metadata kReqMeta = {1, 2, 3};
+  const Endpoint kPeer = Endpoint::Create("127.0.0.1:9000");
+  Byte buf[1024] = {};
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = kNumChunks,
+       .raddr = addr_t(0),
+       .total_len = sizeof(buf),
+       .op = Op::kRead,
+       .recipe = {.type = RecipeType::kContiguous},
+       .metadata = kReqMeta},
+  };
+
+  int on_recv_read_calls = 0;
+  Endpoint recv_peer;
+  Handle recv_handle = kInvalidHandle;
+  std::vector<RequestInfo> recv_reqs;
+  RequestTracker rt(
+      metrics_, tracer_, /*recv_post_callback=*/nullptr,
+      [&](const Metadata& post_meta, const Metadata& req_meta) -> Byte* {
+        return post_meta == kPostMeta && req_meta == kReqMeta ? buf : nullptr;
+      },
+      [&](const Endpoint& peer, Handle h, absl::Span<const RequestInfo> r) {
+        ++on_recv_read_calls;
+        recv_peer = peer;
+        recv_handle = h;
+        recv_reqs.assign(r.begin(), r.end());
+      });
+
+  ASSERT_TRUE(rt.Add(kHandle, reqs, kPostMeta, kPeer));
+  EXPECT_EQ(on_recv_read_calls, 1);
+  EXPECT_EQ(recv_peer, kPeer);
+  EXPECT_EQ(recv_handle, kHandle);
+  ASSERT_EQ(recv_reqs.size(), 1);
+  RequestInfo expected_req = reqs[0];
+  expected_req.raddr = addr_t(reinterpret_cast<uintptr_t>(buf));
+  EXPECT_EQ(recv_reqs[0], expected_req);
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 64), buf + 64);
+
+  // Duplicate `Add` is idempotent and does not re-invoke `on_recv_read`.
+  EXPECT_TRUE(rt.Add(kHandle, reqs, kPostMeta, kPeer));
+  EXPECT_EQ(on_recv_read_calls, 1);
 }
 }  // namespace
 }  // namespace peregrine::internal::testing

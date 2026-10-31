@@ -9,6 +9,7 @@ cc_library(
     hdrs = ["request_tracker.h"],
     deps = [
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:chunk_tracker",
         "//peregrine/src/internal/chunk:header",
@@ -33,6 +34,7 @@ cc_test(
         ":request_tracker",
         "//peregrine/src/api:transport_trace",
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:chunk_test_util",
         "//peregrine/src/internal/chunk:chunk_tracker",

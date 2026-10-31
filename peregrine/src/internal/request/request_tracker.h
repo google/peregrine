@@ -13,6 +13,7 @@
 #include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
@@ -28,15 +29,19 @@ namespace peregrine::internal {
 class RequestTracker {
  public:
   using OnComplete = absl::AnyInvocable<void(Status)>;
+  using OnRecvRead = absl::AnyInvocable<void(
+      const Endpoint&, Handle, absl::Span<const RequestInfo>) const>;
 
   // Constructor.
   RequestTracker(EngineMetrics& metrics, TraceRecorder& tracer,
                  RecvPostCallback recv_post_callback = nullptr,
-                 ResolveAddrCallback resolve_addr_callback = nullptr)
+                 ResolveAddrCallback resolve_addr_callback = nullptr,
+                 OnRecvRead on_recv_read = nullptr)
       : metrics_(metrics),
         tracer_(tracer),
         recv_post_callback_(std::move(recv_post_callback)),
-        resolve_addr_callback_(std::move(resolve_addr_callback)) {}
+        resolve_addr_callback_(std::move(resolve_addr_callback)),
+        on_recv_read_(std::move(on_recv_read)) {}
 
   // Disable copy and move.
   DISALLOW_COPY(RequestTracker);
@@ -56,10 +61,11 @@ class RequestTracker {
   bool Add(Handle handle, absl::Time start_time, OnComplete on_complete,
            const TraceContext& trace_ctx) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Adds the `RequestInfo` descriptors (and optional post-level `metadata`) for
-  // `handle` (idempotent if already populated).
+  // Adds the `RequestInfo` descriptors (and optional post-level `metadata` and
+  // sender `peer` endpoint) for `handle` (idempotent if already populated).
   bool Add(Handle handle, absl::Span<const RequestInfo> reqs,
-           const Metadata& metadata = {}) ABSL_LOCKS_EXCLUDED(trackers_mu_);
+           const Metadata& metadata = {}, const Endpoint& peer = {})
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Removes the tracker for the given `handle`.
   void Remove(Handle handle) ABSL_LOCKS_EXCLUDED(trackers_mu_);
@@ -115,6 +121,8 @@ class RequestTracker {
     absl::Time start_time;
     OnComplete on_complete;
     TraceContext trace_ctx;
+    // True if initiated locally via `Post()`, false if received from a peer.
+    bool is_initiator = false;
 
     // Default constructor.
     PostTracker() : start_time(kInvalidTime) {}
@@ -125,7 +133,8 @@ class RequestTracker {
         : req_map(std::move(req_map)),
           start_time(start_time),
           on_complete(std::move(on_complete)),
-          trace_ctx(trace_ctx) {}
+          trace_ctx(trace_ctx),
+          is_initiator(true) {}
 
     static constexpr absl::Time kInvalidTime = absl::InfinitePast();
   };
@@ -143,6 +152,7 @@ class RequestTracker {
       ABSL_GUARDED_BY(trackers_mu_);
   const RecvPostCallback recv_post_callback_;
   const ResolveAddrCallback resolve_addr_callback_;
+  const OnRecvRead on_recv_read_;
 };
 
 }  // namespace peregrine::internal

@@ -114,10 +114,9 @@ class TransportTest : public ::testing::TestWithParam<Param> {
     }
   }
 
-  bool CheckMetrics(const TransportMetrics& metrics) {
-    return metrics.write.request_size_bytes.Count() > 0 &&
-           metrics.write.errors == 0 &&
-           metrics.write.e2e_latency_us.Count() > 0;
+  bool CheckMetrics(const OpMetrics& metrics) {
+    return metrics.request_size_bytes.Count() > 0 && metrics.errors == 0 &&
+           metrics.e2e_latency_us.Count() > 0;
   }
 
  protected:
@@ -141,26 +140,47 @@ TEST_P(TransportTest, Read) {
   ASSERT_THAT(l_.Data(), Pointwise(Ne(), r_.Data()));
   ASSERT_NE(completed_status_, Status::kSuccess);
 
-  // Post a read request (local <- remote).
+  // Post multiple read requests (local <- remote).
   Transport& lt = l_.GetTransport();
   const Transport& rt = r_.GetTransport();
   const std::string peer = rt.GetControlEndpoint();
-  const Request req = {
+  const Request req1 = {
       .op = Op::kRead,
       .laddr = l_.DataPtr(),
       .raddr = r_.DataPtr(),
-      .len = l_.DataSize(),
+      .len = partial_,
+      .metadata = {1, 2, 3},
   };
+  const Request req2 = {
+      .op = Op::kRead,
+      .laddr = l_.DataPtr() + partial_,
+      .raddr = nullptr,
+      .len = l_.DataSize() - partial_,
+      .metadata = {4, 5, 6},
+  };
+  std::array<Request, 2> reqs = {req1, req2};
   auto callback = GetCompletionCallback();
-  const absl::StatusOr<Handle> h = lt.Post(peer, {req}, std::move(callback));
+  const Metadata post_metadata = {7, 8, 9};
+  const absl::StatusOr<Handle> h =
+      lt.Post(peer, reqs, std::move(callback), post_metadata);
   ASSERT_TRUE(h.ok()) << h.status();
 
-  // Wait for the transport to finish processing the request.
+  // Wait for the transport to finish processing the requests.
   WaitForCompletion(lt, *h);
   ASSERT_EQ(completed_status_, Status::kSuccess);
 
-  // Post-condition: all the local bytes are equal to the remote.
+  // Post-condition: all the local bytes are equal to the remote, and responder
+  // post callback fired with the expected status and metadata.
   EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
+  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics().read));
+  {
+    absl::MutexLock lock(cb_mu_);
+    ASSERT_EQ(recv_posts_.size(), 1);
+    EXPECT_EQ(recv_posts_[0].status, Status::kSuccess);
+    EXPECT_EQ(recv_posts_[0].post_meta, post_metadata);
+    EXPECT_THAT(recv_posts_[0].req_metas,
+                UnorderedElementsAre(req1.metadata, req2.metadata));
+  }
 }
 
 TEST_P(TransportTest, Write) {
@@ -202,7 +222,7 @@ TEST_P(TransportTest, Write) {
   // Post-condition: all the remote bytes are equal to the local, and receiver
   // post callback fired with the expected status and metadata.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
-  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics()));
+  EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics().write));
   {
     absl::MutexLock lock(cb_mu_);
     ASSERT_EQ(recv_posts_.size(), 1);

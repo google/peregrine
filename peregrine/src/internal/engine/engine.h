@@ -95,6 +95,7 @@ class Engine final {
     Endpoint peer;
     Handle handle;
     std::vector<Request> reqs;
+    std::vector<RequestInfo> req_infos;
     Metadata metadata;
     TraceContext trace_ctx;
   };
@@ -151,19 +152,17 @@ class Engine final {
   bool createRecvWorkers();
 
   // Processes a single post entry.
-  void process(const PostEntry& post) ABSL_LOCKS_EXCLUDED(mu_);
-
-  // Processes write requests for a post.
-  void processWrite(Workers& workers, const PostEntry& post)
-      ABSL_LOCKS_EXCLUDED(mu_);
+  void process(PostEntry& post) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Processes a write request.
   void processWrite(Workers& workers, Handle handle, const Byte* laddr,
                     const RequestInfo& req_info, const TraceContext& trace_ctx)
       ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Processes read requests for a post.
-  void processRead(const PostEntry& post) ABSL_LOCKS_EXCLUDED(mu_);
+  // Converts received read requests into a write post.
+  void processRecvRead(const Endpoint& peer, Handle handle,
+                       absl::Span<const RequestInfo> reqs)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
   const Config& config_;
