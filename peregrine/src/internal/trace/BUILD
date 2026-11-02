@@ -20,6 +20,10 @@ cc_library(
 cc_library(
     name = "trace_event",
     hdrs = ["trace_event.h"],
+    deps = [
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:types",
+    ],
 )
 
 cc_library(
