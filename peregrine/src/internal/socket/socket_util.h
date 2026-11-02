@@ -2,6 +2,7 @@
 #define PEREGRINE_SRC_INTERNAL_SOCKET_SOCKET_UTIL_H_
 
 #include <fcntl.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 
 #include <cstddef>
@@ -33,6 +34,16 @@ inline int SetSocketOption(fd_t fd, int opt, const void* val, socklen_t len) {
 // Gets socket option. Returns 0 on success, -1 otherwise.
 inline int GetSocketOption(fd_t fd, int opt, void* val, socklen_t* len) {
   return ::getsockopt(fd.value(), SOL_SOCKET, opt, val, len);
+}
+
+// Sets tcp option. Returns 0 on success, -1 otherwise.
+inline int SetTcpOption(fd_t fd, int opt, const void* val, socklen_t len) {
+  return ::setsockopt(fd.value(), IPPROTO_TCP, opt, val, len);
+}
+
+// Gets tcp option. Returns 0 on success, -1 otherwise.
+inline int GetTcpOption(fd_t fd, int opt, void* val, socklen_t* len) {
+  return ::getsockopt(fd.value(), IPPROTO_TCP, opt, val, len);
 }
 
 // Returns true iff the socket `fd` is in blocking mode.

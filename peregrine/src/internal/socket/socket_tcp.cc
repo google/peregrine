@@ -36,23 +36,23 @@ std::unique_ptr<TcpSocket> TcpSocket::Create(int family, bool blocking) {
   if ABSL_PREDICT_FALSE (fd.value() < 0) {
     return nullptr;
   }
-  auto socket = absl::WrapUnique(
-      new TcpSocket(fd, family, blocking, /*connected=*/false));
-  if ABSL_PREDICT_FALSE (socket->setNoDelay() < 0) {
+  constexpr bool kConnected = false;  // will connect later
+  auto skt = absl::WrapUnique(new TcpSocket(fd, family, blocking, kConnected));
+  if ABSL_PREDICT_FALSE (skt->setNoDelay() < 0) {
     return nullptr;
   }
   LOG(INFO) << okMsg("created", fd);
-  return socket;
+  return skt;
 }
 
 std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family,
                                              bool blocking) {
-  auto socket =
-      absl::WrapUnique(new TcpSocket(fd, family, blocking, /*connected=*/true));
-  if ABSL_PREDICT_FALSE (socket->setNoDelay() < 0) {
+  constexpr bool kConnected = true;  // from an accepted connection
+  auto skt = absl::WrapUnique(new TcpSocket(fd, family, blocking, kConnected));
+  if ABSL_PREDICT_FALSE (skt->setNoDelay() < 0) {
     return nullptr;
   }
-  return socket;
+  return skt;
 }
 
 TcpSocket::~TcpSocket() {
@@ -76,8 +76,7 @@ void TcpSocket::Shutdown() {
 int TcpSocket::setNoDelay() const {
   DCHECK(invariant());
   int on = 1;
-  if ABSL_PREDICT_FALSE (::setsockopt(fd_.value(), IPPROTO_TCP, TCP_NODELAY,
-                                      &on, sizeof(on)) < 0) {
+  if ABSL_PREDICT_FALSE (SetTcpOption(fd_, TCP_NODELAY, &on, sizeof(on)) < 0) {
     const Errno err(errno);
     LOG(WARNING) << errMsg("set TCP_NODELAY", err);
     return -1;

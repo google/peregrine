@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -65,6 +66,11 @@ TEST_P(SocketUtilTest, Basic) {
     int on = 1, off = 0;
     EXPECT_TRUE(!SetSocketOption(fd, SO_REUSEADDR, &on, sizeof(on)));
     EXPECT_TRUE(!SetSocketOption(fd, SO_REUSEADDR, &off, sizeof(off)));
+
+    if (type == SOCK_STREAM) {
+      EXPECT_TRUE(!SetTcpOption(fd, TCP_NODELAY, &on, sizeof(on)));
+      EXPECT_TRUE(!SetTcpOption(fd, TCP_NODELAY, &off, sizeof(off)));
+    }
 
     for (bool send : {true, false}) {
       EXPECT_EQ(GetTimeout(fd, send), absl::ZeroDuration());
