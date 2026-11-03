@@ -17,7 +17,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_metrics.h"
 #include "peregrine/src/api/transport_types.h"
@@ -56,10 +55,9 @@ class Engine final {
   // A transport request item.
   struct Item {
     absl::Span<const Request> requests;
-    absl::Time start_time;
     absl::AnyInvocable<void(Status)> on_complete;
     Metadata metadata = {};
-    uint64_t start_mono_us;
+    uint64_t start_mono_us = 0;
     TraceContext trace_ctx;
     // Returns true iff the item has at least one request and all are valid.
     bool IsValid() const;

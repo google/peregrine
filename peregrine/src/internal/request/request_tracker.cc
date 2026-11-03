@@ -8,8 +8,6 @@
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/time/clock.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
@@ -18,6 +16,7 @@
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
+#include "peregrine/src/util/clock.h"
 
 namespace peregrine::internal {
 
@@ -46,10 +45,11 @@ Status RequestTracker::Check(const Handle handle) const {
   return Status::kSuccess;
 }
 
-bool RequestTracker::Add(const Handle handle, const absl::Time start_time,
+bool RequestTracker::Add(const Handle handle, const uint64_t start_mono_us,
                          OnComplete on_complete,
                          const TraceContext& trace_ctx) {
-  PostTracker pt(/*req_map=*/{}, start_time, std::move(on_complete), trace_ctx);
+  PostTracker pt(/*req_map=*/{}, start_mono_us, std::move(on_complete),
+                 trace_ctx);
   absl::MutexLock _(trackers_mu_);
   return trackers_.try_emplace(handle, std::move(pt)).second;
 }
@@ -130,10 +130,9 @@ void RequestTracker::OnReqComplete(const Handle handle) {
 
     is_initiator = pt.is_initiator;
     if (is_initiator) {
-      if (pt.start_time != PostTracker::kInvalidTime) {
-        const int64_t us =
-            absl::ToInt64Microseconds(absl::Now() - pt.start_time);
-        if (us >= 0) metrics_.read.e2e_latency_us.Record(us);
+      if (pt.start_mono_us != 0) {
+        metrics_.read.e2e_latency_us.Record(util::MonoNowUs() -
+                                            pt.start_mono_us);
       }
       if (pt.on_complete != nullptr) {
         callback = std::move(pt.on_complete);
@@ -159,7 +158,7 @@ void RequestTracker::OnReqComplete(const Handle handle) {
 void RequestTracker::Update(const Handle handle, const ReqId reqid,
                             const chunk_t index, const int worker_id) {
   OnComplete callback = nullptr;
-  absl::Time start_time = PostTracker::kInvalidTime;
+  uint64_t start_mono_us = 0;
   TraceContext trace_ctx;
   {
     absl::MutexLock lock(trackers_mu_);
@@ -174,7 +173,7 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
     tracer_.RecordRequestDone(pt.trace_ctx, handle, reqid, index, worker_id);
     if (!isComplete(pt)) return;
 
-    start_time = pt.start_time;
+    start_mono_us = pt.start_mono_us;
     trace_ctx = pt.trace_ctx;
     tracer_.RecordAllRequestsDone(trace_ctx, handle, reqid, index, worker_id);
     if (pt.on_complete != nullptr) {
@@ -182,9 +181,8 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
       trackers_.erase(it);
     }
   }
-  if (start_time != PostTracker::kInvalidTime) {
-    const int64_t us = absl::ToInt64Microseconds(absl::Now() - start_time);
-    if (us >= 0) metrics_.write.e2e_latency_us.Record(us);
+  if (start_mono_us != 0) {
+    metrics_.write.e2e_latency_us.Record(util::MonoNowUs() - start_mono_us);
   }
   if (callback != nullptr) {
     std::move(callback)(Status::kSuccess);

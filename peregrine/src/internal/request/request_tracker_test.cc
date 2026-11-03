@@ -8,7 +8,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/check.h"
-#include "absl/time/clock.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
@@ -21,6 +20,7 @@
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_event.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
+#include "peregrine/src/util/clock.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -45,8 +45,8 @@ class RequestTrackerTest : public ::testing::Test {
 
 TEST_F(RequestTrackerTest, Send) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(
-      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), std::move(on_complete),
+                      TraceContext{}));
   ChunkTracker& send = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
@@ -63,8 +63,8 @@ TEST_F(RequestTrackerTest, Send) {
 
 TEST_F(RequestTrackerTest, Recv) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(
-      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), std::move(on_complete),
+                      TraceContext{}));
   ChunkTracker& recv = rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
@@ -82,8 +82,8 @@ TEST_F(RequestTrackerTest, Recv) {
 
 TEST_F(RequestTrackerTest, SetMethod) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(
-      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), std::move(on_complete),
+                      TraceContext{}));
   rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
   for (int i = 0; i < kNumChunks; ++i) {
     EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
@@ -102,8 +102,8 @@ TEST_F(RequestTrackerTest, CompletionCallbackSingleRequest) {
     ++callback_count;
     completed_status = s;
   };
-  ASSERT_TRUE(
-      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), std::move(on_complete),
+                      TraceContext{}));
   rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
 
   for (int i = 0; i < kNumChunks; ++i) {
@@ -125,8 +125,8 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
     ++callback_count;
     completed_status = s;
   };
-  ASSERT_TRUE(
-      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), std::move(on_complete),
+                      TraceContext{}));
   rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
   rt_.FindOrCreate(kHandle, kReqId2, kNumChunks);
 
@@ -154,8 +154,8 @@ TEST_F(RequestTrackerTest, CompletionCallbackMultipleRequests) {
 
 TEST_F(RequestTrackerTest, MultipleRequestsPartialProgress) {
   RequestTracker::OnComplete on_complete = nullptr;
-  ASSERT_TRUE(
-      rt_.Add(kHandle, absl::Now(), std::move(on_complete), TraceContext{}));
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), std::move(on_complete),
+                      TraceContext{}));
   rt_.FindOrCreate(kHandle, kReqId, kNumChunks);
   rt_.FindOrCreate(kHandle, kReqId2, kNumChunks);
 
@@ -202,7 +202,7 @@ TEST_F(RequestTrackerTest, PollTraceEvents) {
   const TraceContext trace_ctx = tracer_.MaybeStartTrace();
   ASSERT_TRUE(trace_ctx.is_traced);
   ASSERT_TRUE(
-      rt_.Add(kHandle, absl::Now(), /*on_complete=*/nullptr, trace_ctx));
+      rt_.Add(kHandle, util::MonoNowUs(), /*on_complete=*/nullptr, trace_ctx));
   ChunkTracker& send = rt_.FindOrCreate(kHandle, kReqId, /*num_chunks=*/1);
 
   EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
@@ -225,7 +225,7 @@ TEST_F(RequestTrackerTest, CompletionTraceEvents) {
   // 1. Polled handle: records kRequestDone and kAllRequestsDone on the last
   // chunk only.
   ASSERT_TRUE(
-      rt_.Add(kHandle, absl::Now(), /*on_complete=*/nullptr, trace_ctx));
+      rt_.Add(kHandle, util::MonoNowUs(), /*on_complete=*/nullptr, trace_ctx));
   rt_.FindOrCreate(kHandle, kReqId, /*num_chunks=*/2);
   rt_.Update(kHandle, kReqId, chunk_t(0), /*worker_id=*/3);
   rt_.Update(kHandle, kReqId, chunk_t(1), /*worker_id=*/3);
@@ -235,7 +235,7 @@ TEST_F(RequestTrackerTest, CompletionTraceEvents) {
   constexpr Handle kHandle2(0x5678);
   bool callback_invoked = false;
   ASSERT_TRUE(rt_.Add(
-      kHandle2, absl::Now(), [&](Status) { callback_invoked = true; },
+      kHandle2, util::MonoNowUs(), [&](Status) { callback_invoked = true; },
       trace_ctx));
   rt_.FindOrCreate(kHandle2, kReqId, /*num_chunks=*/1);
   rt_.Update(kHandle2, kReqId, chunk_t(0), /*worker_id=*/4);
@@ -273,7 +273,7 @@ TEST_F(RequestTrackerTest, RequestDoneTraceEventsPerRequest) {
   const TraceContext trace_ctx = tracer_.MaybeStartTrace();
   ASSERT_TRUE(trace_ctx.is_traced);
   ASSERT_TRUE(
-      rt_.Add(kHandle, absl::Now(), /*on_complete=*/nullptr, trace_ctx));
+      rt_.Add(kHandle, util::MonoNowUs(), /*on_complete=*/nullptr, trace_ctx));
   rt_.FindOrCreate(kHandle, kReqId, /*num_chunks=*/2);
   rt_.FindOrCreate(kHandle, kReqId2, /*num_chunks=*/1);
 
@@ -438,7 +438,7 @@ TEST_F(RequestTrackerTest, ReadInitiatorCompletion) {
   int callback_count = 0;
   Status completed_status = Status::kNotFound;
   ASSERT_TRUE(rt_.Add(
-      kHandle, absl::Now(),
+      kHandle, util::MonoNowUs(),
       [&](Status s) {
         ++callback_count;
         completed_status = s;

@@ -10,7 +10,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
@@ -58,7 +57,7 @@ class RequestTracker {
 
   // Adds the tracker for the given `handle`.
   // Returns true iff the handle was not already in the tracker.
-  bool Add(Handle handle, absl::Time start_time, OnComplete on_complete,
+  bool Add(Handle handle, uint64_t start_mono_us, OnComplete on_complete,
            const TraceContext& trace_ctx) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Adds the `RequestInfo` descriptors (and optional post-level `metadata` and
@@ -118,25 +117,23 @@ class RequestTracker {
     ReqMap req_map;
     size_t pending_reqs = 0;
     Metadata metadata = {};
-    absl::Time start_time;
+    uint64_t start_mono_us = 0;
     OnComplete on_complete;
     TraceContext trace_ctx;
     // True if initiated locally via `Post()`, false if received from a peer.
     bool is_initiator = false;
 
     // Default constructor.
-    PostTracker() : start_time(kInvalidTime) {}
+    PostTracker() = default;
 
     // Constructor.
-    PostTracker(ReqMap req_map, absl::Time start_time, OnComplete on_complete,
+    PostTracker(ReqMap req_map, uint64_t start_mono_us, OnComplete on_complete,
                 const TraceContext& trace_ctx)
         : req_map(std::move(req_map)),
-          start_time(start_time),
+          start_mono_us(start_mono_us),
           on_complete(std::move(on_complete)),
           trace_ctx(trace_ctx),
           is_initiator(true) {}
-
-    static constexpr absl::Time kInvalidTime = absl::InfinitePast();
   };
 
   // Returns true iff all the requests tracked by `pt` are complete.

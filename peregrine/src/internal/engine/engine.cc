@@ -35,6 +35,7 @@
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
+#include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
 
@@ -187,7 +188,7 @@ absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
 
   // TODO(yongx): all the request ops are the same for now.
   RequestTracker& tracker = getRequestTracker(item.requests[0]);
-  if (!tracker.Add(handle, item.start_time, std::move(item.on_complete),
+  if (!tracker.Add(handle, item.start_mono_us, std::move(item.on_complete),
                    trace_ctx)) {
     return AlreadyExistsError(handle);
   }
@@ -326,7 +327,7 @@ void Engine::processWrite(Workers& workers, const Handle handle,
 void Engine::processRecvRead(const Endpoint& peer, const Handle handle,
                              absl::Span<const RequestInfo> reqs) {
   if (!outgoing_.Add(
-          handle, absl::Now(),
+          handle, util::MonoNowUs(),
           [this, handle](Status) { incoming_.OnReqComplete(handle); },
           TraceContext{})) {
     LOG(WARNING) << "handle already exists in outgoing tracker: " << handle;

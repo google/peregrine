@@ -15,7 +15,6 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/random/random.h"
-#include "absl/time/clock.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
@@ -202,8 +201,8 @@ TEST_P(TransferTest, SendRecv) {
   const RequestInfo req = GenRequestInfo();
   RequestTracker::OnComplete on_complete = nullptr;
   const TraceContext trace_ctx = a_.tracer.MaybeStartTrace();
-  ASSERT_TRUE(
-      a_.outgoing.Add(kHandle, absl::Now(), std::move(on_complete), trace_ctx));
+  ASSERT_TRUE(a_.outgoing.Add(kHandle, util::MonoNowUs(),
+                              std::move(on_complete), trace_ctx));
   ASSERT_TRUE(a_.outgoing.Add(kHandle, {req}));
 
   // A sends PostInfoHeader + RequestInfo and DataHeader chunks to B.

@@ -30,6 +30,7 @@
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/internal/util/test_param.h"
 #include "peregrine/src/internal/util/test_util.h"
+#include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
 
@@ -169,7 +170,7 @@ TEST_P(WorkerTest, SendRecv) {
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
   const PostInfoHeader info = GenPostInfoHeader();
   const RequestInfo req_info = GenRequestInfo();
-  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, absl::Now(),
+  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, util::MonoNowUs(),
                                  /*on_complete=*/nullptr, TraceContext{}));
   ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {req_info}));
   absl::Notification done;

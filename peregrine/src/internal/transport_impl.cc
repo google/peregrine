@@ -14,8 +14,6 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
-#include "absl/time/clock.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_metrics.h"
 #include "peregrine/src/api/transport_types.h"
@@ -79,7 +77,6 @@ std::unique_ptr<TransportImpl> TransportImpl::Create(
 absl::StatusOr<Handle> TransportImpl::Post(
     std::string_view peer, absl::Span<const Request> requests,
     absl::AnyInvocable<void(Status)> on_complete, const Metadata& metadata) {
-  const absl::Time start_time = absl::Now();
   const uint64_t start_mono_us = util::MonoNowUs();
   const TraceContext trace_ctx = engine_->Helper()->Tracer().MaybeStartTrace();
   const Endpoint endpoint = Endpoint::Create(peer);
@@ -108,8 +105,8 @@ absl::StatusOr<Handle> TransportImpl::Post(
   }
 
   return engine_->Enqueue(endpoint,
-                          {requests, start_time, std::move(on_complete),
-                           metadata, start_mono_us, trace_ctx});
+                          {requests, std::move(on_complete), metadata,
+                           start_mono_us, trace_ctx});
 }
 
 TransportMetrics TransportImpl::GetTransportMetrics() const {
