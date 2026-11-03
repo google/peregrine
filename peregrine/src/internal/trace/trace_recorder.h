@@ -1,11 +1,9 @@
 #ifndef PEREGRINE_SRC_INTERNAL_TRACE_TRACE_RECORDER_H_
 #define PEREGRINE_SRC_INTERNAL_TRACE_TRACE_RECORDER_H_
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 
-#include "absl/time/time.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
@@ -14,7 +12,6 @@
 #include "peregrine/src/internal/trace/trace_buffer.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_sampler.h"
-#include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal {
@@ -39,12 +36,6 @@ class TraceRecorder final {
 
   // Clears the ring buffer.
   void Clear() noexcept;
-
-  // Returns the current monotonic timestamp in microseconds (always >= 1).
-  static uint64_t NowUs() noexcept {
-    const int64_t us = absl::ToInt64Microseconds(util::MonotonicNow());
-    return static_cast<uint64_t>(std::max<int64_t>(1, us));
-  }
 
   TraceSampler& Sampler() noexcept { return sampler_; }
   const TraceSampler& Sampler() const noexcept { return sampler_; }

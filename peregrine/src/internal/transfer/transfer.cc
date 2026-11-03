@@ -27,6 +27,7 @@
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
+#include "peregrine/src/util/clock.h"
 
 namespace peregrine::internal {
 
@@ -39,7 +40,7 @@ void StampRxTrace(DataHeader& chunk, int worker_id, ChunkStatus s,
                   uint64_t t_start_us, uint64_t t_acquired_us) {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
   chunk.trace.SetRx(worker_id, s, t_start_us, t_acquired_us,
-                    TraceRecorder::NowUs());
+                    util::MonoNowUs());
 }
 }  // namespace
 
@@ -182,7 +183,7 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
   }
 
   const bool is_traced = chunk.trace.IsTraced();
-  const uint64_t t_start_us = is_traced ? TraceRecorder::NowUs() : 0;
+  const uint64_t t_start_us = is_traced ? util::MonoNowUs() : 0;
 
   // Step 2: find chunk tracker for incoming data chunk.
   // TODO: Relax the assumption that `PostInfoHeader` has already been processed
@@ -209,7 +210,7 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
   static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
   const ChunkStatus s = tracker.Acquire(index);
-  const uint64_t t_acquired_us = is_traced ? TraceRecorder::NowUs() : 0;
+  const uint64_t t_acquired_us = is_traced ? util::MonoNowUs() : 0;
   if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
     IoVec payload[] = {{dst_addr, size}};
     const ssize_t len = channel->Read(payload);
@@ -309,7 +310,7 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
   }
 
   const bool is_traced = chunk.trace.IsTraced();
-  const uint64_t t_start_us = is_traced ? TraceRecorder::NowUs() : 0;
+  const uint64_t t_start_us = is_traced ? util::MonoNowUs() : 0;
 
   // Step 2: find chunk tracker for incoming data chunk.
   // TODO: Relax the assumption that `PostInfoHeader` has already been processed
@@ -333,7 +334,7 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
   static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
   const ChunkStatus s = tracker.Acquire(index);
-  const uint64_t t_acquired_us = is_traced ? TraceRecorder::NowUs() : 0;
+  const uint64_t t_acquired_us = is_traced ? util::MonoNowUs() : 0;
   switch (s) {
     case ChunkStatus::kEmpty:
       std::memcpy(dst_addr, payload.data(), payload.size());

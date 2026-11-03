@@ -69,7 +69,6 @@ cc_library(
         "//peregrine/src/util:clock",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
-        "@abseil-cpp//absl/time",
     ],
 )
 
@@ -111,6 +110,7 @@ cc_test(
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:header",
+        "//peregrine/src/util:clock",
         "@googletest//:gtest_main",
     ],
 )

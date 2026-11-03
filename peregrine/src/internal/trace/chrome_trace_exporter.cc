@@ -38,7 +38,7 @@ enum class CompletionMode : uint8_t {
   kPoll = 2,      // Transport::Poll() reaped the handle (T_PollReaped)
 };
 
-// Stage timestamps of a traced chunk, taken from TraceRecorder::NowUs(),
+// Stage timestamps of a traced chunk, taken from util::MonoNowUs(),
 // or 0 if a stage was not captured.
 struct ChunkTimeline final {
   uint32_t index = 0;

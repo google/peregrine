@@ -13,6 +13,7 @@
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_event.h"
 #include "peregrine/src/internal/util/util.h"
+#include "peregrine/src/util/clock.h"
 
 namespace peregrine::internal {
 
@@ -24,7 +25,7 @@ void RecordConnSetupStage(TraceBuffer& buffer, const TraceContext& ctx,
                           TraceStage stage) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
   buffer.Record(TraceEvent{
-      .timestamp_us = TraceRecorder::NowUs(),
+      .timestamp_us = util::MonoNowUs(),
       .handle = handle.value(),
       .stage = stage,
       .metric1 = metric1,
@@ -52,7 +53,7 @@ void RecordCompletionStage(TraceBuffer& buffer, const TraceContext& ctx,
                            int worker_id, TraceStage stage) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
   buffer.Record(TraceEvent{
-      .timestamp_us = TraceRecorder::NowUs(),
+      .timestamp_us = util::MonoNowUs(),
       .handle = handle.value(),
       .reqid = reqid.value(),
       .stage = stage,
@@ -80,7 +81,7 @@ void TraceRecorder::RecordEngineEnqueued(const TraceContext& ctx, Handle handle,
                                          uint64_t start_mono_us,
                                          size_t num_requests, Op op) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
-  const uint64_t t_enqueued_us = NowUs();
+  const uint64_t t_enqueued_us = util::MonoNowUs();
   // Handle is generated inside Engine::Enqueue(), after Post() captures
   // start_mono_us at API entry. Emitting kPostEntry here where both
   // kPostEntry and kEngineEnqueued can be tagged with handle.
@@ -105,7 +106,7 @@ void TraceRecorder::RecordEngineDequeued(const TraceContext& ctx, Handle handle,
                                          const Request& req) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
   buffer_.Record(TraceEvent{
-      .timestamp_us = NowUs(),
+      .timestamp_us = util::MonoNowUs(),
       .handle = handle.value(),
       .reqid = reqid.value(),
       .stage = TraceStage::kEngineDequeued,
@@ -136,14 +137,14 @@ void TraceRecorder::RecordConnSetupDone(const TraceContext& ctx, Handle handle,
 void TraceRecorder::RecordWorkerEnqueued(const DataHeader& chunk,
                                          int send_worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
-  RecordSendChunkStage(buffer_, chunk, send_worker_id, NowUs(),
+  RecordSendChunkStage(buffer_, chunk, send_worker_id, util::MonoNowUs(),
                        TraceStage::kWorkerEnqueued);
 }
 
 void TraceRecorder::RecordWorkerDequeued(DataHeader& chunk,
                                          int send_worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
-  const uint64_t t_dequeued_us = NowUs();
+  const uint64_t t_dequeued_us = util::MonoNowUs();
   chunk.trace.tx_send_mono_us = t_dequeued_us;
   RecordSendChunkStage(buffer_, chunk, send_worker_id, t_dequeued_us,
                        TraceStage::kWorkerDequeued);
@@ -152,14 +153,14 @@ void TraceRecorder::RecordWorkerDequeued(DataHeader& chunk,
 void TraceRecorder::RecordTxWriteDone(const DataHeader& chunk,
                                       int send_worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
-  RecordSendChunkStage(buffer_, chunk, send_worker_id, NowUs(),
+  RecordSendChunkStage(buffer_, chunk, send_worker_id, util::MonoNowUs(),
                        TraceStage::kTxWriteDone);
 }
 
 void TraceRecorder::RecordTxAckRcvd(const DataHeader& chunk) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
   buffer_.Record(TraceEvent{
-      .timestamp_us = NowUs(),
+      .timestamp_us = util::MonoNowUs(),
       .handle = chunk.handle.value(),
       .reqid = chunk.reqid.value(),
       .stage = TraceStage::kTxAckRcvd,
@@ -190,7 +191,7 @@ void TraceRecorder::RecordCallbackDone(const TraceContext& ctx, Handle handle,
                                        int worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
   buffer_.Record(TraceEvent{
-      .timestamp_us = NowUs(),
+      .timestamp_us = util::MonoNowUs(),
       .handle = handle.value(),
       .stage = TraceStage::kCallbackDone,
       .worker_id = ClampI16(worker_id),
@@ -201,7 +202,7 @@ void TraceRecorder::RecordPollReaped(const TraceContext& ctx,
                                      Handle handle) noexcept {
   if ABSL_PREDICT_TRUE (!ctx.is_traced) return;
   buffer_.Record(TraceEvent{
-      .timestamp_us = NowUs(),
+      .timestamp_us = util::MonoNowUs(),
       .handle = handle.value(),
       .stage = TraceStage::kPollReaped,
   });

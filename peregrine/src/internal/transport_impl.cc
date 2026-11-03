@@ -27,6 +27,7 @@
 #include "peregrine/src/internal/engine/engine.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
+#include "peregrine/src/util/clock.h"
 
 namespace peregrine::internal {
 
@@ -79,7 +80,7 @@ absl::StatusOr<Handle> TransportImpl::Post(
     std::string_view peer, absl::Span<const Request> requests,
     absl::AnyInvocable<void(Status)> on_complete, const Metadata& metadata) {
   const absl::Time start_time = absl::Now();
-  const uint64_t start_mono_us = TraceRecorder::NowUs();
+  const uint64_t start_mono_us = util::MonoNowUs();
   const TraceContext trace_ctx = engine_->Helper()->Tracer().MaybeStartTrace();
   const Endpoint endpoint = Endpoint::Create(peer);
   if ABSL_PREDICT_FALSE (!endpoint.HasNonzeroIpPort()) {

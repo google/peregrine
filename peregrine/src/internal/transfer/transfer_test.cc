@@ -31,6 +31,7 @@
 #include "peregrine/src/internal/trace/trace_event.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/internal/util/test_param.h"
+#include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/thread.h"
 #include "peregrine/src/util/util.h"
 
@@ -138,7 +139,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     chunk.index = chunk_t(i);
     chunk.byte_offset = offset;
     chunk.raddr = addr_t(0);
-    chunk.trace.tx_send_mono_us = TraceRecorder::NowUs();
+    chunk.trace.tx_send_mono_us = util::MonoNowUs();
     return chunk;
   }
 

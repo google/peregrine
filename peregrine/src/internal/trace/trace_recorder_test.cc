@@ -9,6 +9,7 @@
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_event.h"
+#include "peregrine/src/util/clock.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -18,7 +19,7 @@ TEST(TraceRecorderTest, UntracedFastPathShortCircuits) {
   const TraceContext ctx = recorder.MaybeStartTrace();
   EXPECT_FALSE(ctx.is_traced);
 
-  recorder.RecordEngineEnqueued(ctx, Handle(1), TraceRecorder::NowUs(), 1,
+  recorder.RecordEngineEnqueued(ctx, Handle(1), util::MonoNowUs(), 1,
                                 Op::kWrite);
   DataHeader chunk = {};
   chunk.opcode = Opcode::kData;
@@ -42,7 +43,7 @@ TEST(TraceRecorderTest, ConfigureRuntimeAndClear) {
   EXPECT_TRUE(recorder.Sampler().IsEnabled());
   const TraceContext ctx = recorder.MaybeStartTrace();
   EXPECT_TRUE(ctx.is_traced);
-  recorder.RecordEngineEnqueued(ctx, Handle(1), TraceRecorder::NowUs(), 1,
+  recorder.RecordEngineEnqueued(ctx, Handle(1), util::MonoNowUs(), 1,
                                 Op::kWrite);
   EXPECT_EQ(recorder.Buffer().TotalRecorded(), 2);
 
@@ -71,7 +72,7 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
       .len = sizeof(buf),
   };
 
-  recorder.RecordEngineEnqueued(ctx, kHandle, TraceRecorder::NowUs(),
+  recorder.RecordEngineEnqueued(ctx, kHandle, util::MonoNowUs(),
                                 /*num_requests=*/2, Op::kWrite);
   recorder.RecordEngineDequeued(ctx, kHandle, kReqId, req);
 

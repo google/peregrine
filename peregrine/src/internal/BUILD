@@ -50,6 +50,7 @@ cc_library(
         "//peregrine/src/internal/engine",
         "//peregrine/src/internal/trace:trace_context",
         "//peregrine/src/internal/trace:trace_recorder",
+        "//peregrine/src/util:clock",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/functional:any_invocable",
