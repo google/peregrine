@@ -257,7 +257,8 @@ TEST_F(ChromeTraceExporterTest, ColdStartPolledPost) {
   EXPECT_THAT(FindSingleLine(json, "WorkerQueue(req=0x2001, chunk=0)\""),
               HasSubstr(R"("worker_queue_wait_us":10)"));
   EXPECT_THAT(FindSingleLine(json, "SendChunk(req=0x2001, chunk=0, 4096 B)"),
-              AllOf(HasSubstr(R"("worker_queue_wait_us":10)"),
+              AllOf(HasSubstr(R"("tx_send_us":1470)"),
+                    HasSubstr(R"("worker_queue_wait_us":10)"),
                     HasSubstr(R"("tx_write_us":220)")));
   EXPECT_THAT(FindSingleLine(json, "RecvChunk(req=0x2001, chunk=0, 4096 B)"),
               AllOf(HasSubstr(R"("rx_acquire_wait_us":5)"),

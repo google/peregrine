@@ -71,7 +71,7 @@ class TraceRecorder final {
   void RecordWorkerEnqueued(const DataHeader& chunk,
                             int send_worker_id) noexcept;
 
-  // Records T_WorkerDequeued and stamps chunk.trace.tx_send_mono_us.
+  // Records T_WorkerDequeued and stamps chunk.trace.tx_send_us.
   void RecordWorkerDequeued(DataHeader& chunk, int send_worker_id) noexcept;
 
   // Records T_TxWriteDone.

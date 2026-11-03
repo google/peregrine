@@ -112,7 +112,7 @@ TEST(HeaderSerializationTest, DataAndAckHeaderSerdeWithTrace) {
   data.index = kChunkIndex;
   data.byte_offset = 16384;
   data.raddr = kBufferBaseAddr;
-  data.trace.tx_send_mono_us = 123456789ULL;
+  data.trace.tx_send_us = 123456789ULL;
   data.trace.rx_payload_us = 450U;
   data.trace.rx_acquire_us = 12U;
   data.trace.rx_worker_id = -7;
@@ -126,7 +126,7 @@ TEST(HeaderSerializationTest, DataAndAckHeaderSerdeWithTrace) {
   DataHeader output = {};
   ASSERT_TRUE(HeaderUtil::Deserialize(s, output));
   EXPECT_EQ(data, output);
-  EXPECT_EQ(output.trace.tx_send_mono_us, 123456789ULL);
+  EXPECT_EQ(output.trace.tx_send_us, 123456789ULL);
   EXPECT_EQ(output.trace.rx_payload_us, 450U);
   EXPECT_EQ(output.trace.rx_acquire_us, 12U);
   EXPECT_EQ(output.trace.rx_worker_id, -7);

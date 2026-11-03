@@ -609,7 +609,7 @@ class TimelineRenderer {
                         c.size_bytes),
         t_w_dequeued_us, tx_dur_us,
         absl::StrFormat(
-            R"json("handle":"0x%x","reqid":"0x%x","chunk_index":%u,"size_bytes":%u,"tx_send_mono_us":%llu,"worker_queue_wait_us":%llu,"tx_write_us":%llu)json",
+            R"json("handle":"0x%x","reqid":"0x%x","chunk_index":%u,"size_bytes":%u,"tx_send_us":%llu,"worker_queue_wait_us":%llu,"tx_write_us":%llu)json",
             handle, reqid, c.index, c.size_bytes, c.t_dequeued_us,
             worker_queue_wait_us, tx_write_us));
     AddFlow(absl::StrFormat("fanout_c%u", c.index), kEngineTrack,

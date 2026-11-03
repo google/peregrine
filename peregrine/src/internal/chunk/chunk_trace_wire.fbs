@@ -3,7 +3,7 @@ namespace peregrine.internal.flatbuf;
 // `flatbuf::ChunkTraceWire` has a fixed size of 16 bytes. It is used to
 // serialize the in-memory struct `ChunkTraceWire` in chunk_trace_wire.h.
 struct ChunkTraceWire {
-  tx_send_mono_us:uint64;
+  tx_send_us:uint64;
   rx_payload_us:uint32;
   rx_acquire_us:uint16;
   rx_worker_id:int8;

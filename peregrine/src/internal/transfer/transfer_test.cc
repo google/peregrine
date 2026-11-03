@@ -138,7 +138,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     chunk.index = chunk_t(i);
     chunk.byte_offset = offset;
     chunk.raddr = addr_t(0);
-    chunk.trace.tx_send_mono_us = util::MonoNowUs();
+    chunk.trace.tx_send_us = util::MonoNowUs();
     return chunk;
   }
 

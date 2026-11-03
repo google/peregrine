@@ -91,7 +91,7 @@ TEST(TraceRecorderTest, RecordAllLifecycleStages) {
   recorder.RecordWorkerEnqueued(chunk, /*send_worker_id=*/2);
 
   recorder.RecordWorkerDequeued(chunk, /*send_worker_id=*/2);
-  EXPECT_GT(chunk.trace.tx_send_mono_us, 1);
+  EXPECT_GT(chunk.trace.tx_send_us, 1);
   recorder.RecordTxWriteDone(chunk, /*send_worker_id=*/2);
 
   chunk.trace.rx_worker_id = -3;

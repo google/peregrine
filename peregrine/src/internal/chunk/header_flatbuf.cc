@@ -206,7 +206,7 @@ std::string HeaderUtil::serializeV1(const DataHeader& header) {
                                  static_cast<uint8_t>(header.opcode),
                                  header.handle.value(), header.len);
   const flatbuf::ChunkTraceWire trace(
-      header.trace.tx_send_mono_us, header.trace.rx_payload_us,
+      header.trace.tx_send_us, header.trace.rx_payload_us,
       header.trace.rx_acquire_us, header.trace.rx_worker_id,
       header.trace.rx_chunk_status);
   const flatbuf::DataHeader h(base, header.reqid.value(), header.index.value(),
@@ -264,7 +264,7 @@ bool HeaderUtil::deserializeV1(const flatbuf::DataHeader& h,
   header.byte_offset = h.byte_offset();
   header.raddr = addr_t(h.raddr());
   const flatbuf::ChunkTraceWire& t = h.trace();
-  header.trace.tx_send_mono_us = t.tx_send_mono_us();
+  header.trace.tx_send_us = t.tx_send_us();
   header.trace.rx_payload_us = t.rx_payload_us();
   header.trace.rx_acquire_us = t.rx_acquire_us();
   header.trace.rx_worker_id = t.rx_worker_id();

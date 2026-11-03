@@ -145,7 +145,7 @@ void TraceRecorder::RecordWorkerDequeued(DataHeader& chunk,
                                          int send_worker_id) noexcept {
   if ABSL_PREDICT_TRUE (!chunk.trace.IsTraced()) return;
   const uint64_t t_dequeued_us = util::MonoNowUs();
-  chunk.trace.tx_send_mono_us = t_dequeued_us;
+  chunk.trace.tx_send_us = t_dequeued_us;
   RecordSendChunkStage(buffer_, chunk, send_worker_id, t_dequeued_us,
                        TraceStage::kWorkerDequeued);
 }
