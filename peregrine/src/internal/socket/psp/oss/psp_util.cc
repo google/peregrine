@@ -1,5 +1,7 @@
 #include "peregrine/src/internal/socket/psp/psp_util.h"
 
+#include <string_view>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "peregrine/src/internal/base/types.h"
@@ -25,7 +27,8 @@ absl::Status SetTxSpiAndKey(fd_t fd, const PspToken& token) {
   return absl::UnimplementedError("psp not supported");
 }
 
-absl::StatusOr<PspToken> AddSecureListener(fd_t fd, const PspToken& token) {
+absl::StatusOr<PspToken> AddSecureListener(fd_t fd, const PspToken& token,
+                                           const std::string_view ipaddr) {
   return absl::UnimplementedError("psp not supported");
 }
 

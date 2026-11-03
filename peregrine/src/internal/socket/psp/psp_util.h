@@ -1,6 +1,8 @@
 #ifndef PEREGRINE_SRC_INTERNAL_SOCKET_PSP_PSP_UTIL_H_
 #define PEREGRINE_SRC_INTERNAL_SOCKET_PSP_PSP_UTIL_H_
 
+#include <string_view>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "peregrine/src/internal/base/types.h"
@@ -26,11 +28,12 @@ absl::StatusOr<PspToken> AcquireRxSpiAndKey(fd_t fd);
 // Sets tx psp spi/key on the socket `fd`.
 absl::Status SetTxSpiAndKey(fd_t fd, const PspToken& token);
 
-// Registers a peer's psp token on the listening socket `fd`.
+// Adds a psp token on the listening socket `fd`.
 // Returns this socket's psp token if successful, otherwise returns an error.
-absl::StatusOr<PspToken> AddSecureListener(fd_t fd, const PspToken& token);
+absl::StatusOr<PspToken> AddSecureListener(fd_t fd, const PspToken& token,
+                                           std::string_view ipaddr = "");
 
-// Removes a secure listener from the listening socket `fd`.
+// Removes a psp token from the listening socket `fd`.
 absl::Status RemoveSecureListener(fd_t fd, const PspToken& token);
 
 }  // namespace peregrine::internal::psp
