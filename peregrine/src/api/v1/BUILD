@@ -200,3 +200,9 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "psp",
+    hdrs = ["psp/psp.h"],
+    deps = ["//peregrine/src/internal/socket/psp"],
+)

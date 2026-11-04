@@ -7,7 +7,9 @@
 #include <cstring>
 #include <ostream>
 #include <string>
+#include <string_view>
 
+#include "absl/log/check.h"
 #include "absl/strings/str_format.h"
 #include "peregrine/src/util/strong_int.h"
 
@@ -30,6 +32,13 @@ struct PspToken final {
   explicit PspToken(Spi spi = Spi(0), Gen gen = Gen(0),
                     std::array<uint8_t, kPspKeyLen> key = {})
       : spi(spi), gen(gen), key(key) {}
+
+  // Constructor.
+  PspToken(uint32_t spi, uint32_t gen, std::string_view key_str)
+      : spi(spi), gen(gen) {
+    DCHECK_EQ(key_str.size(), kPspKeyLen);
+    std::memcpy(key.data(), key_str.data(), kPspKeyLen);
+  }
 
   // Returns true iff the psp token is valid.
   bool IsValid() const { return spi.value() != 0; }

@@ -8,6 +8,7 @@ cc_library(
     hdrs = ["psp.h"],
     deps = [
         "//peregrine/src/util:strong_int",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
     ],
 )
