@@ -154,6 +154,7 @@ bool Transfer::recvStream(Channel* const channel, RequestTracker& outgoing,
 bool Transfer::recvPostInfoStream(Channel* const channel,
                                   const PostInfoHeader& info,
                                   RequestTracker& incoming) {
+  const uint64_t start_us = util::MonoNowUs();
   std::string payload(info.len, '\0');
   IoVec iov[] = {{payload.data(), info.len}};
   const ssize_t len = channel->Read(iov);
@@ -167,7 +168,7 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
     LOG(WARNING) << "invalid post info payload";
     return false;
   }
-  return incoming.Add(info.handle, reqs, info.metadata, info.peer);
+  return incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer);
 }
 
 bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
@@ -275,6 +276,7 @@ bool Transfer::recvMsg(Channel* const channel, RequestTracker& outgoing,
 bool Transfer::recvPostInfoMsg(const PostInfoHeader& info,
                                const ChunkPayloadView payload,
                                RequestTracker& incoming) {
+  const uint64_t start_us = util::MonoNowUs();
   if ABSL_PREDICT_FALSE (!IsMatch(info, payload)) {
     LOG(WARNING) << "mismatched post info header: " << info
                  << " vs payload size: " << payload.size();
@@ -288,7 +290,7 @@ bool Transfer::recvPostInfoMsg(const PostInfoHeader& info,
     LOG(WARNING) << "invalid post info payload";
     return false;
   }
-  return incoming.Add(info.handle, reqs, info.metadata, info.peer);
+  return incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer);
 }
 
 bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,

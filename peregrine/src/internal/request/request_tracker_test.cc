@@ -182,8 +182,9 @@ TEST_F(RequestTrackerTest, RecvRequestInfo) {
        .recipe = {.type = RecipeType::kContiguous}},
   };
 
-  ASSERT_TRUE(rt_.Add(kHandle, reqs));
-  EXPECT_TRUE(rt_.Add(kHandle, reqs));  // Duplicate POST_INFO is idempotent.
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, util::MonoNowUs()));
+  // Duplicate POST_INFO is idempotent.
+  EXPECT_TRUE(rt_.Add(kHandle, reqs, util::MonoNowUs()));
   EXPECT_EQ(rt_.GetChunkAddr(kHandle, kReqId, 512),
             reinterpret_cast<Byte*>(kBufferBaseAddr.value() + 512));
 
@@ -337,7 +338,7 @@ TEST_F(RequestTrackerTest, RecvPostCallback) {
                       });
                     });
 
-  ASSERT_TRUE(rt.Add(kHandle, reqs, kPostMeta));
+  ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
 
   ChunkTracker& recv1 = rt.Find(kHandle, kReqId);
   for (int i = 0; i < kNumChunks - 1; ++i) {
@@ -354,7 +355,7 @@ TEST_F(RequestTrackerTest, RecvPostCallback) {
 
   // Duplicate Add after partial progress must not reset pending_reqs or
   // metadata.
-  EXPECT_TRUE(rt.Add(kHandle, reqs, Metadata{9, 9, 9}));
+  EXPECT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), Metadata{9, 9, 9}));
 
   ChunkTracker& recv2 = rt.Find(kHandle, kReqId2);
   for (int i = 0; i < kNumChunks - 1; ++i) {
@@ -399,7 +400,7 @@ TEST_F(RequestTrackerTest, ResolveAddrCallback) {
   };
 
   // Without `resolve_addr_callback`, `raddr == 0` on receiver fails `Add`.
-  EXPECT_FALSE(rt_.Add(kHandle, reqs, kPostMeta));
+  EXPECT_FALSE(rt_.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
   EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
 
   int resolve_calls = 0;
@@ -413,11 +414,11 @@ TEST_F(RequestTrackerTest, ResolveAddrCallback) {
         return nullptr;
       });
 
-  ASSERT_TRUE(rt.Add(kHandle, reqs, kPostMeta));
+  ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
   EXPECT_EQ(resolve_calls, 2);
 
   // Duplicate `Add` is idempotent and does not re-invoke callback.
-  EXPECT_TRUE(rt.Add(kHandle, reqs, kPostMeta));
+  EXPECT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
   EXPECT_EQ(resolve_calls, 2);
 
   EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 128), buf1 + 128);
@@ -444,7 +445,7 @@ TEST_F(RequestTrackerTest, ReadInitiatorCompletion) {
         completed_status = s;
       },
       TraceContext{}));
-  ASSERT_TRUE(rt_.Add(kHandle, reqs));
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, /*start_us=*/0));
 
   ChunkTracker& recv = rt_.Find(kHandle, kReqId);
   ASSERT_EQ(recv.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
@@ -488,7 +489,8 @@ TEST_F(RequestTrackerTest, ReadResponderOnRecvRead) {
         recv_reqs.assign(r.begin(), r.end());
       });
 
-  ASSERT_TRUE(rt.Add(kHandle, reqs, kPostMeta, kPeer));
+  ASSERT_TRUE(
+      rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta, kPeer));
   EXPECT_EQ(on_recv_read_calls, 1);
   EXPECT_EQ(recv_peer, kPeer);
   EXPECT_EQ(recv_handle, kHandle);
@@ -499,8 +501,80 @@ TEST_F(RequestTrackerTest, ReadResponderOnRecvRead) {
   EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 64), buf + 64);
 
   // Duplicate `Add` is idempotent and does not re-invoke `on_recv_read`.
-  EXPECT_TRUE(rt.Add(kHandle, reqs, kPostMeta, kPeer));
+  EXPECT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta, kPeer));
   EXPECT_EQ(on_recv_read_calls, 1);
+}
+
+TEST_F(RequestTrackerTest, RecvPostLatencyWrite) {
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = kBufferBaseAddr,
+       .total_len = 1024,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous}},
+      {.reqid = kReqId2,
+       .nchunks = 1,
+       .raddr = kBufferBaseAddr,
+       .total_len = 1024,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, util::MonoNowUs()));
+
+  ChunkTracker& recv1 = rt_.Find(kHandle, kReqId);
+  ASSERT_EQ(recv1.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
+  ASSERT_TRUE(recv1.Release(chunk_t(0), /*success=*/true));
+  rt_.OnReqComplete(kHandle);
+  EXPECT_EQ(metrics_.recv_post_latency_us.Snapshot().Count(), 0);
+
+  ChunkTracker& recv2 = rt_.Find(kHandle, kReqId2);
+  ASSERT_EQ(recv2.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
+  ASSERT_TRUE(recv2.Release(chunk_t(0), /*success=*/true));
+  rt_.OnReqComplete(kHandle);
+  EXPECT_EQ(metrics_.recv_post_latency_us.Snapshot().Count(), 1);
+  EXPECT_EQ(metrics_.write.e2e_latency_us.Snapshot().Count(), 0);
+  EXPECT_EQ(metrics_.read.e2e_latency_us.Snapshot().Count(), 0);
+}
+
+TEST_F(RequestTrackerTest, RecvPostLatencyIgnoresDuplicatePostInfo) {
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = kBufferBaseAddr,
+       .total_len = 1024,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+
+  const uint64_t now_us = util::MonoNowUs();
+  ASSERT_GT(now_us, 100);
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, now_us - 100));
+  EXPECT_TRUE(rt_.Add(kHandle, reqs, now_us));
+
+  ChunkTracker& recv = rt_.Find(kHandle, kReqId);
+  ASSERT_EQ(recv.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
+  ASSERT_TRUE(recv.Release(chunk_t(0), /*success=*/true));
+  rt_.OnReqComplete(kHandle);
+
+  EXPECT_EQ(metrics_.recv_post_latency_us.Snapshot().Count(), 1);
+  EXPECT_GE(metrics_.recv_post_latency_us.Sum(), 100);
+}
+
+TEST_F(RequestTrackerTest, RecvPostLatencyIgnoresRead) {
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = kBufferBaseAddr,
+       .total_len = 1024,
+       .op = Op::kRead,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, util::MonoNowUs()));
+  rt_.OnReqComplete(kHandle);
+  EXPECT_EQ(metrics_.recv_post_latency_us.Snapshot().Count(), 0);
 }
 }  // namespace
 }  // namespace peregrine::internal::testing

@@ -56,7 +56,8 @@ bool RequestTracker::Add(const Handle handle, const uint64_t start_mono_us,
 
 bool RequestTracker::Add(const Handle handle,
                          absl::Span<const RequestInfo> reqs,
-                         const Metadata& metadata, const Endpoint& peer) {
+                         const uint64_t start_us, const Metadata& metadata,
+                         const Endpoint& peer) {
   DCHECK(!reqs.empty());
   // True if this is a remote `Op::kRead` request received by the responder.
   bool is_responder_read = false;
@@ -67,6 +68,9 @@ bool RequestTracker::Add(const Handle handle,
     PostTracker& pt = it->second;
     if (!pt.req_map.empty()) return true;
     pt.metadata = metadata;
+    if (!pt.is_initiator && reqs[0].op == Op::kWrite) {
+      pt.start_mono_us = start_us;
+    }
     is_responder_read = reqs[0].op == Op::kRead && !pt.is_initiator;
     pt.pending_reqs = is_responder_read ? 1 : reqs.size();
     if (is_responder_read) {
@@ -88,6 +92,7 @@ bool RequestTracker::Add(const Handle handle,
         } else {
           pt.req_map.clear();
           pt.pending_reqs = 0;
+          pt.start_mono_us = 0;
         }
         return false;
       }
@@ -117,6 +122,7 @@ void RequestTracker::Remove(const Handle handle) {
 void RequestTracker::OnReqComplete(const Handle handle) {
   OnComplete callback = nullptr;
   bool is_initiator = false;
+  uint64_t recv_start_us = 0;
   Metadata post_meta = {};
   std::vector<Metadata> req_metas;
   {
@@ -138,15 +144,21 @@ void RequestTracker::OnReqComplete(const Handle handle) {
         callback = std::move(pt.on_complete);
         trackers_.erase(it);
       }
-    } else if (recv_post_callback_ != nullptr) {
-      post_meta = pt.metadata;
-      req_metas.reserve(pt.req_map.size());
-      for (const auto& [reqid, req] : pt.req_map) {
-        req_metas.push_back(req->metadata);
+    } else {
+      recv_start_us = pt.start_mono_us;
+      if (recv_post_callback_ != nullptr) {
+        post_meta = pt.metadata;
+        req_metas.reserve(pt.req_map.size());
+        for (const auto& [reqid, req] : pt.req_map) {
+          req_metas.push_back(req->metadata);
+        }
+        // TODO: Evict `it` once `PostInfoHeader` is only sent on active data
+        // channels and `sendAck` is called before `OnReqComplete`.
       }
-      // TODO: Evict `it` once `PostInfoHeader` is only sent on active data
-      // channels and `sendAck` is called before `OnReqComplete`.
     }
+  }
+  if (recv_start_us != 0) {
+    metrics_.recv_post_latency_us.Record(util::MonoNowUs() - recv_start_us);
   }
   if (callback != nullptr) {
     std::move(callback)(Status::kSuccess);

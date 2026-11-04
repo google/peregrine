@@ -258,7 +258,8 @@ void Engine::process(PostEntry& post) {
     tracer_.RecordEngineDequeued(post.trace_ctx, post.handle,
                                  post.req_infos[i].reqid, req);
   }
-  getRequestTracker(post.reqs[0]).Add(post.handle, post.req_infos);
+  getRequestTracker(post.reqs[0])
+      .Add(post.handle, post.req_infos, /*start_us=*/0);
 
   if (is_initiator) {
     if (!is_write) {

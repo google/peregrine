@@ -173,6 +173,8 @@ TEST_P(TransportTest, Read) {
   // post callback fired with the expected status and metadata.
   EXPECT_THAT(l_.Data(), Pointwise(Eq(), r_.Data()));
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics().read));
+  EXPECT_EQ(lt.GetTransportMetrics().recv_post_latency_us.Count(), 0);
+  EXPECT_EQ(rt.GetTransportMetrics().recv_post_latency_us.Count(), 0);
   {
     absl::MutexLock lock(cb_mu_);
     ASSERT_EQ(recv_posts_.size(), 1);
@@ -223,6 +225,8 @@ TEST_P(TransportTest, Write) {
   // post callback fired with the expected status and metadata.
   EXPECT_THAT(r_.Data(), Pointwise(Eq(), l_.Data()));
   EXPECT_TRUE(CheckMetrics(lt.GetTransportMetrics().write));
+  EXPECT_EQ(lt.GetTransportMetrics().recv_post_latency_us.Count(), 0);
+  EXPECT_EQ(rt.GetTransportMetrics().recv_post_latency_us.Count(), 1);
   {
     absl::MutexLock lock(cb_mu_);
     ASSERT_EQ(recv_posts_.size(), 1);

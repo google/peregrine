@@ -62,7 +62,7 @@ class RequestTracker {
 
   // Adds the `RequestInfo` descriptors (and optional post-level `metadata` and
   // sender `peer` endpoint) for `handle` (idempotent if already populated).
-  bool Add(Handle handle, absl::Span<const RequestInfo> reqs,
+  bool Add(Handle handle, absl::Span<const RequestInfo> reqs, uint64_t start_us,
            const Metadata& metadata = {}, const Endpoint& peer = {})
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 

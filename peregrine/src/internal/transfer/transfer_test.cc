@@ -203,7 +203,7 @@ TEST_P(TransferTest, SendRecv) {
   const TraceContext trace_ctx = a_.tracer.MaybeStartTrace();
   ASSERT_TRUE(a_.outgoing.Add(kHandle, util::MonoNowUs(),
                               std::move(on_complete), trace_ctx));
-  ASSERT_TRUE(a_.outgoing.Add(kHandle, {req}));
+  ASSERT_TRUE(a_.outgoing.Add(kHandle, {req}, /*start_us=*/0));
 
   // A sends PostInfoHeader + RequestInfo and DataHeader chunks to B.
   util::Thread a_send([&]() {
@@ -282,6 +282,8 @@ TEST_P(TransferTest, SendRecv) {
   EXPECT_TRUE(saw_request_done);
   EXPECT_TRUE(saw_all_requests_done);
 
+  EXPECT_EQ(a_.metrics.recv_post_latency_us.Snapshot().Count(), 0);
+  EXPECT_EQ(b_.metrics.recv_post_latency_us.Snapshot().Count(), 1);
   EXPECT_EQ(b_.tracer.Buffer().TotalRecorded(), 0);
 }
 

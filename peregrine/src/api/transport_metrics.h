@@ -57,7 +57,9 @@ struct TransportMetrics final {
 
   // Transport Pipeline Breakdown
   // ---------------------------------------------------------------------------
-  // TODO(yyd): Add tier 2 metrics here
+  // Receiver-side write Post() duration in microseconds, from receiving
+  // PostInfoHeader to completing all requests in the Post() batch.
+  Log2Histogram<32> recv_post_latency_us{};
 
   // Hardware & Subsystem Internals
   // ---------------------------------------------------------------------------

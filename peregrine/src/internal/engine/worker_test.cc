@@ -172,7 +172,7 @@ TEST_P(WorkerTest, SendRecv) {
   const RequestInfo req_info = GenRequestInfo();
   ASSERT_TRUE(sndr_.outgoing.Add(kHandle, util::MonoNowUs(),
                                  /*on_complete=*/nullptr, TraceContext{}));
-  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {req_info}));
+  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {req_info}, /*start_us=*/0));
   absl::Notification done;
   util::Thread s([&]() {
     while (sndr_.outgoing.Check(kHandle) != Status::kSuccess) {

@@ -29,6 +29,9 @@ struct OpMetrics final {
 struct EngineMetrics final {
   OpMetrics write;
   OpMetrics read;
+  // Receiver-side write Post() duration in microseconds, from receiving
+  // PostInfoHeader to completing all requests in the Post() batch.
+  Log2Histogram<32> recv_post_latency_us;
   // Total tcp connect failures.
   MetricCounter<uint64_t> tcp_connect_failures;
 

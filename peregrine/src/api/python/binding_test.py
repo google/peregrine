@@ -87,6 +87,10 @@ class BindTest(absltest.TestCase):
       if not pg.is_completed(status):
         time.sleep(0.1)
       elif status == pg.Status.SUCCESS:
+        self.assertEqual(
+            remote_transport.get_transport_metrics().recv_post_latency_us.count(),
+            0,
+        )
         return
       else:
         self.fail(f"transport failed: {status!r}")
@@ -110,6 +114,8 @@ class BindTest(absltest.TestCase):
     self.assertIsInstance(metrics, pg.TransportMetrics)
     self.assertIsInstance(metrics.write, pg.OpMetrics)
     self.assertIsInstance(metrics.read, pg.OpMetrics)
+    self.assertIsInstance(metrics.recv_post_latency_us, pg.Log2Histogram32)
+    self.assertEqual(metrics.recv_post_latency_us.count(), 0)
 
   def test_tracing(self):
     lbuf = ctypes.create_string_buffer(2048)
@@ -143,6 +149,10 @@ class BindTest(absltest.TestCase):
       time.sleep(0.05)
     else:
       self.fail("transport timed out")
+
+    self.assertEqual(
+        remote_transport.get_transport_metrics().recv_post_latency_us.count(), 1
+    )
 
     events = json.loads(local_transport.export_chrome_trace_json())[
         "traceEvents"

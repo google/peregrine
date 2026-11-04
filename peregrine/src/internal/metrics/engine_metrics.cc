@@ -19,6 +19,7 @@ static_assert(assumptions::kRulesToFollowWhenAddingNewMetrics);
 void EngineMetrics::Snapshot(TransportMetrics& m) const {
   m.write = write.Snapshot();
   m.read = read.Snapshot();
+  m.recv_post_latency_us = recv_post_latency_us.Snapshot();
   m.tcp_connect_failures = tcp_connect_failures.Value();
 }
 

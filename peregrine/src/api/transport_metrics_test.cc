@@ -17,6 +17,9 @@ TEST(TransportMetricsTest, DefaultInitialization) {
     EXPECT_EQ(op->bytes, 0);
     EXPECT_EQ(op->errors, 0);
   }
+  EXPECT_EQ(m.recv_post_latency_us.sum, 0);
+  EXPECT_EQ(m.recv_post_latency_us.Count(), 0);
+  EXPECT_EQ(m.recv_post_latency_us.NumBuckets(), 32);
   EXPECT_EQ(m.tcp_connect_failures, 0);
   EXPECT_EQ(m.rpc_requests_received, 0);
 }
