@@ -219,6 +219,10 @@ std::string Metrics::GetDatapathDebugString(Component c) {
                       Avg(tm.write.e2e_latency_us),
                       tm.write.e2e_latency_us.Count()));
   lines.push_back(
+      absl::StrFormat("%-15s: avg %.2f us (%u samples)", "Recv Latency",
+                      Avg(tm.recv_post_latency_us),
+                      tm.recv_post_latency_us.Count()));
+  lines.push_back(
       absl::StrFormat("%-15s: %u", "Write Errors", tm.write.errors));
   // TODO(yyd): show more metrics.
   return absl::StrJoin(lines, "\n");
