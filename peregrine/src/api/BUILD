@@ -90,11 +90,19 @@ cc_test(
 )
 
 cc_library(
+    name = "options",
+    hdrs = ["options.h"],
+    deps = [":transport_types"],
+)
+
+cc_library(
     name = "transport_util",
     srcs = ["transport_util.cc"],
     hdrs = ["transport_util.h"],
     deps = [
+        ":options",
         ":transport",
+        ":transport_registry",
         ":transport_types",
         "//peregrine/src/internal:transport_impl",
         "//peregrine/src/internal/base:config",
@@ -151,5 +159,53 @@ py_test(
         "//peregrine/src/util:util_py",
         "@abseil-py//absl/logging",
         "@abseil-py//absl/testing:absltest",
+    ],
+)
+
+# DEPRECATED / TEMPORARY: lets a separately linked transport stand in for the
+# built-in RDMA transport. See transport_registry.h.
+cc_library(
+    name = "transport_registry",
+    srcs = ["transport_registry.cc"],
+    hdrs = ["transport_registry.h"],
+    deps = [
+        ":options",
+        ":transport",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:no_destructor",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_test(
+    name = "transport_registry_test",
+    srcs = ["transport_registry_test.cc"],
+    deps = [
+        ":options",
+        ":transport",
+        ":transport_registry",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
+        "@googletest//:gtest_main",
+    ],
+)
+
+# Separate binary: the registered RDMA transport is process-wide.
+cc_test(
+    name = "rdma_override_test",
+    srcs = ["rdma_override_test.cc"],
+    deps = [
+        ":options",
+        ":transport",
+        ":transport_registry",
+        ":transport_types",
+        ":transport_util",
+        "//peregrine/src/util",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest_main",
     ],
 )

@@ -7,7 +7,9 @@
 
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
+#include "peregrine/src/api/options.h"
 #include "peregrine/src/api/transport.h"
+#include "peregrine/src/api/transport_registry.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
@@ -21,9 +23,20 @@ using internal::TransportImpl;
 
 std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
                                            Options options) {
-  const Endpoint e = Endpoint::Create(endpoint);
-
   const int n = std::min(std::max(1, options.num_parallel_connections), 100);
+
+  // TEMPORARY: a registered transport may stand in for RDMA until it is
+  // integrated into Peregrine; see transport_registry.h.
+  if (options.transport_type == TransportType::kRdma) {
+    if (const TransportFactory* factory =
+            internal::GetRegisteredRdmaTransport();
+        factory != nullptr) {
+      options.num_parallel_connections = n;
+      return (*factory)(endpoint, std::move(options));
+    }
+  }
+
+  const Endpoint e = Endpoint::Create(endpoint);
   const Config config = {
       .transport_type = options.transport_type,
       .num_conns_per_peer = n,
