@@ -13,7 +13,6 @@
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "peregrine/src/api/options.h"
 #include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_registry.h"
 #include "peregrine/src/api/transport_types.h"

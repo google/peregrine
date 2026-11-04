@@ -7,7 +7,6 @@
 
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
-#include "peregrine/src/api/options.h"
 #include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_registry.h"
 #include "peregrine/src/api/transport_types.h"

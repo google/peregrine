@@ -90,17 +90,10 @@ cc_test(
 )
 
 cc_library(
-    name = "options",
-    hdrs = ["options.h"],
-    deps = [":transport_types"],
-)
-
-cc_library(
     name = "transport_util",
     srcs = ["transport_util.cc"],
     hdrs = ["transport_util.h"],
     deps = [
-        ":options",
         ":transport",
         ":transport_registry",
         ":transport_types",
@@ -162,15 +155,14 @@ py_test(
     ],
 )
 
-# DEPRECATED / TEMPORARY: lets a separately linked transport stand in for the
-# built-in RDMA transport. See transport_registry.h.
+# TEMPORARY: lets a separately linked transport stand in for the built-in RDMA transport.
 cc_library(
     name = "transport_registry",
     srcs = ["transport_registry.cc"],
     hdrs = ["transport_registry.h"],
     deps = [
-        ":options",
         ":transport",
+        ":transport_types",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/functional:any_invocable",
@@ -184,9 +176,9 @@ cc_test(
     name = "transport_registry_test",
     srcs = ["transport_registry_test.cc"],
     deps = [
-        ":options",
         ":transport",
         ":transport_registry",
+        ":transport_types",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:status_matchers",
         "@googletest//:gtest_main",
@@ -198,7 +190,6 @@ cc_test(
     name = "rdma_override_test",
     srcs = ["rdma_override_test.cc"],
     deps = [
-        ":options",
         ":transport",
         ":transport_registry",
         ":transport_types",

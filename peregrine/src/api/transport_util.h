@@ -4,8 +4,8 @@
 #include <memory>
 #include <string_view>
 
-#include "peregrine/src/api/options.h"
 #include "peregrine/src/api/transport.h"
+#include "peregrine/src/api/transport_types.h"
 
 namespace peregrine {
 

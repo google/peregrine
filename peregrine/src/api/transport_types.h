@@ -78,6 +78,13 @@ enum class Status : int {
   kFailure = -1,
 };
 
+// Returns true iff the transport operation is still in progress.
+constexpr bool IsInProgress(const Status s) { return s == Status::kInProgress; }
+
+// Returns true iff the transport operation is already completed,
+// either successfully or with failure.
+constexpr bool IsCompleted(const Status s) { return static_cast<int>(s) <= 0; }
+
 // Callback invoked on the receiver when an incoming `Post()` batch completes.
 using RecvPostCallback =
     absl::AnyInvocable<void(Status, const Metadata& post_metadata,
@@ -88,12 +95,23 @@ using RecvPostCallback =
 using ResolveAddrCallback = absl::AnyInvocable<Byte*(
     const Metadata& post_metadata, const Metadata& req_metadata) const>;
 
-// Returns true iff the transport operation is still in progress.
-constexpr bool IsInProgress(const Status s) { return s == Status::kInProgress; }
+// Options for creating a transport instance.
+struct Options {
+  // Underlying data plane transport (TCP or RDMA).
+  TransportType transport_type = TransportType::kAny;
 
-// Returns true iff the transport operation is already completed,
-// either successfully or with failure.
-constexpr bool IsCompleted(const Status s) { return static_cast<int>(s) <= 0; }
+  // The #connections to maintain b/t this process and each peer (in [1, 100]).
+  int num_parallel_connections = 8;
+
+  // Callback invoked on the receiver when an incoming `Post()` batch completes.
+  // If `nullptr`, no callback is invoked on post receive completion.
+  RecvPostCallback recv_post_callback = nullptr;
+
+  // Callback invoked on the receiver to resolve the target buffer address for
+  // an incoming request when `Request::raddr` is not provided by the sender.
+  // If `nullptr`, incoming requests with a null `raddr` are rejected.
+  ResolveAddrCallback resolve_addr_callback = nullptr;
+};
 
 // Returns a string representation of the transport operation status.
 std::string ToString(Status s);

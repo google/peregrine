@@ -7,8 +7,8 @@
 #include "gtest/gtest.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
-#include "peregrine/src/api/options.h"
 #include "peregrine/src/api/transport.h"
+#include "peregrine/src/api/transport_types.h"
 
 // This test intentionally exercises the deprecated registration API.
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
