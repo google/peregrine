@@ -25,10 +25,19 @@ DEFAULT_SSH_CMD = (
 )
 
 
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "[::1]"})
+
+
+def _is_loopback_host(host: str) -> bool:
+  """Returns True if `host` explicitly names localhost or a loopback IP."""
+  host_only = host.split("@", 1)[-1].strip().lower()
+  return host_only in _LOOPBACK_HOSTS
+
+
 def is_local_node(host: str) -> bool:
   """Returns True if `host` refers to the local machine."""
   normalized = host.strip().lower()
-  if normalized in {"localhost", "127.0.0.1", "::1", "[::1]"}:
+  if normalized in _LOOPBACK_HOSTS:
     return True
   local_names = {socket.gethostname().lower(), socket.getfqdn().lower()}
   return normalized in local_names
@@ -158,7 +167,7 @@ class NodeExecutor:
     """Resolves the Peregrine bind IP for `host` (supports `user@host` or `user@ip`)."""
     if explicit_ip:
       return explicit_ip.strip().strip("[]")
-    if is_local_node(host):
+    if _is_loopback_host(host):
       return "::1" if ":" in host else "127.0.0.1"
     host_only = host.split("@", 1)[-1].strip().strip("[]")
     try:
@@ -173,6 +182,8 @@ class NodeExecutor:
         " '{print $1; exit}'",
     ).strip()
     if not out:
+      if is_local_node(host):
+        return "127.0.0.1"
       raise RuntimeError(f"Failed to resolve bind IP on remote host '{host}'")
     return out
 

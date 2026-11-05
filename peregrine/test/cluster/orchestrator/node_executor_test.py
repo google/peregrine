@@ -21,6 +21,67 @@ class NodeExecutorTest(absltest.TestCase):
     self.assertTrue(node_executor.is_local_node(socket.gethostname()))
     self.assertFalse(node_executor.is_local_node("10.128.0.99"))
 
+  def test_resolve_bind_ip_loopback_and_ip_literals(self):
+    executor = node_executor.NodeExecutor()
+    mock_run_shell = self.enter_context(
+        mock.patch.object(executor, "run_shell", autospec=True, spec_set=True)
+    )
+    self.assertEqual(executor.resolve_bind_ip("localhost"), "127.0.0.1")
+    self.assertEqual(executor.resolve_bind_ip("127.0.0.1"), "127.0.0.1")
+    self.assertEqual(executor.resolve_bind_ip("::1"), "::1")
+    self.assertEqual(executor.resolve_bind_ip("[::1]"), "::1")
+    self.assertEqual(executor.resolve_bind_ip("yyd@10.0.0.13"), "10.0.0.13")
+    self.assertEqual(
+        executor.resolve_bind_ip("localhost", explicit_ip="[2001:db8::1]"),
+        "2001:db8::1",
+    )
+    mock_run_shell.assert_not_called()
+
+  def test_resolve_bind_ip_local_hostname_uses_non_loopback_nic_ip(self):
+    executor = node_executor.NodeExecutor()
+    local_hostname = socket.gethostname()
+    mock_run_shell = self.enter_context(
+        mock.patch.object(
+            executor,
+            "run_shell",
+            autospec=True,
+            spec_set=True,
+            return_value="10.0.0.5\n",
+        )
+    )
+    self.assertEqual(executor.resolve_bind_ip(local_hostname), "10.0.0.5")
+    mock_run_shell.assert_called_once()
+
+  def test_resolve_bind_ip_local_hostname_falls_back_to_loopback_if_empty(self):
+    executor = node_executor.NodeExecutor()
+    local_hostname = socket.gethostname()
+    self.enter_context(
+        mock.patch.object(
+            executor,
+            "run_shell",
+            autospec=True,
+            spec_set=True,
+            return_value="\n",
+        )
+    )
+    self.assertEqual(executor.resolve_bind_ip(local_hostname), "127.0.0.1")
+
+  def test_resolve_bind_ip_remote_hostname_raises_when_empty(self):
+    executor = node_executor.NodeExecutor()
+    self.enter_context(
+        mock.patch.object(
+            executor,
+            "run_shell",
+            autospec=True,
+            spec_set=True,
+            return_value="",
+        )
+    )
+    with self.assertRaisesRegex(
+        RuntimeError, "Failed to resolve bind IP on remote host"
+    ):
+      executor.resolve_bind_ip("yyd@remote-host-1")
+
   def test_stage_binary_skips_ssh_on_localhost(self):
     executor = node_executor.NodeExecutor()
     mapping = executor.stage_binary(["localhost", "127.0.0.1"], "/bin/true")
