@@ -72,6 +72,9 @@ cc_library(
     hdrs = ["metrics.h"],
     deps = [
         "//peregrine/src/api:transport_metrics",
+        "//peregrine/src/util:thread",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
     ],
 )
@@ -82,6 +85,7 @@ cc_test(
     deps = [
         ":metrics",
         "//peregrine/src/api:transport_metrics",
+        "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
         "@googletest//:gtest_main",
     ],
@@ -166,16 +170,14 @@ cc_library(
         ":metrics",
         ":topology",
         "//peregrine/src/api:transport",
-        "//peregrine/src/api:transport_metrics",
         "//peregrine/src/api:transport_types",
-        "//peregrine/src/util:thread",
         "//peregrine/test/workloads:workload_generator",
         "//peregrine/test/workloads:workload_util",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
-        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -187,6 +189,7 @@ cc_test(
         ":cluster_node",
         ":config",
         ":control_channel",
+        ":metrics",
         "//peregrine/src/util",
         "//peregrine/src/util:thread",
         "//peregrine/test/workloads:serial_fixed_write",
@@ -224,6 +227,8 @@ cc_test(
     deps = [
         ":config",
         ":flags",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/util:nic",
         "@abseil-cpp//absl/flags:flag",
         "@googletest//:gtest_main",
     ],

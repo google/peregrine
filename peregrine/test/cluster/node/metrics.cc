@@ -3,10 +3,14 @@
 #include <sys/resource.h>
 
 #include <algorithm>
+#include <utility>
 
+#include "absl/functional/any_invocable.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "peregrine/src/api/transport_metrics.h"
+#include "peregrine/src/util/thread.h"
 
 namespace peregrine::cluster {
 namespace {
@@ -63,6 +67,33 @@ void MergeTransportMetrics(TransportMetrics& dst, const TransportMetrics& src) {
   MergeOpMetrics(dst.read, src.read);
   dst.tcp_connect_failures += src.tcp_connect_failures;
   dst.rpc_requests_received += src.rpc_requests_received;
+}
+
+ScopedMetricsSampler::ScopedMetricsSampler(absl::Duration interval,
+                                           CaptureCallback capture_fn,
+                                           SampleCallback on_sample)
+    : interval_(interval),
+      capture_fn_(std::move(capture_fn)),
+      on_sample_(std::move(on_sample)) {
+  if (interval_ > absl::ZeroDuration() && capture_fn_ != nullptr &&
+      on_sample_ != nullptr) {
+    thread_ = util::Thread([this]() {
+      while (!stop_.WaitForNotificationWithTimeout(interval_)) {
+        on_sample_(capture_fn_());
+      }
+    });
+  }
+}
+
+ScopedMetricsSampler::~ScopedMetricsSampler() { Stop(); }
+
+void ScopedMetricsSampler::Stop() {
+  if (!stop_.HasBeenNotified()) {
+    stop_.Notify();
+  }
+  if (thread_.joinable()) {
+    thread_.join();
+  }
 }
 
 }  // namespace peregrine::cluster

@@ -24,6 +24,7 @@
 #include "peregrine/src/util/util.h"
 #include "peregrine/test/cluster/node/config.h"
 #include "peregrine/test/cluster/node/control_channel.h"
+#include "peregrine/test/cluster/node/metrics.h"
 #include "peregrine/test/workloads/serial_fixed_write.h"
 
 namespace peregrine::cluster {
@@ -292,6 +293,54 @@ TEST(ClusterNodeTest, ExportsChromeTraceJsonForActiveInstancesOnly) {
   }
 
   std::filesystem::remove_all(tmp_root);
+}
+
+TEST(ClusterNodeTest, StepwiseCreateRunWorkloadAndInMemoryTraces) {
+  NodeConfig server_cfg{
+      .ip = "127.0.0.1",
+      .num_instances = 2,
+      .base_control_port = util::FindFreePort(AF_INET, /*tcp=*/true),
+      .workload_generator = std::make_shared<workloads::SerialFixedWrite>(16),
+      .metrics_interval = absl::ZeroDuration(),
+      .trace_every_n = 1,
+  };
+  NodeConfig client_cfg{
+      .ip = "127.0.0.1",
+      .num_instances = 3,
+      .node_index = 1,
+      .base_control_port =
+          static_cast<uint16_t>(server_cfg.base_control_port + 50),
+      .workload_generator = std::make_shared<workloads::SerialFixedWrite>(16),
+      .num_xfers = 2,
+      .metrics_interval = absl::ZeroDuration(),
+      .trace_every_n = 1,
+  };
+
+  auto server_or = ClusterNode::Create(server_cfg);
+  ASSERT_TRUE(server_or.ok()) << server_or.status();
+  auto client_or = ClusterNode::Create(client_cfg);
+  ASSERT_TRUE(client_or.ok()) << client_or.status();
+
+  ASSERT_EQ((*server_or)->LocalTargets().size(), 2);
+  ASSERT_EQ((*client_or)->LocalTargets().size(), 3);
+
+  (*server_or)->ResetTimer();
+  (*client_or)->ResetTimer();
+
+  const NodeMetricsSnapshot client_snap =
+      (*client_or)->RunWorkload((*server_or)->LocalTargets(), nullptr);
+  EXPECT_EQ(client_snap.transport.write.errors, 0);
+  EXPECT_EQ(client_snap.transport.write.e2e_latency_us.Count(), 12);
+  EXPECT_EQ(client_snap.transport.write.bytes, 12 * 16);
+
+  const NodeMetricsSnapshot server_snap = (*server_or)->CaptureMetrics();
+  EXPECT_EQ(server_snap.transport.rpc_requests_received, 6);
+
+  EXPECT_TRUE((*server_or)->CollectTraces().empty());
+  const std::vector<InstanceTrace> traces = (*client_or)->CollectTraces();
+  ASSERT_EQ(traces.size(), 3);
+  EXPECT_EQ(traces[0].filename, "node_1_inst_0.json");
+  EXPECT_THAT(traces[0].json, HasSubstr("TransportImpl::Post"));
 }
 
 }  // namespace

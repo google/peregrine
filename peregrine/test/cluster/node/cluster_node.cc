@@ -6,25 +6,23 @@
 #include <deque>
 #include <filesystem>  // NOLINT(build/c++17)
 #include <fstream>
-#include <functional>
 #include <ios>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <system_error>  // NOLINT(build/c++11)
 #include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/synchronization/notification.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_types.h"
-#include "peregrine/src/util/thread.h"
 #include "peregrine/test/cluster/node/affinity.h"
 #include "peregrine/test/cluster/node/config.h"
 #include "peregrine/test/cluster/node/control_channel.h"
@@ -77,13 +75,14 @@ std::vector<PeerTarget> CollectLocalTargets(
 }
 
 std::vector<std::unique_ptr<OutboundStream>> BuildOutboundStreams(
-    const NodeConfig& config, const workloads::WorkloadGenerator& workload_gen,
+    const NodeConfig& config, absl::Span<const PeerTarget> targets,
+    const workloads::WorkloadGenerator& workload_gen,
     absl::Span<const std::unique_ptr<NodeInstance>> instances,
     absl::Span<const std::string> local_endpoints) {
   const std::vector<std::vector<PeerTarget>> target_assignments =
-      BuildTargetAssignments(config.node_index, config.num_instances,
-                             config.targets, config.traffic_pattern,
-                             config.exclude_self, local_endpoints);
+      BuildTargetAssignments(config.node_index, config.num_instances, targets,
+                             config.traffic_pattern, config.exclude_self,
+                             local_endpoints);
   const uint32_t num_xfers = std::max<uint32_t>(1, config.num_xfers);
 
   std::vector<std::unique_ptr<OutboundStream>> streams;
@@ -147,84 +146,24 @@ void ExecuteOutboundStreams(
   }
 }
 
-NodeMetricsSnapshot CaptureSnapshot(
-    absl::Span<const std::unique_ptr<NodeInstance>> instances,
-    uint64_t xfer_size_bytes, const CpuTimer& cpu_timer) {
-  NodeMetricsSnapshot snap;
-  snap.num_instances = static_cast<int>(instances.size());
-  snap.xfer_size_bytes = xfer_size_bytes;
-  snap.cpu = cpu_timer.Snapshot();
-  for (const auto& inst : instances) {
-    MergeTransportMetrics(snap.transport, inst->GetTransportMetrics());
-  }
-  return snap;
-}
-
-// RAII background thread that periodically emits `NodeMetricsSnapshot` samples.
-class ScopedMetricsSampler {
- public:
-  ScopedMetricsSampler(absl::Duration interval, ControlChannel& channel,
-                       std::function<NodeMetricsSnapshot()> capture_fn)
-      : interval_(interval),
-        channel_(channel),
-        capture_fn_(std::move(capture_fn)) {
-    if (interval_ > absl::ZeroDuration()) {
-      thread_ = util::Thread([this]() {
-        while (!stop_.WaitForNotificationWithTimeout(interval_)) {
-          channel_.EmitMetricsSample(capture_fn_());
-        }
-      });
-    }
-  }
-
-  ~ScopedMetricsSampler() { Stop(); }
-
-  void Stop() {
-    if (!stop_.HasBeenNotified()) {
-      stop_.Notify();
-    }
-    if (thread_.joinable()) {
-      thread_.join();
-    }
-  }
-
- private:
-  absl::Duration interval_;
-  ControlChannel& channel_;
-  std::function<NodeMetricsSnapshot()> capture_fn_;
-  absl::Notification stop_;
-  util::Thread thread_;
-};
-
-absl::Status ExportTraces(
-    const NodeConfig& config,
-    absl::Span<const std::unique_ptr<NodeInstance>> instances) {
-  if (config.trace_every_n == 0) {
+absl::Status WriteTracesToDir(std::string_view trace_dir_str,
+                              absl::Span<const InstanceTrace> traces) {
+  if (traces.empty()) {
     return absl::OkStatus();
   }
-  const std::filesystem::path trace_dir(config.trace_dir);
-  bool dir_created = false;
-  for (size_t i = 0; i < instances.size(); ++i) {
-    const std::string json =
-        instances[i]->GetTransport().ExportChromeTraceJson();
-    if (!absl::StrContains(json, R"("ph":"X")")) {
-      continue;
-    }
-    if (!dir_created) {
-      std::error_code ec;
-      std::filesystem::create_directories(trace_dir, ec);
-      if (ec) {
-        return absl::InternalError(absl::StrCat("Failed to create trace_dir '",
-                                                config.trace_dir,
-                                                "': ", ec.message()));
-      }
-      dir_created = true;
-    }
-    const std::filesystem::path file_path =
-        trace_dir /
-        absl::StrFormat("node_%d_inst_%zu.json", config.node_index, i);
+  const std::filesystem::path trace_dir(trace_dir_str);
+  std::error_code ec;
+  std::filesystem::create_directories(trace_dir, ec);
+  if (ec) {
+    return absl::InternalError(absl::StrCat("Failed to create trace_dir '",
+                                            trace_dir_str,
+                                            "': ", ec.message()));
+  }
+  for (const InstanceTrace& trace : traces) {
+    const std::filesystem::path file_path = trace_dir / trace.filename;
     std::ofstream out(file_path, std::ios::binary | std::ios::trunc);
-    out.write(json.data(), static_cast<std::streamsize>(json.size()));
+    out.write(trace.json.data(),
+              static_cast<std::streamsize>(trace.json.size()));
     out.close();
     if (!out) {
       return absl::InternalError(absl::StrCat(
@@ -236,15 +175,32 @@ absl::Status ExportTraces(
 
 }  // namespace
 
-absl::Status ClusterNode::Run(const NodeConfig& config,
-                              ControlChannel& channel) {
-  // Phase 1: Apply CPU affinity (if configured) before first-touch buffer
-  // allocation and Transport worker thread creation.
+ClusterNode::ClusterNode(
+    NodeConfig config,
+    std::shared_ptr<const workloads::WorkloadGenerator> workload_gen,
+    uint64_t xfer_size, std::unique_ptr<RegisteredBuffer> shared_buf,
+    std::vector<std::unique_ptr<NodeInstance>> instances,
+    std::vector<std::string> local_endpoints,
+    std::vector<PeerTarget> local_targets)
+    : config_(std::move(config)),
+      workload_gen_(std::move(workload_gen)),
+      xfer_size_(xfer_size),
+      shared_buf_(std::move(shared_buf)),
+      instances_(std::move(instances)),
+      local_endpoints_(std::move(local_endpoints)),
+      local_targets_(std::move(local_targets)) {}
+
+ClusterNode::~ClusterNode() { DestroyInstances(instances_); }
+
+absl::StatusOr<std::unique_ptr<ClusterNode>> ClusterNode::Create(
+    const NodeConfig& config) {
+  // Apply CPU affinity before first-touch buffer allocation and Transport
+  // worker thread creation.
   if (absl::Status s = ApplyCpuAffinity(config.cpu_affinity); !s.ok()) {
     return s;
   }
 
-  const std::shared_ptr<const workloads::WorkloadGenerator> workload_gen =
+  std::shared_ptr<const workloads::WorkloadGenerator> workload_gen =
       ResolveWorkload(config);
   const uint64_t xfer_size =
       std::max<uint64_t>(1, workload_gen->TotalSizeBytes());
@@ -260,44 +216,103 @@ absl::Status ClusterNode::Run(const NodeConfig& config,
   }
   std::vector<std::unique_ptr<NodeInstance>> instances =
       std::move(*instances_or);
+  std::vector<std::string> local_endpoints = CollectLocalEndpoints(instances);
+  std::vector<PeerTarget> local_targets = CollectLocalTargets(instances);
 
-  const std::vector<std::string> local_endpoints =
-      CollectLocalEndpoints(instances);
-  const std::vector<PeerTarget> local_targets = CollectLocalTargets(instances);
+  return std::unique_ptr<ClusterNode>(new ClusterNode(
+      config, std::move(workload_gen), xfer_size, std::move(shared_buf),
+      std::move(instances), std::move(local_endpoints),
+      std::move(local_targets)));
+}
+
+void ClusterNode::ResetTimer() { cpu_timer_.Reset(); }
+
+NodeMetricsSnapshot ClusterNode::CaptureMetrics() const {
+  NodeMetricsSnapshot snap;
+  snap.num_instances = static_cast<int>(instances_.size());
+  snap.xfer_size_bytes = xfer_size_;
+  snap.cpu = cpu_timer_.Snapshot();
+  for (const auto& inst : instances_) {
+    MergeTransportMetrics(snap.transport, inst->GetTransportMetrics());
+  }
+  return snap;
+}
+
+NodeMetricsSnapshot ClusterNode::RunWorkload(
+    absl::Span<const PeerTarget> targets, SampleCallback on_sample) {
+  std::vector<std::unique_ptr<OutboundStream>> streams = BuildOutboundStreams(
+      config_, targets, *workload_gen_, instances_, local_endpoints_);
+  if (!streams.empty()) {
+    ScopedMetricsSampler sampler(
+        config_.metrics_interval, [this] { return CaptureMetrics(); },
+        std::move(on_sample));
+    ExecuteOutboundStreams(streams);
+  }
+  return CaptureMetrics();
+}
+
+std::vector<InstanceTrace> ClusterNode::CollectTraces() const {
+  std::vector<InstanceTrace> traces;
+  if (config_.trace_every_n == 0) {
+    return traces;
+  }
+  for (size_t i = 0; i < instances_.size(); ++i) {
+    std::string json = instances_[i]->GetTransport().ExportChromeTraceJson();
+    if (!absl::StrContains(json, R"("ph":"X")")) {
+      continue;
+    }
+    traces.push_back(InstanceTrace{
+        .filename =
+            absl::StrFormat("node_%d_inst_%zu.json", config_.node_index, i),
+        .json = std::move(json),
+    });
+  }
+  return traces;
+}
+
+absl::Status ClusterNode::Run(const NodeConfig& config,
+                              ControlChannel& channel) {
+  auto node_or = Create(config);
+  if (!node_or.ok()) {
+    return node_or.status();
+  }
+  std::unique_ptr<ClusterNode> node = std::move(*node_or);
+
+  // Pre-build outbound streams before emitting NODE_READY when targets are
+  // statically supplied in config.
   std::vector<std::unique_ptr<OutboundStream>> streams =
-      BuildOutboundStreams(config, *workload_gen, instances, local_endpoints);
+      BuildOutboundStreams(config, config.targets, *node->workload_gen_,
+                           node->instances_, node->local_endpoints_);
 
-  channel.EmitNodeReady(local_targets);
+  channel.EmitNodeReady(node->LocalTargets());
 
-  // Phase 2: Wait for synchronized START signal.
   if (!channel.WaitForCommand(kStartCommand)) {
-    DestroyInstances(instances);
     return absl::CancelledError("Received EOF while waiting for START command");
   }
 
-  // Phase 3: Execute outbound workload streams (if any) + periodic sampling.
-  CpuTimer cpu_timer;
-  auto snapshot_fn = [&]() {
-    return CaptureSnapshot(instances, xfer_size, cpu_timer);
-  };
-  ScopedMetricsSampler sampler(config.metrics_interval, channel, snapshot_fn);
+  node->ResetTimer();
+  ScopedMetricsSampler sampler(
+      config.metrics_interval, [&node] { return node->CaptureMetrics(); },
+      [&channel](const NodeMetricsSnapshot& s) {
+        channel.EmitMetricsSample(s);
+      });
 
   if (!streams.empty()) {
     ExecuteOutboundStreams(streams);
-    channel.EmitWorkloadDone(snapshot_fn());
+    channel.EmitWorkloadDone(node->CaptureMetrics());
   }
 
-  // Phase 4: Wait for STOP signal before tearing down Transport listeners.
   channel.WaitForCommand(kStopCommand);
   sampler.Stop();
-  const NodeMetricsSnapshot final_snapshot = snapshot_fn();
-  if (absl::Status s = ExportTraces(config, instances); !s.ok()) {
-    DestroyInstances(instances);
-    return s;
+  const NodeMetricsSnapshot final_snapshot = node->CaptureMetrics();
+  if (config.trace_every_n > 0) {
+    if (absl::Status s =
+            WriteTracesToDir(config.trace_dir, node->CollectTraces());
+        !s.ok()) {
+      return s;
+    }
   }
   channel.EmitNodeDone(final_snapshot);
-
-  DestroyInstances(instances);
   return absl::OkStatus();
 }
 

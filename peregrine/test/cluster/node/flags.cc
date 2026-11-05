@@ -1,5 +1,7 @@
 #include "peregrine/test/cluster/node/flags.h"
 
+#include <sys/socket.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <string>
@@ -25,8 +27,9 @@
 #include "peregrine/test/workloads/workload_generator.h"
 
 ABSL_FLAG(std::string, ip, "127.0.0.1",
-          "Local IP address to bind Peregrine instances to (supports loopback "
-          "127.0.0.1 / ::1 and physical NIC IPs).");
+          "Local IP address to bind Peregrine instances to ('auto' for "
+          "automatic non-loopback NIC selection, or an explicit loopback / "
+          "physical NIC IP).");
 
 ABSL_FLAG(int, num_instances, 1,
           "Number of Peregrine Transport instances to run in this process.");
@@ -83,21 +86,6 @@ ABSL_FLAG(std::string, trace_dir, "/tmp",
 namespace peregrine::cluster {
 namespace {
 
-absl::StatusOr<TransportType> ParseTransportFlag(std::string_view raw) {
-  std::string_view s = absl::StripAsciiWhitespace(raw);
-  if (absl::EqualsIgnoreCase(s, "any")) {
-    return TransportType::kAny;
-  }
-  if (absl::EqualsIgnoreCase(s, "tcp")) {
-    return TransportType::kTcp;
-  }
-  if (absl::EqualsIgnoreCase(s, "rdma")) {
-    return TransportType::kRdma;
-  }
-  return absl::InvalidArgumentError(absl::StrCat(
-      "Invalid --transport '", raw, "': expected 'any', 'tcp' or 'rdma'"));
-}
-
 absl::StatusOr<workloads::WorkloadType> ParseWorkloadFlag(
     std::string_view raw) {
   std::string_view s = absl::StripAsciiWhitespace(raw);
@@ -114,10 +102,38 @@ absl::StatusOr<workloads::WorkloadType> ParseWorkloadFlag(
 
 }  // namespace
 
+absl::StatusOr<TransportType> ParseTransportFlag(std::string_view raw) {
+  std::string_view s = absl::StripAsciiWhitespace(raw);
+  if (absl::EqualsIgnoreCase(s, "any")) {
+    return TransportType::kAny;
+  }
+  if (absl::EqualsIgnoreCase(s, "tcp")) {
+    return TransportType::kTcp;
+  }
+  if (absl::EqualsIgnoreCase(s, "rdma")) {
+    return TransportType::kRdma;
+  }
+  return absl::InvalidArgumentError(absl::StrCat(
+      "Invalid --transport '", raw, "': expected 'any', 'tcp' or 'rdma'"));
+}
+
+absl::StatusOr<std::string> ResolveBindIp(std::string_view ip,
+                                          TransportType transport) {
+  ip = absl::StripAsciiWhitespace(ip);
+  if (absl::EqualsIgnoreCase(ip, "auto")) {
+    return util::SelectAutoBindIp(util::FindRoutableIpAddrs(AF_UNSPEC),
+                                  transport);
+  }
+  return ValidateIp(ip);
+}
+
 absl::StatusOr<std::string> ValidateIp(std::string_view ip) {
   ip = absl::StripAsciiWhitespace(ip);
   if (ip.empty()) {
     return absl::InvalidArgumentError("--ip must not be empty");
+  }
+  if (absl::EqualsIgnoreCase(ip, "auto")) {
+    return ResolveBindIp(ip, TransportType::kAny);
   }
   const auto parsed = util::IpAddr::Create(ip);
   if (!parsed.has_value()) {
@@ -151,13 +167,13 @@ absl::StatusOr<std::string> ValidateIp(std::string_view ip) {
 absl::StatusOr<NodeConfig> ReadNodeConfig() {
   NodeConfig cfg;
 
-  auto ip_or = ValidateIp(absl::GetFlag(FLAGS_ip));
-  if (!ip_or.ok()) return ip_or.status();
-  cfg.ip = std::move(*ip_or);
-
   auto transport_or = ParseTransportFlag(absl::GetFlag(FLAGS_transport));
   if (!transport_or.ok()) return transport_or.status();
   cfg.transport_type = *transport_or;
+
+  auto ip_or = ResolveBindIp(absl::GetFlag(FLAGS_ip), cfg.transport_type);
+  if (!ip_or.ok()) return ip_or.status();
+  cfg.ip = std::move(*ip_or);
 
   cfg.num_instances = absl::GetFlag(FLAGS_num_instances);
   if (cfg.num_instances <= 0) {

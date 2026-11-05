@@ -1,7 +1,11 @@
 #include "peregrine/test/cluster/node/flags.h"
 
+#include <sys/socket.h>
+
 #include "gtest/gtest.h"
 #include "absl/flags/flag.h"
+#include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/util/nic.h"
 #include "peregrine/test/cluster/node/config.h"
 
 namespace peregrine::cluster {
@@ -20,6 +24,34 @@ TEST(FlagsTest, ValidateIpAllowsLoopbackAndRejectsWildcardOrUnknown) {
   EXPECT_FALSE(ValidateIp("0.0.0.0").ok());
   EXPECT_FALSE(ValidateIp("::").ok());
   EXPECT_FALSE(ValidateIp("203.0.113.254").ok());
+}
+
+TEST(FlagsTest, ParseTransportFlagAndResolveBindIp) {
+  auto any = ParseTransportFlag(" any ");
+  ASSERT_TRUE(any.ok()) << any.status();
+  EXPECT_EQ(*any, TransportType::kAny);
+
+  auto tcp = ParseTransportFlag("TCP");
+  ASSERT_TRUE(tcp.ok()) << tcp.status();
+  EXPECT_EQ(*tcp, TransportType::kTcp);
+
+  auto rdma = ParseTransportFlag("rdma");
+  ASSERT_TRUE(rdma.ok()) << rdma.status();
+  EXPECT_EQ(*rdma, TransportType::kRdma);
+
+  EXPECT_FALSE(ParseTransportFlag("udp").ok());
+
+  auto loop = ResolveBindIp(" 127.0.0.1 ", TransportType::kTcp);
+  ASSERT_TRUE(loop.ok()) << loop.status();
+  EXPECT_EQ(*loop, "127.0.0.1");
+  EXPECT_FALSE(ResolveBindIp("0.0.0.0", TransportType::kTcp).ok());
+
+  if (util::TestOnly_PickOneNonLoopbackIpAddr(AF_UNSPEC).has_value()) {
+    auto auto_ip = ResolveBindIp("auto", TransportType::kTcp);
+    ASSERT_TRUE(auto_ip.ok()) << auto_ip.status();
+    EXPECT_NE(*auto_ip, "127.0.0.1");
+    EXPECT_NE(*auto_ip, "::1");
+  }
 }
 
 TEST(FlagsTest, ReadNodeConfigParsesFlags) {

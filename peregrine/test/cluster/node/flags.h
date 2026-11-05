@@ -8,6 +8,7 @@
 #include "absl/flags/declare.h"
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
+#include "peregrine/src/api/transport_types.h"
 #include "peregrine/test/cluster/node/config.h"
 
 ABSL_DECLARE_FLAG(std::string, ip);
@@ -28,6 +29,12 @@ ABSL_DECLARE_FLAG(uint32_t, trace_every_n);
 ABSL_DECLARE_FLAG(std::string, trace_dir);
 
 namespace peregrine::cluster {
+
+absl::StatusOr<TransportType> ParseTransportFlag(std::string_view raw);
+
+// Resolves ip ("auto" or an explicit local numeric IP) for transport.
+absl::StatusOr<std::string> ResolveBindIp(std::string_view ip,
+                                          TransportType transport);
 
 // Validates that `ip` is a non-empty, non-wildcard address belonging to a
 // local network interface (including loopback `127.0.0.1` and `::1`).
