@@ -9,6 +9,7 @@
 #include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
+#include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/ipaddr.h"
 
 namespace peregrine::util::testing {
@@ -77,6 +78,32 @@ TEST(NicsTest, ToString) {
       .addrs = {ip1, ip2},
   };
   LOG(INFO) << ni;
+}
+
+TEST(NicsTest, SelectAutoBindIp) {
+  const NicInfo lo{
+      .type = NicType::kIP,
+      .addrs = {*IpAddr::Create("127.0.0.1"), *IpAddr::Create("::1")},
+  };
+  const NicInfo eth0{
+      .type = NicType::kIP,
+      .addrs = {*IpAddr::Create("10.0.0.2"), *IpAddr::Create("2001:db8::2")},
+  };
+  const NicInfo ar0{
+      .type = NicType::kRDMA,
+      .addrs = {*IpAddr::Create("2001:db8::1")},
+  };
+
+  EXPECT_THAT(SelectAutoBindIp({{"lo", lo}}, TransportType::kAny),
+              StatusIs(kNotFound));
+  EXPECT_THAT(SelectAutoBindIp({{"lo", lo}, {"ar0", ar0}, {"eth0", eth0}},
+                               TransportType::kTcp),
+              IsOkAndHolds("2001:db8::2"));
+  EXPECT_THAT(SelectAutoBindIp({{"lo", lo}, {"ar0", ar0}, {"eth0", eth0}},
+                               TransportType::kRdma),
+              IsOkAndHolds("2001:db8::1"));
+  EXPECT_THAT(SelectAutoBindIp({{"eth0", eth0}}, TransportType::kRdma),
+              IsOkAndHolds("2001:db8::2"));
 }
 
 }  // namespace

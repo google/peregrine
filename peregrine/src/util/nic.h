@@ -12,6 +12,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
+#include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/ipaddr.h"
 
 namespace peregrine::util {
@@ -57,6 +58,13 @@ absl::StatusOr<int> FindNic(const IpAddr& target);
 // non-bridge interfaces matching `family` (AF_UNSPEC, AF_INET, or AF_INET6).
 absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     int family = AF_UNSPEC);
+
+// Selects a deterministic non-loopback routable NIC IP from nics, preferring
+// interfaces matching transport and IPv6 over IPv4, and falling back to any
+// valid NIC if none matches transport.
+absl::StatusOr<std::string> SelectAutoBindIp(
+    const absl::flat_hash_map<std::string, NicInfo>& nics,
+    TransportType transport);
 
 // Returns an arbitrary non-loopback ip address of `family` (AF_INET/AF_INET6)
 // on this host, or std::nullopt if it has none.

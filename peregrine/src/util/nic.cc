@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <optional>
@@ -24,6 +25,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
+#include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/util/ipaddr.h"
 
 namespace peregrine::util {
@@ -61,6 +63,44 @@ std::optional<IpAddr> GetRoutableIpAddr(const std::string& ip,
     if (inet_pton(AF_INET6, ip.c_str(), &ip6) == 1) {
       const IpAddr a(ip6);
       if (a.IsRoutable()) return a;
+    }
+  }
+  return std::nullopt;
+}
+
+bool MatchesTransport(const NicType nic_type, const TransportType transport) {
+  switch (transport) {
+    case TransportType::kAny:
+      return nic_type == NicType::kIP || nic_type == NicType::kRDMA;
+    case TransportType::kTcp:
+      return nic_type == NicType::kIP;
+    case TransportType::kRdma:
+      return nic_type == NicType::kRDMA;
+  }
+  return false;
+}
+
+std::optional<std::string> PickFromNics(
+    const absl::flat_hash_map<std::string, NicInfo>& nics,
+    const TransportType transport) {
+  std::vector<std::string> ifnames;
+  ifnames.reserve(nics.size());
+  for (const auto& [ifname, info] : nics) {
+    if (!MatchesTransport(info.type, transport)) {
+      continue;
+    }
+    ifnames.push_back(ifname);
+  }
+  std::sort(ifnames.begin(), ifnames.end());
+
+  for (const bool want_ipv6 : {true, false}) {
+    for (const std::string& ifname : ifnames) {
+      for (const IpAddr& addr : nics.at(ifname).addrs) {
+        if (addr.IsLoopback() || addr.IsIPv6() != want_ipv6) {
+          continue;
+        }
+        return addr.ToString();
+      }
     }
   }
   return std::nullopt;
@@ -158,6 +198,22 @@ absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     }
   }
   return ifc_ips;
+}
+
+absl::StatusOr<std::string> SelectAutoBindIp(
+    const absl::flat_hash_map<std::string, NicInfo>& nics,
+    const TransportType transport) {
+  if (transport != TransportType::kAny) {
+    if (auto ip = PickFromNics(nics, transport); ip.has_value()) {
+      return *std::move(ip);
+    }
+  }
+  if (auto any_ip = PickFromNics(nics, TransportType::kAny);
+      any_ip.has_value()) {
+    return *std::move(any_ip);
+  }
+  return absl::NotFoundError(
+      "no non-loopback routable NIC IP address found");
 }
 
 std::optional<IpAddr> TestOnly_PickOneNonLoopbackIpAddr(int family) {

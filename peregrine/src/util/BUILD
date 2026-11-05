@@ -132,6 +132,7 @@ cc_library(
     hdrs = ["nic.h"],
     deps = [
         ":ipaddr",
+        "//peregrine/src/api:transport_types",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
@@ -148,6 +149,7 @@ cc_test(
     deps = [
         ":ipaddr",
         ":nic",
+        "//peregrine/src/api:transport_types",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/status",
