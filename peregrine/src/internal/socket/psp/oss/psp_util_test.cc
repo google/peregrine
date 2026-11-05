@@ -5,7 +5,10 @@
 namespace peregrine::internal::psp::testing {
 namespace {
 
-TEST(PspUtilTest, OssStub) { EXPECT_FALSE(IsPspSupported()); }
+TEST(PspUtilTest, OssStub) {
+  EXPECT_FALSE(IsPspSupported());
+  EXPECT_EQ(GetPspTcpSyscalls(), nullptr);
+}
 
 }  // namespace
 }  // namespace peregrine::internal::psp::testing

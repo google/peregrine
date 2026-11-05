@@ -11,6 +11,8 @@ namespace peregrine::internal::psp {
 
 void TestOnly_SetPspTcpSyscalls(void* psp_sys) {}
 
+void* GetPspTcpSyscalls() { return nullptr; }
+
 bool IsPspSupported() { return false; }
 
 bool IsPspEnabled(fd_t fd) { return false; }

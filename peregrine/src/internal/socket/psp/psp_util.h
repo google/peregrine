@@ -13,6 +13,9 @@ namespace peregrine::internal::psp {
 // Sets mock psp syscalls for testing.
 void TestOnly_SetPspTcpSyscalls(void* psp_sys);
 
+// Returns a pointer to the psp syscalls.
+void* GetPspTcpSyscalls();
+
 // Returns true iff psp is supported.
 bool IsPspSupported();
 
