@@ -14,6 +14,7 @@ cc_library(
     hdrs = ["channel.h"],
     deps = [
         ":channel_type",
+        "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "@abseil-cpp//absl/types:span",
     ],
