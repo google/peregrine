@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <ostream>
 #include <string>
+#include <vector>
 
 #include "absl/functional/any_invocable.h"
 #include "absl/types/span.h"
@@ -111,6 +112,11 @@ struct Options {
   // an incoming request when `Request::raddr` is not provided by the sender.
   // If `nullptr`, incoming requests with a null `raddr` are rejected.
   ResolveAddrCallback resolve_addr_callback = nullptr;
+
+  // Allowlist of local network devices (e.g., eth0 for TCP or irdma0 for RDMA)
+  // for data plane connections. Empty allows all available devices.
+  // TODO(yyd): Implement device filtering in the data plane.
+  std::vector<std::string> allowed_devices;
 };
 
 // Returns a string representation of the transport operation status.

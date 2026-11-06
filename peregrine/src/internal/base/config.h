@@ -2,6 +2,8 @@
 #define PEREGRINE_SRC_INTERNAL_BASE_CONFIG_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "grpcpp/security/credentials.h"
 #include "grpcpp/security/server_credentials.h"
@@ -23,6 +25,10 @@ struct Config {
   // Set to false when network is encrypted, e.g. in GCP.
   static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
   bool require_dataplane_encryption = false;
+
+  // Allowlist of local network devices (e.g., eth0 for TCP or irdma0 for RDMA)
+  // for data plane connections. Empty allows all available devices.
+  std::vector<std::string> allowed_devices;
 
   // Returns true iff the config is valid.
   bool IsValid() const {
