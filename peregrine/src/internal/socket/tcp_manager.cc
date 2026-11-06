@@ -20,6 +20,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/constants.h"
 #include "peregrine/src/internal/base/endpoint.h"
@@ -74,14 +75,16 @@ std::unique_ptr<TcpSocket> TcpManager::createListener(Endpoint& endpoint,
   return socket;
 }
 
-std::unique_ptr<TcpManager> TcpManager::Create(HostInfo& self) {
+std::unique_ptr<TcpManager> TcpManager::Create(
+    HostInfo& self, absl::Span<const std::string> allowed_devices) {
   std::unique_ptr<Poller> poller = Poller::Create();
   if ABSL_PREDICT_FALSE (poller == nullptr) {
     LOG(ERROR) << "failed to create event poller";
     return nullptr;
   }
   const bool loopback = self.control_plane_listener.GetIpAddr().IsLoopback();
-  auto candidates = NicInfo::GetTcpListenerCandidates(loopback);
+  auto candidates =
+      NicInfo::GetTcpListenerCandidates(loopback, allowed_devices);
   if ABSL_PREDICT_FALSE (candidates.empty()) {
     LOG(ERROR) << "failed to find data plane tcp listener candidates";
     return nullptr;

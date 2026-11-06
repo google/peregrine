@@ -1,5 +1,7 @@
 #include "peregrine/src/internal/base/nicinfo.h"
 
+#include <string>
+
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "peregrine/src/internal/base/endpoint.h"
@@ -111,10 +113,37 @@ TEST(NicInfoTest, Equality) {
 
 TEST(NicInfoTest, TcpListenerCandidates) {
   constexpr bool kIncludeLoopback = true;
-  const auto candidates = NicInfo::GetTcpListenerCandidates(kIncludeLoopback);
+  const auto candidates =
+      NicInfo::GetTcpListenerCandidates(kIncludeLoopback, {});
   ASSERT_FALSE(candidates.empty());
   for (const auto& [ifc, nic] : candidates) {
     LOG(INFO) << "nic: " << nic;
+  }
+}
+
+TEST(NicInfoTest, TcpListenerCandidatesFiltersAllowedDevices) {
+  const auto all =
+      NicInfo::GetTcpListenerCandidates(/*include_loopback=*/true, {});
+  ASSERT_FALSE(all.empty());
+
+  const std::string chosen =
+      all.contains("lo") ? std::string("lo") : all.begin()->first;
+  const auto filtered =
+      NicInfo::GetTcpListenerCandidates(/*include_loopback=*/true, {chosen});
+  ASSERT_EQ(filtered.size(), 1);
+  ASSERT_TRUE(filtered.contains(chosen));
+  EXPECT_EQ(filtered.at(chosen), all.at(chosen));
+
+  EXPECT_TRUE(NicInfo::GetTcpListenerCandidates(/*include_loopback=*/true,
+                                                {"nonexistent_nic0"})
+                  .empty());
+  const auto without_loopback =
+      NicInfo::GetTcpListenerCandidates(/*include_loopback=*/false, {chosen});
+  for (const auto& [ifc, nic] : without_loopback) {
+    EXPECT_EQ(ifc, chosen);
+    for (const Endpoint& ep : nic.endpoints) {
+      EXPECT_FALSE(ep.GetIpAddr().IsLoopback()) << ep;
+    }
   }
 }
 
