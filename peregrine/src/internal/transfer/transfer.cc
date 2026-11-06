@@ -168,6 +168,11 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
     LOG(WARNING) << "invalid post info payload";
     return false;
   }
+  static_assert(
+      assumptions::kPostInfoHeaderIsSentOnEveryChannelBeforeDataHeader);
+  if (info.peer.HasNonzeroIpPort()) {
+    channel->SetPeer(info.peer);
+  }
   return incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer);
 }
 
@@ -270,10 +275,12 @@ bool Transfer::recvMsg(Channel* const channel, RequestTracker& outgoing,
     return recvDataMsg(channel, *chunk, payload, outgoing, incoming, worker_id,
                        tracer);
   }
-  return recvPostInfoMsg(std::get<PostInfoHeader>(header), payload, incoming);
+  return recvPostInfoMsg(channel, std::get<PostInfoHeader>(header), payload,
+                         incoming);
 }
 
-bool Transfer::recvPostInfoMsg(const PostInfoHeader& info,
+bool Transfer::recvPostInfoMsg(Channel* const channel,
+                               const PostInfoHeader& info,
                                const ChunkPayloadView payload,
                                RequestTracker& incoming) {
   const uint64_t start_us = util::MonoNowUs();
@@ -289,6 +296,11 @@ bool Transfer::recvPostInfoMsg(const PostInfoHeader& info,
   if ABSL_PREDICT_FALSE (!HeaderUtil::Deserialize(s, reqs)) {
     LOG(WARNING) << "invalid post info payload";
     return false;
+  }
+  static_assert(
+      assumptions::kPostInfoHeaderIsSentOnEveryChannelBeforeDataHeader);
+  if (info.peer.HasNonzeroIpPort()) {
+    channel->SetPeer(info.peer);
   }
   return incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer);
 }

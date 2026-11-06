@@ -10,6 +10,7 @@ cc_library(
     deps = [
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal:assumptions",
+        "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/channel",
         "//peregrine/src/internal/channel:channel_type",
@@ -36,6 +37,7 @@ cc_test(
         "//peregrine/src/api:transport_trace",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal:assumptions",
+        "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/channel",
         "//peregrine/src/internal/channel:channel_test_util",

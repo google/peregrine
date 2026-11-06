@@ -141,6 +141,12 @@ inline constexpr bool kRdmaChannelRkeyIsStaticForLifetime = true;
 // which it can then reads the payload and place it in its destination memory.
 inline constexpr bool kBufferIsDividedIntoFixedSizeChunks = true;
 
+// For each transport request, `PostInfoHeader` (carrying the sender's peer
+// endpoint and `RequestInfo` descriptors) is sent on every channel before
+// `DataHeader` chunks are sent on that channel.
+inline constexpr bool kPostInfoHeaderIsSentOnEveryChannelBeforeDataHeader =
+    true;
+
 // When sent over network, both the chunk header and payload are encrypted by
 // layer-3 protocols (e.g., Google Cloud automatically encrypts network data
 // using PSP: https://cloud.google.com/docs/security/encryption-in-transit).

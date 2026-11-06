@@ -60,7 +60,7 @@ class Transfer final {
   static bool recvMsg(Channel* channel, RequestTracker& outgoing,
                       RequestTracker& incoming, int worker_id,
                       TraceRecorder& tracer);
-  static bool recvPostInfoMsg(const PostInfoHeader& info,
+  static bool recvPostInfoMsg(Channel* channel, const PostInfoHeader& info,
                               ChunkPayloadView payload,
                               RequestTracker& incoming);
   static bool recvDataMsg(Channel* channel, DataHeader& chunk,

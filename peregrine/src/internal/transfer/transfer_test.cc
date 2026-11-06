@@ -19,6 +19,7 @@
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_test_util.h"
@@ -111,6 +112,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
     info.opcode = Opcode::kPostInfo;
     info.handle = kHandle;
     info.len = HeaderUtil::kRequestInfoSize;
+    info.peer = peer_;
     info.metadata = kPostMetadata;
     return info;
   }
@@ -171,6 +173,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
 
  protected:
   const Param p_;
+  const Endpoint peer_ = Endpoint::Create("127.0.0.1:8080");
   absl::BitGen bitgen_;
   std::vector<Byte> src_;
   std::vector<Byte> dst_;
@@ -249,6 +252,7 @@ TEST_P(TransferTest, SendRecv) {
 
   EXPECT_TRUE(IsSendDone());
   EXPECT_TRUE(IsRecvDone());
+  EXPECT_EQ(chs.rcvr->GetPeer(), peer_);
   ASSERT_EQ(recv_posts_.size(), 1);
   EXPECT_EQ(recv_posts_[0].status, Status::kSuccess);
   EXPECT_EQ(recv_posts_[0].post_meta, kPostMetadata);
