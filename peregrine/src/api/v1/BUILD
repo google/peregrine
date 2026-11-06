@@ -50,6 +50,7 @@ cc_library(
     hdrs = ["conn_util.h"],
     deps = [
         ":ip_util",
+        ":psp",
         "//peregrine/src/util:clock",
         "//peregrine/src/util:envvar",
         "@abseil-cpp//absl/cleanup",
@@ -61,6 +62,7 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/time",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -201,8 +203,20 @@ cc_test(
     ],
 )
 
+exports_files(["psp/psp.h"])
+
+# The Google implementation depends on prod-only PSP kernel libraries, so it is
+# selected only outside GCE. That keeps `:psp` usable from libtpu targets, whose
+# GCE builds get the stub implementation instead.
+_PSP_TCP = ["//peregrine/src/api/v1/psp/oss:psp"]
+
 cc_library(
     name = "psp",
     hdrs = ["psp/psp.h"],
-    deps = ["//peregrine/src/internal/socket/psp"],
+    deps = [
+        "//peregrine/src/internal/socket/psp",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/log",
+        "@grpc//:grpc++",
+    ] + _PSP_TCP,
 )

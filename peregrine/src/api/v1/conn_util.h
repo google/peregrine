@@ -2,9 +2,11 @@
 #define PEREGRINE_SRC_API_V1_CONN_UTIL_H_
 
 #include <cstdint>
+#include <memory>
 #include <string_view>
 
 #include "absl/status/statusor.h"
+#include "grpcpp/channel.h"
 
 namespace peregrine::v1 {
 
@@ -15,9 +17,10 @@ struct ConnectTiming {
 
 // Connects to remote TCP peer with optional local IP binding.
 // The connect times out after a fixed bound.
-absl::StatusOr<int> ConnectToPeer(std::string_view peer,
-                                  std::string_view local_ip = "",
-                                  ConnectTiming* timing = nullptr);
+absl::StatusOr<int> ConnectToPeer(
+    std::string_view peer, std::string_view local_ip = "",
+    bool require_psp = false, std::shared_ptr<grpc::Channel> channel = nullptr,
+    ConnectTiming* timing = nullptr);
 
 }  // namespace peregrine::v1
 

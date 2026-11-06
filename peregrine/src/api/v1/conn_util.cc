@@ -9,8 +9,10 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -28,7 +30,9 @@
 #include "absl/strings/str_split.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "grpcpp/channel.h"
 #include "peregrine/src/api/v1/ip_util.h"
+#include "peregrine/src/api/v1/psp/psp.h"
 #include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/envvar.h"
 
@@ -84,7 +88,9 @@ absl::Duration GetSendTimeout(int fd) {
 // starve the shared socket worker pool. Transfers on the connected socket keep
 // blocking I/O.
 absl::Status ConnectWithTimeout(int fd, const addrinfo& addr,
-                                absl::Duration timeout, ConnectTiming* timing) {
+                                absl::Duration timeout, bool require_psp,
+                                std::shared_ptr<grpc::Channel> channel,
+                                ConnectTiming* timing) {
   const absl::Duration saved_timeout = GetSendTimeout(fd);
   SetSendTimeout(fd, timeout);
 
@@ -92,6 +98,19 @@ absl::Status ConnectWithTimeout(int fd, const addrinfo& addr,
   absl::Cleanup restore_timeout = [fd, saved_timeout] {
     SetSendTimeout(fd, saved_timeout);
   };
+
+  if (require_psp) {
+    int64_t psp_key_xchg_us = -1;
+    int64_t connect_us = -1;
+    absl::Status status =
+        PspTcpConnect(fd, addr.ai_addr, addr.ai_addrlen, std::move(channel),
+                      &psp_key_xchg_us, &connect_us);
+    if (status.ok() && timing != nullptr) {
+      timing->connect_us = connect_us;
+      timing->psp_key_xchg_us = psp_key_xchg_us;
+    }
+    return status;
+  }
 
   const absl::Duration connect_start =
       timing != nullptr ? util::MonotonicNow() : absl::ZeroDuration();
@@ -114,8 +133,14 @@ absl::Status ConnectWithTimeout(int fd, const addrinfo& addr,
 }  // namespace
 
 absl::StatusOr<int> ConnectToPeer(std::string_view peer,
-                                  std::string_view local_ip,
+                                  std::string_view local_ip, bool require_psp,
+                                  std::shared_ptr<grpc::Channel> channel,
                                   ConnectTiming* timing) {
+  if (require_psp && channel == nullptr) {
+    return absl::InvalidArgumentError(
+        "gRPC channel is required for PSP connection");
+  }
+
   ABSL_ASSIGN_OR_RETURN(const auto host_port, SplitHostPort(peer));
   const std::string& host = host_port.first;
   const std::string& port_str = host_port.second;
@@ -195,8 +220,8 @@ absl::StatusOr<int> ConnectToPeer(std::string_view peer,
         }
       }
 
-      const absl::Status connect_status =
-          ConnectWithTimeout(sock_fd, *rp, connect_timeout, timing);
+      const absl::Status connect_status = ConnectWithTimeout(
+          sock_fd, *rp, connect_timeout, require_psp, channel, timing);
       if (connect_status.ok()) {
         break; /* Success */
       }

@@ -87,9 +87,9 @@ absl::StatusOr<int> ConnPool::Borrow(absl::string_view peer,
   }
 
   ConnectTiming timing;
-  ABSL_ASSIGN_OR_RETURN(
-      int sock_fd,
-      ConnectToPeer(peer, local_ip, diag_vlog ? &timing : nullptr));
+  ABSL_ASSIGN_OR_RETURN(int sock_fd,
+                        ConnectToPeer(peer, local_ip, require_psp, channel,
+                                      diag_vlog ? &timing : nullptr));
   if (ABSL_PREDICT_FALSE(diag_vlog)) {
     std::string local_endpoint = GetLocalEndpoint(sock_fd);
     std::string psp_str =
