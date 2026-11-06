@@ -27,14 +27,16 @@ cc_test(
 
 exports_files(["psp_util.h"])
 
+_PSP_MOCK_DEPS = ["//peregrine/src/internal/socket/psp/oss:psp_mock"]
+
 cc_library(
     name = "psp_mock",
     testonly = True,
     hdrs = ["psp_mock.h"],
-    deps = [
-        "//peregrine/src/internal/socket/psp/oss:psp_mock",
-    ],
+    deps = _PSP_MOCK_DEPS,
 )
+
+_PSP_UTIL_DEPS = ["//peregrine/src/internal/socket/psp/oss:psp_util"]
 
 cc_library(
     name = "psp_util",
@@ -42,8 +44,7 @@ cc_library(
     deps = [
         ":psp",
         "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/socket/psp/oss:psp_util",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
-    ],
+    ] + _PSP_UTIL_DEPS,
 )

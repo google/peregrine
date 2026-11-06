@@ -208,7 +208,7 @@ exports_files(["psp/psp.h"])
 # The Google implementation depends on prod-only PSP kernel libraries, so it is
 # selected only outside GCE. That keeps `:psp` usable from libtpu targets, whose
 # GCE builds get the stub implementation instead.
-_PSP_TCP = ["//peregrine/src/api/v1/psp/oss:psp"]
+_PSP_DEPS = ["//peregrine/src/api/v1/psp/oss:psp"]
 
 cc_library(
     name = "psp",
@@ -218,5 +218,5 @@ cc_library(
         "@abseil-cpp//absl/flags:flag",
         "@abseil-cpp//absl/log",
         "@grpc//:grpc++",
-    ] + _PSP_TCP,
+    ] + _PSP_DEPS,
 )
