@@ -34,10 +34,12 @@ struct NicInfo {
   // Returns invalid nic info if the string parsing fails.
   static NicInfo Create(std::string_view s);
 
-  // Returns a map of `interface -> nic info` for tcp listener candidates,
-  // including loopback interfaces iff `include_loopback` is true.
+  // Returns a map of interface -> nic info for tcp listener candidates,
+  // including loopback interfaces iff include_loopback is true. When
+  // allowed_devices is non-empty, only interfaces in allowed_devices are
+  // included.
   static absl::flat_hash_map<std::string, NicInfo> GetTcpListenerCandidates(
-      bool include_loopback);
+      bool include_loopback, absl::Span<const std::string> allowed_devices);
 
   // Returns an arbitrary valid ipv4 localhost endpoint,
   // or std::nullopt if none exists.

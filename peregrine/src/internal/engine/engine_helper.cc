@@ -51,7 +51,7 @@ std::unique_ptr<EngineHelper> EngineHelper::Create(const Config& config,
                  << ", continue with TCP but no RDMA";
   }
 
-  auto tcp_mgr = TcpManager::Create(self);
+  auto tcp_mgr = TcpManager::Create(self, config.allowed_devices);
   if ABSL_PREDICT_FALSE (tcp_mgr == nullptr) {
     LOG(ERROR) << "failed to create tcp manager for " << self;
     return nullptr;

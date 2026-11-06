@@ -14,6 +14,7 @@
 #include "absl/log/log.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
@@ -342,6 +343,23 @@ TEST_P(TcpManagerTest, ConnectTimeout) {
   mgr_->Stop();
   ta.join();
   EXPECT_EQ(CountOpenSocketFds(), sockets_before - num_peer_endpoints_);
+}
+
+TEST(TcpManagerAllowedDevicesTest, FiltersDataPlaneListenersToAllowlist) {
+  HostInfo self = TestOnly_LocalHostInfo(AF_INET, /*tcp=*/true);
+  const std::vector<std::string> allowed = {"lo"};
+  std::unique_ptr<TcpManager> mgr = TcpManager::Create(self, allowed);
+  ASSERT_NE(mgr, nullptr);
+  ASSERT_EQ(self.data_plane_listeners.size(), 1);
+  EXPECT_EQ(self.data_plane_listeners[0].name, "lo");
+}
+
+TEST(TcpManagerAllowedDevicesTest, ReturnsNullWhenNoAllowedDeviceMatches) {
+  HostInfo self = TestOnly_LocalHostInfo(AF_INET, /*tcp=*/true);
+  const HostInfo before = self;
+  const std::vector<std::string> allowed = {"nonexistent_nic0"};
+  EXPECT_EQ(TcpManager::Create(self, allowed), nullptr);
+  EXPECT_EQ(self, before);
 }
 
 }  // namespace

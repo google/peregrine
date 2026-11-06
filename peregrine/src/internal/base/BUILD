@@ -63,6 +63,7 @@ cc_library(
         "//peregrine/src/internal:assumptions",
         "//peregrine/src/util:nic",
         "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
