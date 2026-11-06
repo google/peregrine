@@ -329,7 +329,9 @@ void Engine::processRecvRead(const Endpoint& peer, const Handle handle,
                              absl::Span<const RequestInfo> reqs) {
   if (!outgoing_.Add(
           handle, util::MonoNowUs(),
-          [this, handle](Status) { incoming_.OnReqComplete(handle); },
+          [this, peer, handle](Status) {
+            incoming_.OnReqComplete(handle, peer);
+          },
           TraceContext{})) {
     LOG(WARNING) << "handle already exists in outgoing tracker: " << handle;
     return;

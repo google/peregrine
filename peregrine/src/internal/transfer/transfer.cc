@@ -18,6 +18,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
+#include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
@@ -196,20 +197,22 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
   // and registered in `incoming` before `DataHeader` chunks arrive. Also have
   // `incoming.Find()` return `ChunkTracker*` to avoid the extra `Check()` lock
   // + `isComplete()` scan and `.at()` abort on missing `reqid`.
+  const Endpoint peer = channel->GetPeer();
   const size_t size = chunk.len;
-  if ABSL_PREDICT_FALSE (incoming.Check(chunk.handle) == Status::kNotFound) {
+  if ABSL_PREDICT_FALSE (incoming.Check(chunk.handle, peer) ==
+                         Status::kNotFound) {
     LOG(WARNING) << "unregistered handle for data chunk: " << chunk;
     (void)drainStream(channel, size);
     return false;
   }
   Byte* const dst_addr =
-      incoming.GetChunkAddr(chunk.handle, chunk.reqid, chunk.byte_offset);
+      incoming.GetChunkAddr(chunk.handle, chunk.reqid, chunk.byte_offset, peer);
   if ABSL_PREDICT_FALSE (dst_addr == nullptr) {
     LOG(WARNING) << "unresolved address for data chunk: " << chunk;
     (void)drainStream(channel, size);
     return false;
   }
-  ChunkTracker& tracker = incoming.Find(chunk.handle, chunk.reqid);
+  ChunkTracker& tracker = incoming.Find(chunk.handle, chunk.reqid, peer);
 
   // Step 3: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
@@ -224,7 +227,7 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
     // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
     // in `OnReqComplete`.
     if (tracker.Release(index, success)) {
-      incoming.OnReqComplete(chunk.handle);
+      incoming.OnReqComplete(chunk.handle, peer);
     }
     if (!success) return false;
     StampRxTrace(chunk, worker_id, s, t_start_us, t_acquired_us);
@@ -331,17 +334,19 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
   // and registered in `incoming` before `DataHeader` chunks arrive. Also have
   // `incoming.Find()` return `ChunkTracker*` to avoid the extra `Check()` lock
   // + `isComplete()` scan and `.at()` abort on missing `reqid`.
-  if ABSL_PREDICT_FALSE (incoming.Check(chunk.handle) == Status::kNotFound) {
+  const Endpoint peer = channel->GetPeer();
+  if ABSL_PREDICT_FALSE (incoming.Check(chunk.handle, peer) ==
+                         Status::kNotFound) {
     LOG(WARNING) << "unregistered handle for data chunk: " << chunk;
     return false;
   }
   Byte* const dst_addr =
-      incoming.GetChunkAddr(chunk.handle, chunk.reqid, chunk.byte_offset);
+      incoming.GetChunkAddr(chunk.handle, chunk.reqid, chunk.byte_offset, peer);
   if ABSL_PREDICT_FALSE (dst_addr == nullptr) {
     LOG(WARNING) << "unresolved address for data chunk: " << chunk;
     return false;
   }
-  ChunkTracker& tracker = incoming.Find(chunk.handle, chunk.reqid);
+  ChunkTracker& tracker = incoming.Find(chunk.handle, chunk.reqid, peer);
 
   // Step 3: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
@@ -355,7 +360,7 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
       // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
       // in `OnReqComplete`.
       if (tracker.Release(index, true)) {
-        incoming.OnReqComplete(chunk.handle);
+        incoming.OnReqComplete(chunk.handle, peer);
       }
       StampRxTrace(chunk, worker_id, s, t_start_us, t_acquired_us);
       return sendAck(channel, chunk);

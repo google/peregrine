@@ -153,7 +153,7 @@ class TransferTest : public ::testing::TestWithParam<Param> {
   }
 
   bool IsRecvDone() const {
-    return b_.incoming.Check(kHandle) == Status::kSuccess;
+    return b_.incoming.Check(kHandle, peer_) == Status::kSuccess;
   }
 
  private:

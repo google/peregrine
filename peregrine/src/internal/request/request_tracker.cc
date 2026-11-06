@@ -33,9 +33,9 @@ bool RequestTracker::isComplete(const PostTracker& pt) const {
   return true;
 }
 
-Status RequestTracker::Check(const Handle handle) const {
+Status RequestTracker::Check(const Handle handle, const Endpoint& peer) const {
   absl::MutexLock _(trackers_mu_);
-  const auto it = trackers_.find(handle);
+  const auto it = trackers_.find({peer, handle});
   if ABSL_PREDICT_FALSE (it == trackers_.end()) {
     return Status::kNotFound;
   }
@@ -51,7 +51,7 @@ bool RequestTracker::Add(const Handle handle, const uint64_t start_mono_us,
   PostTracker pt(/*req_map=*/{}, start_mono_us, std::move(on_complete),
                  trace_ctx);
   absl::MutexLock _(trackers_mu_);
-  return trackers_.try_emplace(handle, std::move(pt)).second;
+  return trackers_.try_emplace(Key{Endpoint{}, handle}, std::move(pt)).second;
 }
 
 bool RequestTracker::Add(const Handle handle,
@@ -64,7 +64,7 @@ bool RequestTracker::Add(const Handle handle,
   std::vector<RequestInfo> resolved_reqs;
   {
     absl::MutexLock _(trackers_mu_);
-    auto [it, inserted] = trackers_.try_emplace(handle);
+    auto [it, inserted] = trackers_.try_emplace(Key{peer, handle});
     PostTracker& pt = it->second;
     if (!pt.req_map.empty()) return true;
     pt.metadata = metadata;
@@ -111,15 +111,15 @@ bool RequestTracker::Add(const Handle handle,
   return true;
 }
 
-void RequestTracker::Remove(const Handle handle) {
+void RequestTracker::Remove(const Handle handle, const Endpoint& peer) {
   absl::MutexLock _(trackers_mu_);
-  auto it = trackers_.find(handle);
+  auto it = trackers_.find({peer, handle});
   if (it == trackers_.end()) return;
   tracer_.RecordPollReaped(it->second.trace_ctx, handle);
   trackers_.erase(it);
 }
 
-void RequestTracker::OnReqComplete(const Handle handle) {
+void RequestTracker::OnReqComplete(const Handle handle, const Endpoint& peer) {
   OnComplete callback = nullptr;
   bool is_initiator = false;
   uint64_t recv_start_us = 0;
@@ -127,7 +127,7 @@ void RequestTracker::OnReqComplete(const Handle handle) {
   std::vector<Metadata> req_metas;
   {
     absl::MutexLock _(trackers_mu_);
-    const auto it = trackers_.find(handle);
+    const auto it = trackers_.find({peer, handle});
     if ABSL_PREDICT_FALSE (it == trackers_.end()) return;
 
     PostTracker& pt = it->second;
@@ -168,13 +168,14 @@ void RequestTracker::OnReqComplete(const Handle handle) {
 }
 
 void RequestTracker::Update(const Handle handle, const ReqId reqid,
-                            const chunk_t index, const int worker_id) {
+                            const chunk_t index, const int worker_id,
+                            const Endpoint& peer) {
   OnComplete callback = nullptr;
   uint64_t start_mono_us = 0;
   TraceContext trace_ctx;
   {
     absl::MutexLock lock(trackers_mu_);
-    auto it = trackers_.find(handle);
+    auto it = trackers_.find({peer, handle});
     if ABSL_PREDICT_FALSE (it == trackers_.end()) return;
 
     PostTracker& pt = it->second;
@@ -203,9 +204,10 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
 }
 
 Byte* RequestTracker::GetChunkAddr(const Handle handle, const ReqId reqid,
-                                   const uint64_t byte_offset) const {
+                                   const uint64_t byte_offset,
+                                   const Endpoint& peer) const {
   absl::MutexLock _(trackers_mu_);
-  const auto it = trackers_.find(handle);
+  const auto it = trackers_.find({peer, handle});
   if ABSL_PREDICT_FALSE (it == trackers_.end()) return nullptr;
   const auto req_it = it->second.req_map.find(reqid);
   if ABSL_PREDICT_FALSE (req_it == it->second.req_map.end()) return nullptr;
@@ -214,16 +216,18 @@ Byte* RequestTracker::GetChunkAddr(const Handle handle, const ReqId reqid,
   return reinterpret_cast<Byte*>(base + byte_offset);
 }
 
-ChunkTracker& RequestTracker::Find(const Handle handle, const ReqId reqid) {
+ChunkTracker& RequestTracker::Find(const Handle handle, const ReqId reqid,
+                                   const Endpoint& peer) {
   absl::MutexLock _(trackers_mu_);
-  return trackers_.at(handle).req_map.at(reqid)->chunks;
+  return trackers_.at({peer, handle}).req_map.at(reqid)->chunks;
 }
 
 ChunkTracker& RequestTracker::FindOrCreate(const Handle handle,
                                            const ReqId reqid,
-                                           const uint32_t num_chunks) {
+                                           const uint32_t num_chunks,
+                                           const Endpoint& peer) {
   absl::MutexLock _(trackers_mu_);
-  PostTracker& pt = trackers_[handle];
+  PostTracker& pt = trackers_[{peer, handle}];
   std::unique_ptr<ReqTracker>& req = pt.req_map[reqid];
   if ABSL_PREDICT_FALSE (req == nullptr) {
     req = std::make_unique<ReqTracker>(num_chunks);

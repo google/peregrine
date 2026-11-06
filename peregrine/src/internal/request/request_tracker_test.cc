@@ -498,11 +498,66 @@ TEST_F(RequestTrackerTest, ReadResponderOnRecvRead) {
   RequestInfo expected_req = reqs[0];
   expected_req.raddr = addr_t(reinterpret_cast<uintptr_t>(buf));
   EXPECT_EQ(recv_reqs[0], expected_req);
-  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 64), buf + 64);
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 64, kPeer), buf + 64);
 
   // Duplicate `Add` is idempotent and does not re-invoke `on_recv_read`.
   EXPECT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta, kPeer));
   EXPECT_EQ(on_recv_read_calls, 1);
+}
+
+TEST_F(RequestTrackerTest, SameHandleDifferentPeers) {
+  const Endpoint kPeer1 = Endpoint::Create("127.0.0.1:9001");
+  const Endpoint kPeer2 = Endpoint::Create("127.0.0.1:9002");
+  constexpr Metadata kPostMeta1 = {1, 1, 1};
+  constexpr Metadata kPostMeta2 = {2, 2, 2};
+  const RequestInfo reqs1[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = kBufferBaseAddr,
+       .total_len = 1024,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+  const RequestInfo reqs2[] = {
+      {.reqid = kReqId2,
+       .nchunks = 1,
+       .raddr = addr_t(kBufferBaseAddr.value() + 1024),
+       .total_len = 1024,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+
+  std::vector<Metadata> completed_posts;
+  RequestTracker rt(metrics_, tracer_,
+                    [&](Status s, const Metadata& post_meta,
+                        absl::Span<const Metadata> /*req_metas*/) {
+                      EXPECT_EQ(s, Status::kSuccess);
+                      completed_posts.push_back(post_meta);
+                    });
+
+  // Peer 1 registers and completes `kHandle`.
+  ASSERT_TRUE(rt.Add(kHandle, reqs1, util::MonoNowUs(), kPostMeta1, kPeer1));
+  ChunkTracker& recv1 = rt.Find(kHandle, kReqId, kPeer1);
+  ASSERT_EQ(recv1.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
+  ASSERT_TRUE(recv1.Release(chunk_t(0), /*success=*/true));
+  rt.OnReqComplete(kHandle, kPeer1);
+  EXPECT_EQ(rt.Check(kHandle, kPeer1), Status::kSuccess);
+
+  // Peer 2 registers the same `kHandle` with a different `ReqId` and completes
+  // without colliding with Peer 1's retained entry.
+  ASSERT_TRUE(rt.Add(kHandle, reqs2, util::MonoNowUs(), kPostMeta2, kPeer2));
+  EXPECT_EQ(rt.Check(kHandle, kPeer2), Status::kInProgress);
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId2, 64, kPeer2),
+            reinterpret_cast<Byte*>(kBufferBaseAddr.value() + 1024 + 64));
+  ChunkTracker& recv2 = rt.Find(kHandle, kReqId2, kPeer2);
+  ASSERT_EQ(recv2.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
+  ASSERT_TRUE(recv2.Release(chunk_t(0), /*success=*/true));
+  rt.OnReqComplete(kHandle, kPeer2);
+  EXPECT_EQ(rt.Check(kHandle, kPeer2), Status::kSuccess);
+
+  ASSERT_EQ(completed_posts.size(), 2);
+  EXPECT_EQ(completed_posts[0], kPostMeta1);
+  EXPECT_EQ(completed_posts[1], kPostMeta2);
 }
 
 TEST_F(RequestTrackerTest, RecvPostLatencyWrite) {
