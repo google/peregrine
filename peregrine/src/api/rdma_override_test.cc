@@ -8,6 +8,8 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -22,6 +24,7 @@
 namespace peregrine {
 namespace {
 
+using ::testing::ElementsAre;
 using ::testing::IsNull;
 using ::testing::NotNull;
 
@@ -31,6 +34,7 @@ struct FactoryCall {
   std::string endpoint;
   int num_parallel_connections = 0;
   bool has_recv_post_callback = false;
+  std::vector<std::string> allowed_devices;
 };
 
 FactoryCall& LastCall() {
@@ -45,6 +49,7 @@ std::unique_ptr<Transport> CreateFakeRdmaTransport(std::string_view endpoint,
   call.endpoint = std::string(endpoint);
   call.num_parallel_connections = options.num_parallel_connections;
   call.has_recv_post_callback = options.recv_post_callback != nullptr;
+  call.allowed_devices = std::move(options.allowed_devices);
   return nullptr;
 }
 
@@ -66,12 +71,14 @@ TEST(RdmaOverrideTest, RdmaUsesRegisteredTransport) {
                                    .num_parallel_connections = 1000,  // clamped
                                    .recv_post_callback =
                                        [](Status, const Metadata&,
-                                          absl::Span<const Metadata>) {}}),
+                                          absl::Span<const Metadata>) {},
+                                   .allowed_devices = {"irdma0", "irdma1"}}),
               IsNull());  // The fake factory returns nullptr.
   EXPECT_EQ(LastCall().count, before + 1);
   EXPECT_EQ(LastCall().endpoint, ep);
   EXPECT_EQ(LastCall().num_parallel_connections, 100);
   EXPECT_TRUE(LastCall().has_recv_post_callback);
+  EXPECT_THAT(LastCall().allowed_devices, ElementsAre("irdma0", "irdma1"));
 }
 
 TEST(RdmaOverrideTest, OtherTransportTypesAreUnaffected) {

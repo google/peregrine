@@ -40,6 +40,7 @@ std::unique_ptr<Transport> CreateTransport(std::string_view endpoint,
       .transport_type = options.transport_type,
       .num_conns_per_peer = n,
       .require_dataplane_encryption = false,
+      .allowed_devices = std::move(options.allowed_devices),
   };
 
   // TODO: Support passing in credentials.
