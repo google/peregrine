@@ -220,3 +220,14 @@ cc_library(
         "@grpc//:grpc++",
     ] + _PSP_DEPS,
 )
+
+_PSP_MOCK_DEPS = ["//peregrine/src/internal/socket/psp/oss:psp_mock"]
+
+cc_library(
+    name = "psp_mock",
+    testonly = True,
+    hdrs = ["psp/psp_mock.h"],
+    deps = [
+        "//peregrine/src/internal/socket/psp:psp_util",
+    ] + _PSP_MOCK_DEPS,
+)
