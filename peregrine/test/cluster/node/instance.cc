@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/dynamic_annotations.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/functional/function_ref.h"
 #include "absl/log/check.h"
@@ -167,6 +168,10 @@ RegisteredBuffer::RegisteredBuffer(size_t size_bytes, bool zero_fill)
   if (!zero_fill) {
     util::RandomNonZero(absl::MakeSpan(data_));
   }
+  // Fan-in and shared-buffer workloads let multiple connections write to the
+  // same bytes concurrently; the contents are never inspected.
+  ABSL_ANNOTATE_BENIGN_RACE_SIZED(data_.data(), data_.size(),
+                                  "benchmark buffer with concurrent writers");
 }
 
 RegisteredBuffer::~RegisteredBuffer() { UnregisterAll(); }

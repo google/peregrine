@@ -135,6 +135,7 @@ cc_library(
         "//peregrine/src/util",
         "//peregrine/src/util:thread",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/base:dynamic_annotations",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/functional:function_ref",
         "@abseil-cpp//absl/log:check",

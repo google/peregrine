@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import threading
+import time
 from typing import Any
 
 from absl import logging
@@ -14,6 +15,8 @@ from absl import logging
 from peregrine.test.cluster.orchestrator import node_executor
 from peregrine.test.cluster.orchestrator import preflight
 from peregrine.test.cluster.orchestrator import report
+
+_LIVENESS_POLL_SEC = 1.0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -276,15 +279,22 @@ def _wait_for_workload_done(
     server_procs: Sequence[_ManagedNodeProcess],
     timeout_sec: float,
 ) -> None:
-  """Waits for all active client nodes to emit `WORKLOAD_DONE`."""
+  """Waits for all clients to emit `WORKLOAD_DONE`, failing if a server exits."""
   for cp in client_procs:
-    if not cp.workload_done_event.wait(timeout=timeout_sec):
-      srv_diag = "\n".join(sp.debug_summary() for sp in server_procs)
-      raise RuntimeError(
-          f"Timed out waiting for {cp.label} WORKLOAD_DONE.\n"
-          f"Client state: {cp.debug_summary()}\n"
-          f"Server state: {srv_diag}"
-      )
+    deadline = time.monotonic() + timeout_sec
+    while not cp.workload_done_event.wait(timeout=_LIVENESS_POLL_SEC):
+      for sp in server_procs:
+        if sp.error:
+          raise RuntimeError(
+              f"{sp.error}\nwhile waiting for {cp.label} WORKLOAD_DONE"
+          )
+      if time.monotonic() >= deadline:
+        srv_diag = "\n".join(sp.debug_summary() for sp in server_procs)
+        raise RuntimeError(
+            f"Timed out waiting for {cp.label} WORKLOAD_DONE.\n"
+            f"Client state: {cp.debug_summary()}\n"
+            f"Server state: {srv_diag}"
+        )
     if cp.error or cp.workload_done_payload is None:
       raise RuntimeError(cp.error or f"{cp.label} failed during workload")
     lat = report.summarize_node_snapshot(cp.workload_done_payload)
