@@ -12,7 +12,7 @@
 #include "grpcpp/channel.h"
 #include "peregrine/src/internal/socket/psp/psp.h"
 
-ABSL_DECLARE_FLAG(bool, enable_psp_tcp);
+ABSL_DECLARE_FLAG(bool, peregrine_enable_psp_tcp);
 
 namespace peregrine::v1 {
 

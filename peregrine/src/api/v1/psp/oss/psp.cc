@@ -12,7 +12,7 @@
 #include "absl/status/statusor.h"
 #include "grpcpp/channel.h"
 
-ABSL_FLAG(bool, enable_psp_tcp, false,
+ABSL_FLAG(bool, peregrine_enable_psp_tcp, false,
           "Whether to enable PSP encryption for TCP connections. It is not "
           "needed in Google Cloud since the traffic is already encrypted. "
           "See https://cloud.google.com/docs/security/encryption-in-transit).");
