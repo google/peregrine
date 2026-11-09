@@ -72,5 +72,15 @@ TEST(TransportUtilTest, TransportTypeTcp) {
       NotNull());
 }
 
+TEST(TransportUtilTest, AllowedDevicesOption) {
+  EXPECT_TRUE(Options{}.allowed_devices.empty());
+  const uint16_t port = util::FindFreePort(AF_INET, /*tcp=*/true);
+  const std::string ep = absl::StrFormat("127.0.0.1:%d", port);
+  EXPECT_THAT(CreateTransport(ep, {.transport_type = TransportType::kTcp,
+                                   .num_parallel_connections = 1,
+                                   .allowed_devices = {"lo"}}),
+              NotNull());
+}
+
 }  // namespace
 }  // namespace peregrine::testing
