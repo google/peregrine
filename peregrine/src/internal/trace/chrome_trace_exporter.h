@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "absl/types/span.h"
+#include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/trace/trace_event.h"
 
 namespace peregrine::internal {
@@ -21,6 +22,8 @@ namespace peregrine::internal {
 //   - pid: 1 (Sender), tid: 300 + i: Recv ACK Worker #i
 //     (Worker::recv_thread_)
 class ChromeTraceExporter final {
+  static_assert(assumptions::kRulesToFollowWhenAddingNewTraceEvents);
+
  public:
   ChromeTraceExporter() = delete;
 

@@ -290,6 +290,28 @@ inline constexpr bool kChunkHeaderHasBackwardForwardCompatibilityIssue = true;
 //  - Bind the property in `src/api/python/binding.cc`
 inline constexpr bool kRulesToFollowWhenAddingNewMetrics = true;
 
+// Assumptions about tracing.
+// ---------------------------------------------------------------------------
+//
+// TraceRecorder appends a fixed-size TraceEvent to a pre-allocated,
+// lock-free TraceBuffer on the sender.
+//
+// To add a new trace event:
+//
+// 1) Recording and export:
+//  - Add a TraceStage enumerator in src/internal/trace/trace_event.h
+//  - Add a Record*() in src/internal/trace/trace_recorder.{h,cc} and
+//    call it at the appropriate place
+//  - Handle the stage in src/internal/trace/chrome_trace_exporter.cc
+//  - Document the stage in g3doc/tracing.md
+//
+// 2) If recording metadata on the remote peer:
+//  - Update ChunkTraceWire in src/internal/trace/chunk_trace_wire.h,
+//    src/internal/chunk/{chunk_trace_wire.fbs,header.fbs,header_flatbuf.cc}
+//  - Stamp it in src/internal/transfer/transfer.cc and unpack it in
+//    TraceRecorder::RecordTxAckRcvd()
+inline constexpr bool kRulesToFollowWhenAddingNewTraceEvents = true;
+
 }  // namespace peregrine::assumptions
 
 #endif  // PEREGRINE_SRC_INTERNAL_ASSUMPTIONS_H_

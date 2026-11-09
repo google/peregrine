@@ -6,6 +6,7 @@
 
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/coding_style.h"
@@ -19,6 +20,7 @@ namespace peregrine::internal {
 // Instrumentation facade used by TransportImpl, Engine, Worker, Transfer, and
 // RequestTracker.
 class TraceRecorder final {
+  static_assert(assumptions::kRulesToFollowWhenAddingNewTraceEvents);
   static_assert(coding_style::kClassPrivateFunctionNamesStartWithLowercase);
   static_assert(coding_style::kClassLastPrivateBlockHasAllNonStaticDataMembers);
 

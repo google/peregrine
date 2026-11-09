@@ -3,10 +3,13 @@
 
 #include <cstdint>
 
+#include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/util/util.h"
 
 namespace peregrine::internal {
+
+static_assert(assumptions::kRulesToFollowWhenAddingNewTraceEvents);
 
 // Wire-level per-chunk trace metadata serialized in data chunks.
 struct ChunkTraceWire final {

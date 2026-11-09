@@ -7,6 +7,7 @@
 #include "absl/base/optimization.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/trace/trace_buffer.h"
@@ -16,6 +17,8 @@
 #include "peregrine/src/util/clock.h"
 
 namespace peregrine::internal {
+
+static_assert(assumptions::kRulesToFollowWhenAddingNewTraceEvents);
 
 namespace {
 

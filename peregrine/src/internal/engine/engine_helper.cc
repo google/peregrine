@@ -201,6 +201,7 @@ absl::Status EngineHelper::UnregisterMemory(const void* addr) {
 }
 
 std::string EngineHelper::ExportChromeTraceJson() const {
+  static_assert(assumptions::kRulesToFollowWhenAddingNewTraceEvents);
   return ChromeTraceExporter::Export(tracer_.Buffer().Snapshot(),
                                      self_.control_plane_listener.ToString());
 }

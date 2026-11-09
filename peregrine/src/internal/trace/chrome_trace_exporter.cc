@@ -16,10 +16,13 @@
 #include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/trace/trace_event.h"
 
 namespace peregrine::internal {
+
+static_assert(assumptions::kRulesToFollowWhenAddingNewTraceEvents);
 
 namespace {
 

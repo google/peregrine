@@ -4,7 +4,11 @@
 #include <cstdint>
 #include <limits>
 
+#include "peregrine/src/internal/assumptions.h"
+
 namespace peregrine::internal {
+
+static_assert(assumptions::kRulesToFollowWhenAddingNewTraceEvents);
 
 // Lifecycle stages recorded for a traced `Transport::Post()` operation.
 enum class TraceStage : uint8_t {

@@ -7,6 +7,7 @@ cc_library(
     name = "chunk_trace_wire",
     hdrs = ["chunk_trace_wire.h"],
     deps = [
+        "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/chunk:chunk_tracker",
         "//peregrine/src/internal/util",
     ],
@@ -20,6 +21,7 @@ cc_library(
 cc_library(
     name = "trace_event",
     hdrs = ["trace_event.h"],
+    deps = ["//peregrine/src/internal:assumptions"],
 )
 
 cc_library(
@@ -62,6 +64,7 @@ cc_library(
         ":trace_sampler",
         "//peregrine/src/api:transport_trace",
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal:coding_style",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:header",
@@ -79,6 +82,7 @@ cc_library(
     deps = [
         ":trace_event",
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal:assumptions",
         "//peregrine/src/internal/base:types",
         "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/container:flat_hash_set",
