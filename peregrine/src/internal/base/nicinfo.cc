@@ -7,12 +7,14 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "peregrine/src/internal/assumptions.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/util/nic.h"
@@ -70,9 +72,15 @@ NicInfo NicInfo::Create(std::string_view s) {
 }
 
 absl::flat_hash_map<std::string, NicInfo> NicInfo::GetTcpListenerCandidates(
-    const bool include_loopback) {
+    const bool include_loopback,
+    const absl::Span<const std::string> allowed_devices) {
+  const absl::flat_hash_set<std::string_view> allowlist(allowed_devices.begin(),
+                                                        allowed_devices.end());
   absl::flat_hash_map<std::string, NicInfo> candidates;
   for (const auto& [ifc, nis] : util::FindRoutableIpAddrs()) {
+    if (!allowlist.empty() && !allowlist.contains(ifc)) {
+      continue;
+    }
     if (nis.type == util::NicType::kIP) {
       std::vector<Endpoint> es;
       for (const auto& ip : nis.addrs) {

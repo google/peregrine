@@ -80,6 +80,10 @@ TEST(TransportUtilTest, AllowedDevicesOption) {
                                    .num_parallel_connections = 1,
                                    .allowed_devices = {"lo"}}),
               NotNull());
+  EXPECT_THAT(CreateTransport(ep, {.transport_type = TransportType::kTcp,
+                                   .num_parallel_connections = 1,
+                                   .allowed_devices = {"nonexistent_nic0"}}),
+              IsNull());
 }
 
 }  // namespace

@@ -115,7 +115,7 @@ struct Options {
 
   // Allowlist of local network devices (e.g., eth0 for TCP or irdma0 for RDMA)
   // for data plane connections. Empty allows all available devices.
-  // TODO(yyd): Implement device filtering in the data plane.
+  // Currently supported for TCP; RDMA device filtering is not yet implemented.
   std::vector<std::string> allowed_devices;
 };
 

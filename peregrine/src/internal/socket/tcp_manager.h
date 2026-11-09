@@ -4,11 +4,13 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/log/check.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
@@ -25,8 +27,13 @@ namespace peregrine::internal {
 class TcpManager : public TcpManagerBase {
  public:
   // Creates a tcp manager with per-NIC non-blocking listening sockets, and
-  // fills in `self.data_plane_listeners` with the listening endpoints.
-  static std::unique_ptr<TcpManager> Create(HostInfo& self);
+  // fills in self.data_plane_listeners with the listening endpoints. When
+  // allowed_devices is non-empty, only interfaces in allowed_devices are bound.
+  static std::unique_ptr<TcpManager> Create(
+      HostInfo& self, absl::Span<const std::string> allowed_devices);
+  static std::unique_ptr<TcpManager> Create(HostInfo& self) {
+    return Create(self, {});
+  }
 
   // Starts running the manager, blocking until `Stop()` is called. It must be
   // called at most once. The caller thread must be joined before destroying

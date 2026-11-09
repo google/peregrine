@@ -42,6 +42,10 @@ std::unique_ptr<RdmaManager> RdmaManager::Create(const Config& config,
   if (config.transport_type != TransportType::kRdma) {
     return nullptr;
   }
+  if (!config.allowed_devices.empty()) {
+    // TODO(yyd): Implement allowed_devices filtering for RDMA.
+    LOG(WARNING) << "Options::allowed_devices is not implemented for RDMA";
+  }
 
   auto device_or = RdmaDevice::Create();
   if (!device_or.ok()) {

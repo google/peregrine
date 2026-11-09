@@ -40,11 +40,6 @@ std::unique_ptr<EngineHelper> EngineHelper::Create(const Config& config,
   static_assert(assumptions::kHostInfoDependsOnControlAndDataPlanes);
   DCHECK(config.IsValid());
 
-  if (!config.allowed_devices.empty()) {
-    // TODO(yyd): Implement allowed_devices filtering for TCP and RDMA.
-    LOG(WARNING) << "Options::allowed_devices is not yet implemented";
-  }
-
   self.data_plane_listeners.clear();
   auto rdma_mgr = RdmaManager::Create(config, self, control);
   if (rdma_mgr == nullptr) {
@@ -56,7 +51,7 @@ std::unique_ptr<EngineHelper> EngineHelper::Create(const Config& config,
                  << ", continue with TCP but no RDMA";
   }
 
-  auto tcp_mgr = TcpManager::Create(self);
+  auto tcp_mgr = TcpManager::Create(self, config.allowed_devices);
   if ABSL_PREDICT_FALSE (tcp_mgr == nullptr) {
     LOG(ERROR) << "failed to create tcp manager for " << self;
     return nullptr;
