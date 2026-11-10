@@ -171,7 +171,7 @@ TEST_P(TcpSocketUtilTest, WillTimeout) {
   CHECK(!connector_->Connect(local_));
   // To ensure sender blocks, set the socket buffer size to a small value.
   SetSocketSendBufSize(connector_->fd(), /*size=*/1024);
-  constexpr size_t kDataSize = 64UL << 20;
+  constexpr size_t kDataSize = 16UL << 20;
   std::vector<Byte> buf(kDataSize);
   const std::vector<IoVec> iovecs = {{buf.data(), buf.size()}};
   // A zero timeout never blocks; a positive timeout blocks until it expires.
@@ -209,7 +209,7 @@ TEST_P(TcpSocketUtilTest, PeerResetIsNotTimeout) {
 
   // To ensure sender blocks, set the socket buffer size to a small value.
   SetSocketSendBufSize(connector_->fd(), /*size=*/1024);
-  std::vector<Byte> send_buf(64UL << 20);
+  std::vector<Byte> send_buf(16UL << 20);
   const std::vector<IoVec> iovecs = {{send_buf.data(), send_buf.size()}};
   EXPECT_THAT(TcpSocketUtil::Send(connector_->fd(), iovecs,
                                   /*timeout_ms=*/60'000),

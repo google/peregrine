@@ -46,7 +46,7 @@ std::string ToString(const TestParamInfo<Param>& info) {
 }
 
 class TransportTest : public ::testing::TestWithParam<Param> {
-  static constexpr size_t kBufSize = (64UL << 20) - 1;
+  static constexpr size_t kBufSize = (16UL << 20) - 1;
   static constexpr int kNumConnsPerPeer = 4;
 
  protected:

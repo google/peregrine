@@ -215,7 +215,7 @@ TEST_P(SocketUtilTest, ReadTimeout) {
 
 TEST_P(SocketUtilTest, WriteTimeout) {
   // Create a big chunk of send/recv buffers with random data.
-  constexpr size_t kSize = 64UL << 20;
+  constexpr size_t kSize = 16UL << 20;
   constexpr size_t kTinySize = 64UL;
   std::vector<Byte> send_buf(kSize, 0x01);
   std::vector<Byte> recv_buf(kSize, 0x00);

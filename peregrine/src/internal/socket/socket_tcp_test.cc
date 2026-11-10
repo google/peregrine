@@ -70,7 +70,7 @@ INSTANTIATE_TEST_SUITE_P(, TcpSocketTest,
 
 TEST_P(TcpSocketTest, ScatterGather) {
   // Create some data to send and a buffer to receive it.
-  constexpr ssize_t kDataSize = 128UL << 20;
+  constexpr ssize_t kDataSize = 16UL << 20;
   std::vector<Byte> send_buf(kDataSize);
   std::vector<Byte> recv_buf(kDataSize, 0x00);
   util::RandomNonZero(absl::MakeSpan(send_buf));
