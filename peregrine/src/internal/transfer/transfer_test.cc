@@ -291,5 +291,86 @@ TEST_P(TransferTest, SendRecv) {
   EXPECT_EQ(b_.tracer.Buffer().TotalRecorded(), 0);
 }
 
+TEST_P(TransferTest, AddressResolutionFailureSendsFailureHeader) {
+  if (p_.error_rate > 0) {
+    GTEST_SKIP() << "Skipping error-injected channel for single-shot test";
+  }
+
+  const auto chs = CreateTestChannelPair(p_);
+  const PostInfoHeader info = GenPostInfoHeader();
+  RequestInfo req = GenRequestInfo();
+  // Corrupt metadata so address resolution fails on receiver B.
+  req.metadata[0] ^= 0xff;
+
+  Status complete_status = Status::kInProgress;
+  auto on_complete = [&](Status s) { complete_status = s; };
+  ASSERT_TRUE(a_.outgoing.Add(kHandle, util::MonoNowUs(),
+                              std::move(on_complete), TraceContext{}));
+
+  // A sends PostInfoHeader with failing metadata to B.
+  ASSERT_TRUE(Transfer::SendInfo(chs.sndr.get(), info, {req}));
+
+  // B receives PostInfoHeader, address resolution fails, sends FailureHeader.
+  EXPECT_FALSE(Transfer::Recv(chs.rcvr.get(), b_.outgoing, b_.incoming,
+                              /*worker_id=*/-3, b_.tracer));
+
+  // A receives FailureHeader from B, which completes A's request with failure.
+  EXPECT_TRUE(Transfer::Recv(chs.sndr.get(), a_.outgoing, a_.incoming,
+                             /*worker_id=*/-1, a_.tracer));
+
+  EXPECT_EQ(complete_status, Status::kFailure);
+  EXPECT_EQ(a_.outgoing.Check(kHandle), Status::kNotFound);
+  ASSERT_EQ(recv_posts_.size(), 1);
+  EXPECT_EQ(recv_posts_[0].status, Status::kFailure);
+
+  // Receiving a duplicate `PostInfoHeader` (e.g. on another worker) must not
+  // re-add the tracker or invoke `recv_post_callback_` again.
+  ASSERT_TRUE(Transfer::SendInfo(chs.sndr.get(), info, {req}));
+  EXPECT_FALSE(Transfer::Recv(chs.rcvr.get(), b_.outgoing, b_.incoming,
+                              /*worker_id=*/-4, b_.tracer));
+  EXPECT_EQ(recv_posts_.size(), 1);
+
+  chs.sndr->Shutdown();
+  chs.rcvr->Shutdown();
+}
+
+TEST_P(TransferTest, AddressResolutionFailureFailsIncomingTracker) {
+  if (p_.error_rate > 0) {
+    GTEST_SKIP() << "Skipping error-injected channel for single-shot test";
+  }
+
+  const auto chs = CreateTestChannelPair(p_);
+  const PostInfoHeader info = GenPostInfoHeader();
+  RequestInfo req = GenRequestInfo();
+  // Corrupt metadata so address resolution fails on receiver B.
+  req.metadata[0] ^= 0xff;
+
+  Status complete_status = Status::kInProgress;
+  auto on_complete = [&](Status s) { complete_status = s; };
+  // Op::kRead registers the handle on the initiator in incoming tracker.
+  ASSERT_TRUE(a_.incoming.Add(kHandle, util::MonoNowUs(),
+                              std::move(on_complete), TraceContext{}));
+
+  // A sends PostInfoHeader with failing metadata to B.
+  ASSERT_TRUE(Transfer::SendInfo(chs.sndr.get(), info, {req}));
+
+  // B receives PostInfoHeader, address resolution fails, sends FailureHeader.
+  EXPECT_FALSE(Transfer::Recv(chs.rcvr.get(), b_.outgoing, b_.incoming,
+                              /*worker_id=*/-3, b_.tracer));
+
+  // A receives FailureHeader from B, which completes A's read request with
+  // failure by falling back to incoming.Fail().
+  EXPECT_TRUE(Transfer::Recv(chs.sndr.get(), a_.outgoing, a_.incoming,
+                             /*worker_id=*/-1, a_.tracer));
+
+  EXPECT_EQ(complete_status, Status::kFailure);
+  EXPECT_EQ(a_.incoming.Check(kHandle), Status::kNotFound);
+  ASSERT_EQ(recv_posts_.size(), 1);
+  EXPECT_EQ(recv_posts_[0].status, Status::kFailure);
+
+  chs.sndr->Shutdown();
+  chs.rcvr->Shutdown();
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing
