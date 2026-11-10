@@ -198,9 +198,8 @@ cc_library(
     deps = [
         ":socket_error",
         ":socket_util",
-        "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/util",
+        "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/util:clock",
         "//peregrine/src/util:errno",
         "@abseil-cpp//absl/base:core_headers",
@@ -208,7 +207,6 @@ cc_library(
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/time",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -223,6 +221,7 @@ cc_test(
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/util:test_iov",
         "//peregrine/src/internal/util:test_param",
         "//peregrine/src/internal/util:test_util",

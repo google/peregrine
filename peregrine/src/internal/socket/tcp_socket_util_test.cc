@@ -18,6 +18,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/util/test_iov.h"
@@ -97,7 +98,7 @@ TEST_P(TcpSocketUtilTest, ScatterGather) {
     auto new_socket = TcpSocket::Create(new_fd, cfg_.family, cfg_.blocking);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
-    std::vector<IoVec> iovecs = TestOnly_Split(recv_buf, 2);
+    IoVecCursor iovecs(TestOnly_Split(recv_buf, 2));
     CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), iovecs, /*timeout_ms=*/-1));
   });
 
@@ -107,7 +108,7 @@ TEST_P(TcpSocketUtilTest, ScatterGather) {
     CHECK(!connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
-    std::vector<IoVec> iovecs = TestOnly_Split(send_buf, 3);
+    IoVecCursor iovecs(TestOnly_Split(send_buf, 3));
     CHECK_OK(TcpSocketUtil::Send(connector_->fd(), iovecs, /*timeout_ms=*/-1));
   });
 
@@ -136,14 +137,14 @@ TEST_P(TcpSocketUtilTest, WillNotTimeout) {
     const int ret = listener_->Accept(cfg_.blocking);
     CHECK_GE(ret, 0);
     auto new_socket = TcpSocket::Create(fd_t(ret), cfg_.family, cfg_.blocking);
-    const std::vector<IoVec> iovecs = {{recv_buf.data(), recv_buf.size()}};
+    IoVecCursor iovecs({IoVec{recv_buf.data(), recv_buf.size()}});
     CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), iovecs, kTimeoutMs));
   });
 
   util::Thread client([&]() {
     server_ready.WaitForNotification();
     CHECK(!connector_->Connect(local_));
-    const std::vector<IoVec> iovecs = {{send_buf.data(), send_buf.size()}};
+    IoVecCursor iovecs({IoVec{send_buf.data(), send_buf.size()}});
     CHECK_OK(TcpSocketUtil::Send(connector_->fd(), iovecs, kTimeoutMs));
   });
 
@@ -173,7 +174,7 @@ TEST_P(TcpSocketUtilTest, WillTimeout) {
   SetSocketSendBufSize(connector_->fd(), /*size=*/1024);
   constexpr size_t kDataSize = 16UL << 20;
   std::vector<Byte> buf(kDataSize);
-  const std::vector<IoVec> iovecs = {{buf.data(), buf.size()}};
+  IoVecCursor iovecs({IoVec{buf.data(), buf.size()}});
   // A zero timeout never blocks; a positive timeout blocks until it expires.
   for (const int timeout_ms : {0, 10}) {
     EXPECT_THAT(TcpSocketUtil::Recv(connector_->fd(), iovecs, timeout_ms),
@@ -210,7 +211,7 @@ TEST_P(TcpSocketUtilTest, PeerResetIsNotTimeout) {
   // To ensure sender blocks, set the socket buffer size to a small value.
   SetSocketSendBufSize(connector_->fd(), /*size=*/1024);
   std::vector<Byte> send_buf(16UL << 20);
-  const std::vector<IoVec> iovecs = {{send_buf.data(), send_buf.size()}};
+  IoVecCursor iovecs({IoVec{send_buf.data(), send_buf.size()}});
   EXPECT_THAT(TcpSocketUtil::Send(connector_->fd(), iovecs,
                                   /*timeout_ms=*/60'000),
               StatusIs(kInternal, Not(HasSubstr("timeout"))));

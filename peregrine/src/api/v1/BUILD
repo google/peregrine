@@ -167,6 +167,7 @@ cc_library(
     hdrs = ["socket_util.h"],
     deps = [
         "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/socket:socket_util",
         "//peregrine/src/internal/socket:tcp_socket_util",
         "//peregrine/src/internal/util",

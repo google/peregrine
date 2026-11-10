@@ -211,21 +211,23 @@ ssize_t TcpSocket::Recv(IoVecCursor& iovs) const {
   const ssize_t all = iovs.RemainingBytes();
   DCHECK_GE(all, 1);
   ssize_t rcvd = 0;
+  struct msghdr msg = {};
   while (true) {
     DCHECK_GE(iovs.RemainingBytes(), 1);
-    const ssize_t bytes =
-        ::readv(fd_.value(), iovs.Head(), iovs.RemainingItems());
+    msg.msg_iov = iovs.Head();
+    msg.msg_iovlen = iovs.RemainingItems();
+    const ssize_t bytes = ::recvmsg(fd_.value(), &msg, /*flags=*/0);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       rcvd += bytes;
       if (iovs.Advance(bytes)) break;
     } else if (bytes == 0) {  // peer closed connection
-      LOG(INFO) << ioMsg("readv eof", 0);
+      LOG(INFO) << ioMsg("recvmsg eof", 0);
       return rcvd;
     } else {
       const Errno err(errno);
       if (Interrupted(err)) continue;
       if (WouldBlock(err)) break;
-      LOG(WARNING) << errMsg("readv", err);
+      LOG(WARNING) << errMsg("recvmsg", err);
       return -1;
     }
   }
