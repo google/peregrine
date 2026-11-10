@@ -11,6 +11,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/internal/socket/tcp_socket_util.h"
 #include "peregrine/src/internal/util/util.h"
@@ -35,7 +36,8 @@ inline absl::Status WriteVExact(int fd, absl::Span<const struct iovec> iovs,
   DCHECK(internal::IsValid(iovs));
   const size_t n = iovs.size();
   if ABSL_PREDICT_TRUE (1 <= n && n <= IOV_MAX) {
-    return internal::TcpSocketUtil::Send(sock_fd, iovs, timeout_ms);
+    internal::IoVecCursor iovecs(iovs);
+    return internal::TcpSocketUtil::Send(sock_fd, iovecs, timeout_ms);
   }
   return absl::InvalidArgumentError(absl::StrCat("#iovs=", n));
 }
@@ -70,7 +72,8 @@ inline absl::Status ReadVExact(int fd, absl::Span<const struct iovec> iovs,
   DCHECK(internal::IsValid(iovs));
   const size_t n = iovs.size();
   if ABSL_PREDICT_TRUE (1 <= n && n <= IOV_MAX) {
-    return internal::TcpSocketUtil::Recv(sock_fd, iovs, timeout_ms);
+    internal::IoVecCursor iovecs(iovs);
+    return internal::TcpSocketUtil::Recv(sock_fd, iovecs, timeout_ms);
   }
   return absl::InvalidArgumentError(absl::StrCat("#iovs=", n));
 }

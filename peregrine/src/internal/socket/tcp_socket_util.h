@@ -11,8 +11,8 @@
 
 #include "absl/base/attributes.h"
 #include "absl/status/status.h"
-#include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 
 namespace peregrine::internal {
 
@@ -28,8 +28,7 @@ class TcpSocketUtil final {
   // Note: the deadline is only enforced while blocked waiting on the socket,
   // so a transfer that keeps making progress may complete after the deadline.
   ABSL_DEPRECATED("temporarily for tpu raiden")
-  static absl::Status Send(fd_t fd, absl::Span<const IoVec> iovecs,
-                           int timeout_ms);
+  static absl::Status Send(fd_t fd, IoVecCursor& iovecs, int timeout_ms);
 
   // Receives on the socket `fd` exactly all the data into the `iovecs` buffers.
   // Returns OK if all the bytes are received successfully by the deadline set
@@ -38,8 +37,7 @@ class TcpSocketUtil final {
   // Note: the deadline is only enforced while blocked waiting on the socket,
   // so a transfer that keeps making progress may complete after the deadline.
   ABSL_DEPRECATED("temporarily for tpu raiden")
-  static absl::Status Recv(fd_t fd, absl::Span<const IoVec> iovecs,
-                           int timeout_ms);
+  static absl::Status Recv(fd_t fd, IoVecCursor& iovecs, int timeout_ms);
 };
 
 }  // namespace peregrine::internal
