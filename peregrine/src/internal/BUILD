@@ -30,7 +30,10 @@ cc_library(
 cc_library(
     name = "coding_style",
     hdrs = ["coding_style.h"],
-    visibility = ["//peregrine/src/internal:__subpackages__"],
+    visibility = [
+        "//peregrine/src/internal:__subpackages__",
+        "//peregrine/test:__subpackages__",
+    ],
 )
 
 cc_library(
