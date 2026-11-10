@@ -3,7 +3,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <cstdint>
 #include <filesystem>  // NOLINT(build/c++17)
 #include <fstream>
 #include <istream>
@@ -128,8 +127,7 @@ void RunFanInLoopbackTest(bool share_buffer) {
   NodeConfig client_cfg;
   client_cfg.ip = "127.0.0.1";
   client_cfg.num_instances = 4;
-  client_cfg.base_control_port =
-      static_cast<uint16_t>(server_cfg.base_control_port + 50);
+  client_cfg.base_control_port = util::FindFreePort(AF_INET, /*tcp=*/true);
   client_cfg.num_conns = 1;
   client_cfg.workload_generator =
       std::make_shared<workloads::SerialFixedWrite>(1);
@@ -230,8 +228,7 @@ TEST(ClusterNodeTest, ExportsChromeTraceJsonForActiveInstancesOnly) {
   client_cfg.ip = "127.0.0.1";
   client_cfg.num_instances = 2;
   client_cfg.node_index = 3;
-  client_cfg.base_control_port =
-      static_cast<uint16_t>(server_cfg.base_control_port + 50);
+  client_cfg.base_control_port = util::FindFreePort(AF_INET, /*tcp=*/true);
   client_cfg.num_conns = 1;
   client_cfg.workload_generator =
       std::make_shared<workloads::SerialFixedWrite>(1);
@@ -308,8 +305,7 @@ TEST(ClusterNodeTest, StepwiseCreateRunWorkloadAndInMemoryTraces) {
       .ip = "127.0.0.1",
       .num_instances = 3,
       .node_index = 1,
-      .base_control_port =
-          static_cast<uint16_t>(server_cfg.base_control_port + 50),
+      .base_control_port = util::FindFreePort(AF_INET, /*tcp=*/true),
       .workload_generator = std::make_shared<workloads::SerialFixedWrite>(16),
       .num_xfers = 2,
       .metrics_interval = absl::ZeroDuration(),

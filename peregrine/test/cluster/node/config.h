@@ -32,6 +32,7 @@ struct PeerTarget {
 struct NodeConfig {
   std::string ip = "127.0.0.1";
   TransportType transport_type = TransportType::kTcp;
+  std::vector<std::string> allowed_devices;
   int num_instances = 1;
   int node_index = 0;
   uint16_t base_control_port = 10000;

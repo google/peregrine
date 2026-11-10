@@ -26,7 +26,6 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport.h"
-#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/api/transport_util.h"
 #include "peregrine/src/util/thread.h"
@@ -39,6 +38,16 @@ namespace {
 constexpr int kMaxCreateThreads = 32;
 constexpr int kMaxDestroyThreads = 64;
 constexpr int kMaxPortBindAttempts = 128;
+constexpr uint32_t kDefaultBasePort = 10000;
+constexpr uint32_t kMaxPort = 65535;
+
+uint16_t CandidateControlPort(uint16_t base_control_port, uint32_t offset) {
+  const uint32_t base =
+      base_control_port > 0 ? base_control_port : kDefaultBasePort;
+  const uint32_t min_port = std::min(base, kDefaultBasePort);
+  const uint32_t span = kMaxPort - min_port + 1;
+  return static_cast<uint16_t>(min_port + ((base - min_port + offset) % span));
+}
 
 std::string FormatEndpoint(std::string_view ip, uint16_t port) {
   if (absl::StrContains(ip, ':')) {
@@ -91,18 +100,16 @@ absl::Status ParallelFor(int total_items, int max_threads,
 
 absl::StatusOr<std::pair<std::string, std::unique_ptr<Transport>>>
 BindTransportWithRetry(int idx, const NodeConfig& config,
-                       std::atomic<uint32_t>& next_port) {
+                       std::atomic<uint32_t>& next_offset) {
   for (int attempt = 0; attempt < kMaxPortBindAttempts; ++attempt) {
-    const uint32_t candidate =
-        next_port.fetch_add(1, std::memory_order_relaxed);
-    if (candidate > 65535U) {
-      break;
-    }
-    std::string endpoint =
-        FormatEndpoint(config.ip, static_cast<uint16_t>(candidate));
-    std::unique_ptr<Transport> transport = CreateTransport(
-        endpoint, {.transport_type = config.transport_type,
-                   .num_parallel_connections = config.num_conns});
+    const uint16_t port = CandidateControlPort(
+        config.base_control_port,
+        next_offset.fetch_add(1, std::memory_order_relaxed));
+    std::string endpoint = FormatEndpoint(config.ip, port);
+    std::unique_ptr<Transport> transport =
+        CreateTransport(endpoint, {.transport_type = config.transport_type,
+                                   .num_parallel_connections = config.num_conns,
+                                   .allowed_devices = config.allowed_devices});
     if (transport != nullptr) {
       return std::make_pair(std::move(endpoint), std::move(transport));
     }
@@ -114,8 +121,8 @@ BindTransportWithRetry(int idx, const NodeConfig& config,
 
 absl::StatusOr<std::unique_ptr<NodeInstance>> CreateSingleInstance(
     int idx, const NodeConfig& config, RegisteredBuffer* shared_buf,
-    size_t buf_size, std::atomic<uint32_t>& next_port) {
-  auto bound_or = BindTransportWithRetry(idx, config, next_port);
+    size_t buf_size, std::atomic<uint32_t>& next_offset) {
+  auto bound_or = BindTransportWithRetry(idx, config, next_offset);
   if (!bound_or.ok()) {
     return bound_or.status();
   }
@@ -242,13 +249,12 @@ absl::StatusOr<std::vector<std::unique_ptr<NodeInstance>>> CreateInstances(
   }
 
   std::vector<std::unique_ptr<NodeInstance>> instances(config.num_instances);
-  std::atomic<uint32_t> next_port{
-      config.base_control_port > 0 ? config.base_control_port : 10000U};
+  std::atomic<uint32_t> next_offset{0};
 
   absl::Status status =
       ParallelFor(config.num_instances, kMaxCreateThreads, [&](int idx) {
-        auto inst_or =
-            CreateSingleInstance(idx, config, shared_buf, buf_size, next_port);
+        auto inst_or = CreateSingleInstance(idx, config, shared_buf, buf_size,
+                                            next_offset);
         if (!inst_or.ok()) {
           return inst_or.status();
         }

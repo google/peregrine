@@ -50,5 +50,34 @@ TEST(InstanceTest, CreateInstancesWithPerInstanceBuffers) {
   DestroyInstances(*instances);
 }
 
+TEST(InstanceTest, CreateInstancesForwardsAllowedDevices) {
+  NodeConfig cfg;
+  cfg.ip = "127.0.0.1";
+  cfg.allowed_devices = {"lo"};
+  cfg.num_instances = 2;
+  cfg.base_control_port = util::FindFreePort(AF_INET, /*tcp=*/true);
+  cfg.num_conns = 1;
+
+  auto ok_instances =
+      CreateInstances(cfg, /*shared_buf=*/nullptr, /*buf_size=*/32);
+  ASSERT_TRUE(ok_instances.ok()) << ok_instances.status();
+  ASSERT_EQ(ok_instances->size(), 2);
+  DestroyInstances(*ok_instances);
+
+  cfg.allowed_devices = {"nonexistent_nic0"};
+  cfg.base_control_port = util::FindFreePort(AF_INET, /*tcp=*/true);
+  EXPECT_FALSE(
+      CreateInstances(cfg, /*shared_buf=*/nullptr, /*buf_size=*/32).ok());
+}
+
+TEST(InstanceTest, CreateInstancesWrapsControlPortPastMaxPort) {
+  auto instances = CreateInstances(
+      NodeConfig{.num_instances = 2, .base_control_port = 65535},
+      /*shared_buf=*/nullptr, /*buf_size=*/32);
+  ASSERT_TRUE(instances.ok()) << instances.status();
+  ASSERT_EQ(instances->size(), 2);
+  DestroyInstances(*instances);
+}
+
 }  // namespace
 }  // namespace peregrine::cluster
