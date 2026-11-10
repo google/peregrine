@@ -44,6 +44,7 @@ fi
 bazel --version
 
 COMMON_ARGS=(
+  "--copt=-O1"
   "--copt=-g0"
   "--host_copt=-g0"
   "--per_file_copt=external/.*@-w"
