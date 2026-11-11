@@ -27,13 +27,10 @@ namespace peregrine::internal {
 class TcpManager : public TcpManagerBase {
  public:
   // Creates a tcp manager with per-NIC non-blocking listening sockets, and
-  // fills in self.data_plane_listeners with the listening endpoints. When
-  // allowed_devices is non-empty, only interfaces in allowed_devices are bound.
+  // fills in self.data_plane_listeners with the listening endpoints. Binds
+  // to all NICs by default, or to `allowed_devices` if it is non-empty.
   static std::unique_ptr<TcpManager> Create(
-      HostInfo& self, absl::Span<const std::string> allowed_devices);
-  static std::unique_ptr<TcpManager> Create(HostInfo& self) {
-    return Create(self, {});
-  }
+      HostInfo& self, absl::Span<const std::string> allowed_devices = {});
 
   // Starts running the manager, blocking until `Stop()` is called. It must be
   // called at most once. The caller thread must be joined before destroying

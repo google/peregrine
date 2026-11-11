@@ -111,7 +111,7 @@ class IoVecCursor {
     cur_ = cur;
     DCHECK(invariant());
     DCHECK(cur < end) << "out of range";
-    return end <= cur;
+    return !(cur < end);
   }
 
   // Returns a string representation of the cursor.
