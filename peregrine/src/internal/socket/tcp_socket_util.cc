@@ -8,9 +8,7 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -121,7 +119,7 @@ absl::Status TcpSocketUtil::Recv(const fd_t fd, IoVecCursor& iovecs,
   const int flags = timeout_ms >= 0 ? MSG_DONTWAIT : 0;
   const ssize_t all = iovecs.RemainingBytes();
   DCHECK_GE(all, 1);
-  size_t rcvd = 0;
+  ssize_t rcvd = 0;
   struct msghdr msg = {};
   while (true) {
     DCHECK_GE(iovecs.RemainingBytes(), 1);
