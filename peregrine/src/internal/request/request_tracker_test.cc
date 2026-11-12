@@ -32,7 +32,10 @@ class RequestTrackerTest : public ::testing::Test {
   RequestTrackerTest()
       : metrics_(),
         tracer_(TraceConfig{.sample_every_n = 0}),
-        rt_(metrics_, tracer_) {
+        rt_(metrics_, tracer_, /*recv_post_callback=*/nullptr,
+            [](const Metadata&, const Metadata&) -> Byte* {
+              return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+            }) {
     CHECK(rt_.IsEmpty());
     CHECK_EQ(rt_.Check(kHandle), Status::kNotFound);
   }
@@ -327,16 +330,20 @@ TEST_F(RequestTrackerTest, RecvPostCallback) {
     std::vector<Metadata> req_metas;
   };
   std::vector<PostEvent> post_events;
-  RequestTracker rt(metrics_, tracer_,
-                    [&](Status s, const Metadata& post_meta,
-                        absl::Span<const Metadata> req_metas) {
-                      post_events.push_back(PostEvent{
-                          .status = s,
-                          .post_meta = post_meta,
-                          .req_metas = std::vector<Metadata>(req_metas.begin(),
-                                                             req_metas.end()),
-                      });
-                    });
+  RequestTracker rt(
+      metrics_, tracer_,
+      [&](Status s, const Metadata& post_meta,
+          absl::Span<const Metadata> req_metas) {
+        post_events.push_back(PostEvent{
+            .status = s,
+            .post_meta = post_meta,
+            .req_metas =
+                std::vector<Metadata>(req_metas.begin(), req_metas.end()),
+        });
+      },
+      [](const Metadata&, const Metadata&) -> Byte* {
+        return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+      });
 
   ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
 
@@ -400,8 +407,9 @@ TEST_F(RequestTrackerTest, ResolveAddrCallback) {
   };
 
   // Without `resolve_addr_callback`, `raddr == 0` on receiver fails `Add`.
-  EXPECT_FALSE(rt_.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
-  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
+  RequestTracker rt_no_resolve(metrics_, tracer_);
+  EXPECT_FALSE(rt_no_resolve.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
+  EXPECT_EQ(rt_no_resolve.Check(kHandle), Status::kNotFound);
 
   int resolve_calls = 0;
   RequestTracker rt(
@@ -489,8 +497,7 @@ TEST_F(RequestTrackerTest, ReadResponderOnRecvRead) {
         recv_reqs.assign(r.begin(), r.end());
       });
 
-  ASSERT_TRUE(
-      rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta, kPeer));
+  ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta, kPeer));
   EXPECT_EQ(on_recv_read_calls, 1);
   EXPECT_EQ(recv_peer, kPeer);
   EXPECT_EQ(recv_handle, kHandle);
@@ -528,12 +535,19 @@ TEST_F(RequestTrackerTest, SameHandleDifferentPeers) {
   };
 
   std::vector<Metadata> completed_posts;
-  RequestTracker rt(metrics_, tracer_,
-                    [&](Status s, const Metadata& post_meta,
-                        absl::Span<const Metadata> /*req_metas*/) {
-                      EXPECT_EQ(s, Status::kSuccess);
-                      completed_posts.push_back(post_meta);
-                    });
+  RequestTracker rt(
+      metrics_, tracer_,
+      [&](Status s, const Metadata& post_meta,
+          absl::Span<const Metadata> /*req_metas*/) {
+        EXPECT_EQ(s, Status::kSuccess);
+        completed_posts.push_back(post_meta);
+      },
+      [kPostMeta2](const Metadata& post_meta, const Metadata&) -> Byte* {
+        if (post_meta == kPostMeta2) {
+          return reinterpret_cast<Byte*>(kBufferBaseAddr.value() + 1024);
+        }
+        return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+      });
 
   // Peer 1 registers and completes `kHandle`.
   ASSERT_TRUE(rt.Add(kHandle, reqs1, util::MonoNowUs(), kPostMeta1, kPeer1));

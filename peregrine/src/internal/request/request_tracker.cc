@@ -79,11 +79,13 @@ bool RequestTracker::Add(const Handle handle,
     pt.req_map.reserve(reqs.size());
     for (const RequestInfo& req : reqs) {
       DCHECK(req.IsValid());
-      addr_t raddr = req.raddr;
-      if (raddr.value() == 0 && resolve_addr_callback_ != nullptr) {
-        raddr = addr_t(reinterpret_cast<uintptr_t>(
-            resolve_addr_callback_(metadata, req.metadata)));
-      }
+      addr_t raddr =
+          pt.is_initiator
+              ? req.raddr
+              : (resolve_addr_callback_ != nullptr
+                     ? addr_t(reinterpret_cast<uintptr_t>(
+                           resolve_addr_callback_(metadata, req.metadata)))
+                     : addr_t(0));
       if (!pt.is_initiator && raddr.value() == 0) {
         // TODO: Send a NACK / error header back to the sender when address
         // resolution fails so the sender can complete with `Status::kFailure`.

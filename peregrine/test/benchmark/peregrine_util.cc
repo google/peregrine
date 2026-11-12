@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -68,21 +69,28 @@ absl::Duration GetCpuTime() {
 void RunServer(std::string_view ip, uint16_t peregrine_control_port,
                uint16_t app_control_port, int nconns, uint64_t xfer_size,
                TransportType transport_type) {
+  // Allocate buffer and fill with zeros.
+  std::vector<Byte> buf(xfer_size, 0);
+  DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b == 0; }));
+
   // Create transport.
   const std::string self = GenEndpoint(ip, peregrine_control_port);
   const std::unique_ptr<Transport> transport = CreateTransport(
-      self,
-      {.transport_type = transport_type, .num_parallel_connections = nconns});
+      self, {.transport_type = transport_type,
+             .num_parallel_connections = nconns,
+             .resolve_addr_callback =
+                 [&buf](const Metadata&, const Metadata& req_meta) -> Byte* {
+               uint64_t offset = 0;
+               std::memcpy(&offset, req_meta.data(), sizeof(offset));
+               if (offset >= buf.size()) return buf.data();
+               return buf.data() + offset;
+             }});
   CHECK(transport != nullptr) << "Failed to create transport";
 
   // Wait for client's control connection.
   const int control_fd = CreateControlListener(ip, app_control_port);
   const int client_fd = accept(control_fd, nullptr, nullptr);
   CHECK_GE(client_fd, 0) << "Failed to accept control client connection";
-
-  // Allocate buffer and fill with zeros.
-  std::vector<Byte> buf(xfer_size, 0);
-  DCHECK(std::all_of(buf.begin(), buf.end(), [](Byte b) { return b == 0; }));
 
   // Register memory buffer for RDMA if required.
   CHECK_OK(transport->RegisterMemory(buf.data(), buf.size()));

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -43,8 +44,18 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
         size1_(std::max(1UL, size_ / 2)),
         size2_(size_ - size1_),
         nconns_(std::get<1>(GetParam())),
-        a_(size_, nconns_),
-        b_(size_, nconns_) {
+        a_(size_, nconns_, /*recv_post_callback=*/nullptr,
+           [this](const Metadata&, const Metadata& req_meta) -> Byte* {
+             uint64_t offset = 0;
+             std::memcpy(&offset, req_meta.data(), sizeof(offset));
+             return a_.DataPtr() + offset;
+           }),
+        b_(size_, nconns_, /*recv_post_callback=*/nullptr,
+           [this](const Metadata&, const Metadata& req_meta) -> Byte* {
+             uint64_t offset = 0;
+             std::memcpy(&offset, req_meta.data(), sizeof(offset));
+             return b_.DataPtr() + offset;
+           }) {
     DCHECK_EQ(a_.DataSize(), b_.DataSize());
   }
 
@@ -53,10 +64,20 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
     const auto pb = b_.DataPtr();
     std::vector<Request> reqs;
     if (size2_ <= 0) {
-      reqs.push_back({op, pa, pb, size_});
+      Metadata meta{};
+      uint64_t offset = 0;
+      std::memcpy(meta.data(), &offset, sizeof(offset));
+      reqs.push_back({op, pa, pb, size_, /*rkey=*/0, meta});
     } else {
-      reqs.push_back({op, pa, pb, size1_});
-      reqs.push_back({op, pa + size1_, pb + size1_, size2_});
+      Metadata meta1{};
+      uint64_t offset1 = 0;
+      std::memcpy(meta1.data(), &offset1, sizeof(offset1));
+      reqs.push_back({op, pa, pb, size1_, /*rkey=*/0, meta1});
+
+      Metadata meta2{};
+      uint64_t offset2 = size1_;
+      std::memcpy(meta2.data(), &offset2, sizeof(offset2));
+      reqs.push_back({op, pa + size1_, pb + size1_, size2_, /*rkey=*/0, meta2});
     }
     return reqs;
   }
@@ -105,11 +126,16 @@ TEST_P(TransportImplTest, Read) {
     Transport& at = a_.GetTransport();
     const Transport& bt = b_.GetTransport();
     const std::string peer = bt.GetControlEndpoint();
+    Metadata meta{};
+    uint64_t offset = 0;
+    std::memcpy(meta.data(), &offset, sizeof(offset));
     const Request req = {
         .op = Op::kRead,
         .laddr = a_.DataPtr(),
         .raddr = b_.DataPtr(),
         .len = a_.DataSize(),
+        .rkey = 0,
+        .metadata = meta,
     };
     const std::vector<Request> reqs = {req};
     const absl::StatusOr<Handle> h = at.Post(peer, reqs);
