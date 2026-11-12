@@ -38,14 +38,13 @@ bool Exists(const std::string_view ifc, const std::string_view suffix) {
 }
 
 // Returns true iff the interface `ifc` is a software bridge (e.g., docker0,
-// virbr0, gbmcbr).
+// virbr0).
 bool IsBridgeInterface(const std::string_view ifc) {
   return Exists(ifc, "/bridge");
 }
 
-// Returns true iff the interface `ifc` is excluded from data-plane discovery:
-// a software bridge or a Borg host-local / blackhole NIC (e.g., ula0,
-// idpf_dontuse0).
+// Returns true iff the interface ifc is excluded from data-plane discovery:
+// a software bridge or a host-local / blackhole NIC (e.g., ula0, dontuse0).
 bool IsExcludedInterface(const std::string_view ifc) {
   return IsBridgeInterface(ifc) || absl::StartsWithIgnoreCase(ifc, "ula") ||
          absl::StrContainsIgnoreCase(ifc, "dontuse");
