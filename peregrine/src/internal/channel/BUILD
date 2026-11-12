@@ -127,7 +127,7 @@ cc_library(
 cc_test(
     name = "channel_test",
     srcs = ["channel_test.cc"],
-    shard_count = 6,
+    shard_count = 12,
     deps = [
         ":channel",
         ":channel_test_util",

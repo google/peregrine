@@ -5,7 +5,9 @@
 #include <string>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/random/random.h"
 #include "absl/strings/str_format.h"
+#include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/channel/pipe.h"
@@ -18,7 +20,7 @@ namespace peregrine::internal::testing {
 class MemMsgChannel final : public Channel {
  public:
   // Constructor.
-  explicit MemMsgChannel(const BidiPipe& bidi, int error_rate);
+  MemMsgChannel(const BidiPipe& bidi, bool blocking, int error_rate);
 
   // Returns the channel type.
   constexpr ChannelType Type() const override {
@@ -31,7 +33,7 @@ class MemMsgChannel final : public Channel {
   }
 
   // Returns whether the channel is blocking or non-blocking.
-  constexpr bool IsBlocking() const override { return true; }
+  constexpr bool IsBlocking() const override { return blocking_; }
 
   // Writes the remaining buffers of the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
@@ -58,11 +60,20 @@ class MemMsgChannel final : public Channel {
   // Returns true iff the `in_pipe_` has data.
   bool hasIncomingData() const ABSL_EXCLUSIVE_LOCKS_REQUIRED(in_pipe_->mu);
 
+  // Returns true iff a generated random number in [1, 100] is <= `threshold`.
+  bool random(int threshold) ABSL_LOCKS_EXCLUDED(bitgen_mu_);
+
   // Returns true iff the channel read/write should emulate an error.
-  bool error() const;
+  bool error() { return error_rate_ > 0 && random(error_rate_); }
+
+  // Returns true iff the channel read/write should emulate `EWOULDBLOCK`.
+  bool wouldBlock() { return !blocking_ && random(10); }
 
  private:
+  const bool blocking_;
   const int error_rate_;
+  absl::Mutex bitgen_mu_;
+  absl::BitGen bitgen_ ABSL_GUARDED_BY(bitgen_mu_);
   std::shared_ptr<MemPipe> in_pipe_;
   std::shared_ptr<MemPipe> out_pipe_;
 };

@@ -31,17 +31,19 @@ ConnectedChannelPair CreateUdpChannelPair(const int family,
   return {CreateUdpChannel(std::move(sa)), CreateUdpChannel(std::move(sb))};
 }
 
-ConnectedChannelPair CreateMemStreamChannelPair(const int error_rate) {
+ConnectedChannelPair CreateMemStreamChannelPair(const bool blocking,
+                                                const int error_rate) {
   auto [pipe_a, pipe_b] = BidiPipe::Create();
-  auto a = std::make_unique<MemStreamChannel>(pipe_a, error_rate);
-  auto b = std::make_unique<MemStreamChannel>(pipe_b, error_rate);
+  auto a = std::make_unique<MemStreamChannel>(pipe_a, blocking, error_rate);
+  auto b = std::make_unique<MemStreamChannel>(pipe_b, blocking, error_rate);
   return {std::move(a), std::move(b)};
 }
 
-ConnectedChannelPair CreateMemMsgChannelPair(const int error_rate) {
+ConnectedChannelPair CreateMemMsgChannelPair(const bool blocking,
+                                             const int error_rate) {
   auto [pipe_a, pipe_b] = BidiPipe::Create();
-  auto a = std::make_unique<MemMsgChannel>(pipe_a, error_rate);
-  auto b = std::make_unique<MemMsgChannel>(pipe_b, error_rate);
+  auto a = std::make_unique<MemMsgChannel>(pipe_a, blocking, error_rate);
+  auto b = std::make_unique<MemMsgChannel>(pipe_b, blocking, error_rate);
   return {std::move(a), std::move(b)};
 }
 
@@ -52,9 +54,9 @@ ConnectedChannelPair CreateTestChannelPair(const ChannelTestParam& p) {
     case TestChannelType::kUdp:
       return CreateUdpChannelPair(p.family, p.blocking);
     case TestChannelType::kMemStream:
-      return CreateMemStreamChannelPair(p.error_rate);
+      return CreateMemStreamChannelPair(p.blocking, p.error_rate);
     case TestChannelType::kMemMsg:
-      return CreateMemMsgChannelPair(p.error_rate);
+      return CreateMemMsgChannelPair(p.blocking, p.error_rate);
   }
 }
 

@@ -46,11 +46,17 @@ std::string ToString(const ::testing::TestParamInfo<Param>& info) {
 std::unique_ptr<Poller> CreateEventPoller(const Channel& ch, uint32_t events) {
   std::unique_ptr<Poller> poller = Poller::Create();
   CHECK_NE(poller, nullptr);
-  CHECK_EQ(poller->Register(ch.GetFd(), events), 0);
+  const fd_t fd = ch.GetFd();
+  if (fd.value() >= 0) {
+    CHECK_EQ(poller->Register(fd, events), 0);
+  }
   return poller;
 }
 
-uint32_t WaitForEvents(Poller& poller) {
+uint32_t WaitForEvents(Poller& poller, const Channel& ch) {
+  if (ch.GetFd().value() < 0) {
+    return EPOLLIN | EPOLLOUT;
+  }
   epoll_event event;
   for (int i = 0; i < 100; ++i) {
     const int nfds =
@@ -100,14 +106,18 @@ class ChannelTest : public ::testing::TestWithParam<Param> {
 
 INSTANTIATE_TEST_SUITE_P(, ChannelTest,
                          // TransportType, Family, Blocking, ErrorRate, Size
-                         Values(Param{kTcp, AF_INET, false, 0, 1 << 20},
-                                Param{kTcp, AF_INET6, false, 0, 1 << 20},
-                                Param{kTcp, AF_INET, true, 0, 1 << 20},
+                         Values(Param{kTcp, AF_INET, true, 0, 1 << 20},
+                                Param{kTcp, AF_INET, false, 0, 1 << 20},
                                 Param{kTcp, AF_INET6, true, 0, 1 << 20},
+                                Param{kTcp, AF_INET6, false, 0, 1 << 20},
                                 Param{kUdp, AF_INET, true, 0, 1 << 10},
+                                Param{kUdp, AF_INET, false, 0, 1 << 10},
                                 Param{kUdp, AF_INET6, true, 0, 1 << 10},
+                                Param{kUdp, AF_INET6, false, 0, 1 << 10},
                                 Param{kMemStream, AF_UNSPEC, true, 0, 1 << 20},
-                                Param{kMemMsg, AF_UNSPEC, true, 0, 1 << 10}),
+                                Param{kMemStream, AF_UNSPEC, false, 0, 1 << 20},
+                                Param{kMemMsg, AF_UNSPEC, true, 0, 1 << 10},
+                                Param{kMemMsg, AF_UNSPEC, false, 0, 1 << 10}),
                          ToString);
 
 TEST_P(ChannelTest, BlockingReadWrite) {
@@ -165,7 +175,7 @@ TEST_P(ChannelTest, NonBlockingReadWrite) {
     const auto poller = CreateEventPoller(*sndr, EPOLLOUT);
     IoVecCursor cursor(siovs_);
     while (cursor.RemainingBytes() > 0) {
-      const uint32_t events = WaitForEvents(*poller);
+      const uint32_t events = WaitForEvents(*poller, *sndr);
       CHECK_NE(events, 0u) << "timed out waiting to write";
       CHECK_EQ(events & (EPOLLERR | EPOLLHUP), 0u) << "socket error";
       const ssize_t n = sndr->Write(cursor);
@@ -178,7 +188,7 @@ TEST_P(ChannelTest, NonBlockingReadWrite) {
     const auto poller = CreateEventPoller(*rcvr, EPOLLIN | EPOLLRDHUP);
     IoVecCursor cursor(diovs_);
     while (cursor.RemainingBytes() > 0) {
-      const uint32_t events = WaitForEvents(*poller);
+      const uint32_t events = WaitForEvents(*poller, *rcvr);
       CHECK_NE(events, 0u) << "timed out waiting to read";
       const ssize_t n = rcvr->Read(cursor);
       CHECK_GE(n, 0) << "read failed";
@@ -200,8 +210,9 @@ TEST_P(ChannelTest, NonBlockingReadWrite) {
 }
 
 TEST(UnreliableMessageChannelTest, ErrorRate) {
+  const bool kBlocking = true;
   constexpr int kErrorRate = 30;  // percentage
-  ConnectedChannelPair mem = CreateMemMsgChannelPair(kErrorRate);
+  ConnectedChannelPair mem = CreateMemMsgChannelPair(kBlocking, kErrorRate);
   Channel* sndr = mem.sndr.get();
   Channel* rcvr = mem.rcvr.get();
 

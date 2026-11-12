@@ -5,9 +5,7 @@
 #include <cstring>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/log/check.h"
-#include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/channel/pipe.h"
@@ -17,8 +15,10 @@
 
 namespace peregrine::internal::testing {
 
-MemMsgChannel::MemMsgChannel(const BidiPipe& bidi, const int error_rate)
-    : error_rate_(std::clamp(error_rate, 0, 100)),
+MemMsgChannel::MemMsgChannel(const BidiPipe& bidi, const bool blocking,
+                             const int error_rate)
+    : blocking_(blocking),
+      error_rate_(std::clamp(error_rate, 0, 100)),
       in_pipe_(bidi.InputPipe()),
       out_pipe_(bidi.OutputPipe()) {
   DCHECK_NE(in_pipe_, nullptr);
@@ -28,8 +28,11 @@ MemMsgChannel::MemMsgChannel(const BidiPipe& bidi, const int error_rate)
 ssize_t MemMsgChannel::Write(IoVecCursor& iovecs) {
   DCHECK(iovecs.IsValid());
 
-  const size_t len = iovecs.RemainingBytes();
-  DCHECK_GE(len, 1);
+  if (wouldBlock()) return 0;
+
+  const size_t all = iovecs.RemainingBytes();
+  DCHECK_GE(all, 1);
+  DCHECK_EQ(all, iovecs.TotalBytes());
 
   // To keep the message boundary, merge multiple iovecs into a single one.
   const auto iovs = iovecs.RemainingSpan();
@@ -39,22 +42,28 @@ ssize_t MemMsgChannel::Write(IoVecCursor& iovecs) {
     if (out_pipe_->shutdown) return -1;
     out_pipe_->queue.push_back(std::move(owned_iov));
   }
-  iovecs.Advance(len);
-  return len;
+  iovecs.Advance(all);
+  return all;
 }
 
 bool MemMsgChannel::hasIncomingData() const { return in_pipe_->HasData(); }
 
 ssize_t MemMsgChannel::Read(IoVecCursor& iovecs) {
   DCHECK(iovecs.IsValid());
-  DCHECK_GE(iovecs.RemainingBytes(), 1);
+
+  const size_t all = iovecs.RemainingBytes();
+  DCHECK_GE(all, 1);
+  DCHECK_EQ(all, iovecs.TotalBytes());
 
   absl::MutexLock lock(in_pipe_->mu);
-  in_pipe_->mu.Await(absl::Condition(this, &MemMsgChannel::hasIncomingData));
+  if (blocking_) {
+    in_pipe_->mu.Await(absl::Condition(this, &MemMsgChannel::hasIncomingData));
+  }
   if (in_pipe_->queue.empty()) {
-    DCHECK(in_pipe_->shutdown);
+    DCHECK(in_pipe_->shutdown || !blocking_);
     return 0;
   }
+  if (wouldBlock()) return 0;
 
   OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
   in_pipe_->queue.pop_front();
@@ -69,17 +78,18 @@ ssize_t MemMsgChannel::Read(IoVecCursor& iovecs) {
   for (auto& iov : iovecs.RemainingSpan()) {
     if (const size_t len = iov.iov_len; size <= len) {
       std::memcpy(iov.iov_base, data + offset, size);
+      iovecs.Advance(size);
       offset += size;
       size = 0;
       break;
     } else {
       std::memcpy(iov.iov_base, data + offset, len);
+      iovecs.Advance(len);
       offset += len;
       size -= len;
     }
   }
   DCHECK_EQ(size, 0);
-  if (offset > 0) iovecs.Advance(offset);
   return offset;
 }
 
@@ -88,10 +98,9 @@ void MemMsgChannel::Shutdown() {
   out_pipe_->Shutdown();
 }
 
-bool MemMsgChannel::error() const {
-  if ABSL_PREDICT_TRUE (error_rate_ <= 0) return false;
-  absl::BitGen bitgen;
-  return util::Random<int>(bitgen, 1, 100) <= error_rate_;
+bool MemMsgChannel::random(const int threshold) {
+  absl::MutexLock _(bitgen_mu_);
+  return util::Random<int>(bitgen_, 1, 100) <= threshold;
 }
 
 }  // namespace peregrine::internal::testing

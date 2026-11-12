@@ -23,10 +23,10 @@ ConnectedChannelPair CreateTcpChannelPair(int family, bool blocking);
 ConnectedChannelPair CreateUdpChannelPair(int family, bool blocking);
 
 // Creates a memory stream channel pair.
-ConnectedChannelPair CreateMemStreamChannelPair(int error_rate);
+ConnectedChannelPair CreateMemStreamChannelPair(bool blocking, int error_rate);
 
 // Creates a memory message channel pair.
-ConnectedChannelPair CreateMemMsgChannelPair(int error_rate);
+ConnectedChannelPair CreateMemMsgChannelPair(bool blocking, int error_rate);
 
 // Creates a test channel pair.
 ConnectedChannelPair CreateTestChannelPair(const ChannelTestParam& p);

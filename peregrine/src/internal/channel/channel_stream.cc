@@ -6,9 +6,7 @@
 #include <string>
 #include <utility>
 
-#include "absl/base/optimization.h"
 #include "absl/log/check.h"
-#include "absl/random/random.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
@@ -22,8 +20,10 @@
 
 namespace peregrine::internal::testing {
 
-MemStreamChannel::MemStreamChannel(const BidiPipe& bidi, const int error_rate)
-    : error_rate_(std::clamp(error_rate, 0, 100)),
+MemStreamChannel::MemStreamChannel(const BidiPipe& bidi, const bool blocking,
+                                   const int error_rate)
+    : blocking_(blocking),
+      error_rate_(std::clamp(error_rate, 0, 100)),
       in_pipe_(bidi.InputPipe()),
       out_pipe_(bidi.OutputPipe()) {
   DCHECK_NE(in_pipe_, nullptr);
@@ -35,6 +35,8 @@ ssize_t MemStreamChannel::Write(IoVecCursor& iovecs) {
 
   const size_t len = iovecs.RemainingBytes();
   DCHECK_GE(len, 1);
+
+  if (wouldBlock()) return 0;
 
   absl::MutexLock lock(out_pipe_->mu);
   if (out_pipe_->shutdown) return -1;
@@ -55,9 +57,12 @@ ssize_t MemStreamChannel::read(Byte* const buf, const size_t len) {
   DCHECK_GE(len, 1);
 
   absl::MutexLock lock(in_pipe_->mu);
-  in_pipe_->mu.Await(absl::Condition(this, &MemStreamChannel::hasIncomingData));
+  if (blocking_) {
+    in_pipe_->mu.Await(
+        absl::Condition(this, &MemStreamChannel::hasIncomingData));
+  }
   if (in_pipe_->queue.empty()) {
-    DCHECK(in_pipe_->shutdown);
+    DCHECK(in_pipe_->shutdown || !blocking_);
     return 0;
   }
 
@@ -66,6 +71,7 @@ ssize_t MemStreamChannel::read(Byte* const buf, const size_t len) {
   Byte* ptr = buf;
   while (left > 0) {
     if (in_pipe_->queue.empty()) return rcvd ?: -1;
+    if (wouldBlock()) return rcvd;
 
     OwnedIoVec owned_iov = std::move(in_pipe_->queue.front());
     in_pipe_->queue.pop_front();
@@ -120,10 +126,9 @@ std::string MemStreamChannel::ToString() const {
   return absl::StrFormat("MemStreamChannel: error_rate=%d%%", error_rate_);
 }
 
-bool MemStreamChannel::error() const {
-  if ABSL_PREDICT_TRUE (error_rate_ <= 0) return false;
-  absl::BitGen bitgen;
-  return util::Random<int>(bitgen, 1, 100) <= error_rate_;
+bool MemStreamChannel::random(const int threshold) {
+  absl::MutexLock _(bitgen_mu_);
+  return util::Random<int>(bitgen_, 1, 100) <= threshold;
 }
 
 }  // namespace peregrine::internal::testing
