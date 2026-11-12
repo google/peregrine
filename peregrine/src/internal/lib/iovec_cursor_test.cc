@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
@@ -30,10 +31,10 @@ class IoVecCursorTest : public ::testing::Test {
 };
 
 TEST_F(IoVecCursorTest, Ctor) {
-  EXPECT_DEBUG_DEATH(IoVecCursor empty({}), "");
-  EXPECT_DEBUG_DEATH(IoVecCursor too_big({IoVec{a_, 1ULL << 63}}), "");
+  EXPECT_DEBUG_DEATH(IoVecCursorN<1> empty({}), "");
+  EXPECT_DEBUG_DEATH(IoVecCursorN<1> too_big({IoVec{a_, 1ULL << 63}}), "");
 
-  IoVecCursor c(iovs_);
+  IoVecCursorN<kTotalItems> c(iovs_);
   EXPECT_EQ(c.TotalItems(), kTotalItems);
   EXPECT_EQ(c.TotalBytes(), kTotalBytes);
   EXPECT_EQ(c.RemainingItems(), kTotalItems);
@@ -50,10 +51,21 @@ TEST_F(IoVecCursorTest, Ctor) {
   EXPECT_EQ(cc.Head()->iov_base, a_);
   EXPECT_EQ(cc.Head()->iov_len, sizeof(a_));
   EXPECT_TRUE(cc.IsValid());
+
+  // A list of exactly `kN` items.
+  IoVecCursorN<2> two({IoVec{a_, sizeof(a_)}, IoVec{b_, sizeof(b_)}});
+  EXPECT_EQ(two.TotalItems(), 2);
+  EXPECT_EQ(two.TotalBytes(), sizeof(a_) + sizeof(b_));
+  EXPECT_EQ(two.Head()->iov_base, a_);
+  EXPECT_EQ(two.Head()->iov_len, sizeof(a_));
+  EXPECT_FALSE(two.Advance(sizeof(a_)));
+  EXPECT_EQ(two.Head()->iov_base, b_);
+  EXPECT_EQ(two.Head()->iov_len, sizeof(b_));
+  EXPECT_TRUE(two.IsValid());
 }
 
 TEST_F(IoVecCursorTest, AdvanceInOneShot) {
-  IoVecCursor c(iovs_);
+  IoVecCursorN<kTotalItems> c(iovs_);
   ASSERT_EQ(c.TotalItems(), kTotalItems);
   ASSERT_EQ(c.TotalBytes(), kTotalBytes);
   LOG(INFO) << c;
@@ -70,7 +82,7 @@ TEST_F(IoVecCursorTest, AdvanceInOneShot) {
 }
 
 TEST_F(IoVecCursorTest, AdvanceGradually) {
-  IoVecCursor c(iovs_);
+  IoVecCursorN<kTotalItems> c(iovs_);
   ASSERT_EQ(c.TotalItems(), kTotalItems);
   ASSERT_EQ(c.TotalBytes(), kTotalBytes);
   LOG(INFO) << c;
@@ -147,7 +159,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
 }
 
 TEST_F(IoVecCursorTest, AdvanceOneByteAtATime) {
-  IoVecCursor c(iovs_);
+  IoVecCursorN<kTotalItems> c(iovs_);
   ASSERT_EQ(c.TotalItems(), kTotalItems);
   ASSERT_EQ(c.TotalBytes(), kTotalBytes);
   ASSERT_NE(c.Head(), nullptr);
@@ -166,6 +178,34 @@ TEST_F(IoVecCursorTest, AdvanceOneByteAtATime) {
   EXPECT_EQ(c.TotalBytes(), kTotalBytes);
   EXPECT_EQ(c.Head(), nullptr);
   EXPECT_TRUE(c.IsValid());
+}
+
+TEST_F(IoVecCursorTest, RuntimeSized) {
+  // A few items, as many as `iovs_`.
+  IoVecCursorV few(iovs_);
+  EXPECT_EQ(few.TotalItems(), kTotalItems);
+  EXPECT_EQ(few.TotalBytes(), kTotalBytes);
+  EXPECT_EQ(few.Head()->iov_base, a_);
+  EXPECT_FALSE(few.Advance(sizeof(a_) + 1));
+  EXPECT_EQ(few.RemainingItems(), 2);
+  EXPECT_EQ(few.Head()->iov_base, b_ + 1);
+  EXPECT_TRUE(few.Advance(kTotalBytes - sizeof(a_) - 1));
+  EXPECT_EQ(few.Head(), nullptr);
+
+  // Many items: one per byte of `c_`.
+  std::vector<IoVec> iovs;
+  for (char& byte : c_) iovs.push_back(IoVec{&byte, 1});
+  IoVecCursorV many(iovs);
+  for (IoVec& iov : iovs) iov = IoVec{nullptr, 0};
+  EXPECT_EQ(many.TotalItems(), sizeof(c_));
+  EXPECT_EQ(many.TotalBytes(), sizeof(c_));
+  EXPECT_EQ(many.Head()->iov_base, c_);
+  EXPECT_TRUE(many.IsValid());
+  EXPECT_FALSE(many.Advance(sizeof(c_) - 1));
+  EXPECT_EQ(many.RemainingItems(), 1);
+  EXPECT_EQ(many.Head()->iov_base, c_ + sizeof(c_) - 1);
+  EXPECT_TRUE(many.Advance(1));
+  EXPECT_EQ(many.Head(), nullptr);
 }
 
 }  // namespace
