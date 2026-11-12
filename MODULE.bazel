@@ -3,7 +3,7 @@
 
 module(
     name = "peregrine",
-    version = "0.1.19",
+    version = "0.1.20",
 )
 
 # Keep modules in each section sorted alphabetically.
@@ -18,7 +18,7 @@ bazel_dep(name = "rules_shell", version = "0.8.0")
 
 # C++ Libraries
 bazel_dep(name = "abseil-cpp", version = "20260817.0")
-bazel_dep(name = "envoy_api", version = "0.0.0-20260901-005c18a.bcr.1")
+bazel_dep(name = "envoy_api", version = "0.0.0-20261109-0a161d3")
 bazel_dep(name = "grpc", version = "1.85.1")
 bazel_dep(name = "xxhash", version = "0.8.3.bcr.1")
 
@@ -32,7 +32,7 @@ bazel_dep(name = "flatbuffers", version = "25.12.19.bcr.1")
 bazel_dep(name = "protobuf", version = "36.2")
 
 # Testing/Benchmarking
-bazel_dep(name = "fuzztest", version = "20260629.0")
+bazel_dep(name = "fuzztest", version = "20260629.0.bcr.1")
 bazel_dep(name = "googletest", version = "1.18.0.bcr.1")
 bazel_dep(name = "google_benchmark", version = "1.10.0")
 bazel_dep(name = "ncurses", version = "6.6.20261024")
