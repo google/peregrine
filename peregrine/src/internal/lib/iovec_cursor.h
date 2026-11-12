@@ -50,6 +50,9 @@ class IoVecCursor {
   // Destructor.
   ~IoVecCursor() = default;
 
+  // Returns true iff the remaining iovec items are valid.
+  bool IsValid() const { return internal::IsValid(RemainingSpan()); }
+
   // Returns the original total number of iovec items.
   size_t TotalItems() const { return iovs_.size(); }
 
@@ -124,7 +127,7 @@ class IoVecCursor {
  private:
   // Returns true if the cursor is in a valid state.
   bool invariant() const {
-    return IsValid(iovs_) && iovs_.data() <= cur_ && cur_ <= end_ &&
+    return internal::IsValid(iovs_) && iovs_.data() <= cur_ && cur_ <= end_ &&
            end_ == iovs_.data() + iovs_.size() && bytes_left_ <= bytes_total_ &&
            bytes_left_ == TotalLength(absl::MakeConstSpan(cur_, end_)) &&
            bytes_left_ <= std::numeric_limits<ssize_t>::max();

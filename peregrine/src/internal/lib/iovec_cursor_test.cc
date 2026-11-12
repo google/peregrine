@@ -40,6 +40,7 @@ TEST_F(IoVecCursorTest, Ctor) {
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes);
   EXPECT_EQ(c.Head()->iov_base, a_);
   EXPECT_EQ(c.Head()->iov_len, sizeof(a_));
+  EXPECT_TRUE(c.IsValid());
 
   const IoVecCursor& cc = c;
   EXPECT_EQ(cc.TotalItems(), kTotalItems);
@@ -48,6 +49,7 @@ TEST_F(IoVecCursorTest, Ctor) {
   EXPECT_EQ(cc.RemainingBytes(), kTotalBytes);
   EXPECT_EQ(cc.Head()->iov_base, a_);
   EXPECT_EQ(cc.Head()->iov_len, sizeof(a_));
+  EXPECT_TRUE(cc.IsValid());
 }
 
 TEST_F(IoVecCursorTest, AdvanceInOneShot) {
@@ -56,10 +58,12 @@ TEST_F(IoVecCursorTest, AdvanceInOneShot) {
   ASSERT_EQ(c.TotalBytes(), kTotalBytes);
   LOG(INFO) << c;
 
+  EXPECT_TRUE(c.IsValid());
   EXPECT_TRUE(c.Advance(kTotalBytes));
   EXPECT_EQ(c.RemainingItems(), 0);
   EXPECT_EQ(c.RemainingBytes(), 0);
   EXPECT_EQ(c.Head(), nullptr);
+  EXPECT_TRUE(c.IsValid());
 
   EXPECT_DEBUG_DEATH(c.Advance(1), "out of range");
   LOG(INFO) << c;
@@ -77,6 +81,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes);
   EXPECT_EQ(c.Head()->iov_base, a_);
   EXPECT_EQ(c.Head()->iov_len, sizeof(a_));
+  EXPECT_TRUE(c.IsValid());
   LOG(INFO) << c;
 
   // A few partial advances accumulate.
@@ -86,6 +91,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   EXPECT_EQ(c.RemainingSpan().size(), 3);
   EXPECT_EQ(c.Head()->iov_base, a_ + 1);
   EXPECT_EQ(c.Head()->iov_len, sizeof(a_) - 1);
+  EXPECT_TRUE(c.IsValid());
   LOG(INFO) << c;
 
   EXPECT_FALSE(c.Advance(2));
@@ -94,6 +100,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes - 3);
   EXPECT_EQ(c.Head()->iov_base, a_ + 3);
   EXPECT_EQ(c.Head()->iov_len, sizeof(a_) - 3);
+  EXPECT_TRUE(c.IsValid());
   LOG(INFO) << c;
 
   EXPECT_FALSE(c.Advance(3));
@@ -102,6 +109,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes - 6);
   EXPECT_EQ(c.Head()->iov_base, a_ + 6);
   EXPECT_EQ(c.Head()->iov_len, sizeof(a_) - 6);
+  EXPECT_TRUE(c.IsValid());
   LOG(INFO) << c;
 
   // Advance to the next iovec's beginning.
@@ -111,6 +119,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes - 7);
   EXPECT_EQ(c.Head()->iov_base, b_ + 0);
   EXPECT_EQ(c.Head()->iov_len, sizeof(b_) - 0);
+  EXPECT_TRUE(c.IsValid());
   LOG(INFO) << c;
 
   // Advance to the next iovec's middle.
@@ -120,6 +129,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   EXPECT_EQ(c.RemainingBytes(), kTotalBytes - 17);
   EXPECT_EQ(c.Head()->iov_base, c_ + 2);
   EXPECT_EQ(c.Head()->iov_len, sizeof(c_) - 2);
+  EXPECT_TRUE(c.IsValid());
   LOG(INFO) << c;
 
   // Advance to the end.
@@ -128,6 +138,7 @@ TEST_F(IoVecCursorTest, AdvanceGradually) {
   EXPECT_EQ(c.RemainingBytes(), 0);
   EXPECT_EQ(c.RemainingSpan().size(), 0);
   EXPECT_EQ(c.Head(), nullptr);
+  EXPECT_TRUE(c.IsValid());
   LOG(INFO) << c;
 
   // Advance beyond the end.
@@ -140,6 +151,7 @@ TEST_F(IoVecCursorTest, AdvanceOneByteAtATime) {
   ASSERT_EQ(c.TotalItems(), kTotalItems);
   ASSERT_EQ(c.TotalBytes(), kTotalBytes);
   ASSERT_NE(c.Head(), nullptr);
+  EXPECT_TRUE(c.IsValid());
 
   for (size_t i = 1; i <= kTotalBytes; ++i) {
     EXPECT_EQ(c.Advance(1), i >= kTotalBytes) << "after " << i << " bytes";
@@ -153,6 +165,7 @@ TEST_F(IoVecCursorTest, AdvanceOneByteAtATime) {
   EXPECT_EQ(c.TotalItems(), kTotalItems);
   EXPECT_EQ(c.TotalBytes(), kTotalBytes);
   EXPECT_EQ(c.Head(), nullptr);
+  EXPECT_TRUE(c.IsValid());
 }
 
 }  // namespace

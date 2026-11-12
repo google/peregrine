@@ -10,7 +10,6 @@ cc_library(
     deps = [
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
-        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/types:span",
     ],
 )
