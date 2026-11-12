@@ -67,7 +67,13 @@ class BindTest(absltest.TestCase):
 
     local_transport = pg.create_transport(local, num_conns_per_peer=2)
     self.assertIsNotNone(local_transport)
-    remote_transport = pg.create_transport(remote, num_conns_per_peer=2)
+    remote_transport = pg.create_transport(
+        remote,
+        num_conns_per_peer=2,
+        resolve_addr_callback=lambda post_meta, req_meta: ctypes.addressof(
+            rbuf
+        ),
+    )
     self.assertIsNotNone(remote_transport)
 
     req = pg.Request(
@@ -128,7 +134,13 @@ class BindTest(absltest.TestCase):
 
     local_transport = pg.create_transport(local, num_conns_per_peer=2)
     self.assertIsNotNone(local_transport)
-    remote_transport = pg.create_transport(remote, num_conns_per_peer=2)
+    remote_transport = pg.create_transport(
+        remote,
+        num_conns_per_peer=2,
+        resolve_addr_callback=lambda post_meta, req_meta: ctypes.addressof(
+            rbuf
+        ),
+    )
     self.assertIsNotNone(remote_transport)
     trace_cfg = pg.TraceConfig(sample_every_n=1)
     local_transport.configure_trace(trace_cfg)
@@ -197,6 +209,66 @@ class BindTest(absltest.TestCase):
     self.assertEmpty(
         [ev for ev in cleared_events if ev["cat"] != "__metadata"]
     )
+
+  def test_resolve_addr_callback_exception_and_none(self):
+    lbuf = ctypes.create_string_buffer(b"hello")
+    rbuf = ctypes.create_string_buffer(len(lbuf))
+
+    remote_port = util.find_free_port(socket.AF_INET, tcp=True)
+    remote = f"127.0.0.1:{remote_port}"
+
+    calls = 0
+
+    def flaky_resolve(post_meta, req_meta):
+      del post_meta, req_meta
+      nonlocal calls
+      calls += 1
+      if calls == 1:
+        raise ValueError("transient error")
+      if calls == 2:
+        return None
+      return ctypes.addressof(rbuf)
+
+    remote_transport = pg.create_transport(
+        remote,
+        num_conns_per_peer=1,
+        resolve_addr_callback=flaky_resolve,
+    )
+    self.assertIsNotNone(remote_transport)
+
+    # First two peers trigger an exception and a None return in the callback
+    # without crashing the receiver process; the third peer succeeds.
+    transports = []
+    handle = None
+    for i in range(3):
+      local_port = util.find_free_port(socket.AF_INET, tcp=True)
+      local = f"127.0.0.1:{local_port}"
+      local_transport = pg.create_transport(local, num_conns_per_peer=1)
+      self.assertIsNotNone(local_transport)
+      transports.append(local_transport)
+      req = pg.Request(
+          op=pg.Op.WRITE,
+          laddr=ctypes.addressof(lbuf),
+          raddr=0,
+          len=len(lbuf),
+      )
+      handle = local_transport.post(remote, [req])
+      if i < 2:
+        end_wait = time.monotonic() + 5.0
+        while calls < i + 1 and time.monotonic() < end_wait:
+          time.sleep(0.05)
+        self.assertEqual(calls, i + 1)
+
+    end_time = time.monotonic() + 10.0
+    while time.monotonic() < end_time:
+      status = transports[-1].poll(handle)
+      if pg.is_completed(status):
+        self.assertEqual(status, pg.Status.SUCCESS)
+        break
+      time.sleep(0.05)
+    else:
+      self.fail("transport timed out after callback recovery")
+    self.assertEqual(rbuf.raw, lbuf.raw)
 
 
 if __name__ == "__main__":
