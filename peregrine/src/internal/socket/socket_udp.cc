@@ -90,12 +90,15 @@ ssize_t UdpSocket::Send(IoVecCursor& iovs) const {
 
   const ssize_t all = iovs.RemainingBytes();
   DCHECK_GE(all, 1);
+  struct msghdr msg = {};
   while (true) {
-    const ssize_t bytes =
-        ::writev(fd_.value(), iovs.Head(), iovs.RemainingItems());
+    DCHECK_GE(iovs.RemainingBytes(), 1);
+    msg.msg_iov = iovs.Head();
+    msg.msg_iovlen = iovs.RemainingItems();
+    const ssize_t bytes = ::sendmsg(fd_.value(), &msg, MSG_NOSIGNAL);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       DCHECK_EQ(bytes, all);
-      VLOG(1) << ioMsg("writev", bytes);
+      VLOG(1) << ioMsg("sendmsg", bytes);
       iovs.Advance(bytes);
       return bytes;
     } else {
@@ -103,7 +106,7 @@ ssize_t UdpSocket::Send(IoVecCursor& iovs) const {
       const Errno err(errno);
       if (Interrupted(err)) continue;
       if (WouldBlock(err)) return 0;
-      LOG(WARNING) << errMsg("writev", err);
+      LOG(WARNING) << errMsg("sendmsg", err);
       return -1;
     }
   }
@@ -116,23 +119,26 @@ ssize_t UdpSocket::Recv(IoVecCursor& iovs) const {
 
   const ssize_t all = iovs.RemainingBytes();
   DCHECK_GE(all, 1);
+  struct msghdr msg = {};
   while (true) {
-    const ssize_t bytes =
-        ::readv(fd_.value(), iovs.Head(), iovs.RemainingItems());
+    DCHECK_GE(iovs.RemainingBytes(), 1);
+    msg.msg_iov = iovs.Head();
+    msg.msg_iovlen = iovs.RemainingItems();
+    const ssize_t bytes = ::recvmsg(fd_.value(), &msg, /*flags=*/0);
     if ABSL_PREDICT_TRUE (bytes > 0) {
       DCHECK_LE(bytes, all);
-      VLOG(1) << ioMsg("readv", bytes);
+      VLOG(1) << ioMsg("recvmsg", bytes);
       iovs.Advance(bytes);
       return bytes;
     } else if (bytes < 0) {
       const Errno err(errno);
       if (Interrupted(err)) continue;
       if (WouldBlock(err)) return 0;
-      LOG(WARNING) << errMsg("readv", err);
+      LOG(WARNING) << errMsg("recvmsg", err);
       return -1;
     } else {
       DCHECK_EQ(bytes, 0);
-      LOG(INFO) << ioMsg("readv no payload", 0);
+      LOG(INFO) << ioMsg("recvmsg no payload", 0);
       return 0;
     }
   }
