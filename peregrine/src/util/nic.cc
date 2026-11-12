@@ -43,6 +43,14 @@ bool IsBridgeInterface(const std::string_view ifc) {
   return Exists(ifc, "/bridge");
 }
 
+// Returns true iff the interface `ifc` is excluded from data-plane discovery:
+// a software bridge or a Borg host-local / blackhole NIC (e.g., ula0,
+// idpf_dontuse0).
+bool IsExcludedInterface(const std::string_view ifc) {
+  return IsBridgeInterface(ifc) || absl::StartsWithIgnoreCase(ifc, "ula") ||
+         absl::StrContainsIgnoreCase(ifc, "dontuse");
+}
+
 // Returns true iff the interface `ifc` is under the RDMA/InfiniBand subsystem.
 bool IsRdmaInterface(const std::string_view ifc) {
   return Exists(ifc, "/device/infiniband");
@@ -185,7 +193,7 @@ absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     const int family) {
   absl::flat_hash_map<std::string, NicInfo> ifc_ips;
   for (const auto& [ifc, ips] : EnumerateNics()) {
-    if (IsBridgeInterface(ifc)) continue;
+    if (IsExcludedInterface(ifc)) continue;
 
     std::vector<IpAddr> addrs;
     for (const auto& ip : ips) {
@@ -218,7 +226,7 @@ absl::StatusOr<std::string> SelectAutoBindIp(
 
 std::optional<IpAddr> TestOnly_PickOneNonLoopbackIpAddr(int family) {
   for (const auto& [ifc, ips] : EnumerateNics()) {
-    if (IsBridgeInterface(ifc)) continue;
+    if (IsExcludedInterface(ifc)) continue;
     for (const auto& ip : ips) {
       const std::optional<IpAddr> a = GetRoutableIpAddr(ip, family);
       if (!a.has_value() || a->IsLoopback()) continue;

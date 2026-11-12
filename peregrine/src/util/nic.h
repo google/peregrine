@@ -55,7 +55,7 @@ absl::StatusOr<int> FindNic(const IpAddr& target);
 
 // Returns a map of `interface -> NicInfo` with routable IP addresses (including
 // loopback, excluding unspecified, multicast, link-local, and site-local) on
-// non-bridge interfaces matching `family` (AF_UNSPEC, AF_INET, or AF_INET6).
+// non-excluded interfaces matching `family` (AF_UNSPEC, AF_INET, or AF_INET6).
 absl::flat_hash_map<std::string, NicInfo> FindRoutableIpAddrs(
     int family = AF_UNSPEC);
 
