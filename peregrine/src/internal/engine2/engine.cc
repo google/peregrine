@@ -138,7 +138,7 @@ absl::StatusOr<Handle> Engine::Enqueue(const PeerId& peer, Item item) {
       return absl::UnimplementedError("only write requests are supported");
     }
     const uint64_t nchunks = (req.len - 1) / kChunkSize + 1;
-    if (ABSL_PREDICT_FALSE(nchunks > std::numeric_limits<uint32_t>::max())) {
+    if (ABSL_PREDICT_FALSE(nchunks > RequestInfo::kMaxChunksPerReq)) {
       return absl::InvalidArgumentError("request exceeds max chunk count");
     }
     req_infos.push_back(RequestInfo{
@@ -166,8 +166,8 @@ absl::StatusOr<Handle> Engine::Enqueue(const PeerId& peer, Item item) {
   if (ABSL_PREDICT_FALSE(!added_handle)) {
     return absl::ResourceExhaustedError("failed to register handle");
   }
-  if (ABSL_PREDICT_FALSE(!outgoing_.Add(handle, req_infos, item.start_mono_us,
-                                        item.metadata))) {
+  if (ABSL_PREDICT_FALSE(
+          !outgoing_.AddInitiatorReqs(handle, req_infos, peer))) {
     outgoing_.Remove(handle);
     return absl::InternalError("failed to register requests for handle");
   }

@@ -32,8 +32,9 @@ class TransportTest(absltest.TestCase):
     self.remote_transport = pg.create_transport(
         self.remote,
         num_conns_per_peer=nconns_per_peer,
-        resolve_addr_callback=lambda post_meta, req_meta: ctypes.addressof(
-            self.rbuf
+        resolve_addr_callback=lambda post_meta, req_meta: (
+            ctypes.addressof(self.rbuf),
+            len(self.rbuf),
         ),
     )
     logging.info("local endpoint listening on %s", self.local)
