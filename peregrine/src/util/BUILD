@@ -126,12 +126,23 @@ cc_test(
     ],
 )
 
+exports_files(["nic_filter.h"])
+
+_NIC_FILTER_DEPS = ["//peregrine/src/util/oss:nic_filter"]
+
+cc_library(
+    name = "nic_filter",
+    hdrs = ["nic_filter.h"],
+    deps = _NIC_FILTER_DEPS,
+)
+
 cc_library(
     name = "nic",
     srcs = ["nic.cc"],
     hdrs = ["nic.h"],
     deps = [
         ":ipaddr",
+        ":nic_filter",
         "//peregrine/src/api:transport_types",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/container:flat_hash_map",
