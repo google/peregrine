@@ -124,17 +124,19 @@ TEST_P(ChannelTest, BlockingReadWrite) {
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
   // Write to one channel.
-  EXPECT_EQ(sndr->Write(siovs_), size_);
+  IoVecCursor scursor(siovs_);
+  EXPECT_EQ(sndr->Write(scursor), size_);
 
   // Read from the other channel in a different way.
-  EXPECT_EQ(rcvr->Read(absl::MakeSpan(diovs_)), size_);
+  IoVecCursor dcursor(diovs_);
+  EXPECT_EQ(rcvr->Read(dcursor), size_);
 
   // Shutdown the channels and verify post-shutdown behavior.
   sndr->Shutdown();
   rcvr->Shutdown();
   constexpr size_t kLen = 1;
-  IoVec siovs[] = {{src_.data(), kLen}};
-  IoVec diovs[] = {{dst_.data(), kLen}};
+  IoVecCursor siovs({IoVec(src_.data(), kLen)});
+  IoVecCursor diovs({IoVec(dst_.data(), kLen)});
   EXPECT_EQ(sndr->Write(siovs), -1);
   EXPECT_EQ(rcvr->Read(diovs), 0);
 
@@ -166,9 +168,8 @@ TEST_P(ChannelTest, NonBlockingReadWrite) {
       const uint32_t events = WaitForEvents(*poller);
       CHECK_NE(events, 0u) << "timed out waiting to write";
       CHECK_EQ(events & (EPOLLERR | EPOLLHUP), 0u) << "socket error";
-      const ssize_t n = sndr->Write(cursor.RemainingSpan());
+      const ssize_t n = sndr->Write(cursor);
       CHECK_GE(n, 0) << "write failed";
-      if (n > 0) cursor.Advance(static_cast<size_t>(n));
     }
   });
 
@@ -179,11 +180,9 @@ TEST_P(ChannelTest, NonBlockingReadWrite) {
     while (cursor.RemainingBytes() > 0) {
       const uint32_t events = WaitForEvents(*poller);
       CHECK_NE(events, 0u) << "timed out waiting to read";
-      const ssize_t n = rcvr->Read(cursor.RemainingSpan());
+      const ssize_t n = rcvr->Read(cursor);
       CHECK_GE(n, 0) << "read failed";
-      if (n > 0) {
-        cursor.Advance(static_cast<size_t>(n));
-      } else {
+      if (n == 0) {
         CHECK_EQ(events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR), 0u)
             << "read failed with events: " << events;
       }
@@ -210,15 +209,17 @@ TEST(UnreliableMessageChannelTest, ErrorRate) {
   constexpr size_t kMsgSize = 128;
   std::vector<Byte> src(kMsgSize, 1);
   std::vector<Byte> sink(kMsgSize, 0);
-  const IoVec siovs[] = {{src.data(), kMsgSize}};
-  IoVec diovs[] = {{sink.data(), kMsgSize}};
 
   int errors = 0;
   for (int i = 0; i < kNumMessages; ++i) {
+    IoVecCursor siovs({IoVec(src.data(), kMsgSize)});
+    IoVecCursor diovs({IoVec(sink.data(), kMsgSize)});
     ASSERT_EQ(sndr->Write(siovs), kMsgSize);
     if (rcvr->Read(diovs) != kMsgSize) ++errors;
   }
   for (int i = 0; i < kNumMessages; ++i) {
+    IoVecCursor siovs({IoVec(src.data(), kMsgSize)});
+    IoVecCursor diovs({IoVec(sink.data(), kMsgSize)});
     ASSERT_EQ(sndr->Write(siovs), kMsgSize);
     if (rcvr->Read(diovs) != kMsgSize) ++errors;
   }

@@ -9,12 +9,10 @@
 #include "absl/log/check.h"
 #include "absl/random/random.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
-#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/pipe.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/util/test_iov.h"
-#include "peregrine/src/internal/util/util.h"
 #include "peregrine/src/util/util.h"
 
 namespace peregrine::internal::testing {
@@ -27,26 +25,29 @@ MemMsgChannel::MemMsgChannel(const BidiPipe& bidi, const int error_rate)
   DCHECK_NE(out_pipe_, nullptr);
 }
 
-ssize_t MemMsgChannel::Write(const absl::Span<const IoVec> iovecs) {
-  DCHECK(IsValid(iovecs));
+ssize_t MemMsgChannel::Write(IoVecCursor& iovecs) {
+  DCHECK(iovecs.IsValid());
 
-  const size_t len = TotalLength(iovecs);
+  const size_t len = iovecs.RemainingBytes();
   DCHECK_GE(len, 1);
 
   // To keep the message boundary, merge multiple iovecs into a single one.
-  OwnedIoVec owned_iov = TestOnly_Linearize(iovecs);
-
-  absl::MutexLock lock(out_pipe_->mu);
-  if (out_pipe_->shutdown) return -1;
-  out_pipe_->queue.push_back(std::move(owned_iov));
+  const auto iovs = iovecs.RemainingSpan();
+  OwnedIoVec owned_iov = TestOnly_Linearize(iovs);
+  {
+    absl::MutexLock lock(out_pipe_->mu);
+    if (out_pipe_->shutdown) return -1;
+    out_pipe_->queue.push_back(std::move(owned_iov));
+  }
+  iovecs.Advance(len);
   return len;
 }
 
 bool MemMsgChannel::hasIncomingData() const { return in_pipe_->HasData(); }
 
-ssize_t MemMsgChannel::Read(absl::Span<IoVec> iovecs) {
-  DCHECK(IsValid(iovecs));
-  DCHECK_GE(TotalLength(iovecs), 1);
+ssize_t MemMsgChannel::Read(IoVecCursor& iovecs) {
+  DCHECK(iovecs.IsValid());
+  DCHECK_GE(iovecs.RemainingBytes(), 1);
 
   absl::MutexLock lock(in_pipe_->mu);
   in_pipe_->mu.Await(absl::Condition(this, &MemMsgChannel::hasIncomingData));
@@ -61,11 +62,11 @@ ssize_t MemMsgChannel::Read(absl::Span<IoVec> iovecs) {
 
   size_t size = owned_iov.size;
   if (size == 0) return 0;
-  if (size > TotalLength(iovecs)) return -1;
+  if (size > iovecs.RemainingBytes()) return -1;
 
   size_t offset = 0;
   Byte* data = owned_iov.data.get();
-  for (auto& iov : iovecs) {
+  for (auto& iov : iovecs.RemainingSpan()) {
     if (const size_t len = iov.iov_len; size <= len) {
       std::memcpy(iov.iov_base, data + offset, size);
       offset += size;
@@ -78,6 +79,7 @@ ssize_t MemMsgChannel::Read(absl::Span<IoVec> iovecs) {
     }
   }
   DCHECK_EQ(size, 0);
+  if (offset > 0) iovecs.Advance(offset);
   return offset;
 }
 

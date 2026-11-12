@@ -16,7 +16,7 @@ cc_library(
         ":channel_type",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
-        "@abseil-cpp//absl/types:span",
+        "//peregrine/src/internal/lib:iovec_cursor",
     ],
 )
 
@@ -47,10 +47,8 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/socket:socket_tcp",
-        "//peregrine/src/internal/util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -64,10 +62,8 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/socket:socket_udp",
-        "//peregrine/src/internal/util",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -93,8 +89,7 @@ cc_library(
         ":channel_type",
         ":pipe",
         "//peregrine/src/api:transport_types",
-        "//peregrine/src/internal/base:types",
-        "//peregrine/src/internal/util",
+        "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/util:test_iov",
         "//peregrine/src/util",
         "@abseil-cpp//absl/base:core_headers",
@@ -102,7 +97,6 @@ cc_library(
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 
@@ -117,6 +111,7 @@ cc_library(
         ":pipe",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/util",
         "//peregrine/src/internal/util:test_iov",
         "//peregrine/src/util",
@@ -203,12 +198,12 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/chunk:header_flatbuf",
+        "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/rdma:rdma_conn",
         "//peregrine/src/internal/rdma:rdma_qpair",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings:str_format",
-        "@abseil-cpp//absl/types:span",
     ],
 )
 

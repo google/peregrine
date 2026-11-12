@@ -14,10 +14,10 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/strings/str_format.h"
-#include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/rdma/rdma_qpair.h"
 
 namespace peregrine::internal {
@@ -37,12 +37,12 @@ void RdmaChannel::Shutdown() {
   }
 }
 
-ssize_t RdmaChannel::Read(absl::Span<IoVec> /*iovecs*/) {
+ssize_t RdmaChannel::Read(IoVecCursor& iovecs) {
   LOG(ERROR) << "not yet implemented";
   return -1;
 }
 
-ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
+ssize_t RdmaChannel::Write(IoVecCursor& iovecs) {
   if (is_shutdown_.load(std::memory_order_acquire)) return -1;
   auto qp = rdma_->Qp();
   if (qp == nullptr || qp->GetQp() == nullptr) return -1;
@@ -51,22 +51,24 @@ ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
   if (ibv_qp == nullptr) return -1;
 
   // One-sided RDMA requires exactly [DataHeader, Payload].
-  if (iovecs.size() != 2) {
+  if (iovecs.RemainingItems() != 2) {
     LOG(ERROR) << "Requires exactly 2 iovecs: [DataHeader, Payload]";
     return -1;
   }
 
   // 1. Deserialize DataHeader from iovecs[0] to extract destination address
   DataHeader chunk;
+  IoVec* header_iov = iovecs.Head();
   const std::string_view header_str(
-      static_cast<const char*>(iovecs[0].iov_base), iovecs[0].iov_len);
+      static_cast<const char*>(header_iov->iov_base), header_iov->iov_len);
   if (!HeaderUtil::Deserialize(header_str, chunk) || !chunk.IsData()) {
     LOG(ERROR) << "failed to deserialize valid data header in RdmaChannel";
     return -1;
   }
 
-  const void* const payload_addr = iovecs[1].iov_base;
-  const size_t payload_len = iovecs[1].iov_len;
+  IoVec* payload_iov = header_iov + 1;
+  const void* const payload_addr = payload_iov->iov_base;
+  const size_t payload_len = payload_iov->iov_len;
   if (payload_len > std::numeric_limits<uint32_t>::max()) {
     LOG(ERROR) << "payload length " << payload_len << " exceeds uint32_t max";
     return -1;
@@ -115,7 +117,9 @@ ssize_t RdmaChannel::Write(absl::Span<const IoVec> iovecs) {
     return -1;
   }
 
-  return iovecs[0].iov_len + payload_len;
+  const size_t sent = header_iov->iov_len + payload_len;
+  iovecs.Advance(sent);
+  return sent;
 }
 
 std::string RdmaChannel::ToString() const {

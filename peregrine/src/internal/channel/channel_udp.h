@@ -8,13 +8,11 @@
 #include <utility>
 
 #include "absl/log/check.h"
-#include "absl/types/span.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_udp.h"
-#include "peregrine/src/internal/util/util.h"
 
 namespace peregrine::internal {
 
@@ -47,28 +45,27 @@ class UdpChannel final : public Channel {
   // Note: the channel owns the file descriptor; callers must not close it.
   fd_t GetFd() const override { return socket_->fd(); }
 
-  // Writes data from the `iovecs` buffers to the channel.
+  // Writes the remaining buffers of the `iovecs` to the channel.
   // Returns the number of bytes actually written if successful. Zero byte means
   // no data has been written due to non-error reasons. Returns -1 on error.
-  ssize_t Write(absl::Span<const IoVec> iovecs) override {
-    DCHECK(IsValid(iovecs));
-    DCHECK_GE(iovecs.size(), 1);
-    DCHECK_LE(iovecs.size(), IOV_MAX);
-    DCHECK_GE(TotalLength(iovecs), 1);
-    IoVecCursor cursor(iovecs);
-    return socket_->Send(cursor);
+  ssize_t Write(IoVecCursor& iovecs) override {
+    DCHECK(iovecs.IsValid());
+    DCHECK_GE(iovecs.TotalItems(), 1);
+    DCHECK_LE(iovecs.TotalItems(), IOV_MAX);
+    DCHECK_GE(iovecs.RemainingBytes(), 1);
+    return socket_->Send(iovecs);
   }
 
-  // Reads one message of up to `length(iovecs)` bytes from the channel into
-  // the buffers. Returns the number of bytes actually read if successful.
-  // Returns 0 if the received packet has no payload. Returns -1 on error.
-  ssize_t Read(absl::Span<IoVec> iovecs) override {
-    DCHECK(IsValid(iovecs));
-    DCHECK_GE(iovecs.size(), 1);
-    DCHECK_LE(iovecs.size(), IOV_MAX);
-    DCHECK_GE(TotalLength(iovecs), 1);
-    IoVecCursor cursor(iovecs);
-    return socket_->Recv(cursor);
+  // Reads one message of up to `iovecs.RemainingBytes()` from the channel into
+  // the remaining buffers of the `iovecs`. Returns the number of bytes actually
+  // read if successful. Returns 0 if the received packet has no payload.
+  // Returns -1 on error.
+  ssize_t Read(IoVecCursor& iovecs) override {
+    DCHECK(iovecs.IsValid());
+    DCHECK_GE(iovecs.TotalItems(), 1);
+    DCHECK_LE(iovecs.TotalItems(), IOV_MAX);
+    DCHECK_GE(iovecs.RemainingBytes(), 1);
+    return socket_->Recv(iovecs);
   }
 
   // Shuts down the channel. After the channel is shutdown, write calls will

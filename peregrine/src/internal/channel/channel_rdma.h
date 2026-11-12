@@ -7,10 +7,9 @@
 #include <utility>
 
 #include "absl/log/check.h"
-#include "absl/types/span.h"
-#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/rdma/rdma_conn.h"
 
 namespace peregrine::internal {
@@ -39,13 +38,11 @@ class RdmaChannel final : public Channel {
   // Returns whether the channel is blocking or non-blocking.
   constexpr bool IsBlocking() const override { return true; }
 
-  // Writes a chunk via one-sided RDMA WRITE. Requires exactly 2 iovecs:
-  // iovecs[0] is the serialized ChunkHeader containing the remote memory
-  // address. iovecs[1] is the local payload buffer to transfer.
-  ssize_t Write(absl::Span<const IoVec> iovecs) override;
+  // Writes the remaining buffers of the `iovecs` to the channel.
+  ssize_t Write(IoVecCursor& iovecs) override;
 
-  // TODO: Implement ReadV for RDMA.
-  ssize_t Read(absl::Span<IoVec> iovecs) override;
+  // Reads data from the channel into the remaining buffers of the `iovecs`.
+  ssize_t Read(IoVecCursor& iovecs) override;
 
   // Shuts down the channel and transitions the QP to error state.
   void Shutdown() override;

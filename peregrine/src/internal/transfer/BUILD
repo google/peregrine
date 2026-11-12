@@ -17,6 +17,7 @@ cc_library(
         "//peregrine/src/internal/chunk:chunk_tracker",
         "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/chunk:header_flatbuf",
+        "//peregrine/src/internal/lib:iovec_cursor",
         "//peregrine/src/internal/request:request_tracker",
         "//peregrine/src/internal/trace:chunk_trace_wire",
         "//peregrine/src/internal/trace:trace_recorder",

@@ -4,10 +4,10 @@
 #include <ostream>
 #include <string>
 
-#include "absl/types/span.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel_type.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 
 namespace peregrine::internal {
 
@@ -35,19 +35,23 @@ class Channel {
   // Sets the peer endpoint of the channel.
   virtual void SetPeer(const Endpoint& peer) { peer_ = peer; }
 
-  // Writes a number of buffers described by the `iovecs` to the channel.
-  // Returns the number of bytes actually written if successful. Zero byte means
-  // no data has been written due to non-error reasons. Returns -1 on error.
-  virtual ssize_t Write(absl::Span<const IoVec> iovecs) = 0;
+  // Writes the remaining buffers of the `iovecs` to the channel.
+  // Returns the number of bytes actually written if successful, and advances
+  // the `iovecs` by the same number of bytes. Zero byte means no data has been
+  // written due to non-error reasons. Returns -1 on error, which means the
+  // channel should not be used anymore.
+  virtual ssize_t Write(IoVecCursor& iovecs) = 0;
 
-  // Reads data from the channel into the `iovecs` buffers.
-  // For stream channel, it reads exactly `length(iovecs)` bytes of data.
-  // For message channel, it reads one message of up to `length(iovecs)` bytes.
-  // Returns the number of bytes actually read if successful.
+  // Reads data from the channel into the remaining buffers of the `iovecs`.
+  // For stream channel, it reads exactly (or up to) `iovecs.RemainingBytes()`
+  // of data if the channel is blocking (or non-blocking). For message channel,
+  // it reads one message of up to `iovecs.RemainingBytes()` of data.
+  // Returns the number of bytes actually read if successful, and advances the
+  // `iovecs` by the same number of bytes.
   // For stream channel, returns 0 if the peer side has closed the connection.
   // For message channel, returns 0 if the received packet has no payload.
-  // Returns -1 on error.
-  virtual ssize_t Read(absl::Span<IoVec> iovecs) = 0;
+  // Returns -1 on error, which means the channel should not be used anymore.
+  virtual ssize_t Read(IoVecCursor& iovecs) = 0;
 
   // Shuts down the channel. After the channel is shutdown, write calls will
   // return -1, so no more data can be injected into the channel. Read calls

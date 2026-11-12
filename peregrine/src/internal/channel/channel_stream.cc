@@ -15,6 +15,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/pipe.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/util/test_iov.h"
 #include "peregrine/src/internal/util/util.h"
 #include "peregrine/src/util/util.h"
@@ -29,20 +30,21 @@ MemStreamChannel::MemStreamChannel(const BidiPipe& bidi, const int error_rate)
   DCHECK_NE(out_pipe_, nullptr);
 }
 
-ssize_t MemStreamChannel::Write(const absl::Span<const IoVec> iovecs) {
-  DCHECK(IsValid(iovecs));
+ssize_t MemStreamChannel::Write(IoVecCursor& iovecs) {
+  DCHECK(iovecs.IsValid());
 
-  const size_t len = TotalLength(iovecs);
+  const size_t len = iovecs.RemainingBytes();
   DCHECK_GE(len, 1);
 
   absl::MutexLock lock(out_pipe_->mu);
   if (out_pipe_->shutdown) return -1;
-  for (const auto& v : iovecs) {
+  for (const auto& v : iovecs.RemainingSpan()) {
     // Do not merge multiple iovecs into a single one.
     DCHECK(IsValid(v));
     OwnedIoVec owned_iov = TestOnly_Linearize({v});
     out_pipe_->queue.push_back(std::move(owned_iov));
   }
+  iovecs.Advance(len);
   return len;
 }
 
@@ -92,16 +94,17 @@ ssize_t MemStreamChannel::read(Byte* const buf, const size_t len) {
   return rcvd;
 }
 
-ssize_t MemStreamChannel::Read(absl::Span<IoVec> iovecs) {
-  DCHECK(IsValid(iovecs));
-  DCHECK_GE(TotalLength(iovecs), 1);
+ssize_t MemStreamChannel::Read(IoVecCursor& iovecs) {
+  DCHECK(iovecs.IsValid());
+  DCHECK_GE(iovecs.RemainingBytes(), 1);
 
   ssize_t total = 0;
-  for (const auto& iov : iovecs) {
+  for (const auto& iov : iovecs.RemainingSpan()) {
     Byte* buf = reinterpret_cast<Byte*>(iov.iov_base);
     const size_t len = iov.iov_len;
     const ssize_t n = read(buf, len);
     if (n <= 0) return total ?: n;
+    iovecs.Advance(n);
     total += n;
     if (static_cast<size_t>(n) < len) break;
   }

@@ -3,7 +3,6 @@
 #include <sys/types.h>
 
 #include <algorithm>
-#include <array>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -25,6 +24,7 @@
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
+#include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
@@ -57,13 +57,13 @@ bool Transfer::SendInfo(Channel* const channel, const PostInfoHeader& info,
   DCHECK(IsMatch(info,
                  ChunkPayloadView(reinterpret_cast<const Byte*>(payload.data()),
                                   payload.size())));
-  const std::array<const IoVec, 2> iovecs = {
+  IoVecCursor cursor({
       IoVec((void*)header.data(), header.size()),
       IoVec((void*)payload.data(), payload.size()),
-  };
+  });
 
   // Step 2: send them out.
-  const ssize_t len = channel->Write(iovecs);
+  const ssize_t len = channel->Write(cursor);
   return std::cmp_equal(len, header.size() + payload.size());
 }
 
@@ -74,13 +74,13 @@ bool Transfer::SendChunk(Channel* const channel, const DataHeader& chunk,
 
   // Step 1: build data header and payload.
   const std::string header = HeaderUtil::Serialize(chunk);
-  const std::array<const IoVec, 2> iovecs = {
+  IoVecCursor cursor({
       IoVec((void*)header.data(), header.size()),
       IoVec((void*)payload.data(), payload.size()),
-  };
+  });
 
   // Step 2: send them out.
-  const ssize_t len = channel->Write(iovecs);
+  const ssize_t len = channel->Write(cursor);
   return std::cmp_equal(len, header.size() + payload.size());
 }
 
@@ -114,8 +114,8 @@ bool Transfer::sendAck(Channel* channel, DataHeader& chunk) {
   chunk.len = 0;
   DCHECK(chunk.IsAck());
   const std::string header = HeaderUtil::Serialize(chunk);
-  const IoVec iov[] = {{(void*)header.data(), header.size()}};
-  const ssize_t len = channel->Write(iov);
+  IoVecCursor cursor({IoVec((void*)header.data(), header.size())});
+  const ssize_t len = channel->Write(cursor);
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, header.size())) {
     LOG(WARNING) << "failed to send ack: " << chunk;
     return false;
@@ -131,8 +131,8 @@ bool Transfer::recvStream(Channel* const channel, RequestTracker& outgoing,
 
   // Step 1: read 64-byte header.
   Byte buf[HeaderUtil::kSize];
-  IoVec iov[] = {{buf, sizeof(buf)}};
-  const ssize_t len = channel->Read(iov);
+  IoVecCursor cursor({IoVec(buf, sizeof(buf))});
+  const ssize_t len = channel->Read(cursor);
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, sizeof(buf))) {
     LOG(WARNING) << "failed to read header: " << len;
     return false;
@@ -157,8 +157,8 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
                                   RequestTracker& incoming) {
   const uint64_t start_us = util::MonoNowUs();
   std::string payload(info.len, '\0');
-  IoVec iov[] = {{payload.data(), info.len}};
-  const ssize_t len = channel->Read(iov);
+  IoVecCursor cursor({IoVec(payload.data(), info.len)});
+  const ssize_t len = channel->Read(cursor);
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, info.len)) {
     LOG(WARNING) << "failed to read post info payload: " << len;
     return false;
@@ -221,8 +221,8 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
   const ChunkStatus s = tracker.Acquire(index);
   const uint64_t t_acquired_us = is_traced ? util::MonoNowUs() : 0;
   if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
-    IoVec payload[] = {{dst_addr, size}};
-    const ssize_t len = channel->Read(payload);
+    IoVecCursor cursor({IoVec(dst_addr, size)});
+    const ssize_t len = channel->Read(cursor);
     const bool success = std::cmp_equal(len, size);
     // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
     // in `OnReqComplete`.
@@ -259,8 +259,8 @@ bool Transfer::recvMsg(Channel* const channel, RequestTracker& outgoing,
   // channels need larger `PostInfo` payloads.
   Byte buf[kTmpBufSize];
   static_assert(HeaderUtil::kSize < kTmpBufSize);
-  IoVec iov[] = {{buf, kTmpBufSize}};
-  const ssize_t len = channel->Read(iov);
+  IoVecCursor cursor({IoVec(buf, kTmpBufSize)});
+  const ssize_t len = channel->Read(cursor);
   if ABSL_PREDICT_FALSE (std::cmp_less(len, HeaderUtil::kSize)) {
     LOG(WARNING) << "failed to read header: " << len;
     return false;
@@ -380,8 +380,8 @@ bool Transfer::drainStream(Channel* const channel, const uint32_t chunk_size) {
   size_t left = chunk_size;
   while (left > 0) {
     const size_t size = std::min(left, kTmpBufSize);
-    IoVec iov[] = {{buf, size}};
-    const ssize_t len = channel->Read(iov);
+    IoVecCursor cursor({IoVec(buf, size)});
+    const ssize_t len = channel->Read(cursor);
     if (std::cmp_not_equal(len, size)) return false;
     left -= size;
   }
