@@ -31,30 +31,25 @@ namespace {
 using util::Errno;
 }  // namespace
 
-std::unique_ptr<TcpSocket> TcpSocket::Create(int family, bool blocking,
-                                             int sndbuf_size, int rcvbuf_size) {
+std::unique_ptr<TcpSocket> TcpSocket::Create(int family, bool blocking) {
   const fd_t fd = CreateSocket(family, SOCK_STREAM, blocking);
   if ABSL_PREDICT_FALSE (fd.value() < 0) {
     return nullptr;
   }
   constexpr bool kConnected = false;  // will connect later
   auto skt = absl::WrapUnique(new TcpSocket(fd, family, blocking, kConnected));
-  if ABSL_PREDICT_FALSE (skt->setBufSize(SO_SNDBUF, sndbuf_size) < 0 ||
-                         skt->setBufSize(SO_RCVBUF, rcvbuf_size) < 0 ||
-                         skt->setNoDelay() < 0) {
+  if ABSL_PREDICT_FALSE (skt->setNoDelay() < 0) {
     return nullptr;
   }
   LOG(INFO) << okMsg("created", fd);
   return skt;
 }
 
-std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family, bool blocking,
-                                             int sndbuf_size, int rcvbuf_size) {
+std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family,
+                                             bool blocking) {
   constexpr bool kConnected = true;  // from an accepted connection
   auto skt = absl::WrapUnique(new TcpSocket(fd, family, blocking, kConnected));
-  if ABSL_PREDICT_FALSE (skt->setBufSize(SO_SNDBUF, sndbuf_size) < 0 ||
-                         skt->setBufSize(SO_RCVBUF, rcvbuf_size) < 0 ||
-                         skt->setNoDelay() < 0) {
+  if ABSL_PREDICT_FALSE (skt->setNoDelay() < 0) {
     return nullptr;
   }
   return skt;

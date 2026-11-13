@@ -27,14 +27,10 @@ namespace peregrine::internal {
 class TcpSocket final : public SocketBase {
  public:
   // Creates an unconnected tcp socket.
-  static std::unique_ptr<TcpSocket> Create(int family, bool blocking,
-                                           int sndbuf_size = 16 << 20,
-                                           int rcvbuf_size = 16 << 20);
+  static std::unique_ptr<TcpSocket> Create(int family, bool blocking);
 
   // Creates a connected tcp socket.
-  static std::unique_ptr<TcpSocket> Create(fd_t fd, int family, bool blocking,
-                                           int sndbuf_size = 16 << 20,
-                                           int rcvbuf_size = 16 << 20);
+  static std::unique_ptr<TcpSocket> Create(fd_t fd, int family, bool blocking);
 
   // Destructor closes the socket.
   ~TcpSocket();
