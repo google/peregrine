@@ -31,25 +31,30 @@ namespace {
 using util::Errno;
 }  // namespace
 
-std::unique_ptr<TcpSocket> TcpSocket::Create(int family, bool blocking) {
+std::unique_ptr<TcpSocket> TcpSocket::Create(int family, bool blocking,
+                                             int sndbuf_size, int rcvbuf_size) {
   const fd_t fd = CreateSocket(family, SOCK_STREAM, blocking);
   if ABSL_PREDICT_FALSE (fd.value() < 0) {
     return nullptr;
   }
   constexpr bool kConnected = false;  // will connect later
   auto skt = absl::WrapUnique(new TcpSocket(fd, family, blocking, kConnected));
-  if ABSL_PREDICT_FALSE (skt->setNoDelay() < 0) {
+  if ABSL_PREDICT_FALSE (skt->setBufSize(SO_SNDBUF, sndbuf_size) < 0 ||
+                         skt->setBufSize(SO_RCVBUF, rcvbuf_size) < 0 ||
+                         skt->setNoDelay() < 0) {
     return nullptr;
   }
   LOG(INFO) << okMsg("created", fd);
   return skt;
 }
 
-std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family,
-                                             bool blocking) {
+std::unique_ptr<TcpSocket> TcpSocket::Create(fd_t fd, int family, bool blocking,
+                                             int sndbuf_size, int rcvbuf_size) {
   constexpr bool kConnected = true;  // from an accepted connection
   auto skt = absl::WrapUnique(new TcpSocket(fd, family, blocking, kConnected));
-  if ABSL_PREDICT_FALSE (skt->setNoDelay() < 0) {
+  if ABSL_PREDICT_FALSE (skt->setBufSize(SO_SNDBUF, sndbuf_size) < 0 ||
+                         skt->setBufSize(SO_RCVBUF, rcvbuf_size) < 0 ||
+                         skt->setNoDelay() < 0) {
     return nullptr;
   }
   return skt;
@@ -73,10 +78,24 @@ void TcpSocket::Shutdown() {
   DCHECK(invariant());
 }
 
+int TcpSocket::setBufSize(const int which, const int size) const {
+  DCHECK(invariant());
+  DCHECK(which == SO_SNDBUF || which == SO_RCVBUF);
+  DCHECK_GE(size, 1);
+
+  if (SetSocketOption(fd_, which, &size, sizeof(size)) < 0) {
+    const Errno err(errno);
+    const std::string s = which == SO_SNDBUF ? "SO_SNDBUF" : "SO_RCVBUF";
+    LOG(WARNING) << errMsg("set " + s, err);
+    return -1;
+  }
+  return 0;
+}
+
 int TcpSocket::setNoDelay() const {
   DCHECK(invariant());
   int on = 1;
-  if ABSL_PREDICT_FALSE (SetTcpOption(fd_, TCP_NODELAY, &on, sizeof(on)) < 0) {
+  if (SetTcpOption(fd_, TCP_NODELAY, &on, sizeof(on)) < 0) {
     const Errno err(errno);
     LOG(WARNING) << errMsg("set TCP_NODELAY", err);
     return -1;
