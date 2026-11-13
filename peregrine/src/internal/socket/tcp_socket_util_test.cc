@@ -61,7 +61,7 @@ class TcpSocketUtilTest : public TestWithParam<SocketTestParam> {
   }
 
   void SetSocketSendBufSize(const fd_t fd, const int size) const {
-    CHECK(!SetSocketOption(fd, SO_RCVBUF, &size, sizeof(size)));
+    CHECK(!SetSocketOption(fd, SO_SNDBUF, &size, sizeof(size)));
   }
 
  protected:
