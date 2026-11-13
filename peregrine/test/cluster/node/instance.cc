@@ -100,16 +100,26 @@ absl::Status ParallelFor(int total_items, int max_threads,
 
 absl::StatusOr<std::pair<std::string, std::unique_ptr<Transport>>>
 BindTransportWithRetry(int idx, const NodeConfig& config,
+                       RegisteredBuffer* target_buf,
                        std::atomic<uint32_t>& next_offset) {
   for (int attempt = 0; attempt < kMaxPortBindAttempts; ++attempt) {
     const uint16_t port = CandidateControlPort(
         config.base_control_port,
         next_offset.fetch_add(1, std::memory_order_relaxed));
     std::string endpoint = FormatEndpoint(config.ip, port);
-    std::unique_ptr<Transport> transport =
-        CreateTransport(endpoint, {.transport_type = config.transport_type,
-                                   .num_parallel_connections = config.num_conns,
-                                   .allowed_devices = config.allowed_devices});
+    std::unique_ptr<Transport> transport = CreateTransport(
+        endpoint,
+        {.transport_type = config.transport_type,
+         .num_parallel_connections = config.num_conns,
+         .resolve_addr_callback =
+             [target_buf](const Metadata&, const Metadata& req_meta) -> Byte* {
+           if (target_buf == nullptr) return nullptr;
+           uint64_t offset = 0;
+           std::memcpy(&offset, req_meta.data(), sizeof(offset));
+           if (offset >= target_buf->Size()) return target_buf->DataPtr();
+           return target_buf->DataPtr() + offset;
+         },
+         .allowed_devices = config.allowed_devices});
     if (transport != nullptr) {
       return std::make_pair(std::move(endpoint), std::move(transport));
     }
@@ -122,20 +132,20 @@ BindTransportWithRetry(int idx, const NodeConfig& config,
 absl::StatusOr<std::unique_ptr<NodeInstance>> CreateSingleInstance(
     int idx, const NodeConfig& config, RegisteredBuffer* shared_buf,
     size_t buf_size, std::atomic<uint32_t>& next_offset) {
-  auto bound_or = BindTransportWithRetry(idx, config, next_offset);
+  std::unique_ptr<RegisteredBuffer> owned_buf;
+  RegisteredBuffer* target_buf = shared_buf;
+  if (target_buf == nullptr) {
+    owned_buf = std::make_unique<RegisteredBuffer>(buf_size);
+    target_buf = owned_buf.get();
+  }
+
+  auto bound_or = BindTransportWithRetry(idx, config, target_buf, next_offset);
   if (!bound_or.ok()) {
     return bound_or.status();
   }
   auto [bound_endpoint, transport] = std::move(*bound_or);
   if (config.trace_every_n > 0) {
     transport->ConfigureTrace({.sample_every_n = config.trace_every_n});
-  }
-
-  std::unique_ptr<RegisteredBuffer> owned_buf;
-  RegisteredBuffer* target_buf = shared_buf;
-  if (target_buf == nullptr) {
-    owned_buf = std::make_unique<RegisteredBuffer>(buf_size);
-    target_buf = owned_buf.get();
   }
 
   absl::Status reg_status = target_buf->RegisterWith(transport.get());

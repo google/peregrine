@@ -67,7 +67,13 @@ class BindTest(absltest.TestCase):
 
     local_transport = pg.create_transport(local, num_conns_per_peer=2)
     self.assertIsNotNone(local_transport)
-    remote_transport = pg.create_transport(remote, num_conns_per_peer=2)
+    remote_transport = pg.create_transport(
+        remote,
+        num_conns_per_peer=2,
+        resolve_addr_callback=lambda post_meta, req_meta: ctypes.addressof(
+            rbuf
+        ),
+    )
     self.assertIsNotNone(remote_transport)
 
     req = pg.Request(
@@ -128,7 +134,13 @@ class BindTest(absltest.TestCase):
 
     local_transport = pg.create_transport(local, num_conns_per_peer=2)
     self.assertIsNotNone(local_transport)
-    remote_transport = pg.create_transport(remote, num_conns_per_peer=2)
+    remote_transport = pg.create_transport(
+        remote,
+        num_conns_per_peer=2,
+        resolve_addr_callback=lambda post_meta, req_meta: ctypes.addressof(
+            rbuf
+        ),
+    )
     self.assertIsNotNone(remote_transport)
     trace_cfg = pg.TraceConfig(sample_every_n=1)
     local_transport.configure_trace(trace_cfg)

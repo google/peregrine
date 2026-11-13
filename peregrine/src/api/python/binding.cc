@@ -9,6 +9,7 @@
 #include "absl/types/span.h"
 #include "nanobind/nanobind.h"
 #include "nanobind/stl/array.h"
+#include "nanobind/stl/optional.h"
 #include "nanobind/stl/string.h"
 #include "nanobind/stl/string_view.h"
 #include "nanobind/stl/unique_ptr.h"
@@ -99,7 +100,8 @@ NB_MODULE(peregrine, m) {
             ThrowIfFailed(handle.status());
             return handle.value();
           },
-          nb::arg("peer"), nb::arg("requests"))
+          nb::arg("peer"), nb::arg("requests"),
+          nb::call_guard<nb::gil_scoped_release>())
       .def(
           "poll",
           [](Transport& t, Handle handle) {
@@ -107,7 +109,7 @@ NB_MODULE(peregrine, m) {
             ThrowIfFailed(status.status());
             return status.value();
           },
-          nb::arg("handle"))
+          nb::arg("handle"), nb::call_guard<nb::gil_scoped_release>())
       .def(
           "register_memory",
           [](Transport& self, uintptr_t addr, size_t length) {
@@ -186,17 +188,32 @@ NB_MODULE(peregrine, m) {
   m.def(
       "create_transport",
       [](std::string_view control_endpoint, TransportType transport_type,
-         int num_conns_per_peer) {
-        return CreateTransport(
-            control_endpoint,
-            Options{
-                .transport_type = transport_type,
-                .num_parallel_connections = num_conns_per_peer,
-            });
+         int num_conns_per_peer,
+         std::optional<nb::callable> resolve_addr_callback) {
+        Options options{
+            .transport_type = transport_type,
+            .num_parallel_connections = num_conns_per_peer,
+        };
+        if (resolve_addr_callback.has_value()) {
+          options.resolve_addr_callback =
+              [cb = *resolve_addr_callback](const Metadata& post_meta,
+                                            const Metadata& req_meta) -> Byte* {
+            nb::gil_scoped_acquire gil;
+            nb::bytes post_bytes(
+                reinterpret_cast<const char*>(post_meta.data()),
+                post_meta.size());
+            nb::bytes req_bytes(reinterpret_cast<const char*>(req_meta.data()),
+                                req_meta.size());
+            uintptr_t addr = nb::cast<uintptr_t>(cb(post_bytes, req_bytes));
+            return reinterpret_cast<Byte*>(addr);
+          };
+        }
+        return CreateTransport(control_endpoint, std::move(options));
       },
       nb::arg("control_endpoint"),
       nb::arg("transport_type") = TransportType::kTcp,
-      nb::arg("num_conns_per_peer") = 8);
+      nb::arg("num_conns_per_peer") = 8,
+      nb::arg("resolve_addr_callback") = nb::none());
 
   // Bind `Status` enum and helper functions
   nb::enum_<Status>(m, "Status")
