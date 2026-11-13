@@ -34,17 +34,17 @@ CreateUdpSocketPair(int family, bool blocking);
 size_t CountOpenSocketFds();
 
 // Creates an IoVecCursor by splitting the given data into `n` parts.
-std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data,
-                                               int splits);
+std::unique_ptr<IoVecCursorV> CreateIoVecCursor(absl::Span<Byte> data,
+                                                int splits);
 
 // Creates an IoVecCursor by splitting the given data into `n` parts.
-inline std::unique_ptr<IoVecCursor> CreateIoVecCursor(std::vector<Byte>& data,
-                                                      int splits) {
+inline std::unique_ptr<IoVecCursorV> CreateIoVecCursor(std::vector<Byte>& data,
+                                                       int splits) {
   return CreateIoVecCursor(absl::MakeSpan(data), splits);
 }
 
-std::unique_ptr<IoVecCursor> CreateIoVecCursor(std::vector<Byte>&& data,
-                                               int splits) = delete;
+std::unique_ptr<IoVecCursorV> CreateIoVecCursor(std::vector<Byte>&& data,
+                                                int splits) = delete;
 
 // A loopback listening socket whose accept queue is fully filled.
 // As a result, further connection attempts to it will time out.

@@ -98,7 +98,7 @@ TEST_P(TcpSocketUtilTest, ScatterGather) {
     auto new_socket = TcpSocket::Create(new_fd, cfg_.family, cfg_.blocking);
     DCHECK(new_socket->IsBlocking());
     DCHECK(new_socket->IsConnected());
-    IoVecCursor iovecs(TestOnly_Split(recv_buf, 2));
+    IoVecCursorV iovecs(TestOnly_Split(recv_buf, 2));
     CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), iovecs, /*timeout_ms=*/-1));
   });
 
@@ -108,7 +108,7 @@ TEST_P(TcpSocketUtilTest, ScatterGather) {
     CHECK(!connector_->Connect(local_));
     DCHECK(connector_->IsBlocking());
     DCHECK(connector_->IsConnected());
-    IoVecCursor iovecs(TestOnly_Split(send_buf, 3));
+    IoVecCursorV iovecs(TestOnly_Split(send_buf, 3));
     CHECK_OK(TcpSocketUtil::Send(connector_->fd(), iovecs, /*timeout_ms=*/-1));
   });
 
@@ -137,14 +137,14 @@ TEST_P(TcpSocketUtilTest, WillNotTimeout) {
     const int ret = listener_->Accept(cfg_.blocking);
     CHECK_GE(ret, 0);
     auto new_socket = TcpSocket::Create(fd_t(ret), cfg_.family, cfg_.blocking);
-    IoVecCursor iovecs({IoVec{recv_buf.data(), recv_buf.size()}});
+    IoVecCursorN<1> iovecs({IoVec{recv_buf.data(), recv_buf.size()}});
     CHECK_OK(TcpSocketUtil::Recv(new_socket->fd(), iovecs, kTimeoutMs));
   });
 
   util::Thread client([&]() {
     server_ready.WaitForNotification();
     CHECK(!connector_->Connect(local_));
-    IoVecCursor iovecs({IoVec{send_buf.data(), send_buf.size()}});
+    IoVecCursorN<1> iovecs({IoVec{send_buf.data(), send_buf.size()}});
     CHECK_OK(TcpSocketUtil::Send(connector_->fd(), iovecs, kTimeoutMs));
   });
 
@@ -174,7 +174,7 @@ TEST_P(TcpSocketUtilTest, WillTimeout) {
   SetSocketSendBufSize(connector_->fd(), /*size=*/1024);
   constexpr size_t kDataSize = 16UL << 20;
   std::vector<Byte> buf(kDataSize);
-  IoVecCursor iovecs({IoVec{buf.data(), buf.size()}});
+  IoVecCursorN<1> iovecs({IoVec{buf.data(), buf.size()}});
   // A zero timeout never blocks; a positive timeout blocks until it expires.
   for (const int timeout_ms : {0, 10}) {
     EXPECT_THAT(TcpSocketUtil::Recv(connector_->fd(), iovecs, timeout_ms),
@@ -211,7 +211,7 @@ TEST_P(TcpSocketUtilTest, PeerResetIsNotTimeout) {
   // To ensure sender blocks, set the socket buffer size to a small value.
   SetSocketSendBufSize(connector_->fd(), /*size=*/1024);
   std::vector<Byte> send_buf(16UL << 20);
-  IoVecCursor iovecs({IoVec{send_buf.data(), send_buf.size()}});
+  IoVecCursorN<1> iovecs({IoVec{send_buf.data(), send_buf.size()}});
   EXPECT_THAT(TcpSocketUtil::Send(connector_->fd(), iovecs,
                                   /*timeout_ms=*/60'000),
               StatusIs(kInternal, Not(HasSubstr("timeout"))));

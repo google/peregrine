@@ -57,7 +57,7 @@ bool Transfer::SendInfo(Channel* const channel, const PostInfoHeader& info,
   DCHECK(IsMatch(info,
                  ChunkPayloadView(reinterpret_cast<const Byte*>(payload.data()),
                                   payload.size())));
-  IoVecCursor cursor({
+  IoVecCursorN<2> cursor({
       IoVec((void*)header.data(), header.size()),
       IoVec((void*)payload.data(), payload.size()),
   });
@@ -74,7 +74,7 @@ bool Transfer::SendChunk(Channel* const channel, const DataHeader& chunk,
 
   // Step 1: build data header and payload.
   const std::string header = HeaderUtil::Serialize(chunk);
-  IoVecCursor cursor({
+  IoVecCursorN<2> cursor({
       IoVec((void*)header.data(), header.size()),
       IoVec((void*)payload.data(), payload.size()),
   });
@@ -114,7 +114,7 @@ bool Transfer::sendAck(Channel* channel, DataHeader& chunk) {
   chunk.len = 0;
   DCHECK(chunk.IsAck());
   const std::string header = HeaderUtil::Serialize(chunk);
-  IoVecCursor cursor({IoVec((void*)header.data(), header.size())});
+  IoVecCursorN<1> cursor({IoVec((void*)header.data(), header.size())});
   const ssize_t len = channel->Write(cursor);
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, header.size())) {
     LOG(WARNING) << "failed to send ack: " << chunk;
@@ -131,7 +131,7 @@ bool Transfer::recvStream(Channel* const channel, RequestTracker& outgoing,
 
   // Step 1: read 64-byte header.
   Byte buf[HeaderUtil::kSize];
-  IoVecCursor cursor({IoVec(buf, sizeof(buf))});
+  IoVecCursorN<1> cursor({IoVec(buf, sizeof(buf))});
   const ssize_t len = channel->Read(cursor);
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, sizeof(buf))) {
     LOG(WARNING) << "failed to read header: " << len;
@@ -157,7 +157,7 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
                                   RequestTracker& incoming) {
   const uint64_t start_us = util::MonoNowUs();
   std::string payload(info.len, '\0');
-  IoVecCursor cursor({IoVec(payload.data(), info.len)});
+  IoVecCursorN<1> cursor({IoVec(payload.data(), info.len)});
   const ssize_t len = channel->Read(cursor);
   if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, info.len)) {
     LOG(WARNING) << "failed to read post info payload: " << len;
@@ -221,7 +221,7 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
   const ChunkStatus s = tracker.Acquire(index);
   const uint64_t t_acquired_us = is_traced ? util::MonoNowUs() : 0;
   if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
-    IoVecCursor cursor({IoVec(dst_addr, size)});
+    IoVecCursorN<1> cursor({IoVec(dst_addr, size)});
     const ssize_t len = channel->Read(cursor);
     const bool success = std::cmp_equal(len, size);
     // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
@@ -259,7 +259,7 @@ bool Transfer::recvMsg(Channel* const channel, RequestTracker& outgoing,
   // channels need larger `PostInfo` payloads.
   Byte buf[kTmpBufSize];
   static_assert(HeaderUtil::kSize < kTmpBufSize);
-  IoVecCursor cursor({IoVec(buf, kTmpBufSize)});
+  IoVecCursorN<1> cursor({IoVec(buf, kTmpBufSize)});
   const ssize_t len = channel->Read(cursor);
   if ABSL_PREDICT_FALSE (std::cmp_less(len, HeaderUtil::kSize)) {
     LOG(WARNING) << "failed to read header: " << len;
@@ -380,7 +380,7 @@ bool Transfer::drainStream(Channel* const channel, const uint32_t chunk_size) {
   size_t left = chunk_size;
   while (left > 0) {
     const size_t size = std::min(left, kTmpBufSize);
-    IoVecCursor cursor({IoVec(buf, size)});
+    IoVecCursorN<1> cursor({IoVec(buf, size)});
     const ssize_t len = channel->Read(cursor);
     if (std::cmp_not_equal(len, size)) return false;
     left -= size;

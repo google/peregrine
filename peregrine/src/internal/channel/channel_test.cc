@@ -134,19 +134,19 @@ TEST_P(ChannelTest, BlockingReadWrite) {
   ASSERT_THAT(dst_, Pointwise(Ne(), src_));
 
   // Write to one channel.
-  IoVecCursor scursor(siovs_);
+  IoVecCursorN<kSrc> scursor(siovs_);
   EXPECT_EQ(sndr->Write(scursor), size_);
 
   // Read from the other channel in a different way.
-  IoVecCursor dcursor(diovs_);
+  IoVecCursorN<kDst> dcursor(diovs_);
   EXPECT_EQ(rcvr->Read(dcursor), size_);
 
   // Shutdown the channels and verify post-shutdown behavior.
   sndr->Shutdown();
   rcvr->Shutdown();
   constexpr size_t kLen = 1;
-  IoVecCursor siovs({IoVec(src_.data(), kLen)});
-  IoVecCursor diovs({IoVec(dst_.data(), kLen)});
+  IoVecCursorN<1> siovs({IoVec(src_.data(), kLen)});
+  IoVecCursorN<1> diovs({IoVec(dst_.data(), kLen)});
   EXPECT_EQ(sndr->Write(siovs), -1);
   EXPECT_EQ(rcvr->Read(diovs), 0);
 
@@ -173,7 +173,7 @@ TEST_P(ChannelTest, NonBlockingReadWrite) {
   // Use one thread to write to the channel.
   util::Thread writer([&]() {
     const auto poller = CreateEventPoller(*sndr, EPOLLOUT);
-    IoVecCursor cursor(siovs_);
+    IoVecCursorN<kSrc> cursor(siovs_);
     while (cursor.RemainingBytes() > 0) {
       const uint32_t events = WaitForEvents(*poller, *sndr);
       CHECK_NE(events, 0u) << "timed out waiting to write";
@@ -186,7 +186,7 @@ TEST_P(ChannelTest, NonBlockingReadWrite) {
   // Use another thread to read from the channel.
   util::Thread reader([&]() {
     const auto poller = CreateEventPoller(*rcvr, EPOLLIN | EPOLLRDHUP);
-    IoVecCursor cursor(diovs_);
+    IoVecCursorN<kDst> cursor(diovs_);
     while (cursor.RemainingBytes() > 0) {
       const uint32_t events = WaitForEvents(*poller, *rcvr);
       CHECK_NE(events, 0u) << "timed out waiting to read";
@@ -223,14 +223,14 @@ TEST(UnreliableMessageChannelTest, ErrorRate) {
 
   int errors = 0;
   for (int i = 0; i < kNumMessages; ++i) {
-    IoVecCursor siovs({IoVec(src.data(), kMsgSize)});
-    IoVecCursor diovs({IoVec(sink.data(), kMsgSize)});
+    IoVecCursorN<1> siovs({IoVec(src.data(), kMsgSize)});
+    IoVecCursorN<1> diovs({IoVec(sink.data(), kMsgSize)});
     ASSERT_EQ(sndr->Write(siovs), kMsgSize);
     if (rcvr->Read(diovs) != kMsgSize) ++errors;
   }
   for (int i = 0; i < kNumMessages; ++i) {
-    IoVecCursor siovs({IoVec(src.data(), kMsgSize)});
-    IoVecCursor diovs({IoVec(sink.data(), kMsgSize)});
+    IoVecCursorN<1> siovs({IoVec(src.data(), kMsgSize)});
+    IoVecCursorN<1> diovs({IoVec(sink.data(), kMsgSize)});
     ASSERT_EQ(sndr->Write(siovs), kMsgSize);
     if (rcvr->Read(diovs) != kMsgSize) ++errors;
   }

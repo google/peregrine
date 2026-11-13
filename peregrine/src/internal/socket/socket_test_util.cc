@@ -152,8 +152,8 @@ size_t CountOpenSocketFds() {
   return count;
 }
 
-std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data,
-                                               int splits) {
+std::unique_ptr<IoVecCursorV> CreateIoVecCursor(absl::Span<Byte> data,
+                                                int splits) {
   DCHECK_GE(splits, 1);
   DCHECK_LE(splits, data.size());
 
@@ -169,7 +169,7 @@ std::unique_ptr<IoVecCursor> CreateIoVecCursor(absl::Span<Byte> data,
   const size_t past = (splits - 1) * seg;
   iovecs.push_back({ptr + past, data.size() - past});
 
-  return std::make_unique<IoVecCursor>(iovecs);
+  return std::make_unique<IoVecCursorV>(iovecs);
 }
 
 BlackHoleListener::BlackHoleListener(const int family, const int timeout_ms)

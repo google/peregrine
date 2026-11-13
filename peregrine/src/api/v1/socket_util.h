@@ -36,7 +36,7 @@ inline absl::Status WriteVExact(int fd, absl::Span<const struct iovec> iovs,
   DCHECK(internal::IsValid(iovs));
   const size_t n = iovs.size();
   if ABSL_PREDICT_TRUE (1 <= n && n <= IOV_MAX) {
-    internal::IoVecCursor iovecs(iovs);
+    internal::IoVecCursorV iovecs(iovs);
     return internal::TcpSocketUtil::Send(sock_fd, iovecs, timeout_ms);
   }
   return absl::InvalidArgumentError(absl::StrCat("#iovs=", n));
@@ -72,7 +72,7 @@ inline absl::Status ReadVExact(int fd, absl::Span<const struct iovec> iovs,
   DCHECK(internal::IsValid(iovs));
   const size_t n = iovs.size();
   if ABSL_PREDICT_TRUE (1 <= n && n <= IOV_MAX) {
-    internal::IoVecCursor iovecs(iovs);
+    internal::IoVecCursorV iovecs(iovs);
     return internal::TcpSocketUtil::Recv(sock_fd, iovecs, timeout_ms);
   }
   return absl::InvalidArgumentError(absl::StrCat("#iovs=", n));
