@@ -13,6 +13,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
+#include "peregrine/src/internal/chunk/chunk_trace_wire_generated.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_generated.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"
@@ -28,6 +29,13 @@ std::string HeaderUtil::Serialize(const PostInfoHeader& header, uint8_t ver) {
 }
 
 std::string HeaderUtil::Serialize(const DataHeader& header, uint8_t ver) {
+  DCHECK_EQ(ver, 1);
+  const std::string s = serializeV1(header);
+  DCHECK_EQ(s.size(), kSize);
+  return s;
+}
+
+std::string HeaderUtil::Serialize(const FailureHeader& header, uint8_t ver) {
   DCHECK_EQ(ver, 1);
   const std::string s = serializeV1(header);
   DCHECK_EQ(s.size(), kSize);
@@ -92,6 +100,30 @@ bool HeaderUtil::Deserialize(std::string_view s, DataHeader& header) {
   std::memcpy(buf, s.data(), kSize);
 
   const auto& h = *reinterpret_cast<const flatbuf::DataHeader*>(buf);
+  if (h.base().magic() != kMagic) {
+    return false;
+  }
+
+  const uint8_t ver = h.base().ver();
+  switch (ver) {
+    case 1:
+      return deserializeV1(h, header);
+    default:
+      LOG(ERROR) << "Unsupported header flatbuf version: "
+                 << static_cast<int>(ver);
+      return false;
+  }
+}
+
+bool HeaderUtil::Deserialize(std::string_view s, FailureHeader& header) {
+  if (s.size() != kSize) {
+    return false;
+  }
+
+  alignas(alignof(flatbuf::FailureHeader)) uint8_t buf[kSize];
+  std::memcpy(buf, s.data(), kSize);
+
+  const auto& h = *reinterpret_cast<const flatbuf::FailureHeader*>(buf);
   if (h.base().magic() != kMagic) {
     return false;
   }
@@ -217,6 +249,18 @@ std::string HeaderUtil::serializeV1(const DataHeader& header) {
   return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
 }
 
+std::string HeaderUtil::serializeV1(const FailureHeader& header) {
+  DCHECK(header.IsValid());
+  constexpr uint8_t kVer = 1;
+  const flatbuf::HeaderBase base(kMagic, kVer,
+                                 static_cast<uint8_t>(header.opcode),
+                                 header.handle.value(), header.len);
+  std::array<uint8_t, 52> padding = {};
+  const flatbuf::FailureHeader h(base, padding);
+  DCHECK_EQ(sizeof(h), kSize);
+  return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
+}
+
 bool HeaderUtil::deserializeV1(const flatbuf::HeaderBase& fb_base,
                                HeaderBase& base) {
   DCHECK_EQ(fb_base.ver(), 1);
@@ -270,6 +314,15 @@ bool HeaderUtil::deserializeV1(const flatbuf::DataHeader& h,
   header.trace.rx_worker_id = t.rx_worker_id();
   header.trace.rx_chunk_status = t.rx_chunk_status();
   return true;
+}
+
+bool HeaderUtil::deserializeV1(const flatbuf::FailureHeader& h,
+                               FailureHeader& header) {
+  DCHECK_EQ(h.base().ver(), 1);
+  header.opcode = static_cast<Opcode>(h.base().opcode());
+  header.handle = Handle(h.base().handle());
+  header.len = h.base().len();
+  return header.IsValid();
 }
 
 }  // namespace peregrine::internal

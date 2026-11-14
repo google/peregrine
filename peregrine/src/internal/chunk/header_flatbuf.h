@@ -29,21 +29,25 @@ class HeaderUtil final {
   static_assert(sizeof(flatbuf::ChunkTraceWire) == 16);
   static_assert(sizeof(flatbuf::PostInfoHeader) == kSize);
   static_assert(sizeof(flatbuf::DataHeader) == kSize);
+  static_assert(sizeof(flatbuf::FailureHeader) == kSize);
   static_assert(sizeof(flatbuf::Recipe) == 40);
   static_assert(sizeof(flatbuf::RequestInfo) == kRequestInfoSize);
 
-  // Serializes a `PostInfoHeader` or `DataHeader` to a 64-byte flatbuffer
-  // string.
+  // Serializes a `PostInfoHeader`, `DataHeader`, or `FailureHeader` to a
+  // 64-byte flatbuffer string.
   static std::string Serialize(const PostInfoHeader& header, uint8_t ver = 1);
   static std::string Serialize(const DataHeader& header, uint8_t ver = 1);
+  static std::string Serialize(const FailureHeader& header, uint8_t ver = 1);
 
   // Parses the common `HeaderBase` prefix from a 64-byte flatbuffer header
   // string (e.g., to inspect `opcode`, `handle`, and `len` before dispatching).
   static bool Deserialize(std::string_view s, HeaderBase& base);
 
-  // Parses a `PostInfoHeader` or `DataHeader` from a 64-byte flatbuffer string.
+  // Parses a `PostInfoHeader`, `DataHeader`, or `FailureHeader` from a 64-byte
+  // flatbuffer string.
   static bool Deserialize(std::string_view s, PostInfoHeader& header);
   static bool Deserialize(std::string_view s, DataHeader& header);
+  static bool Deserialize(std::string_view s, FailureHeader& header);
 
   // Serializes/deserializes a single `RequestInfo` (128 bytes) or a non-empty
   // sequence of `RequestInfo` structs (`N * 128` bytes, the `POST_INFO`
@@ -60,12 +64,15 @@ class HeaderUtil final {
  private:
   static std::string serializeV1(const PostInfoHeader& header);
   static std::string serializeV1(const DataHeader& header);
+  static std::string serializeV1(const FailureHeader& header);
 
   static bool deserializeV1(const flatbuf::HeaderBase& fb_base,
                             HeaderBase& base);
   static bool deserializeV1(const flatbuf::PostInfoHeader& h,
                             PostInfoHeader& header);
   static bool deserializeV1(const flatbuf::DataHeader& h, DataHeader& header);
+  static bool deserializeV1(const flatbuf::FailureHeader& h,
+                            FailureHeader& header);
 };
 
 }  // namespace peregrine::internal

@@ -84,6 +84,24 @@ bool Transfer::SendChunk(Channel* const channel, const DataHeader& chunk,
   return std::cmp_equal(len, header.size() + payload.size());
 }
 
+bool Transfer::SendFailure(Channel* const channel,
+                           const FailureHeader& failure) {
+  static_assert(assumptions::kChunkHeaderAndPayloadAreEncryptedOnWire);
+  DCHECK(failure.IsValid());
+
+  // Step 1: build failure header.
+  const std::string header = HeaderUtil::Serialize(failure);
+  const IoVec iov[] = {{(void*)header.data(), header.size()}};
+
+  // Step 2: send it out.
+  const ssize_t len = channel->Write(iov);
+  if ABSL_PREDICT_FALSE (std::cmp_not_equal(len, header.size())) {
+    LOG(WARNING) << "failed to send failure header: " << failure;
+    return false;
+  }
+  return true;
+}
+
 bool Transfer::Recv(Channel* const channel, RequestTracker& outgoing,
                     RequestTracker& incoming, const int worker_id,
                     TraceRecorder& tracer) {
@@ -105,6 +123,10 @@ bool Transfer::deserialize(const Byte* buf, Header& header) {
   }
   if (PostInfoHeader info; HeaderUtil::Deserialize(s, info)) {
     header = info;
+    return true;
+  }
+  if (FailureHeader failure; HeaderUtil::Deserialize(s, failure)) {
+    header = failure;
     return true;
   }
   return false;
@@ -148,6 +170,12 @@ bool Transfer::recvStream(Channel* const channel, RequestTracker& outgoing,
     return recvDataStream(channel, *chunk, outgoing, incoming, worker_id,
                           tracer);
   }
+  if (auto* failure = std::get_if<FailureHeader>(&header)) {
+    if (!outgoing.Fail(failure->handle, Status::kFailure)) {
+      incoming.Fail(failure->handle, Status::kFailure);
+    }
+    return true;
+  }
   return recvPostInfoStream(channel, std::get<PostInfoHeader>(header),
                             incoming);
 }
@@ -174,7 +202,15 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
   if (info.peer.HasNonzeroIpPort()) {
     channel->SetPeer(info.peer);
   }
-  return incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer);
+  if (!incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer)) {
+    FailureHeader failure = {};
+    failure.opcode = Opcode::kFailure;
+    failure.handle = info.handle;
+    failure.len = 0;
+    SendFailure(channel, failure);
+    return false;
+  }
+  return true;
 }
 
 bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
@@ -278,6 +314,12 @@ bool Transfer::recvMsg(Channel* const channel, RequestTracker& outgoing,
     return recvDataMsg(channel, *chunk, payload, outgoing, incoming, worker_id,
                        tracer);
   }
+  if (auto* failure = std::get_if<FailureHeader>(&header)) {
+    if (!outgoing.Fail(failure->handle, Status::kFailure)) {
+      incoming.Fail(failure->handle, Status::kFailure);
+    }
+    return true;
+  }
   return recvPostInfoMsg(channel, std::get<PostInfoHeader>(header), payload,
                          incoming);
 }
@@ -305,7 +347,15 @@ bool Transfer::recvPostInfoMsg(Channel* const channel,
   if (info.peer.HasNonzeroIpPort()) {
     channel->SetPeer(info.peer);
   }
-  return incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer);
+  if (!incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer)) {
+    FailureHeader failure = {};
+    failure.opcode = Opcode::kFailure;
+    failure.handle = info.handle;
+    failure.len = 0;
+    SendFailure(channel, failure);
+    return false;
+  }
+  return true;
 }
 
 bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,

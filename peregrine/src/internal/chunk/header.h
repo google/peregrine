@@ -29,6 +29,7 @@ enum class Opcode : uint8_t {
   // LINT.IfChange(opcode)
   kPostInfo = 1,  // control header followed by `RequestInfo` entries
   kData = 2,      // data chunk header (len > 0) or ACK (len == 0)
+  kFailure = 3,   // failure notification header
   // LINT.ThenChange(header.fbs:opcode)
 };
 
@@ -59,8 +60,13 @@ struct alignas(8) HeaderBase {
   // payload).
   bool IsAck() const { return opcode == Opcode::kData && len == 0; }
 
+  // Returns true iff this header is a `Failure` notification header.
+  bool IsFailure() const { return opcode == Opcode::kFailure && len == 0; }
+
   // Returns true iff the base header fields are valid.
-  bool IsValid() const { return IsPostInfo() || IsData() || IsAck(); }
+  bool IsValid() const {
+    return IsPostInfo() || IsData() || IsAck() || IsFailure();
+  }
 
   // Returns a string representation for debugging/logging.
   std::string ToString() const;
@@ -140,6 +146,27 @@ inline std::ostream& operator<<(std::ostream& os, const DataHeader& header) {
 inline bool IsMatch(const DataHeader& header, ChunkPayloadView payload) {
   DCHECK(header.IsValid());
   return header.len == payload.size();
+}
+
+// Failure header indicating an unrecoverable failure for a `Post()` batch.
+struct alignas(8) FailureHeader final : public HeaderBase {
+  // LINT.IfChange(failure_header)
+  // LINT.ThenChange(header.fbs:failure_header)
+
+  // Returns true iff this `FailureHeader` is valid.
+  bool IsValid() const { return IsFailure(); }
+
+  // Returns a string representation for debugging/logging.
+  std::string ToString() const;
+
+  // Equality operator.
+  friend bool operator==(const FailureHeader& a,
+                         const FailureHeader& b) = default;
+};
+static_assert(sizeof(FailureHeader) == 16);
+
+inline std::ostream& operator<<(std::ostream& os, const FailureHeader& header) {
+  return os << header.ToString();
 }
 
 // Identifies the data layout recipe used to reconstruct or slice a request's
