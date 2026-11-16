@@ -30,13 +30,16 @@ class Transfer final {
   static bool SendChunk(Channel* channel, const DataHeader& chunk,
                         ChunkPayloadView payload);
 
+  // Sends `FailureHeader` to the channel.
+  static bool SendFailure(Channel* channel, const FailureHeader& failure);
+
   // Receives a `PostInfoHeader` or `DataHeader` packet from the channel.
   static bool Recv(Channel* channel, RequestTracker& outgoing,
                    RequestTracker& incoming, int worker_id,
                    TraceRecorder& tracer);
 
  private:
-  using Header = std::variant<PostInfoHeader, DataHeader>;
+  using Header = std::variant<PostInfoHeader, DataHeader, FailureHeader>;
 
   // Deserializes header and returns true iff the header is valid.
   static bool deserialize(const Byte* buf, Header& header);

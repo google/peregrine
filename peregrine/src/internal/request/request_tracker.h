@@ -71,6 +71,11 @@ class RequestTracker {
   void Remove(Handle handle, const Endpoint& peer = {})
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
+  // Fails the tracker for `handle`, cleans up tracked state, and invokes
+  // `on_complete(status)` if registered.
+  bool Fail(Handle handle, Status status = Status::kFailure)
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+
   // Updates pending request count when an incoming request in `(peer, handle)`
   // completes all of its chunks, and invokes `recv_post_callback_` once all
   // requests in the `Post()` batch have completed.
@@ -129,6 +134,8 @@ class RequestTracker {
     TraceContext trace_ctx;
     // True if initiated locally via `Post()`, false if received from a peer.
     bool is_initiator = false;
+    // True if address resolution failed on a received `PostInfoHeader`.
+    bool failed = false;
 
     // Default constructor.
     PostTracker() = default;

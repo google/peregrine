@@ -39,6 +39,9 @@ Status RequestTracker::Check(const Handle handle, const Endpoint& peer) const {
   if ABSL_PREDICT_FALSE (it == trackers_.end()) {
     return Status::kNotFound;
   }
+  if (it->second.failed) {
+    return Status::kFailure;
+  }
   if (!isComplete(it->second)) {
     return Status::kInProgress;
   }
@@ -61,11 +64,13 @@ bool RequestTracker::Add(const Handle handle,
   DCHECK(!reqs.empty());
   // True if this is a remote `Op::kRead` request received by the responder.
   bool is_responder_read = false;
+  bool resolution_failed = false;
   std::vector<RequestInfo> resolved_reqs;
   {
     absl::MutexLock _(trackers_mu_);
     auto [it, inserted] = trackers_.try_emplace(Key{peer, handle});
     PostTracker& pt = it->second;
+    if (pt.failed) return false;
     if (!pt.req_map.empty()) return true;
     pt.metadata = metadata;
     if (!pt.is_initiator && reqs[0].op == Op::kWrite) {
@@ -85,16 +90,12 @@ bool RequestTracker::Add(const Handle handle,
             resolve_addr_callback_(metadata, req.metadata)));
       }
       if (!pt.is_initiator && raddr.value() == 0) {
-        // TODO: Send a NACK / error header back to the sender when address
-        // resolution fails so the sender can complete with `Status::kFailure`.
-        if (inserted) {
-          trackers_.erase(it);
-        } else {
-          pt.req_map.clear();
-          pt.pending_reqs = 0;
-          pt.start_mono_us = 0;
-        }
-        return false;
+        pt.req_map.clear();
+        pt.pending_reqs = 0;
+        pt.start_mono_us = 0;
+        pt.failed = true;
+        resolution_failed = true;
+        break;
       }
       pt.req_map[req.reqid] =
           std::make_unique<ReqTracker>(req.nchunks, raddr, req.metadata);
@@ -104,6 +105,17 @@ bool RequestTracker::Add(const Handle handle,
         resolved_reqs.push_back(resolved);
       }
     }
+  }
+  if (resolution_failed) {
+    if (recv_post_callback_ != nullptr) {
+      std::vector<Metadata> req_metas;
+      req_metas.reserve(reqs.size());
+      for (const auto& r : reqs) {
+        req_metas.push_back(r.metadata);
+      }
+      recv_post_callback_(Status::kFailure, metadata, req_metas);
+    }
+    return false;
   }
   if (is_responder_read && on_recv_read_ != nullptr) {
     on_recv_read_(peer, handle, resolved_reqs);
@@ -117,6 +129,25 @@ void RequestTracker::Remove(const Handle handle, const Endpoint& peer) {
   if (it == trackers_.end()) return;
   tracer_.RecordPollReaped(it->second.trace_ctx, handle);
   trackers_.erase(it);
+}
+
+bool RequestTracker::Fail(const Handle handle, const Status status) {
+  OnComplete callback = nullptr;
+  {
+    absl::MutexLock _(trackers_mu_);
+    auto it = trackers_.find({Endpoint{}, handle});
+    if (it == trackers_.end()) return false;
+
+    PostTracker& pt = it->second;
+    if (pt.on_complete != nullptr) {
+      callback = std::move(pt.on_complete);
+    }
+    trackers_.erase(it);
+  }
+  if (callback != nullptr) {
+    std::move(callback)(status);
+  }
+  return true;
 }
 
 void RequestTracker::OnReqComplete(const Handle handle, const Endpoint& peer) {

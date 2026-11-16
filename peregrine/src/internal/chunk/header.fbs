@@ -8,6 +8,7 @@ enum Opcode:uint8 {
   UNKNOWN = 0,
   POST_INFO = 1,
   DATA = 2,
+  FAILURE = 3,
 // LINT.ThenChange(header.h:opcode)
 }
 
@@ -57,6 +58,14 @@ struct DataHeader {
   // Paddings to keep the header size always 64 bytes.
   padding1:uint64;
 // LINT.ThenChange(header.h:data_header)
+}
+
+// `flatbuf::FailureHeader` has a fixed size of 64 bytes.
+struct FailureHeader {
+  // LINT.IfChange(failure_header)
+  base:HeaderBase;
+  padding:[uint8:52];
+// LINT.ThenChange(header.h:failure_header)
 }
 
 // Layout recipe type for a `RequestInfo`.

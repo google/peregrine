@@ -103,6 +103,37 @@ TEST(HeaderSerializationTest, DataAndAckHeaderSerde) {
   EXPECT_TRUE(ack_out.IsAck());
 }
 
+TEST(HeaderSerializationTest, FailureHeaderSerde) {
+  FailureHeader failure = {};
+  failure.opcode = Opcode::kFailure;
+  failure.handle = kHandle;
+  failure.len = 0;
+  ASSERT_TRUE(failure.IsValid());
+
+  const std::string s = HeaderUtil::Serialize(failure);
+  ASSERT_EQ(s.size(), HeaderUtil::kSize);
+  EXPECT_EQ(s[0], 'P');
+  EXPECT_EQ(s[1], 'G');
+  EXPECT_EQ(static_cast<uint8_t>(s[2]), 1);
+  EXPECT_EQ(static_cast<uint8_t>(s[3]), static_cast<uint8_t>(Opcode::kFailure));
+
+  HeaderBase base = {};
+  ASSERT_TRUE(HeaderUtil::Deserialize(s, base));
+  EXPECT_TRUE(base.IsFailure());
+  EXPECT_EQ(base.handle, kHandle);
+  EXPECT_EQ(base.len, 0);
+
+  FailureHeader output = {};
+  ASSERT_TRUE(HeaderUtil::Deserialize(s, output));
+  EXPECT_EQ(failure, output);
+  EXPECT_TRUE(output.IsFailure());
+
+  DataHeader wrong_data = {};
+  EXPECT_FALSE(HeaderUtil::Deserialize(s, wrong_data));
+  PostInfoHeader wrong_info = {};
+  EXPECT_FALSE(HeaderUtil::Deserialize(s, wrong_info));
+}
+
 TEST(HeaderSerializationTest, DataAndAckHeaderSerdeWithTrace) {
   DataHeader data = {};
   data.opcode = Opcode::kData;

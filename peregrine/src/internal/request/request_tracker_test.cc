@@ -401,7 +401,7 @@ TEST_F(RequestTrackerTest, ResolveAddrCallback) {
 
   // Without `resolve_addr_callback`, `raddr == 0` on receiver fails `Add`.
   EXPECT_FALSE(rt_.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
-  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kFailure);
 
   int resolve_calls = 0;
   RequestTracker rt(
@@ -630,6 +630,60 @@ TEST_F(RequestTrackerTest, RecvPostLatencyIgnoresRead) {
   ASSERT_TRUE(rt_.Add(kHandle, reqs, util::MonoNowUs()));
   rt_.OnReqComplete(kHandle);
   EXPECT_EQ(metrics_.recv_post_latency_us.Snapshot().Count(), 0);
+}
+
+TEST_F(RequestTrackerTest, AddressResolutionFailureNotifiesCallback) {
+  int recv_post_calls = 0;
+  int resolve_addr_calls = 0;
+  Status notified_status = Status::kInProgress;
+  auto recv_post_cb = [&](Status s, const Metadata&,
+                          absl::Span<const Metadata>) {
+    ++recv_post_calls;
+    notified_status = s;
+  };
+  auto resolve_addr_cb = [&](const Metadata&, const Metadata&) -> Byte* {
+    ++resolve_addr_calls;
+    return nullptr;
+  };
+
+  RequestTracker rt(metrics_, tracer_, recv_post_cb, resolve_addr_cb);
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = addr_t(0),
+       .total_len = 1024,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+
+  EXPECT_FALSE(rt.Add(kHandle, reqs, util::MonoNowUs()));
+  EXPECT_EQ(recv_post_calls, 1);
+  EXPECT_EQ(resolve_addr_calls, 1);
+  EXPECT_EQ(notified_status, Status::kFailure);
+  EXPECT_EQ(rt.Check(kHandle), Status::kFailure);
+
+  // Subsequent `Add` for the same failed handle (e.g. from another worker
+  // receiving a broadcast `PostInfoHeader`) must not re-add the tracker or
+  // invoke the callbacks again.
+  EXPECT_FALSE(rt.Add(kHandle, reqs, util::MonoNowUs()));
+  EXPECT_EQ(recv_post_calls, 1);
+  EXPECT_EQ(resolve_addr_calls, 1);
+  EXPECT_EQ(rt.Check(kHandle), Status::kFailure);
+}
+
+TEST_F(RequestTrackerTest, FailCompletesInitiator) {
+  Status completed_status = Status::kInProgress;
+  auto on_complete = [&](Status s) { completed_status = s; };
+
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), on_complete, TraceContext{}));
+  EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
+
+  EXPECT_TRUE(rt_.Fail(kHandle, Status::kFailure));
+  EXPECT_EQ(completed_status, Status::kFailure);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
+
+  // Subsequent call fails because handle was already removed.
+  EXPECT_FALSE(rt_.Fail(kHandle, Status::kFailure));
 }
 }  // namespace
 }  // namespace peregrine::internal::testing

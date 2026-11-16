@@ -61,6 +61,24 @@ TEST(HeaderTest, PostInfoDataAndAckProperties) {
   EXPECT_TRUE(IsMatch(ack, ChunkPayloadView()));
 }
 
+TEST(HeaderTest, FailureHeaderProperties) {
+  FailureHeader failure = {};
+  failure.opcode = Opcode::kFailure;
+  failure.handle = kHandle;
+  failure.len = 0;
+  EXPECT_FALSE(failure.IsPostInfo());
+  EXPECT_FALSE(failure.IsData());
+  EXPECT_FALSE(failure.IsAck());
+  EXPECT_TRUE(failure.IsFailure());
+  EXPECT_TRUE(failure.IsValid());
+  EXPECT_EQ(failure, failure);
+  LOG(INFO) << failure;
+
+  failure.len = 10;
+  EXPECT_FALSE(failure.IsFailure());
+  EXPECT_FALSE(failure.IsValid());
+}
+
 TEST(RequestInfoTest, ValidationAndEquality) {
   RequestInfo req = {};
   EXPECT_FALSE(req.IsValid());

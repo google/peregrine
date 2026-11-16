@@ -28,6 +28,10 @@ std::string DataHeader::ToString() const {
       trace.rx_acquire_us, trace.rx_worker_id, trace.rx_chunk_status);
 }
 
+std::string FailureHeader::ToString() const {
+  return absl::StrFormat("FailureHeader: handle=0x%x", handle.value());
+}
+
 std::string RequestInfo::ToString() const {
   return absl::StrFormat(
       "RequestInfo: reqid=0x%x, nchunks=%d, raddr=0x%llx, total_len=%llu, "
