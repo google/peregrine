@@ -17,8 +17,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/time/clock.h"
-#include "absl/time/time.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -120,10 +118,10 @@ void Engine::createSendWorkers(const Endpoint& peer,
   }
 }
 
-bool Engine::createRecvWorkers() {
+void Engine::createRecvWorkers() {
   auto channels = helper_->GetAcceptedChannels();
   if (channels.empty()) {
-    return false;
+    return;
   }
   // TODO(yongx): use peer control endpoint as key.
   Workers& workers = recv_workers_[Endpoint()];
@@ -131,7 +129,6 @@ bool Engine::createRecvWorkers() {
     auto rw = createWorker(-(1 + workers.size()), std::move(ch));
     workers.push_back(std::move(rw));
   }
-  return true;
 }
 
 void Engine::tcpmgrLoop() {
@@ -140,9 +137,7 @@ void Engine::tcpmgrLoop() {
       absl::MutexLock _(mu_);
       if (stop_) return;
     }
-    if (!createRecvWorkers()) {
-      absl::SleepFor(absl::Milliseconds(100));
-    }
+    createRecvWorkers();
   }
 }
 

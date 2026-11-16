@@ -147,7 +147,7 @@ class Engine final {
                          Handle handle);
 
   // Creates recv workers for accepted channels.
-  bool createRecvWorkers();
+  void createRecvWorkers();
 
   // Processes a single post entry.
   void process(PostEntry& post) ABSL_LOCKS_EXCLUDED(mu_);

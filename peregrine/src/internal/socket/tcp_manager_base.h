@@ -123,12 +123,18 @@ class TcpManagerBase {
     bool Add(std::unique_ptr<TcpSocket> socket) ABSL_LOCKS_EXCLUDED(mu_);
 
     // Returns all the connected sockets and clears the internal container.
-    // After this call, `Add()` might be called and refill the container,
-    // unless `Close()` has been called.
-    std::vector<std::unique_ptr<TcpSocket>> MoveAll() ABSL_LOCKS_EXCLUDED(mu_);
+    // Waits until at least one connected socket is available or the `timeout`
+    // expires, and returns all the connected sockets and clears the internal
+    // container. `Add()` wakes the waiter as soon as a socket is produced.
+    std::vector<std::unique_ptr<TcpSocket>> MoveAll(
+        absl::Duration timeout = absl::ZeroDuration()) ABSL_LOCKS_EXCLUDED(mu_);
 
     // Removes and closes all the connected sockets.
     void Close() ABSL_LOCKS_EXCLUDED(mu_);
+
+   private:
+    // Returns true iff at least one socket is available.
+    bool hasSockets() const ABSL_SHARED_LOCKS_REQUIRED(mu_);
 
    private:
     mutable absl::Mutex mu_;

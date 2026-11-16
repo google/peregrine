@@ -60,8 +60,9 @@ class TcpManager : public TcpManagerBase {
               absl::Duration timeout = absl::InfiniteDuration());
 
   // Returns all the accepted incoming sockets currently available.
-  std::vector<std::unique_ptr<TcpSocket>> GetIncomingSockets() {
-    return incoming_.MoveAll();
+  std::vector<std::unique_ptr<TcpSocket>> GetIncomingSockets(
+      absl::Duration timeout = absl::ZeroDuration()) {
+    return incoming_.MoveAll(timeout);
   }
 
   // Returns all the connected outgoing sockets currently available.

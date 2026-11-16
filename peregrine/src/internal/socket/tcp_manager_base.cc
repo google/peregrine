@@ -167,8 +167,14 @@ bool TcpManagerBase::Produced::Add(std::unique_ptr<TcpSocket> socket) {
   return false;
 }
 
-std::vector<std::unique_ptr<TcpSocket>> TcpManagerBase::Produced::MoveAll() {
+bool TcpManagerBase::Produced::hasSockets() const { return !sockets_.empty(); }
+
+std::vector<std::unique_ptr<TcpSocket>> TcpManagerBase::Produced::MoveAll(
+    const absl::Duration timeout) {
   absl::MutexLock _(mu_);
+  if (timeout > absl::ZeroDuration()) {
+    mu_.AwaitWithTimeout(absl::Condition(this, &Produced::hasSockets), timeout);
+  }
   return std::exchange(sockets_, {});
 }
 

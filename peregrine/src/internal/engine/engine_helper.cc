@@ -12,6 +12,7 @@
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -91,8 +92,9 @@ EngineHelper::~EngineHelper() {
 }
 
 EngineHelper::Channels EngineHelper::GetAcceptedChannels() {
+  constexpr absl::Duration kAcceptWaitTimeout = absl::Milliseconds(100);
   Channels chs;
-  for (auto& socket : tcp_mgr_->GetIncomingSockets()) {
+  for (auto& socket : tcp_mgr_->GetIncomingSockets(kAcceptWaitTimeout)) {
     const Endpoint peer_target = PeerEndpoint(socket->fd());
     if ABSL_PREDICT_FALSE (!peer_target.HasNonzeroIpPort()) {
       LOG(WARNING) << "invalid peer endpoint for " << *socket;

@@ -43,7 +43,6 @@ cc_library(
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/strings:str_format",
         "@abseil-cpp//absl/synchronization",
-        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
     ],
 )
@@ -81,6 +80,7 @@ cc_library(
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/time",
     ],
 )
 

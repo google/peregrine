@@ -118,6 +118,42 @@ TEST_P(TcpManagerTest, StopThenStart) {
   ta.join();
 }
 
+TEST_P(TcpManagerTest, GetIncomingSocketsTimesOutWhenNothingAccepted) {
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
+  ShortSleep();
+
+  const absl::Time start = absl::Now();
+  EXPECT_TRUE(mgr_->GetIncomingSockets(absl::Milliseconds(50)).empty());
+  EXPECT_GE(absl::Now() - start, absl::Milliseconds(50));
+
+  mgr_->Stop();
+  ta.join();
+}
+
+TEST_P(TcpManagerTest, GetIncomingSocketsWakesOnAccept) {
+  util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
+  ShortSleep();
+
+  util::Thread tc([&]() {
+    ShortSleep();
+    ASSERT_EQ(ConnectAll(/*rounds=*/1), num_peer_endpoints_);
+  });
+  constexpr absl::Duration kLongTimeout = absl::Seconds(30);
+  const absl::Time start = absl::Now();
+  std::vector<std::unique_ptr<TcpSocket>> incoming =
+      mgr_->GetIncomingSockets(kLongTimeout);
+  const absl::Duration waited = absl::Now() - start;
+  tc.join();
+
+  EXPECT_FALSE(incoming.empty());
+  EXPECT_LT(waited, kLongTimeout / 2);
+
+  incoming.clear();
+  (void)mgr_->GetOutgoingSockets();
+  mgr_->Stop();
+  ta.join();
+}
+
 TEST_P(TcpManagerTest, AcceptBeforeConnect) {
   util::Thread ta([&]() { mgr_->Start(cfg_.blocking); });
   ShortSleep();
