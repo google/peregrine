@@ -3,7 +3,7 @@
 
 module(
     name = "peregrine",
-    version = "0.1.20",
+    version = "0.1.21",
 )
 
 # Keep modules in each section sorted alphabetically.
