@@ -40,6 +40,9 @@
 namespace peregrine::internal {
 
 namespace {
+// Minimum chunk size when a request is split across send workers.
+constexpr size_t kMinChunkBytes = 512 * 1024;
+
 absl::Status AlreadyExistsError(const Handle h) {
   return absl::FailedPreconditionError(
       absl::StrFormat("handle 0x%x already exists", h.value()));
@@ -231,7 +234,7 @@ void Engine::process(PostEntry& post) {
     for (size_t i = 0; i < num_reqs; ++i) {
       const Request& req = post.reqs[i];
       DCHECK(req.IsValid());
-      const uint32_t nchunks = std::min(workers.size(), req.len);
+      const uint32_t nchunks = numChunks(workers.size(), req.len);
       DCHECK_GE(nchunks, 1);
       const Byte* const dst_addr = is_write ? req.raddr : req.laddr;
       post.req_infos.push_back(RequestInfo{
@@ -278,15 +281,17 @@ void Engine::process(PostEntry& post) {
     }
   }
   if (is_write) {
+    size_t& next_worker = next_worker_[post.peer];
     for (size_t i = 0; i < num_reqs; ++i) {
-      processWrite(workers, post.handle, post.reqs[i].laddr, post.req_infos[i],
-                   post.trace_ctx);
+      processWrite(workers, next_worker, post.handle, post.reqs[i].laddr,
+                   post.req_infos[i], post.trace_ctx);
     }
   }
 }
 
-void Engine::processWrite(Workers& workers, const Handle handle,
-                          const Byte* const laddr, const RequestInfo& req_info,
+void Engine::processWrite(Workers& workers, size_t& next_worker,
+                          const Handle handle, const Byte* const laddr,
+                          const RequestInfo& req_info,
                           const TraceContext& trace_ctx) {
   DCHECK(!workers.empty());
   DCHECK(req_info.IsValid());
@@ -315,9 +320,20 @@ void Engine::processWrite(Workers& workers, const Handle handle,
       chunk.trace.SetTraced();
     }
     offset += size;
-    workers[i % workers.size()]->EnqueueChunk(laddr + chunk.byte_offset, chunk);
+    workers[(next_worker + i) % workers.size()]->EnqueueChunk(
+        laddr + chunk.byte_offset, chunk);
   }
+  next_worker = (next_worker + nchunks) % workers.size();
   DCHECK_EQ(offset, len);
+}
+
+uint32_t Engine::numChunks(const size_t num_workers, const size_t len) {
+  DCHECK_GE(num_workers, 1);
+  DCHECK_GE(len, 1);
+  // Split a request across workers only while each chunk stays at least
+  // kMinChunkBytes.
+  const size_t num_chunks = std::max<size_t>(1, len / kMinChunkBytes);
+  return static_cast<uint32_t>(std::min(num_workers, num_chunks));
 }
 
 void Engine::processRecvRead(const Endpoint& peer, const Handle handle,

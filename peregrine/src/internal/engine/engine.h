@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_ENGINE_ENGINE_H_
 #define PEREGRINE_SRC_INTERNAL_ENGINE_ENGINE_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <memory>
@@ -26,6 +27,7 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/coding_style.h"
 #include "peregrine/src/internal/control/control.h"
 #include "peregrine/src/internal/control/message.pb.h"
@@ -152,10 +154,14 @@ class Engine final {
   // Processes a single post entry.
   void process(PostEntry& post) ABSL_LOCKS_EXCLUDED(mu_);
 
+  // Number of chunks a request of `len` bytes is split into across
+  // `num_workers`.
+  static uint32_t numChunks(size_t num_workers, size_t len);
+
   // Processes a write request.
-  void processWrite(Workers& workers, Handle handle, const Byte* laddr,
-                    const RequestInfo& req_info, const TraceContext& trace_ctx)
-      ABSL_LOCKS_EXCLUDED(mu_);
+  void processWrite(Workers& workers, size_t& next_worker, Handle handle,
+                    const Byte* laddr, const RequestInfo& req_info,
+                    const TraceContext& trace_ctx) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Converts received read requests into a write post.
   void processRecvRead(const Endpoint& peer, Handle handle,
@@ -181,6 +187,7 @@ class Engine final {
 
   absl_nonnull std::unique_ptr<EngineHelper> helper_;
   absl::flat_hash_map<Endpoint, Workers> send_workers_;
+  absl::flat_hash_map<Endpoint, size_t> next_worker_;
   absl::flat_hash_map<Endpoint, Workers> recv_workers_;
 
   util::Jthread tcpmgr_thread_;

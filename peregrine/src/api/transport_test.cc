@@ -252,5 +252,108 @@ TEST_P(TransportTest, Write) {
               Not(HasSubstr("TransportImpl::Post(")));
 }
 
+TEST_P(TransportTest, SmallWriteRequestsRoundRobinAcrossSendWorkers) {
+  constexpr size_t kReqSize = 64UL << 10;
+  constexpr size_t kNumReqs = 4;
+  ASSERT_LE(kReqSize * kNumReqs, l_.DataSize());
+
+  l_.GenData();
+  r_.ClearData();
+
+  Transport& lt = l_.GetTransport();
+  const Transport& rt = r_.GetTransport();
+  const std::string peer = rt.GetControlEndpoint();
+
+  std::array<Request, kNumReqs> reqs;
+  for (size_t i = 0; i < kNumReqs; ++i) {
+    const size_t offset = i * kReqSize;
+    reqs[i] = Request{
+        .op = Op::kWrite,
+        .laddr = l_.DataPtr() + offset,
+        .raddr = r_.DataPtr() + offset,
+        .len = kReqSize,
+    };
+  }
+  auto callback = GetCompletionCallback();
+  const absl::StatusOr<Handle> h = lt.Post(peer, reqs, std::move(callback));
+  ASSERT_TRUE(h.ok()) << h.status();
+
+  WaitForCompletion(lt, *h);
+  ASSERT_EQ(completed_status_, Status::kSuccess);
+
+  EXPECT_EQ(std::memcmp(r_.DataPtr(), l_.DataPtr(), kReqSize * kNumReqs), 0);
+
+  const std::string json = lt.ExportChromeTraceJson();
+  EXPECT_THAT(json, HasSubstr("65536 B -> 1 chunks)"));
+  EXPECT_THAT(json, Not(HasSubstr("chunk=1")));
+  EXPECT_THAT(json, HasSubstr(R"("tid":101)"));
+  EXPECT_THAT(json, HasSubstr(R"("tid":102)"));
+  EXPECT_THAT(json, HasSubstr(R"("tid":103)"));
+  EXPECT_THAT(json, HasSubstr(R"("tid":104)"));
+}
+
+TEST_P(TransportTest, ConsecutiveSmallPostsRoundRobinAcrossSendWorkers) {
+  constexpr size_t kSmallSize = 32UL << 10;
+  constexpr int kNumConns = 4;
+  ASSERT_LE(kSmallSize * kNumConns, l_.DataSize());
+
+  l_.GenData();
+  r_.ClearData();
+
+  Transport& lt = l_.GetTransport();
+  const Transport& rt = r_.GetTransport();
+  const std::string peer = rt.GetControlEndpoint();
+
+  auto post_and_wait = [&](absl::Span<const Request> reqs) {
+    Status status = Status::kNotFound;
+    absl::Notification done;
+    absl::AnyInvocable<void(Status)> cb = nullptr;
+    if (completion_callback_) {
+      cb = [&](Status s) {
+        status = s;
+        done.Notify();
+      };
+    }
+    const absl::StatusOr<Handle> h = lt.Post(peer, reqs, std::move(cb));
+    ASSERT_TRUE(h.ok()) << h.status();
+    const absl::Duration timeout = absl::Seconds(10);
+    if (completion_callback_) {
+      done.WaitForNotificationWithTimeout(timeout);
+    } else {
+      const absl::Time deadline = absl::Now() + timeout;
+      while (absl::Now() < deadline) {
+        const absl::StatusOr<Status> s = lt.Poll(*h);
+        CHECK_OK(s) << s.status();
+        if (IsCompleted(*s)) {
+          status = *s;
+          break;
+        }
+        absl::SleepFor(absl::Milliseconds(10));
+      }
+    }
+    ASSERT_EQ(status, Status::kSuccess);
+  };
+
+  for (int i = 0; i < kNumConns; ++i) {
+    const size_t offset = static_cast<size_t>(i) * kSmallSize;
+    const std::array<Request, 1> req = {Request{
+        .op = Op::kWrite,
+        .laddr = l_.DataPtr() + offset,
+        .raddr = r_.DataPtr() + offset,
+        .len = kSmallSize,
+    }};
+    post_and_wait(req);
+  }
+
+  const std::string small_json = lt.ExportChromeTraceJson();
+  EXPECT_THAT(small_json, HasSubstr("32768 B -> 1 chunks)"));
+  EXPECT_THAT(small_json, Not(HasSubstr("chunk=1")));
+  EXPECT_THAT(small_json, HasSubstr(R"("tid":101)"));
+  EXPECT_THAT(small_json, HasSubstr(R"("tid":102)"));
+  EXPECT_THAT(small_json, HasSubstr(R"("tid":103)"));
+  EXPECT_THAT(small_json, HasSubstr(R"("tid":104)"));
+  EXPECT_EQ(std::memcmp(r_.DataPtr(), l_.DataPtr(), kSmallSize * kNumConns), 0);
+}
+
 }  // namespace
 }  // namespace peregrine::testing

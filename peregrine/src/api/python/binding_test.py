@@ -118,8 +118,10 @@ class BindTest(absltest.TestCase):
     self.assertEqual(metrics.recv_post_latency_us.count(), 0)
 
   def test_tracing(self):
-    lbuf = ctypes.create_string_buffer(2048)
-    rbuf = ctypes.create_string_buffer(2048)
+    # 1 MiB over 2 connections is sent as 2 chunks of 512 KiB.
+    size = 1 << 20
+    lbuf = ctypes.create_string_buffer(size)
+    rbuf = ctypes.create_string_buffer(size)
 
     port1 = util.find_free_port(socket.AF_INET, tcp=True)
     port2 = util.find_free_port(socket.AF_INET, tcp=True)
@@ -137,7 +139,7 @@ class BindTest(absltest.TestCase):
         op=pg.Op.WRITE,
         laddr=ctypes.addressof(lbuf),
         raddr=ctypes.addressof(rbuf),
-        len=2048,
+        len=size,
     )
     handle = local_transport.post(remote, [req])
     end_time = time.monotonic() + 10.0
