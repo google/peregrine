@@ -135,3 +135,24 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "numa",
+    srcs = ["numa.cc"],
+    hdrs = ["numa.h"],
+    deps = [
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_test(
+    name = "numa_test",
+    srcs = ["numa_test.cc"],
+    deps = [
+        ":numa",
+        "//peregrine/src/util:thread",
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)
