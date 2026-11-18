@@ -12,14 +12,22 @@
 namespace peregrine::internal::nic {
 
 // Represents a discovered TCP/IP network interface and its usable IP addresses.
+// LINT.IfChange(tcp_nic)
 struct TcpNic {
   uint32_t rail_id = 0;                // Logical rail index
   PciLocation pci;                     // PCIe and NUMA topology location
   std::string if_name;                 // OS interface name (e.g. "eth0")
   std::vector<util::IpAddr> ip_addrs;  // Usable IP addresses on this interface
+
+  bool operator==(const TcpNic& other) const = default;
 };
+// LINT.ThenChange(
+//     ../control/message_internal.proto:tcp_nic,
+//     ../control/message.cc
+// )
 
 // Represents a discovered RDMA-capable network interface port.
+// LINT.IfChange(rdma_nic)
 struct RdmaNic {
   uint32_t rail_id = 0;     // Logical rail index
   PciLocation pci;          // PCIe and NUMA topology location
@@ -29,7 +37,13 @@ struct RdmaNic {
   int gid_index = 0;        // Selected RoCEv2 GID table index
   util::IpAddr gid_addr;    // 16-byte GID address
   util::IpAddr ip_addr;     // Associated IP address
+
+  bool operator==(const RdmaNic& other) const = default;
 };
+// LINT.ThenChange(
+//     ../control/message_internal.proto:rdma_nic,
+//     ../control/message.cc
+// )
 
 // Inventory of discovered TCP and RDMA network interfaces on the host.
 class NicInventory final {

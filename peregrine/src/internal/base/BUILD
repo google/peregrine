@@ -89,6 +89,7 @@ cc_library(
     deps = [
         ":endpoint",
         ":nicinfo",
+        "//peregrine/src/internal/nic:nic_inventory",
         "@abseil-cpp//absl/container:flat_hash_set",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",

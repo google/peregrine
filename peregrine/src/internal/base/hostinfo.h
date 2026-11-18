@@ -8,6 +8,7 @@
 
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/nicinfo.h"
+#include "peregrine/src/internal/nic/nic_inventory.h"
 
 namespace peregrine::internal {
 
@@ -16,6 +17,12 @@ namespace peregrine::internal {
 struct HostInfo {
   Endpoint control_plane_listener;
   std::vector<NicInfo> data_plane_listeners;
+
+  // TCP and RDMA NICs on the host, which peers use to choose connections by
+  // rail and NUMA locality. Empty if the host does not publish its NIC
+  // topology.
+  std::vector<nic::TcpNic> tcp_nics;
+  std::vector<nic::RdmaNic> rdma_nics;
 
   // Parses and creates host info from a string.
   // Returns invalid host info if the string parsing fails.

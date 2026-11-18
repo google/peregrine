@@ -10,6 +10,9 @@
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/control/message.pb.h"
 #include "peregrine/src/internal/control/message_internal.pb.h"
+#include "peregrine/src/internal/nic/nic_inventory.h"
+#include "peregrine/src/internal/nic/pci_topology.h"
+#include "peregrine/src/util/ipaddr.h"
 #include "peregrine/src/util/nic.h"
 
 namespace peregrine::internal::testing {
@@ -91,6 +94,68 @@ TEST(MessageTest, HostInfoExchange) {
   EXPECT_EQ(host.data_plane_listeners[1], ipv4);
   EXPECT_EQ(host.data_plane_listeners[2], ipv6);
   EXPECT_EQ(host.data_plane_listeners[3], rdma);
+}
+
+TEST(MessageTest, HostInfoExchangeWithNicTopology) {
+  const Endpoint c = Endpoint::Create("10.0.0.1:10000");
+  const NicInfo eth0 = NicInfo::Create("eth0/ip/10.0.0.1:43521");
+  const nic::PciLocation pci = {.numa_node = 1,
+                                .root_complex = "pci0000:10",
+                                .switches = {"0000:10:01.0"},
+                                .endpoint_bdf = "0000:11:00.0"};
+  const nic::TcpNic tcp = {.rail_id = 0,
+                           .pci = pci,
+                           .if_name = "eth0",
+                           .ip_addrs = {*util::IpAddr::Create("10.0.0.1"),
+                                        *util::IpAddr::Create("::1")}};
+  const nic::RdmaNic rdma = {.rail_id = 0,
+                             .pci = pci,
+                             .ib_dev_name = "mlx5_0",
+                             .netdev_name = "eth0",
+                             .port_num = 1,
+                             .gid_index = 3,
+                             .gid_addr = *util::IpAddr::Create("fe80::1"),
+                             .ip_addr = *util::IpAddr::Create("10.0.0.1")};
+  const HostInfo input = {.control_plane_listener = c,
+                          .data_plane_listeners = {eth0},
+                          .tcp_nics = {tcp},
+                          .rdma_nics = {rdma}};
+  ASSERT_TRUE(input.IsValid());
+
+  proto::HostInfo proto;
+  ASSERT_TRUE(Message::Serialize(input, proto));
+  HostInfo host;
+  ASSERT_TRUE(Message::Deserialize(proto, host));
+  EXPECT_EQ(host, input);
+}
+
+TEST(MessageTest, HostInfoWithoutNicTopologyStaysCompatible) {
+  const Endpoint c = Endpoint::Create("10.0.0.1:10000");
+  const NicInfo eth0 = NicInfo::Create("eth0/ip/10.0.0.1:43521");
+  const HostInfo input = {.control_plane_listener = c,
+                          .data_plane_listeners = {eth0}};
+
+  proto::HostInfo proto;
+  ASSERT_TRUE(Message::Serialize(input, proto));
+  EXPECT_EQ(proto.tcp_nics_size(), 0);
+  EXPECT_EQ(proto.rdma_nics_size(), 0);
+
+  HostInfo host;
+  ASSERT_TRUE(Message::Deserialize(proto, host));
+  EXPECT_EQ(host, input);
+}
+
+TEST(MessageTest, RejectsInvalidNicTopologyAddress) {
+  const Endpoint c = Endpoint::Create("10.0.0.1:10000");
+  const NicInfo eth0 = NicInfo::Create("eth0/ip/10.0.0.1:43521");
+  const HostInfo input = {.control_plane_listener = c,
+                          .data_plane_listeners = {eth0}};
+  proto::HostInfo proto;
+  ASSERT_TRUE(Message::Serialize(input, proto));
+  proto.add_tcp_nics()->add_ip_addrs("not-an-ip");
+
+  HostInfo host;
+  EXPECT_FALSE(Message::Deserialize(proto, host));
 }
 
 TEST(MessageTest, RejectsUnknownRequestOp) {

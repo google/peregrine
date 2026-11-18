@@ -13,12 +13,19 @@ namespace peregrine::internal::nic {
 
 // Hardware topology location of a PCIe device:
 //   [NUMA Node] -> [Root Complex] -> [PCIe Switches...] -> [Endpoint BDF]
+// LINT.IfChange(pci_location)
 struct PciLocation {
   int32_t numa_node = 0;              // Local CPU/memory domain (e.g. 0, 1)
   std::string root_complex;           // CPU Root Complex (e.g. "pci0000:10")
   std::vector<std::string> switches;  // Intermediate PCIe switches (top-down)
   std::string endpoint_bdf;           // Endpoint BDF (e.g. "0000:11:00.0")
+
+  bool operator==(const PciLocation& other) const = default;
 };
+// LINT.ThenChange(
+//     ../control/message_internal.proto:pci_location,
+//     ../control/message.cc
+// )
 
 // Topological closeness between two PCIe devices.
 enum class PciRelation : uint8_t {

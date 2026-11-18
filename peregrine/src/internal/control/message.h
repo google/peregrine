@@ -14,6 +14,8 @@
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/control/message.pb.h"
 #include "peregrine/src/internal/control/message_internal.pb.h"
+#include "peregrine/src/internal/nic/nic_inventory.h"
+#include "peregrine/src/internal/nic/pci_topology.h"
 #include "peregrine/src/internal/socket/psp/psp.h"
 
 namespace peregrine::internal {
@@ -85,6 +87,16 @@ class Message final {
 
   static bool serialize(const NicInfo& nic, proto::NicInfo& proto);
   static bool deserialize(const proto::NicInfo& proto, NicInfo& nic);
+
+  static void serialize(const nic::PciLocation& pci, proto::PciLocation& proto);
+  static void deserialize(const proto::PciLocation& proto,
+                          nic::PciLocation& pci);
+
+  static void serialize(const nic::TcpNic& nic, proto::TcpNic& proto);
+  static bool deserialize(const proto::TcpNic& proto, nic::TcpNic& nic);
+
+  static void serialize(const nic::RdmaNic& nic, proto::RdmaNic& proto);
+  static bool deserialize(const proto::RdmaNic& proto, nic::RdmaNic& nic);
 
   static bool serialize(const PspToken& token, proto::PspToken& proto);
   static bool deserialize(const proto::PspToken& proto, PspToken& token);

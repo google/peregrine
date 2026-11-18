@@ -9,6 +9,8 @@ package peregrine.internal.proto;
 message HostInfo {
   Endpoint control_plane_listener = 1;
   repeated NicInfo data_plane_listeners = 2;
+  repeated TcpNic tcp_nics = 3;
+  repeated RdmaNic rdma_nics = 4;
 }
 
 message PeerReq {
@@ -91,3 +93,37 @@ message PspToken {
   uint32 gen = 2;  // generation
   bytes key = 3;   // 16 bytes
 }
+
+// See internal/nic/pci_topology.h
+// LINT.IfChange(pci_location)
+message PciLocation {
+  int32 numa_node = 1;
+  string root_complex = 2;
+  repeated string switches = 3;
+  string endpoint_bdf = 4;
+}
+// LINT.ThenChange(../nic/pci_topology.h:pci_location)
+
+// See internal/nic/nic_inventory.h
+// LINT.IfChange(tcp_nic)
+message TcpNic {
+  uint32 rail_id = 1;
+  PciLocation pci = 2;
+  string if_name = 3;
+  repeated string ip_addrs = 4;  // e.g. "10.0.0.1" or "::1"
+}
+// LINT.ThenChange(../nic/nic_inventory.h:tcp_nic)
+
+// See internal/nic/nic_inventory.h
+// LINT.IfChange(rdma_nic)
+message RdmaNic {
+  uint32 rail_id = 1;
+  PciLocation pci = 2;
+  string ib_dev_name = 3;
+  string netdev_name = 4;
+  uint32 port_num = 5;
+  int32 gid_index = 6;
+  string gid_addr = 7;  // IPv6 text form
+  string ip_addr = 8;
+}
+// LINT.ThenChange(../nic/nic_inventory.h:rdma_nic)
