@@ -41,6 +41,25 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "spsc_queue",
+    hdrs = ["spsc_queue.h"],
+    deps = [
+        "//peregrine/src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
+    ],
+)
+
+cc_test(
+    name = "spsc_queue_test",
+    srcs = ["spsc_queue_test.cc"],
+    deps = [
+        ":spsc_queue",
+        "//peregrine/src/util:thread",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_test(
     name = "iovec_cursor_test",
     srcs = ["iovec_cursor_test.cc"],
