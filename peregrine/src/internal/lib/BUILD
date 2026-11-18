@@ -41,6 +41,17 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "iovec_cursor_test",
+    srcs = ["iovec_cursor_test.cc"],
+    deps = [
+        ":iovec_cursor",
+        "//peregrine/src/internal/base:types",
+        "@abseil-cpp//absl/log",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "spsc_queue",
     hdrs = ["spsc_queue.h"],
@@ -56,17 +67,6 @@ cc_test(
     deps = [
         ":spsc_queue",
         "//peregrine/src/util:thread",
-        "@googletest//:gtest_main",
-    ],
-)
-
-cc_test(
-    name = "iovec_cursor_test",
-    srcs = ["iovec_cursor_test.cc"],
-    deps = [
-        ":iovec_cursor",
-        "//peregrine/src/internal/base:types",
-        "@abseil-cpp//absl/log",
         "@googletest//:gtest_main",
     ],
 )
