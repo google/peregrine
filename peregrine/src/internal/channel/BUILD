@@ -27,13 +27,21 @@ cc_library(
     hdrs = ["channel_test_util.h"],
     deps = [
         ":channel",
+        ":channel_grpc",
         ":channel_msg",
         ":channel_stream",
+        ":channel_type",
         ":channel_util",
         ":pipe",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/lib:iovec_cursor",
+        "//peregrine/src/internal/socket:grpc_manager",
         "//peregrine/src/internal/socket:socket_test_util",
         "//peregrine/src/internal/util:test_param",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -64,6 +72,25 @@ cc_library(
         "//peregrine/src/internal/socket:socket_udp",
         "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/strings",
+    ],
+)
+
+cc_library(
+    name = "channel_grpc",
+    srcs = ["channel_grpc.cc"],
+    hdrs = ["channel_grpc.h"],
+    deps = [
+        ":channel",
+        ":channel_type",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/lib:iovec_cursor",
+        "//peregrine/src/internal/socket:grpc_manager",
+        "//peregrine/src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/strings",
+        "@grpc//:grpc++",
     ],
 )
 
@@ -130,18 +157,24 @@ cc_test(
     shard_count = 12,
     deps = [
         ":channel",
+        ":channel_grpc",
         ":channel_test_util",
+        ":channel_type",
         "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/event:poller",
         "//peregrine/src/internal/lib:iovec_cursor",
+        "//peregrine/src/internal/socket:grpc_manager",
         "//peregrine/src/internal/util:test_param",
         "//peregrine/src/util",
         "//peregrine/src/util:thread",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/time",
         "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
+        "@grpc//:grpc++",
     ],
 )
 

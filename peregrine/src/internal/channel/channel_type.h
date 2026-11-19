@@ -15,10 +15,11 @@ class ChannelType {
   static const ChannelType kTCP;
   static const ChannelType kUDP;
   static const ChannelType kRDMA;
+  static const ChannelType kGRPC;
   static const ChannelType kMemMsg;
   static const ChannelType kMemStream;
 
-  // Returns true iff the channel is lossless (e.g., TCP/RDMA).
+  // Returns true iff the channel is lossless (e.g., TCP/RDMA/gRPC).
   constexpr bool IsLosslessChannel() const {
     return (t_ & ToInt(Property::kLoss)) == 0;
   }
@@ -31,7 +32,7 @@ class ChannelType {
     return (t_ & ToInt(Property::kBoundary)) == 0;
   }
 
-  // Returns true iff the channel is message (e.g., UDP/RDMA).
+  // Returns true iff the channel is message (e.g., UDP/RDMA/gRPC).
   constexpr bool IsMessageChannel() const { return !IsStreamChannel(); }
 
   // Returns true iff the channel is one-sided (e.g., RDMA).
@@ -39,10 +40,10 @@ class ChannelType {
     return (t_ & ToInt(Property::kSide)) == 0;
   }
 
-  // Returns true iff the channel is two-sided (e.g., TCP/UDP).
+  // Returns true iff the channel is two-sided (e.g., TCP/UDP/gRPC).
   constexpr bool IsTwoSidedChannel() const { return !IsOneSidedChannel(); }
 
-  // Returns true iff the channel is real (e.g., TCP/UDP/RDMA).
+  // Returns true iff the channel is real (e.g., TCP/UDP/RDMA/gRPC).
   constexpr bool IsRealChannel() const {
     return (t_ & ToInt(Property::kFake)) == 0;
   }
@@ -79,6 +80,7 @@ class ChannelType {
 inline constexpr ChannelType ChannelType::kTCP(0 | 4 | 0 | 0);
 inline constexpr ChannelType ChannelType::kUDP(0 | 4 | 2 | 1);
 inline constexpr ChannelType ChannelType::kRDMA(0 | 0 | 2 | 0);
+inline constexpr ChannelType ChannelType::kGRPC(0 | 4 | 2 | 0);
 inline constexpr ChannelType ChannelType::kMemMsg(8 | 4 | 2 | 1);
 inline constexpr ChannelType ChannelType::kMemStream(8 | 4 | 0 | 0);
 
