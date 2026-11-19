@@ -14,6 +14,8 @@ std::string ChannelTypeToString(const TestChannelType t) {
       return "TcpChannel";
     case TestChannelType::kUdp:
       return "UdpChannel";
+    case TestChannelType::kGrpc:
+      return "GrpcChannel";
     case TestChannelType::kMemStream:
       return "MemStreamChannel";
     case TestChannelType::kMemMsg:
