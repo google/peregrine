@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/engine2/peer_state.h"
 
 #include <atomic>
+#include <optional>
 
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/engine2/assumptions.h"
@@ -11,6 +12,8 @@ namespace peregrine::internal::engine2 {
 void PeerState::Enqueue(Post post) {}
 
 void PeerState::Purge(Handle handle) {}
+
+std::optional<ChunkClaim> PeerState::TryPull() { return std::nullopt; }
 
 bool PeerState::ShouldGetPeerHostInfo() {
   if (host_info_requested_.load(std::memory_order_acquire)) return false;

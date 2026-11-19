@@ -86,11 +86,13 @@ cc_library(
         ":peer_discovery",
         ":peer_state",
         ":post",
+        ":worker",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/channel",
+        "//peregrine/src/internal/nic:nic_inventory",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -99,6 +101,30 @@ cc_library(
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/synchronization",
+    ],
+)
+
+cc_library(
+    name = "worker",
+    srcs = ["worker.cc"],
+    hdrs = ["worker.h"],
+    deps = [
+        ":peer_state",
+        "//peregrine/src/internal/channel",
+        "//peregrine/src/util:macro",
+    ],
+)
+
+cc_test(
+    name = "worker_test",
+    srcs = ["worker_test.cc"],
+    deps = [
+        ":peer_state",
+        ":worker",
+        "//peregrine/src/internal/channel",
+        "//peregrine/src/internal/channel:channel_type",
+        "//peregrine/src/internal/lib:iovec_cursor",
+        "@googletest//:gtest_main",
     ],
 )
 

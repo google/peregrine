@@ -21,6 +21,8 @@
 #include "peregrine/src/internal/engine2/peer_discovery.h"
 #include "peregrine/src/internal/engine2/peer_state.h"
 #include "peregrine/src/internal/engine2/post.h"
+#include "peregrine/src/internal/engine2/worker.h"
+#include "peregrine/src/internal/nic/nic_inventory.h"
 
 namespace peregrine::internal::engine2 {
 namespace {
@@ -74,6 +76,11 @@ TransferManager::TransferManager(
     absl::MutexLock lock(guard_->mu);
     guard_->transfer_manager = this;
   }
+  // One worker per local rail; rail IDs are 0..N-1 in NIC order.
+  for (const nic::TcpNic& nic : self_.tcp_nics) {
+    DCHECK_EQ(nic.rail_id, workers_.size());
+    workers_.push_back(std::make_unique<Worker>(nic.rail_id));
+  }
   channel_manager_->Start(
       [this](std::unique_ptr<Channel> ch, uint32_t local_rail_id) {
         onInboundReady(std::move(ch), local_rail_id);
@@ -104,6 +111,9 @@ void TransferManager::Submit(const PeerId& peer, Post post) {
           guard->transfer_manager->onPeerHostInfo(peer, std::move(info));
         });
   }
+  // Posts are infrequent, so waking every worker costs little and avoids
+  // tracking which workers serve `peer`.
+  for (const std::unique_ptr<Worker>& worker : workers_) worker->Wake();
 }
 
 void TransferManager::Cancel(const PeerId& peer, Handle handle) {
@@ -149,7 +159,14 @@ void TransferManager::onPeerHostInfo(const PeerId& peer,
 }
 
 void TransferManager::onInboundReady(std::unique_ptr<Channel> ch,
-                                     uint32_t local_rail_id) {}
+                                     uint32_t local_rail_id) {
+  Worker* worker = workerFor(local_rail_id);
+  if ABSL_PREDICT_FALSE (worker == nullptr) {
+    LOG(ERROR) << "dropping channel accepted on unknown rail " << local_rail_id;
+    return;
+  }
+  worker->AddInboundChannel(std::move(ch));
+}
 
 void TransferManager::onOutboundDone(
     const PeerId& peer, uint32_t local_rail_id, uint32_t remote_rail_id,
@@ -161,6 +178,19 @@ void TransferManager::onOutboundDone(
     abortPosts(peer);
     return;
   }
+  PeerState* peer_state = findPeer(peer);
+  Worker* worker = workerFor(local_rail_id);
+  if ABSL_PREDICT_FALSE (peer_state == nullptr || worker == nullptr) {
+    LOG(ERROR) << "dropping channel on rail " << local_rail_id << " to peer "
+               << peer;
+    if (peer_state != nullptr) peer_state->AbortPosts();
+    return;
+  }
+  worker->AddOutboundChannel(*std::move(ch), *peer_state);
+}
+
+Worker* TransferManager::workerFor(uint32_t rail_id) const {
+  return rail_id < workers_.size() ? workers_[rail_id].get() : nullptr;
 }
 
 void TransferManager::abortPosts(const PeerId& peer) {

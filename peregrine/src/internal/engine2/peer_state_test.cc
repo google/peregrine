@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/engine2/peer_state.h"
 
 #include <array>
+#include <optional>
 
 #include "gtest/gtest.h"
 #include "peregrine/src/api/transport_types.h"
@@ -30,6 +31,11 @@ TEST(PeerStateTest, EnqueueAndPurgeAcceptPosts) {
       .requests = {{.op = Op::kWrite, .laddr = buf.data(), .len = buf.size()}},
   });
   peer_state.Purge(Handle(1));
+}
+
+TEST(PeerStateTest, TryPullOnEmptyQueueReturnsNothing) {
+  PeerState peer_state;
+  EXPECT_EQ(peer_state.TryPull(), std::nullopt);
 }
 
 }  // namespace

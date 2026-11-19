@@ -55,6 +55,8 @@ class TransferManagerTest : public ::testing::Test {
  protected:
   TransferManagerTest() {
     self_.control_plane_listener = Endpoint::Create("127.0.0.1:10000");
+    // Two local rails, so the transfer manager creates two workers.
+    self_.tcp_nics = {{.rail_id = 0}, {.rail_id = 1}};
   }
 
   std::unique_ptr<TransferManager> CreateTransferManager() {

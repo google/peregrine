@@ -2,12 +2,22 @@
 #define PEREGRINE_SRC_INTERNAL_ENGINE2_PEER_STATE_H_
 
 #include <atomic>
+#include <cstdint>
+#include <optional>
 
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal::engine2 {
+
+// One chunk of one request, claimed by a worker to send. The worker turns the
+// claim into buffers, so the claim is the same for any data layout.
+struct ChunkClaim {
+  const Post* post = nullptr;
+  uint32_t request_index = 0;
+  uint32_t chunk_index = 0;
+};
 
 // State of one peer.
 //
@@ -40,6 +50,15 @@ class PeerState final {
   // - Removes `handle`'s queued requests, frames, and chunks awaiting retry.
   //   A chunk already pulled by a worker is not affected.
   void Purge(Handle handle);
+
+  // Claims the next chunk of the oldest queued request for a worker to send,
+  // or returns nullopt if no work is queued. The claimed post stays valid
+  // until it completes or is cancelled.
+  //
+  // Implementation details:
+  // - Advances the request's chunk cursor; moves to the next request once
+  //   every chunk of this one is claimed.
+  std::optional<ChunkClaim> TryPull();
 
   // Returns true iff the caller should get the peer's host info: no request
   // for it has started since this object was created or since the last

@@ -18,6 +18,7 @@
 #include "peregrine/src/internal/engine2/peer_discovery.h"
 #include "peregrine/src/internal/engine2/peer_state.h"
 #include "peregrine/src/internal/engine2/post.h"
+#include "peregrine/src/internal/engine2/worker.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal::engine2 {
@@ -32,13 +33,9 @@ namespace peregrine::internal::engine2 {
 class TransferManager final {
  public:
   // Creates a transfer manager for the local host described by `self`, which
-  // must outlive the transfer manager. `get_peer_host_info_fn` looks up remote
-  // peers. Takes ownership of `channel_manager` and starts it. Returns nullptr
-  // on failure.
-  //
-  // Implementation details:
-  // - Creates workers for each local rail, pinned to CPUs on the rail's NUMA
-  //   node.
+  // must outlive the transfer manager. Creates a worker per local TCP rail.
+  // `get_peer_host_info_fn` looks up remote peers. Takes ownership of
+  // `channel_manager` and starts it. Returns nullptr on failure.
   static std::unique_ptr<TransferManager> Create(
       const Config& config, const HostInfo& self,
       GetPeerHostInfoFn get_peer_host_info_fn,
@@ -48,14 +45,11 @@ class TransferManager final {
   DISALLOW_MOVE(TransferManager);
 
   // Stops host info callbacks from reaching this object, then stops the
-  // channel manager and frees per-peer state.
+  // channel manager, then the workers, then frees per-peer state.
   ~TransferManager();
 
-  // Queues `post` for transfer to `peer`. Returns without waiting. Gets
-  // `peer`'s host info if it is new.
-  //
-  // Implementation details:
-  // - Wakes the workers serving `peer`.
+  // Queues `post` for transfer to `peer`, and wakes the workers. Returns
+  // without waiting. Gets `peer`'s host info if it is new.
   void Submit(const PeerId& peer, Post post);
 
   // Cancels all pending work for post `handle` to `peer` and releases its
@@ -82,24 +76,22 @@ class TransferManager final {
   // failure, or if the host info is not `peer`'s, aborts `peer`'s posts.
   void onPeerHostInfo(const PeerId& peer, absl::StatusOr<HostInfo> host_info);
 
-  // Handles a channel accepted from a remote peer on `local_rail_id`.
-  //
-  // Implementation details:
-  // - Hands the channel to a worker on `local_rail_id`, which learns the
-  //   peer from the first frame.
+  // Hands a channel accepted from a remote peer to the worker on
+  // `local_rail_id`.
   void onInboundReady(std::unique_ptr<Channel> ch, uint32_t local_rail_id);
 
   // Handles the outcome of a connect from `local_rail_id` to `peer`'s
-  // `remote_rail_id`. On failure, aborts `peer`'s posts.
-  //
-  // Implementation details:
-  // - On success, hands the channel to a worker on `local_rail_id`.
+  // `remote_rail_id`: hands the channel to the worker on `local_rail_id`, or
+  // aborts `peer`'s posts on failure.
   void onOutboundDone(const PeerId& peer, uint32_t local_rail_id,
                       uint32_t remote_rail_id,
                       absl::StatusOr<std::unique_ptr<Channel>> ch);
 
   // Aborts all posts queued for `peer` after a setup failure.
   void abortPosts(const PeerId& peer);
+
+  // Returns the worker on `rail_id`, or nullptr if there is none.
+  Worker* workerFor(uint32_t rail_id) const;
 
  private:
   // Lets host info callbacks reach the transfer manager only while it is
@@ -121,6 +113,10 @@ class TransferManager final {
   absl::Mutex mu_;
   absl::flat_hash_map<PeerId, std::unique_ptr<PeerState>> peers_
       ABSL_GUARDED_BY(mu_);
+
+  // Workers indexed by local rail ID. Fixed after construction, so read
+  // without a lock. Declared after `peers_` so workers are destroyed first.
+  std::vector<std::unique_ptr<Worker>> workers_;
 
   // Declared last so it is destroyed first, before its callbacks' targets.
   std::unique_ptr<ChannelManager> channel_manager_;
