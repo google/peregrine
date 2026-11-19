@@ -1,0 +1,11 @@
+name = "proof"
+defaultTargets = ["IoVecCursor"]
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+warningAsError = true
+
+[[lean_lib]]
+name = "IoVecCursor"
+globs = ["iovec_cursor"]

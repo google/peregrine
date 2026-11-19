@@ -3,9 +3,8 @@ module
 /-!
 # IoVecCursor
 
-Lean 4 model of `peregrine::internal::IoVecCursor`
-(`third_party/peregrine/src/internal/lib/iovec_cursor.h`), together with the
-`IoVec` helpers it uses from `third_party/peregrine/src/internal/util/util.h`.
+For `peregrine::internal::IoVecCursor` in `src/internal/lib/iovec_cursor.h`,
+together with the `IoVec` helpers it uses from `src/internal/util/util.h`.
 
 Modelling choices:
 

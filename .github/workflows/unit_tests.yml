@@ -64,3 +64,21 @@ jobs:
             ${{ runner.temp }}/bazel_disk_cache
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
+  lean_proofs:
+    name: "lean-proofs"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      # lean-action installs elan, which fetches the Lean version pinned in
+      # lean-toolchain, then runs `lake build`. Compiling a module checks every
+      # theorem and runs every #guard.
+      - name: Check Lean proofs
+        uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
+        with:
+          lake-package-directory: peregrine/src/internal/lib/proof
+
