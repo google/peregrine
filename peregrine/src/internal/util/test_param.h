@@ -12,6 +12,7 @@ namespace peregrine::internal::testing {
 enum class TestChannelType {
   kTcp,
   kUdp,
+  kGrpc,
   kMemStream,
   kMemMsg,
 };
