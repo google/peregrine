@@ -25,11 +25,34 @@ cc_test(
     ],
 )
 
+# libibverbs entry points. In OSS, //:libibverbs sets PEREGRINE_NO_RDMA (stubs)
+# unless built with --define=peregrine_rdma=true; google3 always links rdma-core.
+cc_library(
+    name = "ibv_loader",
+    hdrs = ["ibv_loader.h"],
+    deps = [
+        "//:libibverbs",  # buildcleaner: keep
+        "@abseil-cpp//absl/status",
+    ],
+)
+
+cc_test(
+    name = "ibv_loader_test",
+    srcs = ["ibv_loader_test.cc"],
+    deps = [
+        ":ibv_loader",
+        "//:libibverbs",  # buildcleaner: keep
+        "@abseil-cpp//absl/status",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_library(
     name = "rdma_context",
     srcs = ["rdma_context.cc"],
     hdrs = ["rdma_context.h"],
     deps = [
+        ":ibv_loader",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/util:errno",
         "//peregrine/src/util:macro",
@@ -45,6 +68,7 @@ cc_test(
     name = "rdma_context_test",
     srcs = ["rdma_context_test.cc"],
     deps = [
+        ":ibv_loader",
         ":rdma_context",
         "//:libibverbs",  # buildcleaner: keep
         "@abseil-cpp//absl/log",
@@ -57,6 +81,7 @@ cc_library(
     srcs = ["rdma_qpair.cc"],
     hdrs = ["rdma_qpair.h"],
     deps = [
+        ":ibv_loader",
         ":rdma_context",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/util:macro",
@@ -97,6 +122,7 @@ cc_library(
     srcs = ["rdma_device.cc"],
     hdrs = ["rdma_device.h"],
     deps = [
+        ":ibv_loader",
         ":rdma_context",
         "//:libibverbs",  # buildcleaner: keep
         "//peregrine/src/util:macro",
@@ -114,6 +140,7 @@ cc_test(
     name = "rdma_device_test",
     srcs = ["rdma_device_test.cc"],
     deps = [
+        ":ibv_loader",
         ":rdma_context",
         ":rdma_device",
         "//:libibverbs",  # buildcleaner: keep
@@ -128,6 +155,7 @@ cc_library(
     srcs = ["rdma_memory.cc"],
     hdrs = ["rdma_memory.h"],
     deps = [
+        ":ibv_loader",
         ":rdma_context",
         ":rdma_device",
         "//:libibverbs",  # buildcleaner: keep
@@ -149,6 +177,7 @@ cc_test(
     name = "rdma_memory_test",
     srcs = ["rdma_memory_test.cc"],
     deps = [
+        ":ibv_loader",
         ":rdma_device",
         ":rdma_memory",
         "//:libibverbs",  # buildcleaner: keep
@@ -195,6 +224,7 @@ cc_test(
     name = "rdma_manager_test",
     srcs = ["rdma_manager_test.cc"],
     deps = [
+        ":ibv_loader",
         ":rdma_device",
         ":rdma_manager",
         "//peregrine/src/api:transport_types",

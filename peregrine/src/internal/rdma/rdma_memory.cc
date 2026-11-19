@@ -17,6 +17,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 #include "peregrine/src/internal/rdma/rdma_context.h"
 #include "peregrine/src/internal/rdma/rdma_device.h"
 #include "peregrine/src/util/errno.h"
@@ -34,7 +35,7 @@ std::string ErrMsg(const std::string_view prefix, const Errno err) {
 void UnregisterMrs(
     const absl::flat_hash_map<std::string, struct ibv_mr*>& mrs) {
   for (const auto& [device_name, mr] : mrs) {
-    if (mr != nullptr && ibv_dereg_mr(mr) != 0) {
+    if (mr != nullptr && ibv::DeregMr(mr) != 0) {
       const Errno err(errno);
       LOG(WARNING) << ErrMsg(
           absl::StrCat("failed to unregister MR on device ", device_name), err);
@@ -91,7 +92,7 @@ absl::Status RdmaMemory::RegisterMemory(void* addr, size_t length,
           "device %s has null protection domain (PD)", crx->Name()));
     }
 
-    struct ibv_mr* mr = ibv_reg_mr(pd, addr, length, access_flags);
+    struct ibv_mr* mr = ibv::RegMr(pd, addr, length, access_flags);
     if (mr == nullptr) {
       const Errno err(errno);
       LOG(WARNING) << ErrMsg(

@@ -7,8 +7,8 @@ build --copt=-Wall
 build --copt=-Wextra
 build --copt=-Wconversion
 
-# Link libibverbs symbols to IBVERBS_1.1
-build --linkopt=-libverbs
+# RDMA is opt-in (see BUILD): --config=rdma links libibverbs.
+build:rdma --define=peregrine_rdma=true
 
 # Bypass ccache read-only sandbox issues
 build --repo_env=CC=/usr/bin/clang

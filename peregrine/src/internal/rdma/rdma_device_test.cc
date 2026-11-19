@@ -8,6 +8,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 #include "peregrine/src/internal/rdma/rdma_context.h"
 
 namespace peregrine::internal::testing {
@@ -18,6 +19,7 @@ using ::testing::IsNull;
 using ::testing::NotNull;
 
 TEST(RdmaDeviceTest, CreateAndEnumerate) {
+  if (!ibv::IsAvailable()) GTEST_SKIP() << "Peregrine built without RDMA.";
   auto dev_or = RdmaDevice::Create();
   if (absl::IsNotFound(dev_or.status())) {
     LOG(INFO) << "No hardware RDMA devices available in this test environment; "

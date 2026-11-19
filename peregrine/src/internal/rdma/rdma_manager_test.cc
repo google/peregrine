@@ -12,6 +12,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/control/control.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 #include "peregrine/src/internal/rdma/rdma_device.h"
 
 namespace peregrine::internal::testing {
@@ -35,6 +36,7 @@ TEST(RdmaManagerTest, ReturnsNullWhenTransportTypeIsNotRdma) {
 }
 
 TEST(RdmaManagerTest, CreateAndRegisterMemoryWithRdmaTransport) {
+  if (!ibv::IsAvailable()) GTEST_SKIP() << "Peregrine built without RDMA.";
   auto dev_or = RdmaDevice::Create();
   if (absl::IsNotFound(dev_or.status())) {
     GTEST_SKIP()

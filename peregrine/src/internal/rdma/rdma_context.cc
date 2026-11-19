@@ -15,6 +15,7 @@
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 #include "peregrine/src/util/errno.h"
 
 namespace peregrine::internal {
@@ -31,7 +32,7 @@ std::string ErrMsg(const std::string_view prefix, const Errno err) {
 
 std::string_view getDeviceName(struct ibv_device* dev) {
   if (dev == nullptr) return "unknown";
-  const char* name = ibv_get_device_name(dev);
+  const char* name = ibv::GetDeviceName(dev);
   return name != nullptr ? name : "unknown";
 }
 
@@ -40,7 +41,7 @@ std::string_view getDeviceName(struct ibv_context* ctx) {
 }
 
 struct ibv_context* openDevice(struct ibv_device* dev) {
-  struct ibv_context* ctx = ibv_open_device(dev);
+  struct ibv_context* ctx = ibv::OpenDevice(dev);
   if (ctx == nullptr) {
     const Errno err(errno);
     const std::string s =
@@ -52,7 +53,7 @@ struct ibv_context* openDevice(struct ibv_device* dev) {
 
 void queryDevice(struct ibv_context* ctx, struct ibv_device_attr& attr) {
   std::memset(&attr, 0, sizeof(attr));
-  if (ibv_query_device(ctx, &attr) != 0) {
+  if (ibv::QueryDevice(ctx, &attr) != 0) {
     const Errno err(errno);
     const std::string s =
         absl::StrCat("ibv_query_device failed for ", getDeviceName(ctx));
@@ -65,7 +66,7 @@ void checkPortStates(struct ibv_context* ctx,
   int active_ports = 0;
   for (auto port = 1; port <= attr.phys_port_cnt; ++port) {
     struct ibv_port_attr port_attr;
-    if (ibv_query_port(ctx, port, &port_attr) == 0) {
+    if (ibv::QueryPort(ctx, port, &port_attr) == 0) {
       if (port_attr.state == IBV_PORT_ACTIVE) ++active_ports;
     }
   }
@@ -78,7 +79,7 @@ void checkPortStates(struct ibv_context* ctx,
 }
 
 struct ibv_pd* allocPd(struct ibv_context* ctx) {
-  struct ibv_pd* pd = ibv_alloc_pd(ctx);
+  struct ibv_pd* pd = ibv::AllocPd(ctx);
   if (pd == nullptr) {
     const Errno err(errno);
     const std::string s =
@@ -93,7 +94,7 @@ struct ibv_cq* createCq(struct ibv_context* ctx,
   const int cqe = attr.max_cqe > 0 ? attr.max_cqe : kDefaultCqeSize;
   // TODO: transition to multiple CQs per device (one per polling worker
   // thread) to enable zero-contention lock-free polling across multiple QPs.
-  struct ibv_cq* cq = ibv_create_cq(ctx, cqe, /*cq_context=*/nullptr,
+  struct ibv_cq* cq = ibv::CreateCq(ctx, cqe, /*cq_context=*/nullptr,
                                     /*channel=*/nullptr, /*comp_vector=*/0);
   if (cq == nullptr) {
     const Errno err(errno);
@@ -107,12 +108,12 @@ struct ibv_cq* createCq(struct ibv_context* ctx,
 int findRoutableGid(struct ibv_context* ctx, uint8_t port_num) {
   if (ctx == nullptr) return 0;
   struct ibv_port_attr port_attr = {};
-  if (ibv_query_port(ctx, port_num, &port_attr) != 0) return 0;
+  if (ibv::QueryPort(ctx, port_num, &port_attr) != 0) return 0;
 
   int fallback_ipv6_idx = -1;
   for (int i = 0; i < port_attr.gid_tbl_len; ++i) {
     struct ibv_gid_entry entry = {};
-    if (ibv_query_gid_ex(ctx, port_num, i, &entry, 0) == 0) {
+    if (ibv::QueryGidEx(ctx, port_num, i, &entry, 0) == 0) {
       if (entry.gid_type != IBV_GID_TYPE_ROCE_V2) continue;
 
       const auto* in6 = reinterpret_cast<const struct in6_addr*>(entry.gid.raw);
@@ -155,21 +156,21 @@ RdmaContext::RdmaContext(struct ibv_context* ctx, struct ibv_pd* pd,
 
 RdmaContext::~RdmaContext() {
   if (cq_ != nullptr) {
-    if (ibv_destroy_cq(cq_) != 0) {
+    if (ibv::DestroyCq(cq_) != 0) {
       const Errno err(errno);
       LOG(WARNING) << ErrMsg(
           absl::StrFormat("failed to destroy CQ on device %s", name_), err);
     }
   }
   if (pd_ != nullptr) {
-    if (ibv_dealloc_pd(pd_) != 0) {
+    if (ibv::DeallocPd(pd_) != 0) {
       const Errno err(errno);
       LOG(WARNING) << ErrMsg(
           absl::StrFormat("failed to dealloc PD on device %s", name_), err);
     }
   }
   if (ctx_ != nullptr) {
-    if (ibv_close_device(ctx_) != 0) {
+    if (ibv::CloseDevice(ctx_) != 0) {
       const Errno err(errno);
       LOG(WARNING) << ErrMsg(
           absl::StrFormat("failed to close device %s", name_), err);
@@ -191,28 +192,28 @@ std::unique_ptr<RdmaContext> RdmaContext::Create(struct ibv_device* device) {
 
   struct ibv_pd* pd = allocPd(context);
   if (pd == nullptr) {
-    ibv_close_device(context);
+    ibv::CloseDevice(context);
     return nullptr;
   }
 
   struct ibv_cq* cq = createCq(context, attr);
   if (cq == nullptr) {
-    ibv_dealloc_pd(pd);
-    ibv_close_device(context);
+    ibv::DeallocPd(pd);
+    ibv::CloseDevice(context);
     return nullptr;
   }
 
   const int gid_index = findRoutableGid(context, kDefaultPort);
   union ibv_gid local_gid = {};
-  if (ibv_query_gid(context, kDefaultPort, gid_index, &local_gid) != 0) {
+  if (ibv::QueryGid(context, kDefaultPort, gid_index, &local_gid) != 0) {
     const Errno err(errno);
     LOG(WARNING) << ErrMsg(
         absl::StrFormat("ibv_query_gid failed for %s on port %d, gid_index %d",
                         getDeviceName(context), kDefaultPort, gid_index),
         err);
-    ibv_destroy_cq(cq);
-    ibv_dealloc_pd(pd);
-    ibv_close_device(context);
+    ibv::DestroyCq(cq);
+    ibv::DeallocPd(pd);
+    ibv::CloseDevice(context);
     return nullptr;
   }
 

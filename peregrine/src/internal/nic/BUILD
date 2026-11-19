@@ -31,10 +31,12 @@ cc_library(
     deps = [
         ":pci_topology",
         "//:libibverbs",  # buildcleaner: keep
+        "//peregrine/src/internal/rdma:ibv_loader",
         "//peregrine/src/util:ipaddr",
         "@abseil-cpp//absl/base:no_destructor",
         "@abseil-cpp//absl/cleanup",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
         "@abseil-cpp//absl/types:span",
     ],

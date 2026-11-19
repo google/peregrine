@@ -20,9 +20,11 @@
 #include "absl/base/no_destructor.h"
 #include "absl/cleanup/cleanup.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
 #include "peregrine/src/internal/nic/pci_topology.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 #include "peregrine/src/util/ipaddr.h"
 
 namespace peregrine::internal::nic {
@@ -123,10 +125,14 @@ std::vector<TcpNic> DiscoverTcpNics(bool allow_loopback,
 
 std::vector<RdmaNic> DiscoverRdmaNics(bool allow_loopback) {
   std::vector<RdmaNic> rdma_nics;
+  if (const absl::Status status = ibv::EnsureLoaded(); !status.ok()) {
+    LOG(INFO) << "Skipping RDMA NIC discovery: " << status.message();
+    return rdma_nics;
+  }
   int num_ib_devs = 0;
-  struct ibv_device** dev_list = ::ibv_get_device_list(&num_ib_devs);
+  struct ibv_device** dev_list = ibv::GetDeviceList(&num_ib_devs);
   if (dev_list == nullptr) return rdma_nics;
-  absl::Cleanup free_ib = [dev_list] { ::ibv_free_device_list(dev_list); };
+  absl::Cleanup free_ib = [dev_list] { ibv::FreeDeviceList(dev_list); };
 
   for (int d = 0; d < num_ib_devs; ++d) {
     struct ibv_device* ib_dev = dev_list[d];
@@ -139,16 +145,16 @@ std::vector<RdmaNic> DiscoverRdmaNics(bool allow_loopback) {
       continue;
     }
 
-    struct ibv_context* ctx = ::ibv_open_device(ib_dev);
+    struct ibv_context* ctx = ibv::OpenDevice(ib_dev);
     if (ctx == nullptr) continue;
-    absl::Cleanup close_ctx = [ctx] { ::ibv_close_device(ctx); };
+    absl::Cleanup close_ctx = [ctx] { ibv::CloseDevice(ctx); };
 
     struct ibv_device_attr dev_attr = {};
-    if (::ibv_query_device(ctx, &dev_attr) != 0) continue;
+    if (ibv::QueryDevice(ctx, &dev_attr) != 0) continue;
 
     for (uint8_t port_num = 1; port_num <= dev_attr.phys_port_cnt; ++port_num) {
       struct ibv_port_attr port_attr = {};
-      if (::ibv_query_port(ctx, port_num, &port_attr) != 0) continue;
+      if (ibv::QueryPort(ctx, port_num, &port_attr) != 0) continue;
       if (port_attr.state != IBV_PORT_ACTIVE) continue;
 
       int best_gid_idx = -1;
@@ -158,7 +164,7 @@ std::vector<RdmaNic> DiscoverRdmaNics(bool allow_loopback) {
 
       for (int i = 0; i < port_attr.gid_tbl_len; ++i) {
         struct ibv_gid_entry entry = {};
-        if (::ibv_query_gid_ex(ctx, port_num, i, &entry, 0) != 0) continue;
+        if (ibv::QueryGidEx(ctx, port_num, i, &entry, 0) != 0) continue;
         if (entry.gid_type != IBV_GID_TYPE_ROCE_V2) continue;
 
         const util::IpAddr under_ip = ExtractIpFromGid(entry.gid);

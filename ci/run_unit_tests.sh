@@ -70,3 +70,9 @@ bazel test \
   --test_output=errors \
   -- //...
 
+# Also link with RDMA enabled (-libverbs) so that path cannot silently break.
+bazel build \
+  "${COMMON_ARGS[@]}" \
+  --config=rdma \
+  -- //...
+

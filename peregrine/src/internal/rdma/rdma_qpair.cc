@@ -12,6 +12,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 #include "peregrine/src/internal/rdma/rdma_context.h"
 
 namespace peregrine::internal {
@@ -26,7 +27,7 @@ RdmaQPair::RdmaQPair(RdmaContext* ctx, struct ibv_qp* qp, struct ibv_cq* cq,
 
 RdmaQPair::~RdmaQPair() {
   if (qp_ != nullptr) {
-    const int ret = ibv_destroy_qp(qp_);
+    const int ret = ibv::DestroyQp(qp_);
     if (ret != 0) {
       LOG(WARNING) << "failed to destroy ibv_qp: " << ret << " ("
                    << strerror(ret) << ")";
@@ -34,7 +35,7 @@ RdmaQPair::~RdmaQPair() {
     qp_ = nullptr;
   }
   if (cq_ != nullptr) {
-    const int ret = ibv_destroy_cq(cq_);
+    const int ret = ibv::DestroyCq(cq_);
     if (ret != 0) {
       LOG(WARNING) << "failed to destroy ibv_cq: " << ret << " ("
                    << strerror(ret) << ")";
@@ -50,7 +51,7 @@ absl::StatusOr<std::unique_ptr<RdmaQPair>> RdmaQPair::Create(
   }
 
   struct ibv_cq* cq =
-      ibv_create_cq(ctx->GetIbvContext(), options.cq_size, nullptr, nullptr, 0);
+      ibv::CreateCq(ctx->GetIbvContext(), options.cq_size, nullptr, nullptr, 0);
   if (cq == nullptr) {
     return absl::InternalError(absl::StrFormat(
         "ibv_create_cq failed on device %s: %s", ctx->Name(), strerror(errno)));
@@ -66,9 +67,9 @@ absl::StatusOr<std::unique_ptr<RdmaQPair>> RdmaQPair::Create(
   init_attr.cap.max_recv_sge = options.max_recv_sge;
   init_attr.sq_sig_all = options.sq_sig_all ? 1 : 0;
 
-  struct ibv_qp* qp = ibv_create_qp(ctx->GetPd(), &init_attr);
+  struct ibv_qp* qp = ibv::CreateQp(ctx->GetPd(), &init_attr);
   if (qp == nullptr) {
-    ibv_destroy_cq(cq);
+    ibv::DestroyCq(cq);
     return absl::InternalError(absl::StrFormat(
         "ibv_create_qp failed on device %s: %s", ctx->Name(), strerror(errno)));
   }
@@ -94,7 +95,7 @@ absl::Status RdmaQPair::Init() {
 
   const int flags =
       IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
-  const int ret = ibv_modify_qp(qp_, &attr, flags);
+  const int ret = ibv::ModifyQp(qp_, &attr, flags);
   if (ret != 0) {
     state_ = State::kError;
     return absl::InternalError(absl::StrFormat(
@@ -137,7 +138,7 @@ absl::Status RdmaQPair::Rtr(uint32_t remote_qpn,
   const int flags = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU |
                     IBV_QP_DEST_QPN | IBV_QP_RQ_PSN |
                     IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
-  const int ret = ibv_modify_qp(qp_, &attr, flags);
+  const int ret = ibv::ModifyQp(qp_, &attr, flags);
   if (ret != 0) {
     state_ = State::kError;
     return absl::InternalError(absl::StrFormat(
@@ -168,7 +169,7 @@ absl::Status RdmaQPair::Rts(uint32_t local_psn) {
   const int flags = IBV_QP_STATE | IBV_QP_SQ_PSN | IBV_QP_TIMEOUT |
                     IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY |
                     IBV_QP_MAX_QP_RD_ATOMIC;
-  const int ret = ibv_modify_qp(qp_, &attr, flags);
+  const int ret = ibv::ModifyQp(qp_, &attr, flags);
   if (ret != 0) {
     state_ = State::kError;
     return absl::InternalError(absl::StrFormat(

@@ -7,6 +7,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 
 namespace peregrine::internal::testing {
 namespace {
@@ -15,10 +16,10 @@ using ::testing::NotNull;
 
 TEST(RdmaContextTest, CreateAndVerify) {
   int num_devices = 0;
-  struct ibv_device** device_list = ibv_get_device_list(&num_devices);
+  struct ibv_device** device_list = ibv::GetDeviceList(&num_devices);
   if (device_list == nullptr || num_devices == 0) {
     if (device_list != nullptr) {
-      ibv_free_device_list(device_list);
+      ibv::FreeDeviceList(device_list);
     }
     LOG(INFO) << "No hardware RDMA devices available in this test environment; "
                  "skipping verification.";
@@ -49,7 +50,7 @@ TEST(RdmaContextTest, CreateAndVerify) {
               << " | Phys Ports: " << static_cast<int>(attr.phys_port_cnt)
               << " | GID Index: " << ctx->GidIndex();
   }
-  ibv_free_device_list(device_list);
+  ibv::FreeDeviceList(device_list);
   if (verified_devices == 0) {
     GTEST_SKIP() << "No usable RDMA devices could be initialized in this test "
                     "environment.";

@@ -12,6 +12,7 @@
 #include "gtest/gtest.h"
 #include "absl/log/log.h"
 #include "absl/status/status.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 #include "peregrine/src/internal/rdma/rdma_device.h"
 
 namespace peregrine::internal::testing {
@@ -24,6 +25,7 @@ using ::testing::NotNull;
 class RdmaMemoryTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    if (!ibv::IsAvailable()) GTEST_SKIP() << "Peregrine built without RDMA.";
     auto dev_or = RdmaDevice::Create();
     if (absl::IsNotFound(dev_or.status())) {
       GTEST_SKIP()

@@ -18,6 +18,7 @@
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 #include "peregrine/src/internal/rdma/rdma_qpair.h"
 
 namespace peregrine::internal {
@@ -33,7 +34,7 @@ void RdmaChannel::Shutdown() {
     // hardware DMA transfers.
     struct ibv_qp_attr attr = {};
     attr.qp_state = IBV_QPS_ERR;
-    ibv_modify_qp(qp->GetQp(), &attr, IBV_QP_STATE);
+    ibv::ModifyQp(qp->GetQp(), &attr, IBV_QP_STATE);
   }
 }
 
@@ -113,7 +114,7 @@ ssize_t RdmaChannel::Write(IoVecCursor& iovecs) {
 
   if (wc.status != IBV_WC_SUCCESS) {
     LOG(ERROR) << "RDMA send completion failed with status: "
-               << ibv_wc_status_str(wc.status) << " (" << wc.status << ")";
+               << ibv::WcStatusStr(wc.status) << " (" << wc.status << ")";
     return -1;
   }
 

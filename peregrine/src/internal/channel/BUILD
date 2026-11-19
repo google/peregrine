@@ -199,6 +199,7 @@ cc_library(
         "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/chunk:header_flatbuf",
         "//peregrine/src/internal/lib:iovec_cursor",
+        "//peregrine/src/internal/rdma:ibv_loader",
         "//peregrine/src/internal/rdma:rdma_conn",
         "//peregrine/src/internal/rdma:rdma_qpair",
         "@abseil-cpp//absl/log",

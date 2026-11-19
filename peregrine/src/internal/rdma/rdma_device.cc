@@ -17,6 +17,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "peregrine/src/internal/rdma/ibv_loader.h"
 #include "peregrine/src/internal/rdma/rdma_context.h"
 
 namespace peregrine::internal {
@@ -50,10 +51,10 @@ bool ShouldIgnoreDevice(absl::string_view dev_name) {
 
 struct ibv_device** getDeviceList(int& num_devices) {
   num_devices = 0;
-  struct ibv_device** device_list = ibv_get_device_list(&num_devices);
+  struct ibv_device** device_list = ibv::GetDeviceList(&num_devices);
   if (device_list == nullptr || num_devices == 0) {
     if (device_list != nullptr) {
-      ibv_free_device_list(device_list);
+      ibv::FreeDeviceList(device_list);
     }
     LOG(INFO) << "No RDMA devices found via ibv_get_device_list";
     return nullptr;
@@ -64,7 +65,7 @@ struct ibv_device** getDeviceList(int& num_devices) {
 std::unique_ptr<RdmaContext> openDeviceContext(struct ibv_device* dev) {
   std::unique_ptr<RdmaContext> dev_ctx = RdmaContext::Create(dev);
   if (dev_ctx == nullptr) {
-    const char* name = ibv_get_device_name(dev);
+    const char* name = ibv::GetDeviceName(dev);
     LOG(WARNING) << "Failed to open and initialize RDMA adapter: "
                  << (name != nullptr ? name : "unknown");
   }
@@ -90,6 +91,10 @@ RdmaContext* RdmaDevice::GetContext(std::string_view name) const {
 }
 
 absl::StatusOr<std::unique_ptr<RdmaDevice>> RdmaDevice::Create() {
+  if (const absl::Status status = ibv::EnsureLoaded(); !status.ok()) {
+    return status;
+  }
+
   int num_devices = 0;
   struct ibv_device** device_list = getDeviceList(num_devices);
   if (device_list == nullptr) {
@@ -106,7 +111,7 @@ absl::StatusOr<std::unique_ptr<RdmaDevice>> RdmaDevice::Create() {
       continue;
     }
 
-    const char* dev_name = ibv_get_device_name(dev);
+    const char* dev_name = ibv::GetDeviceName(dev);
     if (dev_name == nullptr) {
       continue;
     }
@@ -130,7 +135,7 @@ absl::StatusOr<std::unique_ptr<RdmaDevice>> RdmaDevice::Create() {
     devices.push_back(std::move(dev_ctx));
   }
 
-  ibv_free_device_list(device_list);
+  ibv::FreeDeviceList(device_list);
 
   if (devices.empty()) {
     return absl::NotFoundError(
