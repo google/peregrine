@@ -48,6 +48,14 @@ inline constexpr bool kLocalIdentityIsReadOnlyAfterControlPlaneStarts = true;
 //  - Take ownership of the channel; the channel manager keeps no reference.
 inline constexpr bool kChannelManagerCallbacksMayRunOnAnyThread = true;
 
+// Assumptions about failures.
+// ---------------------------------------------------------------------------
+//
+// For now, if getting a peer's host info or opening a channel to it fails, the
+// engine aborts all posts queued for the peer and reports them failed to the
+// app, without retrying. The next post to the peer gets its host info again.
+inline constexpr bool kSetupFailuresAbortQueuedPosts = true;
+
 }  // namespace peregrine::internal::engine2::assumptions
 
 #endif  // PEREGRINE_SRC_INTERNAL_ENGINE2_ASSUMPTIONS_H_

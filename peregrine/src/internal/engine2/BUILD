@@ -28,6 +28,7 @@ cc_library(
         ":assumptions",
         ":channel_manager",
         ":peer_discovery",
+        ":post",
         ":transfer_manager",
         "//peregrine/src/api:transport_metrics",
         "//peregrine/src/api:transport_trace",
@@ -80,19 +81,24 @@ cc_library(
     srcs = ["transfer_manager.cc"],
     hdrs = ["transfer_manager.h"],
     deps = [
+        ":assumptions",
         ":channel_manager",
         ":peer_discovery",
+        ":peer_state",
+        ":post",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
         "//peregrine/src/internal/channel",
-        "//peregrine/src/internal/trace:trace_context",
         "//peregrine/src/util:macro",
         "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/container:flat_hash_map",
         "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
         "@abseil-cpp//absl/memory",
         "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/synchronization",
     ],
 )
 
@@ -102,6 +108,7 @@ cc_test(
     deps = [
         ":channel_manager",
         ":peer_discovery",
+        ":post",
         ":transfer_manager",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:config",
@@ -110,6 +117,38 @@ cc_test(
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "post",
+    hdrs = ["post.h"],
+    deps = [
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/trace:trace_context",
+    ],
+)
+
+cc_library(
+    name = "peer_state",
+    srcs = ["peer_state.cc"],
+    hdrs = ["peer_state.h"],
+    deps = [
+        ":assumptions",
+        ":post",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/util:macro",
+    ],
+)
+
+cc_test(
+    name = "peer_state_test",
+    srcs = ["peer_state_test.cc"],
+    deps = [
+        ":peer_state",
+        ":post",
+        "//peregrine/src/api:transport_types",
         "@googletest//:gtest_main",
     ],
 )

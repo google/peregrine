@@ -28,11 +28,14 @@ using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::NotNull;
 
-// Peer lookup hook that fails every lookup; no test here connects to a peer.
-GetPeerHostInfoFn FailingPeerLookup() {
-  return [](const PeerId&,
+// Peer lookup hook that returns an empty host info for every peer; no test
+// here transfers data to a peer.
+GetPeerHostInfoFn StaticPeerLookup() {
+  return [](const PeerId& peer,
             absl::AnyInvocable<void(absl::StatusOr<HostInfo>)> on_done) {
-    on_done(absl::UnavailableError("no peers in this test"));
+    HostInfo info;
+    info.control_plane_listener = peer;
+    on_done(info);
   };
 }
 
@@ -43,7 +46,7 @@ class EngineTest : public ::testing::Test {
   }
 
   std::unique_ptr<Engine> CreateEngine() {
-    return Engine::Create(Config{}, self_, FailingPeerLookup());
+    return Engine::Create(Config{}, self_, StaticPeerLookup());
   }
 
   HostInfo self_;
@@ -70,7 +73,7 @@ TEST_F(EngineTest, ItemValidity) {
 TEST_F(EngineTest, CreateRejectsInvalidConfig) {
   Config config;
   config.num_conns_per_peer = 0;
-  EXPECT_EQ(Engine::Create(config, self_, FailingPeerLookup()), nullptr);
+  EXPECT_EQ(Engine::Create(config, self_, StaticPeerLookup()), nullptr);
 }
 
 TEST_F(EngineTest, CreateWithoutControlPlane) {

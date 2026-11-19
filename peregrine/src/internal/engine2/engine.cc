@@ -23,6 +23,8 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/engine2/assumptions.h"
 #include "peregrine/src/internal/engine2/channel_manager.h"
+#include "peregrine/src/internal/engine2/peer_discovery.h"
+#include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/transfer_manager.h"
 #include "peregrine/src/internal/trace/chrome_trace_exporter.h"
 #include "peregrine/src/util/util.h"
@@ -93,7 +95,7 @@ absl::StatusOr<Handle> Engine::Enqueue(const PeerId& peer, Item item) {
   DCHECK(item.IsValid());
   const Handle handle = GenNextHandle(next_handle_);
   transfer_manager_->Submit(
-      peer, TransferManager::Post{
+      peer, Post{
                 .handle = handle,
                 .requests = std::vector<Request>(item.requests.begin(),
                                                  item.requests.end()),

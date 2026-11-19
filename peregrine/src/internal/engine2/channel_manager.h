@@ -46,8 +46,8 @@ class ChannelManager final {
   DISALLOW_MOVE(ChannelManager);
 
   // Implementation details:
-  // - Stops accepting channels and aborts pending connects; each pending
-  //   connect reports an error to `on_outbound_done`.
+  // - Stops accepting channels and drops pending connects without reporting
+  //   them, so shutdown does not look like a connect failure.
   ~ChannelManager() = default;
 
   // Registers the completion callbacks. Must be called exactly once, before
@@ -61,7 +61,8 @@ class ChannelManager final {
 
   // Opens a channel from local rail `local_rail_id` to rail `remote_rail_id`
   // of the peer described by `peer_info`. Returns without waiting, and reports
-  // the outcome to `on_outbound_done` exactly once.
+  // the outcome to `on_outbound_done` exactly once, unless the channel manager
+  // is destroyed first.
   //
   // Implementation details:
   // - Starts a non-blocking connect between the two rails' endpoints, bounded
