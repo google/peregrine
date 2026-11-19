@@ -355,3 +355,45 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "grpc_manager",
+    srcs = ["grpc_manager.cc"],
+    hdrs = ["grpc_manager.h"],
+    deps = [
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@grpc//:grpc++",
+    ],
+)
+
+cc_test(
+    name = "grpc_manager_test",
+    srcs = ["grpc_manager_test.cc"],
+    shard_count = 4,
+    deps = [
+        ":grpc_manager",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/util:test_param",
+        "//peregrine/src/util",
+        "//peregrine/src/util:thread",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/synchronization",
+        "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
+        "@googletest//:gtest_main",
+        "@grpc//:grpc++",
+    ],
+)

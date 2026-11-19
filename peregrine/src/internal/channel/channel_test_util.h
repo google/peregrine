@@ -22,6 +22,9 @@ ConnectedChannelPair CreateTcpChannelPair(int family, bool blocking);
 // Creates a udp channel pair.
 ConnectedChannelPair CreateUdpChannelPair(int family, bool blocking);
 
+// Creates a gRPC channel pair.
+ConnectedChannelPair CreateGrpcChannelPair(int family);
+
 // Creates a memory stream channel pair.
 ConnectedChannelPair CreateMemStreamChannelPair(bool blocking, int error_rate);
 
