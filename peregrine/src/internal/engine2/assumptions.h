@@ -37,6 +37,17 @@ inline constexpr bool kPeerHostInfoLookupIsAsynchronous = true;
 // with the first `Engine::Enqueue()`, after the control plane has started.
 inline constexpr bool kLocalIdentityIsReadOnlyAfterControlPlaneStarts = true;
 
+// Assumptions about channel manager callbacks.
+// ---------------------------------------------------------------------------
+//
+// `ChannelManager` reports accepted channels to `on_inbound_ready` and the
+// outcome of each `Connect()` to `on_outbound_done`. Both callbacks:
+//  - May run on any thread, including inside `Connect()` itself. So callers
+//    must not hold a lock that the callbacks take while calling `Connect()`.
+//  - Must not block, since they run on the channel manager's threads.
+//  - Take ownership of the channel; the channel manager keeps no reference.
+inline constexpr bool kChannelManagerCallbacksMayRunOnAnyThread = true;
+
 }  // namespace peregrine::internal::engine2::assumptions
 
 #endif  // PEREGRINE_SRC_INTERNAL_ENGINE2_ASSUMPTIONS_H_

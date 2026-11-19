@@ -26,6 +26,7 @@ cc_library(
     hdrs = ["engine.h"],
     deps = [
         ":assumptions",
+        ":channel_manager",
         ":peer_discovery",
         ":transfer_manager",
         "//peregrine/src/api:transport_metrics",
@@ -79,14 +80,19 @@ cc_library(
     srcs = ["transfer_manager.cc"],
     hdrs = ["transfer_manager.h"],
     deps = [
+        ":channel_manager",
         ":peer_discovery",
         "//peregrine/src/api:transport_types",
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
+        "//peregrine/src/internal/channel",
         "//peregrine/src/internal/trace:trace_context",
         "//peregrine/src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/status:statusor",
     ],
 )
 
@@ -94,6 +100,7 @@ cc_test(
     name = "transfer_manager_test",
     srcs = ["transfer_manager_test.cc"],
     deps = [
+        ":channel_manager",
         ":peer_discovery",
         ":transfer_manager",
         "//peregrine/src/api:transport_types",
@@ -102,6 +109,43 @@ cc_test(
         "//peregrine/src/internal/base:hostinfo",
         "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "channel_manager",
+    srcs = ["channel_manager.cc"],
+    hdrs = ["channel_manager.h"],
+    deps = [
+        ":assumptions",
+        "//peregrine/src/internal/base:config",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:hostinfo",
+        "//peregrine/src/internal/channel",
+        "//peregrine/src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/functional:any_invocable",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/memory",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "channel_manager_test",
+    srcs = ["channel_manager_test.cc"],
+    deps = [
+        ":channel_manager",
+        "//peregrine/src/internal/base:config",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:hostinfo",
+        "//peregrine/src/internal/channel",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:status_matchers",
         "@abseil-cpp//absl/status:statusor",
         "@googletest//:gtest_main",
     ],

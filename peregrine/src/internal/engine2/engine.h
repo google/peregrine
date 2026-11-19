@@ -51,7 +51,9 @@ class Engine final {
   // Creates an engine for the local host described by `self`, which must
   // outlive the engine. `get_peer_host_info_fn` looks up remote peers.
   // `recv_post_callback` and `resolve_addr_callback` serve requests initiated
-  // by remote peers. Returns nullptr on failure.
+  // by remote peers. Creates the channel manager, which records the data-plane
+  // endpoints in `self`, and hands it to the transfer manager. Returns nullptr
+  // on failure.
   //
   // Implementation details:
   // - If `self` has no NICs, discovers them into `self.tcp_nics` and
@@ -61,10 +63,6 @@ class Engine final {
   //   incoming two-sided reads so the engine submits the write-back. The
   //   outgoing tracker reports posts rejected by the peer so the engine calls
   //   `TransferManager::Cancel()`.
-  // - Creates the channel manager, which sets up the transports enabled by
-  //   `config` and records their endpoints in `self.data_plane_listeners`.
-  // - Creates the transfer manager with the channel manager and
-  //   `get_peer_host_info_fn`; the transfer manager starts accepting channels.
   static std::unique_ptr<Engine> Create(
       const Config& config, HostInfo& self,
       GetPeerHostInfoFn get_peer_host_info_fn,

@@ -12,6 +12,7 @@
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
+#include "peregrine/src/internal/engine2/channel_manager.h"
 #include "peregrine/src/internal/engine2/peer_discovery.h"
 
 namespace peregrine::internal::engine2 {
@@ -33,17 +34,27 @@ class TransferManagerTest : public ::testing::Test {
     self_.control_plane_listener = Endpoint::Create("127.0.0.1:10000");
   }
 
+  std::unique_ptr<TransferManager> CreateTransferManager() {
+    return TransferManager::Create(Config{}, self_, FailingPeerLookup(),
+                                   ChannelManager::Create(Config{}, self_));
+  }
+
   HostInfo self_;
 };
 
 TEST_F(TransferManagerTest, Create) {
-  EXPECT_THAT(TransferManager::Create(Config{}, self_, FailingPeerLookup()),
-              NotNull());
+  EXPECT_THAT(CreateTransferManager(), NotNull());
+}
+
+TEST_F(TransferManagerTest, CreateRejectsNullChannelManager) {
+  EXPECT_EQ(TransferManager::Create(Config{}, self_, FailingPeerLookup(),
+                                    /*channel_manager=*/nullptr),
+            nullptr);
 }
 
 TEST_F(TransferManagerTest, SubmitAndCancelAcceptPosts) {
   const std::unique_ptr<TransferManager> transfer_manager =
-      TransferManager::Create(Config{}, self_, FailingPeerLookup());
+      CreateTransferManager();
   ASSERT_THAT(transfer_manager, NotNull());
 
   std::array<Byte, 64> buf = {};

@@ -22,6 +22,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/engine2/assumptions.h"
+#include "peregrine/src/internal/engine2/channel_manager.h"
 #include "peregrine/src/internal/engine2/transfer_manager.h"
 #include "peregrine/src/internal/trace/chrome_trace_exporter.h"
 #include "peregrine/src/util/util.h"
@@ -62,8 +63,15 @@ std::unique_ptr<Engine> Engine::Create(
     LOG(ERROR) << "invalid config";
     return nullptr;
   }
+  std::unique_ptr<ChannelManager> channel_manager =
+      ChannelManager::Create(config, self);
+  if ABSL_PREDICT_FALSE (channel_manager == nullptr) {
+    LOG(ERROR) << "failed to create channel manager";
+    return nullptr;
+  }
   std::unique_ptr<TransferManager> transfer_manager =
-      TransferManager::Create(config, self, std::move(get_peer_host_info_fn));
+      TransferManager::Create(config, self, std::move(get_peer_host_info_fn),
+                              std::move(channel_manager));
   if ABSL_PREDICT_FALSE (transfer_manager == nullptr) {
     LOG(ERROR) << "failed to create transfer manager";
     return nullptr;
