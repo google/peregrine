@@ -140,6 +140,10 @@ inline std::ostream& operator<<(std::ostream& os, const Endpoint& e) {
   return os << e.ToString();
 }
 
+// Identifies a peer by its control-plane endpoint. Distinct from data-plane
+// endpoints such as `HostInfo::data_plane_listeners`.
+using PeerId = Endpoint;
+
 }  // namespace peregrine::internal
 
 #endif  // PEREGRINE_SRC_INTERNAL_BASE_ENDPOINT_H_

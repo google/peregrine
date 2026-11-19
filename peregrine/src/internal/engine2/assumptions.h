@@ -7,11 +7,12 @@ namespace peregrine::internal::engine2::assumptions {
 // ---------------------------------------------------------------------------
 //
 // To connect to a peer, the engine needs the peer's `HostInfo`, which it
-// obtains through a lookup hook (`Engine::GetPeerHostInfoFn`) supplied by its
-// owner. In production the hook asks the peer over the control plane; in tests
-// it may read from an in-process table. The engine calls the hook with the
-// peer's control-plane endpoint and a completion callback `on_done`, at most
-// once at a time per peer, and caches the result.
+// obtains through a peer discovery hook (`GetPeerHostInfoFn` in
+// peer_discovery.h) supplied by its owner. In production the hook asks the
+// peer over the control plane; in tests it may read from an in-process table.
+// The engine calls the hook with the peer's control-plane endpoint and a
+// completion callback `on_done`, at most once at a time per peer, and caches
+// the result.
 //
 // A lookup may take a network round trip, while the engine must keep serving
 // requests to other peers. So peer host info lookup is asynchronous, and hook

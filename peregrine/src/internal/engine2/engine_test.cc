@@ -6,6 +6,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
@@ -16,6 +17,7 @@
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
+#include "peregrine/src/internal/engine2/peer_discovery.h"
 
 namespace peregrine::internal::engine2 {
 namespace {
@@ -27,8 +29,8 @@ using ::testing::Not;
 using ::testing::NotNull;
 
 // Peer lookup hook that fails every lookup; no test here connects to a peer.
-Engine::GetPeerHostInfoFn FailingPeerLookup() {
-  return [](const Endpoint&,
+GetPeerHostInfoFn FailingPeerLookup() {
+  return [](const PeerId&,
             absl::AnyInvocable<void(absl::StatusOr<HostInfo>)> on_done) {
     on_done(absl::UnavailableError("no peers in this test"));
   };
@@ -75,15 +77,27 @@ TEST_F(EngineTest, CreateWithoutControlPlane) {
   EXPECT_THAT(CreateEngine(), NotNull());
 }
 
-TEST_F(EngineTest, UnimplementedRequestPathReturnsUnimplemented) {
+TEST_F(EngineTest, EnqueueReturnsUniqueValidHandles) {
   const std::unique_ptr<Engine> engine = CreateEngine();
   ASSERT_THAT(engine, NotNull());
 
   const std::vector<Request> reqs = {
       {.op = Op::kWrite, .laddr = buf_.data(), .len = buf_.size()}};
-  EXPECT_THAT(engine->Enqueue(Endpoint::Create("127.0.0.1:20000"),
-                              Engine::Item{.requests = reqs}),
-              StatusIs(absl::StatusCode::kUnimplemented));
+  const Endpoint peer = Endpoint::Create("127.0.0.1:20000");
+  absl::flat_hash_set<Handle> handles;
+  for (int i = 0; i < 100; ++i) {
+    const absl::StatusOr<Handle> h =
+        engine->Enqueue(peer, Engine::Item{.requests = reqs});
+    ASSERT_THAT(h, IsOk());
+    EXPECT_NE(*h, kInvalidHandle);
+    EXPECT_TRUE(handles.insert(*h).second) << "duplicate handle " << *h;
+  }
+}
+
+TEST_F(EngineTest, QueryUpdateReturnsUnimplemented) {
+  const std::unique_ptr<Engine> engine = CreateEngine();
+  ASSERT_THAT(engine, NotNull());
+
   EXPECT_THAT(engine->QueryUpdate(Handle(1)),
               StatusIs(absl::StatusCode::kUnimplemented));
 }

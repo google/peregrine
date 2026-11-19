@@ -1,14 +1,18 @@
 #include "peregrine/src/internal/engine2/engine.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/base/optimization.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
+#include "absl/random/random.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "peregrine/src/api/transport_trace.h"
@@ -18,9 +22,30 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/engine2/assumptions.h"
+#include "peregrine/src/internal/engine2/transfer_manager.h"
 #include "peregrine/src/internal/trace/chrome_trace_exporter.h"
+#include "peregrine/src/util/util.h"
 
 namespace peregrine::internal::engine2 {
+namespace {
+
+// Returns a random starting value for handle allocation.
+Handle::ValueType RandomStartHandle() {
+  absl::BitGen bitgen;
+  return util::Random<Handle::ValueType>(bitgen);
+}
+
+// Returns the next handle from `next_handle`, skipping `kInvalidHandle` when
+// the counter wraps around.
+Handle GenNextHandle(std::atomic<Handle::ValueType>& next_handle) {
+  Handle::ValueType h = next_handle.fetch_add(1, std::memory_order_relaxed) + 1;
+  if (h == kInvalidHandle.value()) {
+    h = next_handle.fetch_add(1, std::memory_order_relaxed) + 1;
+  }
+  return Handle(h);
+}
+
+}  // namespace
 
 bool Engine::Item::IsValid() const {
   return !requests.empty() &&
@@ -37,18 +62,37 @@ std::unique_ptr<Engine> Engine::Create(
     LOG(ERROR) << "invalid config";
     return nullptr;
   }
-  return absl::WrapUnique(new Engine(config, self));
+  std::unique_ptr<TransferManager> transfer_manager =
+      TransferManager::Create(config, self, std::move(get_peer_host_info_fn));
+  if ABSL_PREDICT_FALSE (transfer_manager == nullptr) {
+    LOG(ERROR) << "failed to create transfer manager";
+    return nullptr;
+  }
+  return absl::WrapUnique(
+      new Engine(config, self, std::move(transfer_manager)));
 }
 
-Engine::Engine(const Config& config, const HostInfo& self)
+Engine::Engine(const Config& config, const HostInfo& self,
+               std::unique_ptr<TransferManager> transfer_manager)
     : config_(config),
       self_(self),
-      tracer_(TraceConfig{.sample_every_n = 0}) {}
+      next_handle_(RandomStartHandle()),
+      tracer_(TraceConfig{.sample_every_n = 0}),
+      transfer_manager_(std::move(transfer_manager)) {}
 
-absl::StatusOr<Handle> Engine::Enqueue(const Endpoint& peer, Item item) {
+absl::StatusOr<Handle> Engine::Enqueue(const PeerId& peer, Item item) {
   DCHECK(peer.HasNonzeroIpPort());
   DCHECK(item.IsValid());
-  return absl::UnimplementedError("Engine::Enqueue");
+  const Handle handle = GenNextHandle(next_handle_);
+  transfer_manager_->Submit(
+      peer, TransferManager::Post{
+                .handle = handle,
+                .requests = std::vector<Request>(item.requests.begin(),
+                                                 item.requests.end()),
+                .metadata = item.metadata,
+                .trace_ctx = item.trace_ctx,
+            });
+  return handle;
 }
 
 absl::StatusOr<Status> Engine::QueryUpdate(Handle handle) {

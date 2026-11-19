@@ -1,6 +1,7 @@
 #ifndef PEREGRINE_SRC_INTERNAL_ENGINE2_ENGINE_H_
 #define PEREGRINE_SRC_INTERNAL_ENGINE2_ENGINE_H_
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -16,7 +17,8 @@
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
-#include "peregrine/src/internal/engine2/assumptions.h"
+#include "peregrine/src/internal/engine2/peer_discovery.h"
+#include "peregrine/src/internal/engine2/transfer_manager.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
@@ -46,13 +48,6 @@ class Engine final {
     bool IsValid() const;
   };
 
-  // Asynchronously looks up `peer`'s `HostInfo` and reports it via `on_done`.
-  // Supplied by the engine's owner; see assumptions.h for the contract.
-  static_assert(assumptions::kPeerHostInfoLookupIsAsynchronous);
-  using GetPeerHostInfoFn = absl::AnyInvocable<void(
-      const Endpoint& peer,
-      absl::AnyInvocable<void(absl::StatusOr<HostInfo>)> on_done)>;
-
   // Creates an engine for the local host described by `self`, which must
   // outlive the engine. `get_peer_host_info_fn` looks up remote peers.
   // `recv_post_callback` and `resolve_addr_callback` serve requests initiated
@@ -63,13 +58,13 @@ class Engine final {
   //   `self.rdma_nics`.
   // - Creates the outgoing and incoming request trackers. The incoming tracker
   //   gets `recv_post_callback` and `resolve_addr_callback`, and reports
-  //   incoming two-sided reads so the engine schedules the write-back. The
+  //   incoming two-sided reads so the engine submits the write-back. The
   //   outgoing tracker reports posts rejected by the peer so the engine calls
-  //   `Scheduler::Cancel()`.
+  //   `TransferManager::Cancel()`.
   // - Creates the channel manager, which sets up the transports enabled by
   //   `config` and records their endpoints in `self.data_plane_listeners`.
-  // - Creates the scheduler with the channel manager and
-  //   `get_peer_host_info_fn`; the scheduler starts accepting channels.
+  // - Creates the transfer manager with the channel manager and
+  //   `get_peer_host_info_fn`; the transfer manager starts accepting channels.
   static std::unique_ptr<Engine> Create(
       const Config& config, HostInfo& self,
       GetPeerHostInfoFn get_peer_host_info_fn,
@@ -80,8 +75,8 @@ class Engine final {
   DISALLOW_MOVE(Engine);
 
   // Implementation details:
-  // - Destroys the scheduler before the request trackers, metrics, and tracer
-  //   it uses.
+  // - Destroys the transfer manager before the request trackers, metrics, and
+  //   tracer it uses.
   ~Engine() = default;
 
   // Submits `item` for transfer to `peer` and returns its handle. Does not wait
@@ -89,12 +84,9 @@ class Engine final {
   // endpoint and `item` must be valid.
   //
   // Implementation details:
-  // - Allocates a new handle.
   // - Registers the batch in the outgoing tracker (writes) or the incoming
   //   tracker (reads), together with `item.on_complete`.
-  // - Hands the batch to the scheduler: write data for writes, or a read
-  //   request frame for reads.
-  absl::StatusOr<Handle> Enqueue(const Endpoint& peer, Item item);
+  absl::StatusOr<Handle> Enqueue(const PeerId& peer, Item item);
 
   // Returns the status of `handle`, and forgets `handle` once it is complete.
   //
@@ -131,14 +123,20 @@ class Engine final {
   std::string ExportChromeTraceJson() const;
 
  private:
-  Engine(const Config& config, const HostInfo& self);
+  Engine(const Config& config, const HostInfo& self,
+         std::unique_ptr<TransferManager> transfer_manager);
 
  private:
   const Config config_;
   const HostInfo& self_;
 
+  std::atomic<Handle::ValueType> next_handle_;
+
   EngineMetrics metrics_;
   TraceRecorder tracer_;
+
+  // Declared last so it is destroyed first.
+  std::unique_ptr<TransferManager> transfer_manager_;
 };
 
 }  // namespace peregrine::internal::engine2
