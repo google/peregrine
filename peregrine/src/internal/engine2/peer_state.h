@@ -1,32 +1,26 @@
 #ifndef PEREGRINE_SRC_INTERNAL_ENGINE2_PEER_STATE_H_
 #define PEREGRINE_SRC_INTERNAL_ENGINE2_PEER_STATE_H_
 
-#include <atomic>
-#include <cstdint>
-#include <optional>
+#include <memory>
+#include <vector>
 
+#include "absl/base/thread_annotations.h"
+#include "absl/container/inlined_vector.h"
+#include "absl/synchronization/mutex.h"
 #include "peregrine/src/api/transport_types.h"
-#include "peregrine/src/internal/engine2/post.h"
+#include "peregrine/src/internal/engine2/peer_work_queue.h"
+#include "peregrine/src/internal/engine2/worker.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal::engine2 {
 
-// One chunk of one request, claimed by a worker to send. The worker turns the
-// claim into buffers, so the claim is the same for any data layout.
-struct ChunkClaim {
-  const Post* post = nullptr;
-  uint32_t request_index = 0;
-  uint32_t chunk_index = 0;
-};
-
-// State of one peer.
-//
-// `PeerState` holds the work queued for a peer and whether the peer's host
-// info has been requested.
+// Per-peer connection setup state, assigned workers, and work queue.
 //
 // Thread-safety: This class is thread-safe.
 class PeerState final {
  public:
+  using WorkerList = absl::InlinedVector<Worker*, 16>;
+
   PeerState() = default;
 
   DISALLOW_COPY(PeerState);
@@ -34,50 +28,52 @@ class PeerState final {
 
   ~PeerState() = default;
 
-  // Queues `post` for transfer.
-  //
-  // Implementation details:
-  // - Keeps each request whole, with a cursor marking how much of it has been
-  //   handed out. Workers carve the next chunk off the front as they pull
-  //   work, so enqueuing costs the same for any request size and faster
-  //   channels naturally take more chunks.
-  // - Queues one request frame for two-sided reads.
-  void Enqueue(Post post);
+  // Returns the peer's outgoing work queue. Safe to pass to workers as long as
+  // this PeerState outlives them.
+  PeerWorkQueue& work_queue() { return work_queue_; }
 
-  // Drops all queued work for `handle`.
-  //
-  // Implementation details:
-  // - Removes `handle`'s queued requests, frames, and chunks awaiting retry.
-  //   A chunk already pulled by a worker is not affected.
+  // Queues `post` for transfer. Returns true iff the peer transitioned from
+  // idle to setting up (caller should start peer setup). If the peer is
+  // already ready, appends its assigned workers to `to_wake`.
+  bool Enqueue(std::shared_ptr<QueuedPost> post, WorkerList& to_wake)
+      ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Records `count` outbound connect attempts started for this peer.
+  void OnConnectsStarted(int count) ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Marks the peer ready (covers both outbound and inbound channels) and
+  // records `worker` as serving a channel to this peer.
+  void OnChannelReady(Worker* worker) ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Records one failed outbound connect. If no connects remain in flight and
+  // the peer has no ready channels, resets to idle, drops queued posts, and
+  // returns their handles to fail.
+  std::vector<Handle> OnConnectFailed() ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Aborts an in-flight setup (e.g., host info lookup failure). No-op if the
+  // peer already has a ready channel; otherwise resets to idle, drops queued
+  // posts, and returns their handles to fail.
+  std::vector<Handle> AbortSetup() ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Drops all queued posts matching `handle`. Already-claimed chunks are not
+  // affected.
   void Purge(Handle handle);
 
-  // Claims the next chunk of the oldest queued request for a worker to send,
-  // or returns nullopt if no work is queued. The claimed post stays valid
-  // until it completes or is cancelled.
-  //
-  // Implementation details:
-  // - Advances the request's chunk cursor; moves to the next request once
-  //   every chunk of this one is claimed.
-  std::optional<ChunkClaim> TryPull();
-
-  // Returns true iff the caller should get the peer's host info: no request
-  // for it has started since this object was created or since the last
-  // `AbortPosts()`. Lock-free; after the first call this is a single load.
-  bool ShouldGetPeerHostInfo();
-
-  // Aborts all queued posts after a setup failure. The next
-  // `ShouldGetPeerHostInfo()` returns true, so the next post gets the peer's
-  // host info again.
-  //
-  // Implementation details:
-  // - Drops the queued posts and reports each one as failed to the outgoing
-  //   tracker, which reports the failure to the app. Resets the flag while
-  //   holding the queue's lock, so a post queued after the drop always finds
-  //   it reset.
-  void AbortPosts();
+  // Returns true iff at least one channel is ready for this peer.
+  bool IsReady() const ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
-  std::atomic<bool> host_info_requested_ = false;
+  enum class SetupState { kIdle, kSettingUp, kReady };
+
+  // Resets setup state to idle and drains queued post handles.
+  std::vector<Handle> drainAndResetLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
+
+ private:
+  PeerWorkQueue work_queue_;
+  mutable absl::Mutex mu_;
+  SetupState state_ ABSL_GUARDED_BY(mu_) = SetupState::kIdle;
+  int pending_connects_ ABSL_GUARDED_BY(mu_) = 0;
+  WorkerList workers_ ABSL_GUARDED_BY(mu_);
 };
 
 }  // namespace peregrine::internal::engine2

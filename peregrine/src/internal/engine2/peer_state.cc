@@ -1,28 +1,75 @@
 #include "peregrine/src/internal/engine2/peer_state.h"
 
-#include <atomic>
-#include <optional>
+#include <algorithm>
+#include <memory>
+#include <utility>
+#include <vector>
 
+#include "absl/log/check.h"
+#include "absl/synchronization/mutex.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/engine2/assumptions.h"
-#include "peregrine/src/internal/engine2/post.h"
+#include "peregrine/src/internal/engine2/peer_work_queue.h"
+#include "peregrine/src/internal/engine2/worker.h"
 
 namespace peregrine::internal::engine2 {
 
-void PeerState::Enqueue(Post post) {}
-
-void PeerState::Purge(Handle handle) {}
-
-std::optional<ChunkClaim> PeerState::TryPull() { return std::nullopt; }
-
-bool PeerState::ShouldGetPeerHostInfo() {
-  if (host_info_requested_.load(std::memory_order_acquire)) return false;
-  return !host_info_requested_.exchange(true, std::memory_order_acq_rel);
+bool PeerState::Enqueue(std::shared_ptr<QueuedPost> post, WorkerList& to_wake) {
+  absl::MutexLock lock(mu_);
+  work_queue_.Enqueue(std::move(post));
+  if (state_ == SetupState::kIdle) {
+    state_ = SetupState::kSettingUp;
+    return true;
+  }
+  if (state_ == SetupState::kReady) {
+    to_wake.insert(to_wake.end(), workers_.begin(), workers_.end());
+  }
+  return false;
 }
 
-void PeerState::AbortPosts() {
+void PeerState::OnConnectsStarted(const int count) {
+  DCHECK_GE(count, 0);
+  absl::MutexLock lock(mu_);
+  pending_connects_ += count;
+}
+
+void PeerState::OnChannelReady(Worker* worker) {
+  DCHECK(worker != nullptr);
+  absl::MutexLock lock(mu_);
+  state_ = SetupState::kReady;
+  if (std::find(workers_.begin(), workers_.end(), worker) == workers_.end()) {
+    workers_.push_back(worker);
+  }
+}
+
+std::vector<Handle> PeerState::OnConnectFailed() {
   static_assert(assumptions::kSetupFailuresAbortQueuedPosts);
-  host_info_requested_.store(false, std::memory_order_release);
+  absl::MutexLock lock(mu_);
+  if (pending_connects_ > 0) --pending_connects_;
+  if (pending_connects_ == 0 && state_ != SetupState::kReady) {
+    return drainAndResetLocked();
+  }
+  return {};
+}
+
+std::vector<Handle> PeerState::AbortSetup() {
+  static_assert(assumptions::kSetupFailuresAbortQueuedPosts);
+  absl::MutexLock lock(mu_);
+  if (state_ == SetupState::kReady) return {};
+  return drainAndResetLocked();
+}
+
+void PeerState::Purge(const Handle handle) { work_queue_.Purge(handle); }
+
+bool PeerState::IsReady() const {
+  absl::MutexLock lock(mu_);
+  return state_ == SetupState::kReady;
+}
+
+std::vector<Handle> PeerState::drainAndResetLocked() {
+  state_ = SetupState::kIdle;
+  pending_connects_ = 0;
+  return work_queue_.DrainHandles();
 }
 
 }  // namespace peregrine::internal::engine2

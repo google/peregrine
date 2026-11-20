@@ -1,123 +1,125 @@
 #ifndef PEREGRINE_SRC_INTERNAL_ENGINE2_TRANSFER_MANAGER_H_
 #define PEREGRINE_SRC_INTERNAL_ENGINE2_TRANSFER_MANAGER_H_
 
+#include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/engine2/channel_manager.h"
 #include "peregrine/src/internal/engine2/peer_discovery.h"
 #include "peregrine/src/internal/engine2/peer_state.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/worker.h"
+#include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/util/macro.h"
+#include "peregrine/src/util/thread.h"
 
 namespace peregrine::internal::engine2 {
 
-// Transfers posts to peers in parallel.
-//
-// `TransferManager` takes each post from `Engine`, divides it into small
-// pieces, and transfers them to the peer in parallel. It also manages each
-// transfer through cancellations and connection disruptions.
+// Coordinates per-peer setup, work queuing, and workers.
 //
 // Thread-safety: This class is thread-safe.
 class TransferManager final {
  public:
-  // Creates a transfer manager for the local host described by `self`, which
-  // must outlive the transfer manager. Creates a worker per local TCP rail.
-  // `get_peer_host_info_fn` looks up remote peers. Takes ownership of
-  // `channel_manager` and starts it. Returns nullptr on failure.
+  // Creates a transfer manager for `self` (which must outlive it) using
+  // `outgoing` to report setup failures. Takes ownership of `channel_manager`
+  // and starts it. Returns nullptr on failure.
   static std::unique_ptr<TransferManager> Create(
-      const Config& config, const HostInfo& self,
+      const Config& config, const HostInfo& self, RequestTracker& outgoing,
       GetPeerHostInfoFn get_peer_host_info_fn,
       std::unique_ptr<ChannelManager> channel_manager);
 
   DISALLOW_COPY(TransferManager);
   DISALLOW_MOVE(TransferManager);
 
-  // Stops host info callbacks from reaching this object, then stops the
-  // channel manager, then the workers, then frees per-peer state.
+  // Stops the setup thread, then the channel manager, then workers and peers.
   ~TransferManager();
 
-  // Queues `post` for transfer to `peer`, and wakes the workers. Returns
-  // without waiting. Gets `peer`'s host info if it is new.
-  void Submit(const PeerId& peer, Post post);
+  // Queues `post` (with pre-built `req_infos`) for transfer to `peer` without
+  // blocking. Triggers peer setup if `peer` is idle, or wakes its workers if
+  // ready.
+  void Submit(const PeerId& peer, Post post,
+              std::vector<RequestInfo> req_infos);
 
-  // Cancels all pending work for post `handle` to `peer` and releases its
-  // state. Once cancellation completes, no worker accesses `handle`'s buffers.
-  //
-  // Implementation details:
-  // - Lets any chunk already being written finish, so the stream stays framed.
-  // - Reports to the outgoing tracker once every worker serving `peer` is done
-  //   with `handle`.
+  // Cancels queued work for `handle` to `peer`.
   void Cancel(const PeerId& peer, Handle handle);
 
  private:
   TransferManager(const Config& config, const HostInfo& self,
+                  RequestTracker& outgoing,
                   GetPeerHostInfoFn get_peer_host_info_fn,
                   std::unique_ptr<ChannelManager> channel_manager);
 
   // Returns the state of `peer`, creating it if needed.
-  PeerState& getOrCreatePeer(const PeerId& peer) ABSL_LOCKS_EXCLUDED(mu_);
+  PeerState& getOrCreatePeer(const PeerId& peer) ABSL_LOCKS_EXCLUDED(peers_mu_);
 
-  // Returns the state of `peer`, or nullptr if there is none.
-  PeerState* findPeer(const PeerId& peer) ABSL_LOCKS_EXCLUDED(mu_);
+  // Returns the state of `peer`, or nullptr if none exists.
+  PeerState* findPeer(const PeerId& peer) ABSL_LOCKS_EXCLUDED(peers_mu_);
 
-  // Handles `peer`'s host info, and opens channels to it. On
-  // failure, or if the host info is not `peer`'s, aborts `peer`'s posts.
-  void onPeerHostInfo(const PeerId& peer, absl::StatusOr<HostInfo> host_info);
+  // Background loop resolving host info and initiating async connects.
+  void setupLoop();
 
-  // Hands a ready channel to `peer` on `local_rail_id` to its worker.
+  // Performs a blocking host info lookup and starts async connects for one
+  // peer. Runs on `setup_thread_`.
+  void setupPeer(const PeerId& peer);
+
+  // Marks `peer` ready and hands `ch` to a worker on `local_rail_id`.
   void onChannelReady(const PeerId& peer, uint32_t local_rail_id,
                       std::unique_ptr<Channel> ch);
 
-  // Aborts `peer`'s posts after a channel to it fails to open.
+  // Records a connect failure and fails queued posts if all connects failed.
   void onConnectFailed(const PeerId& peer, uint32_t local_rail_id,
                        uint32_t remote_rail_id, absl::Status status);
 
-  // Aborts all posts queued for `peer` after a setup failure.
-  void abortPosts(const PeerId& peer);
+  // Marks every handle in `handles` failed in `outgoing_`.
+  void failHandles(const std::vector<Handle>& handles);
 
-  // Returns the worker on `rail_id`, or nullptr if there is none.
-  Worker* workerFor(uint32_t rail_id) const;
+  // Picks the next worker for `local_rail_id` (round-robin), falling back to
+  // any worker if `local_rail_id` has none. Returns nullptr if there are no
+  // workers.
+  Worker* pickWorker(uint32_t local_rail_id);
 
  private:
-  // Lets host info callbacks reach the transfer manager only while it is
-  // alive. A lookup may complete after the transfer manager is destroyed, so
-  // its callback holds this guard instead of a raw `this`.
-  struct LifetimeGuard {
-    absl::Mutex mu;
-    TransferManager* transfer_manager ABSL_GUARDED_BY(mu);
+  // Workers assigned to a single local rail, with a round-robin cursor.
+  struct RailWorkers {
+    std::vector<Worker*> workers;
+    std::atomic<size_t> next = 0;
   };
 
- private:
   const Config config_;
   const HostInfo& self_;
+  RequestTracker& outgoing_;
   GetPeerHostInfoFn get_peer_host_info_fn_;
-  const std::shared_ptr<LifetimeGuard> guard_;
 
-  // Per-peer state. Entries are never removed while the transfer manager is
-  // alive, so references to them stay valid without holding `mu_`.
-  absl::Mutex mu_;
+  // Per-peer state. Entries are never erased while alive, so pointers stay
+  // valid without holding `peers_mu_`.
+  absl::Mutex peers_mu_;
   absl::flat_hash_map<PeerId, std::unique_ptr<PeerState>> peers_
-      ABSL_GUARDED_BY(mu_);
+      ABSL_GUARDED_BY(peers_mu_);
 
-  // Workers indexed by local rail ID. Fixed after construction, so read
-  // without a lock. Declared after `peers_` so workers are destroyed first.
+  // Fixed after construction, so read without a lock.
   std::vector<std::unique_ptr<Worker>> workers_;
+  absl::flat_hash_map<uint32_t, std::unique_ptr<RailWorkers>> rail_workers_;
 
-  // Declared last so it is destroyed first, before its callbacks' targets.
   std::unique_ptr<ChannelManager> channel_manager_;
+
+  absl::Mutex setup_mu_;
+  bool setup_stop_ ABSL_GUARDED_BY(setup_mu_) = false;
+  std::deque<PeerId> setup_queue_ ABSL_GUARDED_BY(setup_mu_);
+  util::Jthread setup_thread_;
 };
 
 }  // namespace peregrine::internal::engine2

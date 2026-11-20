@@ -17,21 +17,18 @@
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
+#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/engine2/peer_discovery.h"
 #include "peregrine/src/internal/engine2/transfer_manager.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
+#include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal::engine2 {
 
-// The transport data plane.
-//
-// `Engine` accepts batches of transport requests to remote peers, transfers
-// them asynchronously, and reports each batch's outcome through its
-// `on_complete` callback or through `QueryUpdate()`. It also serves requests
-// initiated by remote peers.
+// Transport data plane accepting asynchronous transfer batches to remote peers.
 //
 // Thread-safety: This class is thread-safe.
 class Engine final {
@@ -48,21 +45,9 @@ class Engine final {
     bool IsValid() const;
   };
 
-  // Creates an engine for the local host described by `self`, which must
-  // outlive the engine. `get_peer_host_info_fn` looks up remote peers.
-  // `recv_post_callback` and `resolve_addr_callback` serve requests initiated
-  // by remote peers. Creates the channel manager, which records the data-plane
-  // endpoints in `self`, and hands it to the transfer manager. Returns nullptr
-  // on failure.
-  //
-  // Implementation details:
-  // - If `self` has no NICs, discovers them into `self.tcp_nics` and
-  //   `self.rdma_nics`.
-  // - Creates the outgoing and incoming request trackers. The incoming tracker
-  //   gets `recv_post_callback` and `resolve_addr_callback`, and reports
-  //   incoming two-sided reads so the engine submits the write-back. The
-  //   outgoing tracker reports posts rejected by the peer so the engine calls
-  //   `TransferManager::Cancel()`.
+  // Creates an engine for `self` (which must outlive it). Populates
+  // `self.data_plane_listeners`. Fails closed if `config` requests unsupported
+  // features (such as dataplane encryption). Returns nullptr on failure.
   static std::unique_ptr<Engine> Create(
       const Config& config, HostInfo& self,
       GetPeerHostInfoFn get_peer_host_info_fn,
@@ -72,37 +57,20 @@ class Engine final {
   DISALLOW_COPY(Engine);
   DISALLOW_MOVE(Engine);
 
-  // Implementation details:
-  // - Destroys the transfer manager before the request trackers, metrics, and
-  //   tracer it uses.
+  // Destroys the transfer manager before the trackers, metrics, and tracer.
   ~Engine() = default;
 
-  // Submits `item` for transfer to `peer` and returns its handle. Does not wait
-  // for the transfer or for a connection to `peer`. `peer` must be a valid
-  // endpoint and `item` must be valid.
-  //
-  // Implementation details:
-  // - Registers the batch in the outgoing tracker (writes) or the incoming
-  //   tracker (reads), together with `item.on_complete`.
+  // Submits `item` for transfer to `peer` and returns its handle without
+  // blocking.
   absl::StatusOr<Handle> Enqueue(const PeerId& peer, Item item);
 
   // Returns the status of `handle`, and forgets `handle` once it is complete.
-  //
-  // Implementation details:
-  // - Looks up `handle` in the outgoing tracker, then the incoming tracker.
-  // - Returns `NotFoundError` if neither tracks it; removes it once complete.
   absl::StatusOr<Status> QueryUpdate(Handle handle);
 
-  // Registers a contiguous memory buffer for RDMA.
-  //
-  // Implementation details:
-  // - Returns OK until the RDMA transport exists; then delegates to it.
+  // Registers a contiguous memory buffer for RDMA (no-op for TCP).
   absl::Status RegisterMemory(void* addr, size_t length);
 
-  // Unregisters a previously registered RDMA memory buffer.
-  //
-  // Implementation details:
-  // - Returns OK until the RDMA transport exists; then delegates to it.
+  // Unregisters a previously registered RDMA memory buffer (no-op for TCP).
   absl::Status UnregisterMemory(const void* addr);
 
   // Adds a snapshot of data-plane metrics to `m`.
@@ -122,18 +90,23 @@ class Engine final {
 
  private:
   Engine(const Config& config, const HostInfo& self,
-         std::unique_ptr<TransferManager> transfer_manager);
+         RecvPostCallback recv_post_callback,
+         ResolveAddrCallback resolve_addr_callback);
 
  private:
   const Config config_;
   const HostInfo& self_;
 
   std::atomic<Handle::ValueType> next_handle_;
+  std::atomic<ReqId::ValueType> next_req_id_;
 
   EngineMetrics metrics_;
   TraceRecorder tracer_;
+  RequestTracker outgoing_;
+  RequestTracker incoming_;
 
-  // Declared last so it is destroyed first.
+  // Declared last so it is destroyed before `outgoing_`, `incoming_`, and
+  // `metrics_`.
   std::unique_ptr<TransferManager> transfer_manager_;
 };
 

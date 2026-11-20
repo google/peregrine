@@ -9,13 +9,11 @@
 
 namespace peregrine::internal::engine2 {
 
-// Peer discovery: resolves `peer` to its `HostInfo` and reports it via
-// `on_done`. Supplied by the engine's owner; see assumptions.h for the
-// contract.
-static_assert(assumptions::kPeerHostInfoLookupIsAsynchronous);
-using GetPeerHostInfoFn = absl::AnyInvocable<void(
-    const PeerId& peer,
-    absl::AnyInvocable<void(absl::StatusOr<HostInfo>)> on_done)>;
+// Synchronous peer discovery hook: resolves `peer` to its `HostInfo`.
+// Invoked on `TransferManager`'s setup thread; see assumptions.h.
+static_assert(assumptions::kPeerHostInfoLookupRunsOnSetupThread);
+using GetPeerHostInfoFn =
+    absl::AnyInvocable<absl::StatusOr<HostInfo>(const PeerId& peer)>;
 
 }  // namespace peregrine::internal::engine2
 

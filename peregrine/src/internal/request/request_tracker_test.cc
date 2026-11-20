@@ -489,8 +489,7 @@ TEST_F(RequestTrackerTest, ReadResponderOnRecvRead) {
         recv_reqs.assign(r.begin(), r.end());
       });
 
-  ASSERT_TRUE(
-      rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta, kPeer));
+  ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta, kPeer));
   EXPECT_EQ(on_recv_read_calls, 1);
   EXPECT_EQ(recv_peer, kPeer);
   EXPECT_EQ(recv_handle, kHandle);
@@ -684,6 +683,38 @@ TEST_F(RequestTrackerTest, FailCompletesInitiator) {
 
   // Subsequent call fails because handle was already removed.
   EXPECT_FALSE(rt_.Fail(kHandle, Status::kFailure));
+}
+
+TEST_F(RequestTrackerTest, FailMarksPolledInitiatorFailedUntilRemoved) {
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), /*on_complete=*/nullptr,
+                      TraceContext{}));
+  EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
+
+  EXPECT_TRUE(rt_.Fail(kHandle, Status::kFailure));
+  EXPECT_EQ(rt_.Check(kHandle), Status::kFailure);
+
+  // Subsequent fail is a no-op while already failed.
+  EXPECT_FALSE(rt_.Fail(kHandle, Status::kFailure));
+
+  rt_.Remove(kHandle);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
+}
+
+TEST_F(RequestTrackerTest, AddPreservesCallbackOnCollision) {
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), /*on_complete=*/nullptr,
+                      TraceContext{}));
+
+  bool called = false;
+  RequestTracker::OnComplete cb = [&](Status) { called = true; };
+  EXPECT_FALSE(
+      rt_.Add(kHandle, util::MonoNowUs(), std::move(cb), TraceContext{}));
+  EXPECT_NE(cb, nullptr);
+
+  const Handle handle2(kHandle.value() + 1);
+  ASSERT_TRUE(
+      rt_.Add(handle2, util::MonoNowUs(), std::move(cb), TraceContext{}));
+  EXPECT_TRUE(rt_.Fail(handle2, Status::kFailure));
+  EXPECT_TRUE(called);
 }
 }  // namespace
 }  // namespace peregrine::internal::testing

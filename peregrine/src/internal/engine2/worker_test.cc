@@ -6,7 +6,7 @@
 #include "gtest/gtest.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
-#include "peregrine/src/internal/engine2/peer_state.h"
+#include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
 
 namespace peregrine::internal::engine2 {
@@ -24,9 +24,9 @@ class FakeChannel final : public Channel {
 };
 
 TEST(WorkerTest, AcceptsChannelsAndWakeUps) {
-  PeerState peer_state;
+  PeerWorkQueue work_queue;
   Worker worker(/*rail_id=*/0);
-  worker.AddChannel(std::make_unique<FakeChannel>(), peer_state);
+  worker.AddChannel(std::make_unique<FakeChannel>(), work_queue);
   worker.Wake();
 }
 

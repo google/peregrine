@@ -49,12 +49,13 @@ Status RequestTracker::Check(const Handle handle, const Endpoint& peer) const {
 }
 
 bool RequestTracker::Add(const Handle handle, const uint64_t start_mono_us,
-                         OnComplete on_complete,
+                         OnComplete&& on_complete,
                          const TraceContext& trace_ctx) {
-  PostTracker pt(/*req_map=*/{}, start_mono_us, std::move(on_complete),
-                 trace_ctx);
   absl::MutexLock _(trackers_mu_);
-  return trackers_.try_emplace(Key{Endpoint{}, handle}, std::move(pt)).second;
+  return trackers_
+      .try_emplace(Key{Endpoint{}, handle}, ReqMap{}, start_mono_us,
+                   std::move(on_complete), trace_ctx)
+      .second;
 }
 
 bool RequestTracker::Add(const Handle handle,
@@ -141,8 +142,11 @@ bool RequestTracker::Fail(const Handle handle, const Status status) {
     PostTracker& pt = it->second;
     if (pt.on_complete != nullptr) {
       callback = std::move(pt.on_complete);
+      trackers_.erase(it);
+    } else {
+      if (pt.failed) return false;
+      pt.failed = true;
     }
-    trackers_.erase(it);
   }
   if (callback != nullptr) {
     std::move(callback)(status);

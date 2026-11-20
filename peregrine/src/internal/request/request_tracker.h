@@ -57,8 +57,9 @@ class RequestTracker {
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Adds the tracker for the given `handle`.
-  // Returns true iff the handle was not already in the tracker.
-  bool Add(Handle handle, uint64_t start_mono_us, OnComplete on_complete,
+  // Returns true iff the handle was not already in the tracker; `on_complete`
+  // is only consumed when returning true.
+  bool Add(Handle handle, uint64_t start_mono_us, OnComplete&& on_complete,
            const TraceContext& trace_ctx) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Adds the `RequestInfo` descriptors (and optional post-level `metadata`) for
@@ -71,8 +72,10 @@ class RequestTracker {
   void Remove(Handle handle, const Endpoint& peer = {})
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Fails the tracker for `handle`, cleans up tracked state, and invokes
-  // `on_complete(status)` if registered.
+  // Fails the tracker for `handle`. If a completion callback is registered,
+  // invokes `on_complete(status)` and removes the handle; otherwise marks the
+  // handle failed so callers polling `Check()` observe `Status::kFailure`
+  // until `Remove()` is called.
   bool Fail(Handle handle, Status status = Status::kFailure)
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 

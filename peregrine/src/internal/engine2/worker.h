@@ -5,7 +5,7 @@
 #include <memory>
 
 #include "peregrine/src/internal/channel/channel.h"
-#include "peregrine/src/internal/engine2/peer_state.h"
+#include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal::engine2 {
@@ -29,15 +29,15 @@ class Worker final {
   // - Stops the thread and closes the worker's channels.
   ~Worker() = default;
 
-  // Takes `ch` for the peer whose state is `peer_state`, and uses it for both
-  // sending that peer's queued work and receiving incoming data. `peer_state`
-  // must outlive the worker.
+  // Takes `ch` for the peer whose work queue is `work_queue`, and uses it for
+  // both sending that peer's queued work and receiving incoming data.
+  // `work_queue` must outlive the worker.
   //
   // Implementation details:
   // - Adds `ch` to the event loop. When writable, claims chunks with
-  //   `peer_state.TryPull()` and writes them. When readable, places incoming
+  //   `work_queue.TryPull()` and writes them. When readable, places incoming
   //   chunks into their destination buffers and acks them.
-  void AddChannel(std::unique_ptr<Channel> ch, PeerState& peer_state);
+  void AddChannel(std::unique_ptr<Channel> ch, PeerWorkQueue& work_queue);
 
   // Tells the worker that a peer it serves may have new work.
   //

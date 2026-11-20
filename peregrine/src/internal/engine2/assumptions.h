@@ -6,25 +6,15 @@ namespace peregrine::internal::engine2::assumptions {
 // Assumptions about peer host info lookup.
 // ---------------------------------------------------------------------------
 //
-// To connect to a peer, the engine needs the peer's `HostInfo`, which it
-// obtains through a peer discovery hook (`GetPeerHostInfoFn` in
-// peer_discovery.h) supplied by its owner. In production the hook asks the
-// peer over the control plane; in tests it may read from an in-process table.
-// The engine calls the hook with the peer's control-plane endpoint and a
-// completion callback `on_done`, at most once at a time per peer, and caches
-// the result.
+// To connect to a peer, the engine needs the peer's `HostInfo`, obtained
+// through `GetPeerHostInfoFn` (peer_discovery.h). In production this calls
+// `Control::GetPeerHostInfo`, which is a synchronous RPC with a local cache.
 //
-// A lookup may take a network round trip, while the engine must keep serving
-// requests to other peers. So peer host info lookup is asynchronous, and hook
-// implementations must:
-//  - Return without blocking; slow work such as an RPC runs asynchronously.
-//  - Invoke `on_done` exactly once with the `HostInfo` or an error, including
-//    on timeout or shutdown, so requests waiting on the peer always complete.
-//    Lookups should be bounded in time.
-//  - Expect that `on_done` may run on any thread, including inside the hook
-//    call; the engine never holds its locks while calling the hook. `on_done`
-//    must not block.
-inline constexpr bool kPeerHostInfoLookupIsAsynchronous = true;
+// `TransferManager` invokes `GetPeerHostInfoFn` on a dedicated setup thread so
+// app threads calling `Engine::Enqueue()` never block on network lookups.
+// Lookup implementations must be bounded in time (e.g. RPC deadline) so one
+// unreachable peer does not stall setup for other peers indefinitely.
+inline constexpr bool kPeerHostInfoLookupRunsOnSetupThread = true;
 
 // Assumptions about the local host info.
 // ---------------------------------------------------------------------------
@@ -57,13 +47,23 @@ inline constexpr bool kLocalIdentityIsReadOnlyAfterControlPlaneStarts = true;
 //  - Do not block, since blocking stalls I/O for all other peers.
 inline constexpr bool kChannelManagerCallbacksMayRunOnAnyThread = true;
 
-// Assumptions about failures.
+// Assumptions about setup failures.
 // ---------------------------------------------------------------------------
 //
-// For now, if getting a peer's host info or opening a channel to it fails, the
-// engine aborts all posts queued for the peer and reports them failed to the
-// app, without retrying. The next post to the peer gets its host info again.
+// If host info lookup fails, returns a mismatched peer, or every connect for a
+// peer fails with no ready channels, the engine fails all posts queued for
+// that peer (via `RequestTracker::Fail`) without retrying, and resets the peer
+// to idle so the next post triggers setup again.
 inline constexpr bool kSetupFailuresAbortQueuedPosts = true;
+
+// Assumptions about simultaneous connects.
+// ---------------------------------------------------------------------------
+//
+// Channels are bidirectional: an accepted inbound channel marks the peer ready
+// so the receiving side skips host info lookup and outbound connects. If both
+// peers connect to each other at the same time, both sets of channels (up to
+// 2 * num_conns_per_peer) are kept and used rather than deduplicated.
+inline constexpr bool kDuplicateChannelsAllowedOnSimultaneousConnect = true;
 
 }  // namespace peregrine::internal::engine2::assumptions
 

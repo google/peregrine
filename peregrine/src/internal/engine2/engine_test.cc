@@ -2,15 +2,18 @@
 
 #include <array>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/synchronization/notification.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "peregrine/src/api/transport_metrics.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
@@ -23,19 +26,17 @@ namespace peregrine::internal::engine2 {
 namespace {
 
 using ::absl_testing::IsOk;
+using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::NotNull;
 
-// Peer lookup hook that returns an empty host info for every peer; no test
-// here transfers data to a peer.
 GetPeerHostInfoFn StaticPeerLookup() {
-  return [](const PeerId& peer,
-            absl::AnyInvocable<void(absl::StatusOr<HostInfo>)> on_done) {
+  return [](const PeerId& peer) -> absl::StatusOr<HostInfo> {
     HostInfo info;
     info.control_plane_listener = peer;
-    on_done(info);
+    return info;
   };
 }
 
@@ -45,8 +46,9 @@ class EngineTest : public ::testing::Test {
     self_.control_plane_listener = Endpoint::Create("127.0.0.1:10000");
   }
 
-  std::unique_ptr<Engine> CreateEngine() {
-    return Engine::Create(Config{}, self_, StaticPeerLookup());
+  std::unique_ptr<Engine> CreateEngine(
+      GetPeerHostInfoFn lookup = StaticPeerLookup()) {
+    return Engine::Create(Config{}, self_, std::move(lookup));
   }
 
   HostInfo self_;
@@ -70,56 +72,124 @@ TEST_F(EngineTest, ItemValidity) {
   EXPECT_FALSE(Engine::Item{.requests = bad_len}.IsValid());
 }
 
-TEST_F(EngineTest, CreateRejectsInvalidConfig) {
-  Config config;
-  config.num_conns_per_peer = 0;
-  EXPECT_EQ(Engine::Create(config, self_, StaticPeerLookup()), nullptr);
+TEST_F(EngineTest, CreateRejectsInvalidConfigAndEncryption) {
+  Config bad_conns;
+  bad_conns.num_conns_per_peer = 0;
+  EXPECT_EQ(Engine::Create(bad_conns, self_, StaticPeerLookup()), nullptr);
+
+  Config encrypted;
+  encrypted.require_dataplane_encryption = true;
+  EXPECT_EQ(Engine::Create(encrypted, self_, StaticPeerLookup()), nullptr);
+
+  Config rdma;
+  rdma.transport_type = TransportType::kRdma;
+  EXPECT_EQ(Engine::Create(rdma, self_, StaticPeerLookup()), nullptr);
+
+  EXPECT_EQ(Engine::Create(Config{}, self_, /*get_peer_host_info_fn=*/nullptr),
+            nullptr);
 }
 
-TEST_F(EngineTest, CreateWithoutControlPlane) {
-  EXPECT_THAT(CreateEngine(), NotNull());
-}
-
-TEST_F(EngineTest, EnqueueReturnsUniqueValidHandles) {
+TEST_F(EngineTest, EnqueueRejectsReadsAndInvalidInputs) {
   const std::unique_ptr<Engine> engine = CreateEngine();
+  ASSERT_THAT(engine, NotNull());
+
+  const Endpoint peer = Endpoint::Create("127.0.0.1:20000");
+  const std::vector<Request> read_req = {
+      {.op = Op::kRead, .laddr = buf_.data(), .len = buf_.size()}};
+  EXPECT_THAT(engine->Enqueue(peer, Engine::Item{.requests = read_req}),
+              StatusIs(absl::StatusCode::kUnimplemented));
+
+  const std::vector<Request> write_req = {
+      {.op = Op::kWrite, .laddr = buf_.data(), .len = buf_.size()}};
+  EXPECT_THAT(engine->Enqueue(Endpoint(), Engine::Item{.requests = write_req}),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  EXPECT_THAT(engine->Enqueue(peer, Engine::Item{}),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+}
+
+TEST_F(EngineTest, EnqueueReturnsUniqueHandlesAndTracksStatus) {
+  // Keep lookup blocked until test ends so handles stay in progress.
+  absl::Notification release;
+  auto engine = CreateEngine([&](const PeerId&) -> absl::StatusOr<HostInfo> {
+    release.WaitForNotification();
+    return absl::UnavailableError("shutdown");
+  });
   ASSERT_THAT(engine, NotNull());
 
   const std::vector<Request> reqs = {
       {.op = Op::kWrite, .laddr = buf_.data(), .len = buf_.size()}};
   const Endpoint peer = Endpoint::Create("127.0.0.1:20000");
   absl::flat_hash_set<Handle> handles;
-  for (int i = 0; i < 100; ++i) {
+  for (int i = 0; i < 10; ++i) {
     const absl::StatusOr<Handle> h =
         engine->Enqueue(peer, Engine::Item{.requests = reqs});
     ASSERT_THAT(h, IsOk());
     EXPECT_NE(*h, kInvalidHandle);
-    EXPECT_TRUE(handles.insert(*h).second) << "duplicate handle " << *h;
+    EXPECT_TRUE(handles.insert(*h).second);
+    EXPECT_THAT(engine->QueryUpdate(*h), IsOkAndHolds(Status::kInProgress));
   }
+  EXPECT_THAT(engine->QueryUpdate(Handle(0)),
+              StatusIs(absl::StatusCode::kNotFound));
+  release.Notify();
 }
 
-TEST_F(EngineTest, QueryUpdateReturnsUnimplemented) {
-  const std::unique_ptr<Engine> engine = CreateEngine();
+TEST_F(EngineTest, SetupFailureInvokesOnCompleteWithFailure) {
+  auto engine = CreateEngine([](const PeerId&) -> absl::StatusOr<HostInfo> {
+    return absl::UnavailableError("unreachable");
+  });
   ASSERT_THAT(engine, NotNull());
 
-  EXPECT_THAT(engine->QueryUpdate(Handle(1)),
-              StatusIs(absl::StatusCode::kUnimplemented));
+  absl::Notification done;
+  Status final_status = Status::kInProgress;
+  const std::vector<Request> reqs = {
+      {.op = Op::kWrite, .laddr = buf_.data(), .len = buf_.size()}};
+  const absl::StatusOr<Handle> h = engine->Enqueue(
+      Endpoint::Create("127.0.0.1:20000"), Engine::Item{
+                                               .requests = reqs,
+                                               .on_complete =
+                                                   [&](Status s) {
+                                                     final_status = s;
+                                                     done.Notify();
+                                                   },
+                                           });
+  ASSERT_THAT(h, IsOk());
+  ASSERT_TRUE(done.WaitForNotificationWithTimeout(absl::Seconds(10)));
+  EXPECT_EQ(final_status, Status::kFailure);
 }
 
-TEST_F(EngineTest, MemoryRegistrationSucceeds) {
+TEST_F(EngineTest, SetupFailureReportedByQueryUpdateForPolledPost) {
+  auto engine = CreateEngine([](const PeerId&) -> absl::StatusOr<HostInfo> {
+    return absl::UnavailableError("unreachable");
+  });
+  ASSERT_THAT(engine, NotNull());
+
+  const std::vector<Request> reqs = {
+      {.op = Op::kWrite, .laddr = buf_.data(), .len = buf_.size()}};
+  const absl::StatusOr<Handle> h = engine->Enqueue(
+      Endpoint::Create("127.0.0.1:20001"), Engine::Item{.requests = reqs});
+  ASSERT_THAT(h, IsOk());
+
+  absl::StatusOr<Status> status = Status::kInProgress;
+  const absl::Time deadline = absl::Now() + absl::Seconds(10);
+  while (absl::Now() < deadline) {
+    status = engine->QueryUpdate(*h);
+    if (!status.ok() || *status != Status::kInProgress) break;
+    absl::SleepFor(absl::Milliseconds(5));
+  }
+  EXPECT_THAT(status, IsOkAndHolds(Status::kFailure));
+  // Reaped once observed by QueryUpdate.
+  EXPECT_THAT(engine->QueryUpdate(*h), StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST_F(EngineTest, MemoryRegistrationAndMetrics) {
   const std::unique_ptr<Engine> engine = CreateEngine();
   ASSERT_THAT(engine, NotNull());
 
   EXPECT_THAT(engine->RegisterMemory(buf_.data(), buf_.size()), IsOk());
   EXPECT_THAT(engine->UnregisterMemory(buf_.data()), IsOk());
-}
-
-TEST_F(EngineTest, MetricsAndTracing) {
-  const std::unique_ptr<Engine> engine = CreateEngine();
-  ASSERT_THAT(engine, NotNull());
 
   TransportMetrics metrics;
   engine->GetMetrics(metrics);
-
   engine->ConfigureTrace(TraceConfig{.sample_every_n = 1});
   engine->ClearTrace();
   EXPECT_THAT(engine->ExportChromeTraceJson(), Not(IsEmpty()));
