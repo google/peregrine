@@ -199,8 +199,9 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
   }
   static_assert(
       assumptions::kPostInfoHeaderIsSentOnEveryChannelBeforeDataHeader);
-  if (info.peer.HasNonzeroIpPort()) {
-    channel->SetPeer(info.peer);
+  if ABSL_PREDICT_FALSE (!info.peer.HasNonzeroIpPort()) {
+    LOG(WARNING) << "invalid peer endpoint in post info header: " << info;
+    return false;
   }
   if (!incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer)) {
     FailureHeader failure = {};
@@ -210,6 +211,7 @@ bool Transfer::recvPostInfoStream(Channel* const channel,
     SendFailure(channel, failure);
     return false;
   }
+  channel->SetPeer(info.peer);
   return true;
 }
 
@@ -228,33 +230,30 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
   const bool is_traced = chunk.trace.IsTraced();
   const uint64_t t_start_us = is_traced ? util::MonoNowUs() : 0;
 
-  // Step 2: find chunk tracker for incoming data chunk.
+  // Step 2: find destination address and chunk tracker for incoming data chunk.
   // TODO: Relax the assumption that `PostInfoHeader` has already been processed
-  // and registered in `incoming` before `DataHeader` chunks arrive. Also have
-  // `incoming.Find()` return `ChunkTracker*` to avoid the extra `Check()` lock
-  // + `isComplete()` scan and `.at()` abort on missing `reqid`.
+  // and registered in `incoming` before `DataHeader` chunks arrive.
   const Endpoint peer = channel->GetPeer();
   const size_t size = chunk.len;
-  if ABSL_PREDICT_FALSE (incoming.Check(chunk.handle, peer) ==
-                         Status::kNotFound) {
-    LOG(WARNING) << "unregistered handle for data chunk: " << chunk;
-    (void)drainStream(channel, size);
-    return false;
-  }
-  Byte* const dst_addr =
-      incoming.GetChunkAddr(chunk.handle, chunk.reqid, chunk.byte_offset, peer);
-  if ABSL_PREDICT_FALSE (dst_addr == nullptr) {
+  ChunkTracker* tracker = nullptr;
+  Byte* const dst_addr = incoming.GetChunkAddr(
+      chunk.handle, chunk.reqid, chunk.byte_offset, chunk.len, peer, &tracker);
+  if ABSL_PREDICT_FALSE (dst_addr == nullptr || tracker == nullptr) {
     LOG(WARNING) << "unresolved address for data chunk: " << chunk;
     (void)drainStream(channel, size);
     return false;
   }
-  ChunkTracker& tracker = incoming.Find(chunk.handle, chunk.reqid, peer);
 
   // Step 3: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
-  const ChunkStatus s = tracker.Acquire(index);
+  if ABSL_PREDICT_FALSE (!tracker->IsValidChunk(index)) {
+    LOG(WARNING) << "invalid chunk index for data chunk: " << chunk;
+    (void)drainStream(channel, size);
+    return false;
+  }
+  const ChunkStatus s = tracker->Acquire(index);
   const uint64_t t_acquired_us = is_traced ? util::MonoNowUs() : 0;
   if ABSL_PREDICT_TRUE (s == ChunkStatus::kEmpty) {
     IoVecCursor cursor({IoVec(dst_addr, size)});
@@ -262,7 +261,7 @@ bool Transfer::recvDataStream(Channel* const channel, DataHeader& chunk,
     const bool success = std::cmp_equal(len, size);
     // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
     // in `OnReqComplete`.
-    if (tracker.Release(index, success)) {
+    if (tracker->Release(index, success)) {
       incoming.OnReqComplete(chunk.handle, peer);
     }
     if (!success) return false;
@@ -344,8 +343,9 @@ bool Transfer::recvPostInfoMsg(Channel* const channel,
   }
   static_assert(
       assumptions::kPostInfoHeaderIsSentOnEveryChannelBeforeDataHeader);
-  if (info.peer.HasNonzeroIpPort()) {
-    channel->SetPeer(info.peer);
+  if ABSL_PREDICT_FALSE (!info.peer.HasNonzeroIpPort()) {
+    LOG(WARNING) << "invalid peer endpoint in post info header: " << info;
+    return false;
   }
   if (!incoming.Add(info.handle, reqs, start_us, info.metadata, info.peer)) {
     FailureHeader failure = {};
@@ -355,6 +355,7 @@ bool Transfer::recvPostInfoMsg(Channel* const channel,
     SendFailure(channel, failure);
     return false;
   }
+  channel->SetPeer(info.peer);
   return true;
 }
 
@@ -379,37 +380,34 @@ bool Transfer::recvDataMsg(Channel* const channel, DataHeader& chunk,
   const bool is_traced = chunk.trace.IsTraced();
   const uint64_t t_start_us = is_traced ? util::MonoNowUs() : 0;
 
-  // Step 2: find chunk tracker for incoming data chunk.
+  // Step 2: find destination address and chunk tracker for incoming data chunk.
   // TODO: Relax the assumption that `PostInfoHeader` has already been processed
-  // and registered in `incoming` before `DataHeader` chunks arrive. Also have
-  // `incoming.Find()` return `ChunkTracker*` to avoid the extra `Check()` lock
-  // + `isComplete()` scan and `.at()` abort on missing `reqid`.
+  // and registered in `incoming` before `DataHeader` chunks arrive.
   const Endpoint peer = channel->GetPeer();
-  if ABSL_PREDICT_FALSE (incoming.Check(chunk.handle, peer) ==
-                         Status::kNotFound) {
-    LOG(WARNING) << "unregistered handle for data chunk: " << chunk;
-    return false;
-  }
-  Byte* const dst_addr =
-      incoming.GetChunkAddr(chunk.handle, chunk.reqid, chunk.byte_offset, peer);
-  if ABSL_PREDICT_FALSE (dst_addr == nullptr) {
+  ChunkTracker* tracker = nullptr;
+  Byte* const dst_addr = incoming.GetChunkAddr(
+      chunk.handle, chunk.reqid, chunk.byte_offset, chunk.len, peer, &tracker);
+  if ABSL_PREDICT_FALSE (dst_addr == nullptr || tracker == nullptr) {
     LOG(WARNING) << "unresolved address for data chunk: " << chunk;
     return false;
   }
-  ChunkTracker& tracker = incoming.Find(chunk.handle, chunk.reqid, peer);
 
   // Step 3: process data chunk.
   static_assert(assumptions::kReceiverSideChunkWriteContentionIsVeryLow);
   static_assert(assumptions::kUseAckChunkToSignalChunkWriteCompletion);
   const chunk_t index = chunk.index;
-  const ChunkStatus s = tracker.Acquire(index);
+  if ABSL_PREDICT_FALSE (!tracker->IsValidChunk(index)) {
+    LOG(WARNING) << "invalid chunk index for data chunk: " << chunk;
+    return false;
+  }
+  const ChunkStatus s = tracker->Acquire(index);
   const uint64_t t_acquired_us = is_traced ? util::MonoNowUs() : 0;
   switch (s) {
     case ChunkStatus::kEmpty:
       std::memcpy(dst_addr, payload.data(), payload.size());
       // TODO: Call `sendAck` before `OnReqComplete` when evicting `PostTracker`
       // in `OnReqComplete`.
-      if (tracker.Release(index, true)) {
+      if (tracker->Release(index, true)) {
         incoming.OnReqComplete(chunk.handle, peer);
       }
       StampRxTrace(chunk, worker_id, s, t_start_us, t_acquired_us);

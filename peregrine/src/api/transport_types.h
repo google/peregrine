@@ -91,9 +91,9 @@ using RecvPostCallback =
     absl::AnyInvocable<void(Status, const Metadata& post_metadata,
                             absl::Span<const Metadata> req_metadata) const>;
 
-// Callback invoked on the receiver to resolve the target buffer address for an
-// incoming request when `Request::raddr` is not provided by the sender.
-using ResolveAddrCallback = absl::AnyInvocable<Byte*(
+// Callback invoked on the receiver to resolve the target contiguous buffer for
+// an incoming request. Returns an empty span to reject the request.
+using ResolveAddrCallback = absl::AnyInvocable<absl::Span<Byte>(
     const Metadata& post_metadata, const Metadata& req_metadata) const>;
 
 // Options for creating a transport instance.
@@ -108,9 +108,9 @@ struct Options {
   // If `nullptr`, no callback is invoked on post receive completion.
   RecvPostCallback recv_post_callback = nullptr;
 
-  // Callback invoked on the receiver to resolve the target buffer address for
-  // an incoming request when `Request::raddr` is not provided by the sender.
-  // If `nullptr`, incoming requests with a null `raddr` are rejected.
+  // Callback invoked on the receiver to resolve the target contiguous buffer
+  // for an incoming request. If `nullptr` or if the returned buffer is smaller
+  // than the request's required extent, the incoming request is rejected.
   ResolveAddrCallback resolve_addr_callback = nullptr;
 
   // Allowlist of local network devices (e.g., eth0 for TCP or irdma0 for RDMA)
