@@ -9,6 +9,7 @@
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/api/transport_types.h"
@@ -25,27 +26,6 @@
 #include "peregrine/src/internal/nic/nic_inventory.h"
 
 namespace peregrine::internal::engine2 {
-namespace {
-
-// A pair of rails that a channel connects: one local, one on the peer.
-struct RailPair {
-  uint32_t local_rail_id = 0;
-  uint32_t remote_rail_id = 0;
-};
-
-// Returns the rail pairs to connect between the local host `self` and the
-// peer described by `peer_info`.
-//
-// Implementation details:
-// - Pairs local and remote rails by NUMA locality, up to
-//   `config.num_conns_per_peer` connections.
-std::vector<RailPair> PlanConnects(const Config& config, const HostInfo& self,
-                                   const HostInfo& peer_info) {
-  return {};
-}
-
-}  // namespace
-
 std::unique_ptr<TransferManager> TransferManager::Create(
     const Config& config, const HostInfo& self,
     GetPeerHostInfoFn get_peer_host_info_fn,
@@ -82,13 +62,13 @@ TransferManager::TransferManager(
     workers_.push_back(std::make_unique<Worker>(nic.rail_id));
   }
   channel_manager_->Start(
-      [this](std::unique_ptr<Channel> ch, uint32_t local_rail_id) {
-        onInboundReady(std::move(ch), local_rail_id);
+      [this](const PeerId& peer, uint32_t local_rail_id,
+             uint32_t /*remote_rail_id*/, std::unique_ptr<Channel> ch) {
+        onChannelReady(peer, local_rail_id, std::move(ch));
       },
       [this](const PeerId& peer, uint32_t local_rail_id,
-             uint32_t remote_rail_id,
-             absl::StatusOr<std::unique_ptr<Channel>> ch) {
-        onOutboundDone(peer, local_rail_id, remote_rail_id, std::move(ch));
+             uint32_t remote_rail_id, absl::Status status) {
+        onConnectFailed(peer, local_rail_id, remote_rail_id, std::move(status));
       });
 }
 
@@ -152,41 +132,38 @@ void TransferManager::onPeerHostInfo(const PeerId& peer,
     return;
   }
   static_assert(assumptions::kChannelManagerCallbacksMayRunOnAnyThread);
-  for (const RailPair& pair : PlanConnects(config_, self_, *host_info)) {
-    channel_manager_->Connect(*host_info, pair.local_rail_id,
-                              pair.remote_rail_id);
+  const uint32_t num_local =
+      self_.tcp_nics.empty() ? 1 : static_cast<uint32_t>(self_.tcp_nics.size());
+  const uint32_t num_remote =
+      host_info->tcp_nics.empty()
+          ? 1
+          : static_cast<uint32_t>(host_info->tcp_nics.size());
+  for (int i = 0; i < config_.num_conns_per_peer; ++i) {
+    channel_manager_->Connect(*host_info, static_cast<uint32_t>(i) % num_local,
+                              static_cast<uint32_t>(i) % num_remote);
   }
 }
 
-void TransferManager::onInboundReady(std::unique_ptr<Channel> ch,
-                                     uint32_t local_rail_id) {
+void TransferManager::onChannelReady(const PeerId& peer,
+                                     const uint32_t local_rail_id,
+                                     std::unique_ptr<Channel> ch) {
   Worker* worker = workerFor(local_rail_id);
   if ABSL_PREDICT_FALSE (worker == nullptr) {
-    LOG(ERROR) << "dropping channel accepted on unknown rail " << local_rail_id;
+    LOG(ERROR) << "dropping channel to peer " << peer << " on unknown rail "
+               << local_rail_id;
     return;
   }
-  worker->AddInboundChannel(std::move(ch));
+  PeerState& peer_state = getOrCreatePeer(peer);
+  worker->AddChannel(std::move(ch), peer_state);
 }
 
-void TransferManager::onOutboundDone(
-    const PeerId& peer, uint32_t local_rail_id, uint32_t remote_rail_id,
-    absl::StatusOr<std::unique_ptr<Channel>> ch) {
-  if (!ch.ok()) {
-    LOG(WARNING) << "failed to connect rail " << local_rail_id << " to rail "
-                 << remote_rail_id << " of peer " << peer << ": "
-                 << ch.status();
-    abortPosts(peer);
-    return;
-  }
-  PeerState* peer_state = findPeer(peer);
-  Worker* worker = workerFor(local_rail_id);
-  if ABSL_PREDICT_FALSE (peer_state == nullptr || worker == nullptr) {
-    LOG(ERROR) << "dropping channel on rail " << local_rail_id << " to peer "
-               << peer;
-    if (peer_state != nullptr) peer_state->AbortPosts();
-    return;
-  }
-  worker->AddOutboundChannel(*std::move(ch), *peer_state);
+void TransferManager::onConnectFailed(const PeerId& peer,
+                                      const uint32_t local_rail_id,
+                                      const uint32_t remote_rail_id,
+                                      absl::Status status) {
+  LOG(WARNING) << "failed to connect rail " << local_rail_id << " to rail "
+               << remote_rail_id << " of peer " << peer << ": " << status;
+  abortPosts(peer);
 }
 
 Worker* TransferManager::workerFor(uint32_t rail_id) const {

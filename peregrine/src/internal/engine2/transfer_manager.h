@@ -7,6 +7,7 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/api/transport_types.h"
@@ -72,20 +73,17 @@ class TransferManager final {
   // Returns the state of `peer`, or nullptr if there is none.
   PeerState* findPeer(const PeerId& peer) ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Handles `peer`'s host info, and opens the connections planned for it. On
+  // Handles `peer`'s host info, and opens channels to it. On
   // failure, or if the host info is not `peer`'s, aborts `peer`'s posts.
   void onPeerHostInfo(const PeerId& peer, absl::StatusOr<HostInfo> host_info);
 
-  // Hands a channel accepted from a remote peer to the worker on
-  // `local_rail_id`.
-  void onInboundReady(std::unique_ptr<Channel> ch, uint32_t local_rail_id);
+  // Hands a ready channel to `peer` on `local_rail_id` to its worker.
+  void onChannelReady(const PeerId& peer, uint32_t local_rail_id,
+                      std::unique_ptr<Channel> ch);
 
-  // Handles the outcome of a connect from `local_rail_id` to `peer`'s
-  // `remote_rail_id`: hands the channel to the worker on `local_rail_id`, or
-  // aborts `peer`'s posts on failure.
-  void onOutboundDone(const PeerId& peer, uint32_t local_rail_id,
-                      uint32_t remote_rail_id,
-                      absl::StatusOr<std::unique_ptr<Channel>> ch);
+  // Aborts `peer`'s posts after a channel to it fails to open.
+  void onConnectFailed(const PeerId& peer, uint32_t local_rail_id,
+                       uint32_t remote_rail_id, absl::Status status);
 
   // Aborts all posts queued for `peer` after a setup failure.
   void abortPosts(const PeerId& peer);

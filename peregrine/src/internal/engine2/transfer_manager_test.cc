@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/engine2/transfer_manager.h"
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -10,10 +11,13 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
+#include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/engine2/channel_manager.h"
 #include "peregrine/src/internal/engine2/peer_discovery.h"
 #include "peregrine/src/internal/engine2/post.h"
@@ -55,8 +59,7 @@ class TransferManagerTest : public ::testing::Test {
  protected:
   TransferManagerTest() {
     self_.control_plane_listener = Endpoint::Create("127.0.0.1:10000");
-    // Two local rails, so the transfer manager creates two workers.
-    self_.tcp_nics = {{.rail_id = 0}, {.rail_id = 1}};
+    self_.tcp_nics = {{.rail_id = 0, .if_name = "lo"}};
   }
 
   std::unique_ptr<TransferManager> CreateTransferManager() {
@@ -102,11 +105,36 @@ TEST_F(TransferManagerTest, SubmitGetsHostInfoOncePerPeer) {
   transfer_manager->Submit(peer2, WritePost(Handle(3)));
   EXPECT_THAT(get_peer_host_info_.peers(), ElementsAre(peer1, peer2));
 
+  // A live `peer1`, so connecting to it succeeds.
   HostInfo peer_info;
   peer_info.control_plane_listener = peer1;
+  const std::unique_ptr<ChannelManager> peer_channel_manager =
+      ChannelManager::Create(Config{}, peer_info);
+  ASSERT_THAT(peer_channel_manager, NotNull());
+  peer_channel_manager->Start(
+      [](const PeerId&, uint32_t, uint32_t, std::unique_ptr<Channel>) {},
+      [](const PeerId&, uint32_t, uint32_t, absl::Status) {});
   get_peer_host_info_.CompleteAll(peer_info);
   transfer_manager->Submit(peer1, WritePost(Handle(4)));
   EXPECT_THAT(get_peer_host_info_.peers(), ElementsAre(peer1, peer2));
+}
+
+TEST_F(TransferManagerTest, ConnectFailureRequestsAgainOnNextSubmit) {
+  const std::unique_ptr<TransferManager> transfer_manager =
+      CreateTransferManager();
+  ASSERT_THAT(transfer_manager, NotNull());
+
+  const Endpoint peer = Endpoint::Create("127.0.0.1:20000");
+  transfer_manager->Submit(peer, WritePost(Handle(1)));
+  HostInfo peer_info;  // no listeners, so every connect fails
+  peer_info.control_plane_listener = peer;
+  get_peer_host_info_.CompleteAll(peer_info);
+  const absl::Time deadline = absl::Now() + absl::Seconds(5);
+  while (get_peer_host_info_.peers().size() < 2 && absl::Now() < deadline) {
+    transfer_manager->Submit(peer, WritePost(Handle(2)));
+    absl::SleepFor(absl::Milliseconds(5));
+  }
+  EXPECT_THAT(get_peer_host_info_.peers(), ElementsAre(peer, peer));
 }
 
 TEST_F(TransferManagerTest, HostInfoFailureRequestsAgainOnNextSubmit) {

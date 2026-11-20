@@ -29,23 +29,32 @@ inline constexpr bool kPeerHostInfoLookupIsAsynchronous = true;
 // Assumptions about the local host info.
 // ---------------------------------------------------------------------------
 //
-// The engine's owner owns the local `HostInfo` and keeps it alive for the
-// engine's lifetime. `Engine::Create()` fills in its data-plane part, and the
-// control plane fills in the control-plane port only after the engine is
-// created. Engine components therefore read their own identity
-// (`control_plane_listener`) only when opening outbound channels, which starts
-// with the first `Engine::Enqueue()`, after the control plane has started.
+// Startup populates the local `HostInfo` in two steps:
+//  1. `Engine::Create()` fills in `data_plane_listeners`.
+//  2. The control plane starts and fills in `control_plane_listener` (its
+//     port).
+//
+// After the control plane starts, `HostInfo` is immutable for the rest of the
+// engine's lifetime. Engine components therefore avoid reading
+// `control_plane_listener` during `Create()`/`Start()` and only read it during
+// channel handshakes (which happen after the control plane is up), so no lock
+// is needed to read it from background threads.
 inline constexpr bool kLocalIdentityIsReadOnlyAfterControlPlaneStarts = true;
 
-// Assumptions about channel manager callbacks.
+// Assumptions about channel manager callbacks and threading.
 // ---------------------------------------------------------------------------
 //
-// `ChannelManager` reports accepted channels to `on_inbound_ready` and the
-// outcome of each `Connect()` to `on_outbound_done`. Both callbacks:
-//  - May run on any thread, including inside `Connect()` itself. So callers
-//    must not hold a lock that the callbacks take while calling `Connect()`.
-//  - Must not block, since they run on the channel manager's threads.
-//  - Take ownership of the channel; the channel manager keeps no reference.
+// `ChannelManager` reports results through two callbacks:
+//  - `on_channel_ready`: runs on an internal I/O thread once a channel is
+//    connected and its handshake completes. Transfers ownership of the channel
+//    to the caller.
+//  - `on_connect_failed`: runs on an internal I/O thread when a connect or
+//    handshake fails or times out. Never runs inline inside `Connect()`.
+//
+// Consequently, callers must ensure both callbacks:
+//  - Are thread-safe (multiple transport I/O threads may invoke them
+//    concurrently once more than one transport is active).
+//  - Do not block, since blocking stalls I/O for all other peers.
 inline constexpr bool kChannelManagerCallbacksMayRunOnAnyThread = true;
 
 // Assumptions about failures.

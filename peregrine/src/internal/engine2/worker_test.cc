@@ -26,8 +26,7 @@ class FakeChannel final : public Channel {
 TEST(WorkerTest, AcceptsChannelsAndWakeUps) {
   PeerState peer_state;
   Worker worker(/*rail_id=*/0);
-  worker.AddOutboundChannel(std::make_unique<FakeChannel>(), peer_state);
-  worker.AddInboundChannel(std::make_unique<FakeChannel>());
+  worker.AddChannel(std::make_unique<FakeChannel>(), peer_state);
   worker.Wake();
 }
 

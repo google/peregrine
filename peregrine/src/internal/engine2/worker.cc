@@ -10,10 +10,7 @@ namespace peregrine::internal::engine2 {
 
 Worker::Worker(uint32_t rail_id) : rail_id_(rail_id) {}
 
-void Worker::AddOutboundChannel(std::unique_ptr<Channel> ch,
-                                PeerState& peer_state) {}
-
-void Worker::AddInboundChannel(std::unique_ptr<Channel> ch) {}
+void Worker::AddChannel(std::unique_ptr<Channel> ch, PeerState& peer_state) {}
 
 void Worker::Wake() {}
 
