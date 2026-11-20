@@ -315,3 +315,51 @@ cc_test(
         "@googletest//:gtest_main",
     ],
 )
+
+cc_library(
+    name = "tcp_channel_session",
+    srcs = ["tcp_channel_session.cc"],
+    hdrs = ["tcp_channel_session.h"],
+    deps = [
+        ":peer_work_queue",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/channel",
+        "//peregrine/src/internal/chunk:chunk_tracker",
+        "//peregrine/src/internal/chunk:header",
+        "//peregrine/src/internal/chunk:header_flatbuf",
+        "//peregrine/src/internal/lib:iovec_cursor",
+        "//peregrine/src/internal/request:request_tracker",
+        "//peregrine/src/util:clock",
+        "//peregrine/src/util:macro",
+        "@abseil-cpp//absl/base:core_headers",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "tcp_channel_session_test",
+    srcs = ["tcp_channel_session_test.cc"],
+    deps = [
+        ":peer_work_queue",
+        ":post",
+        ":tcp_channel_session",
+        "//peregrine/src/api:transport_trace",
+        "//peregrine/src/api:transport_types",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/channel",
+        "//peregrine/src/internal/channel:channel_type",
+        "//peregrine/src/internal/chunk:header",
+        "//peregrine/src/internal/chunk:header_flatbuf",
+        "//peregrine/src/internal/lib:iovec_cursor",
+        "//peregrine/src/internal/metrics:engine_metrics",
+        "//peregrine/src/internal/request:request_tracker",
+        "//peregrine/src/internal/trace:trace_context",
+        "//peregrine/src/internal/trace:trace_recorder",
+        "@googletest//:gtest_main",
+    ],
+)
