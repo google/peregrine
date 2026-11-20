@@ -102,8 +102,8 @@ std::unique_ptr<Engine> Engine::Create(
       absl::WrapUnique(new Engine(config, self, std::move(recv_post_callback),
                                   std::move(resolve_addr_callback)));
   engine->transfer_manager_ = TransferManager::Create(
-      config, self, engine->outgoing_, std::move(get_peer_host_info_fn),
-      std::move(channel_manager));
+      config, self, engine->outgoing_, engine->incoming_,
+      std::move(get_peer_host_info_fn), std::move(channel_manager));
   if (ABSL_PREDICT_FALSE(engine->transfer_manager_ == nullptr)) {
     LOG(ERROR) << "failed to create transfer manager";
     return nullptr;
