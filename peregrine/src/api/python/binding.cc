@@ -1,17 +1,26 @@
 #include <cstddef>
 #include <cstdint>
+#include <exception>
+#include <functional>
+#include <memory>
+#include <optional>
 #include <stdexcept>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
+#include "absl/functional/any_invocable.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "nanobind/nanobind.h"
 #include "nanobind/stl/array.h"
+#include "nanobind/stl/function.h"
+#include "nanobind/stl/optional.h"
+#include "nanobind/stl/shared_ptr.h"
 #include "nanobind/stl/string.h"
 #include "nanobind/stl/string_view.h"
-#include "nanobind/stl/unique_ptr.h"
 #include "nanobind/stl/vector.h"
 #include "peregrine/src/api/transport.h"
 #include "peregrine/src/api/transport_metrics.h"
@@ -41,6 +50,57 @@ consteval size_t CountFields(auto... args) {
   } else {
     return sizeof...(args) - 1;
   }
+}
+
+// Releases the GIL before destroying `Transport`, whose destructor joins
+// background worker threads that may acquire the GIL for Python callbacks.
+struct DeleteWithoutGil {
+  void operator()(peregrine::Transport* t) const noexcept {
+    if (t == nullptr) {
+      return;
+    }
+    if (PyGILState_Check()) {
+      nanobind::gil_scoped_release release;
+      delete t;
+    } else {
+      delete t;
+    }
+  }
+};
+
+using PyResolveAddrCallback =
+    std::function<std::optional<uintptr_t>(nanobind::bytes, nanobind::bytes)>;
+
+// Adapts a Python `(bytes, bytes) -> int | None` callback to C++
+// `ResolveAddrCallback` for execution on Peregrine's `-fno-exceptions` worker
+// threads.
+peregrine::ResolveAddrCallback MakeResolveAddrCallback(
+    std::optional<PyResolveAddrCallback> callback) {
+  if (!callback.has_value()) {
+    return nullptr;
+  }
+  return [cb = std::move(*callback)](
+             const peregrine::Metadata& post_meta,
+             const peregrine::Metadata& req_meta) -> peregrine::Byte* {
+    nanobind::gil_scoped_acquire gil;
+    if (!gil.is_valid()) {
+      return nullptr;
+    }
+    try {
+      nanobind::bytes post_bytes(
+          reinterpret_cast<const char*>(post_meta.data()), post_meta.size());
+      nanobind::bytes req_bytes(reinterpret_cast<const char*>(req_meta.data()),
+                                req_meta.size());
+      const std::optional<uintptr_t> addr = cb(post_bytes, req_bytes);
+      return addr.has_value() ? reinterpret_cast<peregrine::Byte*>(*addr)
+                              : nullptr;
+    } catch (nanobind::python_error& e) {
+      e.discard_as_unraisable(nanobind::none());
+      return nullptr;
+    } catch (const std::exception&) {
+      return nullptr;
+    }
+  };
 }
 }  // namespace
 
@@ -99,7 +159,8 @@ NB_MODULE(peregrine, m) {
             ThrowIfFailed(handle.status());
             return handle.value();
           },
-          nb::arg("peer"), nb::arg("requests"))
+          nb::arg("peer"), nb::arg("requests"),
+          nb::call_guard<nb::gil_scoped_release>())
       .def(
           "poll",
           [](Transport& t, Handle handle) {
@@ -107,7 +168,7 @@ NB_MODULE(peregrine, m) {
             ThrowIfFailed(status.status());
             return status.value();
           },
-          nb::arg("handle"))
+          nb::arg("handle"), nb::call_guard<nb::gil_scoped_release>())
       .def(
           "register_memory",
           [](Transport& self, uintptr_t addr, size_t length) {
@@ -186,17 +247,22 @@ NB_MODULE(peregrine, m) {
   m.def(
       "create_transport",
       [](std::string_view control_endpoint, TransportType transport_type,
-         int num_conns_per_peer) {
-        return CreateTransport(
-            control_endpoint,
-            Options{
-                .transport_type = transport_type,
-                .num_parallel_connections = num_conns_per_peer,
-            });
+         int num_conns_per_peer,
+         std::optional<PyResolveAddrCallback> resolve_addr_callback) {
+        Options options{
+            .transport_type = transport_type,
+            .num_parallel_connections = num_conns_per_peer,
+            .resolve_addr_callback =
+                MakeResolveAddrCallback(std::move(resolve_addr_callback)),
+        };
+        return std::shared_ptr<Transport>(
+            CreateTransport(control_endpoint, std::move(options)).release(),
+            DeleteWithoutGil{});
       },
       nb::arg("control_endpoint"),
       nb::arg("transport_type") = TransportType::kTcp,
-      nb::arg("num_conns_per_peer") = 8);
+      nb::arg("num_conns_per_peer") = 8,
+      nb::arg("resolve_addr_callback") = nb::none());
 
   // Bind `Status` enum and helper functions
   nb::enum_<Status>(m, "Status")

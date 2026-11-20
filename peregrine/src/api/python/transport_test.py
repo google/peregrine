@@ -19,6 +19,7 @@ class TransportTest(absltest.TestCase):
     super().setUp()
     self.data = b"Peregrine Python Tests!"
     self.assertNotEqual(len(self.data) % 2, 0)
+    self.rbuf = ctypes.create_string_buffer(len(self.data))
     port1 = util.find_free_port(socket.AF_INET, tcp=True)
     port2 = util.find_free_port(socket.AF_INET, tcp=True)
     self.assertNotEqual(port1, port2)
@@ -29,7 +30,11 @@ class TransportTest(absltest.TestCase):
         self.local, num_conns_per_peer=nconns_per_peer
     )
     self.remote_transport = pg.create_transport(
-        self.remote, num_conns_per_peer=nconns_per_peer
+        self.remote,
+        num_conns_per_peer=nconns_per_peer,
+        resolve_addr_callback=lambda post_meta, req_meta: ctypes.addressof(
+            self.rbuf
+        ),
     )
     logging.info("local endpoint listening on %s", self.local)
     logging.info("remote endpoint listening on %s", self.remote)
@@ -49,7 +54,7 @@ class TransportTest(absltest.TestCase):
 
   def test_read(self):
     # Precondition: local buf doesn't match the expected data.
-    rbuf = ctypes.create_string_buffer(self.data)
+    self.rbuf.raw = self.data
     lbuf = ctypes.create_string_buffer(len(self.data))
     self.assertNotEqual(lbuf.raw, self.data)
 
@@ -57,7 +62,7 @@ class TransportTest(absltest.TestCase):
     req = pg.Request(
         op=pg.Op.READ,
         laddr=ctypes.addressof(lbuf),
-        raddr=ctypes.addressof(rbuf),
+        raddr=0,
         len=len(self.data),
     )
     handle = self.local_transport.post(self.remote, [req])
@@ -69,21 +74,21 @@ class TransportTest(absltest.TestCase):
   def test_write(self):
     # Precondition: remote buf doesn't match the expected data.
     lbuf = ctypes.create_string_buffer(self.data)
-    rbuf = ctypes.create_string_buffer(len(self.data))
-    self.assertNotEqual(rbuf.raw, self.data)
+    self.rbuf.raw = b"\x00" * len(self.data)
+    self.assertNotEqual(self.rbuf.raw, self.data)
 
     # Initiate write (self -> peer) and wait for completion.
     req = pg.Request(
         op=pg.Op.WRITE,
         laddr=ctypes.addressof(lbuf),
-        raddr=ctypes.addressof(rbuf),
+        raddr=0,
         len=len(self.data),
     )
     handle = self.local_transport.post(self.remote, [req])
     self.wait_for_completion(handle)
 
     # Post-condition: remote buf matches the expected data.
-    self.assertEqual(rbuf.raw, self.data)
+    self.assertEqual(self.rbuf.raw, self.data)
 
 
 if __name__ == "__main__":

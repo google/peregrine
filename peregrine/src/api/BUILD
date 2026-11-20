@@ -126,6 +126,7 @@ nanobind_extension(
         ":transport_trace",
         ":transport_types",
         ":transport_util",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/status:statusor",
         "@abseil-cpp//absl/types:span",
