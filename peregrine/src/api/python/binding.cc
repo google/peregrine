@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -18,6 +19,7 @@
 #include "nanobind/stl/array.h"
 #include "nanobind/stl/function.h"
 #include "nanobind/stl/optional.h"
+#include "nanobind/stl/pair.h"
 #include "nanobind/stl/shared_ptr.h"
 #include "nanobind/stl/string.h"
 #include "nanobind/stl/string_view.h"
@@ -68,10 +70,11 @@ struct DeleteWithoutGil {
   }
 };
 
-using PyResolveAddrCallback =
-    std::function<std::optional<uintptr_t>(nanobind::bytes, nanobind::bytes)>;
+using PyResolveAddrCallback = std::function<
+    std::optional<std::pair<uintptr_t, size_t>>(nanobind::bytes,
+                                                nanobind::bytes)>;
 
-// Adapts a Python `(bytes, bytes) -> int | None` callback to C++
+// Adapts a Python `(bytes, bytes) -> tuple[int, int] | None` callback to C++
 // `ResolveAddrCallback` for execution on Peregrine's `-fno-exceptions` worker
 // threads.
 peregrine::ResolveAddrCallback MakeResolveAddrCallback(
@@ -81,24 +84,33 @@ peregrine::ResolveAddrCallback MakeResolveAddrCallback(
   }
   return [cb = std::move(*callback)](
              const peregrine::Metadata& post_meta,
-             const peregrine::Metadata& req_meta) -> peregrine::Byte* {
+             const peregrine::Metadata& req_meta)
+             -> absl::Span<peregrine::Byte> {
     nanobind::gil_scoped_acquire gil;
     if (!gil.is_valid()) {
-      return nullptr;
+      return {};
     }
     try {
       nanobind::bytes post_bytes(
           reinterpret_cast<const char*>(post_meta.data()), post_meta.size());
       nanobind::bytes req_bytes(reinterpret_cast<const char*>(req_meta.data()),
                                 req_meta.size());
-      const std::optional<uintptr_t> addr = cb(post_bytes, req_bytes);
-      return addr.has_value() ? reinterpret_cast<peregrine::Byte*>(*addr)
-                              : nullptr;
+      const std::optional<std::pair<uintptr_t, size_t>> resolved =
+          cb(post_bytes, req_bytes);
+      if (!resolved.has_value() || resolved->first == 0 ||
+          resolved->second == 0 ||
+          resolved->first >
+              std::numeric_limits<uintptr_t>::max() - resolved->second) {
+        return {};
+      }
+      return absl::MakeSpan(
+          reinterpret_cast<peregrine::Byte*>(resolved->first),
+          resolved->second);
     } catch (nanobind::python_error& e) {
       e.discard_as_unraisable(nanobind::none());
-      return nullptr;
+      return {};
     } catch (const std::exception&) {
-      return nullptr;
+      return {};
     }
   };
 }

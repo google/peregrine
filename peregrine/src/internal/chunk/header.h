@@ -191,6 +191,16 @@ struct alignas(8) Recipe final {
   // Returns true iff the recipe type is valid.
   bool IsValid() const { return type == RecipeType::kContiguous; }
 
+  // Returns the contiguous byte span `[0, extent)` accessed in the target
+  // buffer for a transfer of `total_len` bytes, or `0` if invalid.
+  uint64_t BufferExtent(uint64_t total_len) const {
+    switch (type) {
+      case RecipeType::kContiguous:
+        return total_len;
+    }
+    return 0;
+  }
+
   // Equality operator.
   friend bool operator==(const Recipe& a, const Recipe& b) = default;
 };
@@ -201,6 +211,7 @@ static_assert(sizeof(Recipe) == 40);
 // receiving peer before data chunks arrive.
 struct alignas(8) RequestInfo final {
   static constexpr size_t kMetadataSize = 32;
+  static constexpr uint32_t kMaxChunksPerReq = 65536;
 
   // LINT.IfChange(request_info)
   ReqId reqid;         // REQUIRED: unique request id within the handle
@@ -217,7 +228,8 @@ struct alignas(8) RequestInfo final {
   // Returns true iff this `RequestInfo` is valid.
   bool IsValid() const {
     return (op == Op::kRead || op == Op::kWrite) && total_len > 0 &&
-           nchunks > 0 && recipe.IsValid();
+           nchunks > 0 && nchunks <= total_len && nchunks <= kMaxChunksPerReq &&
+           recipe.IsValid();
   }
 
   // Returns a string representation for debugging/logging.

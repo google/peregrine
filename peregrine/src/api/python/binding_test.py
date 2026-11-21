@@ -70,8 +70,9 @@ class BindTest(absltest.TestCase):
     remote_transport = pg.create_transport(
         remote,
         num_conns_per_peer=2,
-        resolve_addr_callback=lambda post_meta, req_meta: ctypes.addressof(
-            rbuf
+        resolve_addr_callback=lambda post_meta, req_meta: (
+            ctypes.addressof(rbuf),
+            len(rbuf),
         ),
     )
     self.assertIsNotNone(remote_transport)
@@ -139,8 +140,9 @@ class BindTest(absltest.TestCase):
     remote_transport = pg.create_transport(
         remote,
         num_conns_per_peer=2,
-        resolve_addr_callback=lambda post_meta, req_meta: ctypes.addressof(
-            rbuf
+        resolve_addr_callback=lambda post_meta, req_meta: (
+            ctypes.addressof(rbuf),
+            len(rbuf),
         ),
     )
     self.assertIsNotNone(remote_transport)
@@ -229,7 +231,9 @@ class BindTest(absltest.TestCase):
         raise ValueError("transient error")
       if calls == 2:
         return None
-      return ctypes.addressof(rbuf)
+      if calls == 3:
+        return (ctypes.addressof(rbuf), len(lbuf) - 1)
+      return (ctypes.addressof(rbuf), len(rbuf))
 
     remote_transport = pg.create_transport(
         remote,
@@ -238,11 +242,11 @@ class BindTest(absltest.TestCase):
     )
     self.assertIsNotNone(remote_transport)
 
-    # First two peers trigger an exception and a None return in the callback
-    # without crashing the receiver process; the third peer succeeds.
+    # First three peers trigger an exception, a None return, and an undersized
+    # target buffer without crashing or writing to rbuf; the fourth succeeds.
     transports = []
     handle = None
-    for i in range(3):
+    for i in range(4):
       local_port = util.find_free_port(socket.AF_INET, tcp=True)
       local = f"127.0.0.1:{local_port}"
       local_transport = pg.create_transport(local, num_conns_per_peer=1)
@@ -255,11 +259,12 @@ class BindTest(absltest.TestCase):
           len=len(lbuf),
       )
       handle = local_transport.post(remote, [req])
-      if i < 2:
+      if i < 3:
         end_wait = time.monotonic() + 5.0
         while calls < i + 1 and time.monotonic() < end_wait:
           time.sleep(0.05)
         self.assertEqual(calls, i + 1)
+        self.assertEqual(rbuf.raw, b"\x00" * len(lbuf))
 
     end_time = time.monotonic() + 10.0
     while time.monotonic() < end_time:

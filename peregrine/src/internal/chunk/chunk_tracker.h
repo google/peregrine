@@ -98,6 +98,9 @@ class ChunkTracker final {
   // Returns a string representation of the tracker.
   std::string ToString() const ABSL_LOCKS_EXCLUDED(mu_);
 
+  // Returns true iff the chunk index is valid.
+  bool IsValidChunk(chunk_t index) const { return isValidChunk(index); }
+
  private:
   // Returns true iff the chunk index is valid.
   bool isValidChunk(chunk_t index) const {

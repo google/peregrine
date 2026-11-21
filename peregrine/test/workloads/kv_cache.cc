@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -52,11 +53,15 @@ std::vector<peregrine::Request> KvCache::GenerateRequests(
     const size_t offset = b * static_cast<size_t>(block_size_);
     const size_t len = std::min(static_cast<size_t>(block_size_),
                                 static_cast<size_t>(xfer_size_) - offset);
+    peregrine::Metadata meta{};
+    const uint64_t offset_u64 = static_cast<uint64_t>(offset);
+    std::memcpy(meta.data(), &offset_u64, sizeof(offset_u64));
     requests.push_back({
         .op = peregrine::Op::kWrite,
         .laddr = base_laddr + offset,
         .raddr = base_raddr + offset,
         .len = len,
+        .metadata = meta,
     });
   }
   return requests;

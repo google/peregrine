@@ -97,6 +97,21 @@ TEST(RequestInfoTest, ValidationAndEquality) {
 
   req.raddr = addr_t(0);
   EXPECT_TRUE(req.IsValid());
+
+  req.nchunks = 8193;
+  EXPECT_FALSE(req.IsValid());
+
+  req.total_len = 1ULL << 20;
+  req.nchunks = RequestInfo::kMaxChunksPerReq;
+  EXPECT_TRUE(req.IsValid());
+
+  req.nchunks = RequestInfo::kMaxChunksPerReq + 1;
+  EXPECT_FALSE(req.IsValid());
+
+  EXPECT_EQ(req.recipe.BufferExtent(8192), 8192);
+  Recipe invalid_recipe = {.type = static_cast<RecipeType>(0)};
+  EXPECT_FALSE(invalid_recipe.IsValid());
+  EXPECT_EQ(invalid_recipe.BufferExtent(8192), 0);
 }
 
 }  // namespace
