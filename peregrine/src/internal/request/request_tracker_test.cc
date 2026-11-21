@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/request/request_tracker.h"
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -32,7 +33,10 @@ class RequestTrackerTest : public ::testing::Test {
   RequestTrackerTest()
       : metrics_(),
         tracer_(TraceConfig{.sample_every_n = 0}),
-        rt_(metrics_, tracer_) {
+        rt_(metrics_, tracer_, /*recv_post_callback=*/nullptr,
+            [](const Metadata&, const Metadata&) -> Byte* {
+              return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+            }) {
     CHECK(rt_.IsEmpty());
     CHECK_EQ(rt_.Check(kHandle), Status::kNotFound);
   }
@@ -185,7 +189,7 @@ TEST_F(RequestTrackerTest, RecvRequestInfo) {
   ASSERT_TRUE(rt_.Add(kHandle, reqs, util::MonoNowUs()));
   // Duplicate POST_INFO is idempotent.
   EXPECT_TRUE(rt_.Add(kHandle, reqs, util::MonoNowUs()));
-  EXPECT_EQ(rt_.GetChunkAddr(kHandle, kReqId, 512),
+  EXPECT_EQ(rt_.GetChunkAddr(kHandle, kReqId, 512, 64),
             reinterpret_cast<Byte*>(kBufferBaseAddr.value() + 512));
 
   ChunkTracker& recv = rt_.Find(kHandle, kReqId);
@@ -327,16 +331,20 @@ TEST_F(RequestTrackerTest, RecvPostCallback) {
     std::vector<Metadata> req_metas;
   };
   std::vector<PostEvent> post_events;
-  RequestTracker rt(metrics_, tracer_,
-                    [&](Status s, const Metadata& post_meta,
-                        absl::Span<const Metadata> req_metas) {
-                      post_events.push_back(PostEvent{
-                          .status = s,
-                          .post_meta = post_meta,
-                          .req_metas = std::vector<Metadata>(req_metas.begin(),
-                                                             req_metas.end()),
-                      });
-                    });
+  RequestTracker rt(
+      metrics_, tracer_,
+      [&](Status s, const Metadata& post_meta,
+          absl::Span<const Metadata> req_metas) {
+        post_events.push_back(PostEvent{
+            .status = s,
+            .post_meta = post_meta,
+            .req_metas =
+                std::vector<Metadata>(req_metas.begin(), req_metas.end()),
+        });
+      },
+      [](const Metadata&, const Metadata&) -> Byte* {
+        return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+      });
 
   ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
 
@@ -385,7 +393,7 @@ TEST_F(RequestTrackerTest, ResolveAddrCallback) {
   const RequestInfo reqs[] = {
       {.reqid = kReqId,
        .nchunks = kNumChunks,
-       .raddr = addr_t(0),
+       .raddr = kBufferBaseAddr,
        .total_len = sizeof(buf1),
        .op = Op::kWrite,
        .recipe = {.type = RecipeType::kContiguous},
@@ -399,20 +407,22 @@ TEST_F(RequestTrackerTest, ResolveAddrCallback) {
        .metadata = kReqMeta2},
   };
 
-  // Without `resolve_addr_callback`, `raddr == 0` on receiver fails `Add`.
-  EXPECT_FALSE(rt_.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
-  EXPECT_EQ(rt_.Check(kHandle), Status::kFailure);
+  // Without `resolve_addr_callback`, incoming requests on receiver fail `Add`
+  // even when the sender provides a non-zero `raddr`.
+  RequestTracker rt_no_resolve(metrics_, tracer_);
+  EXPECT_FALSE(rt_no_resolve.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
+  EXPECT_EQ(rt_no_resolve.Check(kHandle), Status::kFailure);
 
   int resolve_calls = 0;
-  RequestTracker rt(
-      metrics_, tracer_, /*recv_post_callback=*/nullptr,
-      [&](const Metadata& post_meta, const Metadata& req_meta) -> Byte* {
-        ++resolve_calls;
-        if (post_meta != kPostMeta) return nullptr;
-        if (req_meta == kReqMeta1) return buf1;
-        if (req_meta == kReqMeta2) return buf2;
-        return nullptr;
-      });
+  RequestTracker rt(metrics_, tracer_, /*recv_post_callback=*/nullptr,
+                    [&](const Metadata& post_meta,
+                        const Metadata& req_meta) -> Byte* {
+                      ++resolve_calls;
+                      if (post_meta != kPostMeta) return nullptr;
+                      if (req_meta == kReqMeta1) return buf1;
+                      if (req_meta == kReqMeta2) return buf2;
+                      return nullptr;
+                    });
 
   ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
   EXPECT_EQ(resolve_calls, 2);
@@ -421,9 +431,42 @@ TEST_F(RequestTrackerTest, ResolveAddrCallback) {
   EXPECT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
   EXPECT_EQ(resolve_calls, 2);
 
-  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 128), buf1 + 128);
-  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId2, 256), buf2 + 256);
-  EXPECT_EQ(rt.GetChunkAddr(Handle(0x9999), kReqId, 0), nullptr);
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 128, 64), buf1 + 128);
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId2, 256, 64), buf2 + 256);
+  EXPECT_EQ(rt.GetChunkAddr(Handle(0x9999), kReqId, 0, 64), nullptr);
+
+  // Chunk bounds checking: zero length, out-of-bounds offset/length, and
+  // 64-bit wraparound offsets are rejected.
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 0, 0), nullptr);
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, sizeof(buf1), 1), nullptr);
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, sizeof(buf1) - 32, 64), nullptr);
+  const uint64_t wraparound_offset =
+      kBufferBaseAddr.value() - reinterpret_cast<uintptr_t>(buf1);
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, wraparound_offset, 64), nullptr);
+}
+
+TEST_F(RequestTrackerTest, RemoteAddRejectsInitiatorHandle) {
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = kBufferBaseAddr,
+       .total_len = 1024,
+       .op = Op::kRead,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+
+  RequestTracker rt_no_resolve(metrics_, tracer_);
+  ASSERT_TRUE(rt_no_resolve.Add(kHandle, util::MonoNowUs(),
+                                /*on_complete=*/nullptr, TraceContext{}));
+  // A remote `PostInfo` arriving for `kHandle` before `AddInitiatorReqs` runs
+  // must not populate the initiator entry or accept `req.raddr`.
+  EXPECT_FALSE(rt_no_resolve.Add(kHandle, reqs, util::MonoNowUs()));
+  EXPECT_EQ(rt_no_resolve.GetChunkAddr(kHandle, kReqId, 0, 64), nullptr);
+
+  // Local initiator registration succeeds and populates the handle.
+  EXPECT_TRUE(rt_no_resolve.AddInitiatorReqs(kHandle, reqs));
+  EXPECT_EQ(rt_no_resolve.GetChunkAddr(kHandle, kReqId, 0, 64),
+            reinterpret_cast<Byte*>(kBufferBaseAddr.value()));
 }
 
 TEST_F(RequestTrackerTest, ReadInitiatorCompletion) {
@@ -445,7 +488,7 @@ TEST_F(RequestTrackerTest, ReadInitiatorCompletion) {
         completed_status = s;
       },
       TraceContext{}));
-  ASSERT_TRUE(rt_.Add(kHandle, reqs, /*start_us=*/0));
+  ASSERT_TRUE(rt_.AddInitiatorReqs(kHandle, reqs));
 
   ChunkTracker& recv = rt_.Find(kHandle, kReqId);
   ASSERT_EQ(recv.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
@@ -497,7 +540,7 @@ TEST_F(RequestTrackerTest, ReadResponderOnRecvRead) {
   RequestInfo expected_req = reqs[0];
   expected_req.raddr = addr_t(reinterpret_cast<uintptr_t>(buf));
   EXPECT_EQ(recv_reqs[0], expected_req);
-  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 64, kPeer), buf + 64);
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId, 64, 64, kPeer), buf + 64);
 
   // Duplicate `Add` is idempotent and does not re-invoke `on_recv_read`.
   EXPECT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta, kPeer));
@@ -527,12 +570,19 @@ TEST_F(RequestTrackerTest, SameHandleDifferentPeers) {
   };
 
   std::vector<Metadata> completed_posts;
-  RequestTracker rt(metrics_, tracer_,
-                    [&](Status s, const Metadata& post_meta,
-                        absl::Span<const Metadata> /*req_metas*/) {
-                      EXPECT_EQ(s, Status::kSuccess);
-                      completed_posts.push_back(post_meta);
-                    });
+  RequestTracker rt(
+      metrics_, tracer_,
+      [&](Status s, const Metadata& post_meta,
+          absl::Span<const Metadata> /*req_metas*/) {
+        EXPECT_EQ(s, Status::kSuccess);
+        completed_posts.push_back(post_meta);
+      },
+      [kPostMeta2](const Metadata& post_meta, const Metadata&) -> Byte* {
+        if (post_meta == kPostMeta2) {
+          return reinterpret_cast<Byte*>(kBufferBaseAddr.value() + 1024);
+        }
+        return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+      });
 
   // Peer 1 registers and completes `kHandle`.
   ASSERT_TRUE(rt.Add(kHandle, reqs1, util::MonoNowUs(), kPostMeta1, kPeer1));
@@ -546,7 +596,7 @@ TEST_F(RequestTrackerTest, SameHandleDifferentPeers) {
   // without colliding with Peer 1's retained entry.
   ASSERT_TRUE(rt.Add(kHandle, reqs2, util::MonoNowUs(), kPostMeta2, kPeer2));
   EXPECT_EQ(rt.Check(kHandle, kPeer2), Status::kInProgress);
-  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId2, 64, kPeer2),
+  EXPECT_EQ(rt.GetChunkAddr(kHandle, kReqId2, 64, 64, kPeer2),
             reinterpret_cast<Byte*>(kBufferBaseAddr.value() + 1024 + 64));
   ChunkTracker& recv2 = rt.Find(kHandle, kReqId2, kPeer2);
   ASSERT_EQ(recv2.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
@@ -715,6 +765,72 @@ TEST_F(RequestTrackerTest, AddPreservesCallbackOnCollision) {
       rt_.Add(handle2, util::MonoNowUs(), std::move(cb), TraceContext{}));
   EXPECT_TRUE(rt_.Fail(handle2, Status::kFailure));
   EXPECT_TRUE(called);
+}
+
+TEST_F(RequestTrackerTest, GetChunkAddrTrackerSurvivesPostRemoval) {
+  Byte buf[256] = {};
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), [](Status) {},
+                      TraceContext{}));
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 2,
+       .raddr = addr_t(reinterpret_cast<uintptr_t>(buf)),
+       .total_len = sizeof(buf),
+       .op = Op::kRead,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+  ASSERT_TRUE(rt_.AddInitiatorReqs(kHandle, reqs));
+
+  std::shared_ptr<ChunkTracker> tracker;
+  EXPECT_EQ(rt_.GetChunkAddr(kHandle, kReqId, 0, 128, Endpoint{}, &tracker),
+            buf);
+  ASSERT_NE(tracker, nullptr);
+
+  // Erasing the PostTracker (e.g. via Fail on another worker thread) must not
+  // invalidate the ChunkTracker handle already returned to the caller.
+  EXPECT_TRUE(rt_.Fail(kHandle, Status::kFailure));
+  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
+
+  EXPECT_EQ(tracker->Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
+  EXPECT_FALSE(tracker->Release(chunk_t(0), /*success=*/true));
+  EXPECT_EQ(tracker->Acquire(chunk_t(1)), ChunkTracker::ChunkStatus::kEmpty);
+  EXPECT_TRUE(tracker->Release(chunk_t(1), /*success=*/true));
+}
+
+TEST_F(RequestTrackerTest, InitiatorFallbackRejectsUnrelatedPeer) {
+  Byte buf[256] = {};
+  const Endpoint peer_a = Endpoint::Create("10.0.0.1:5000");
+  const Endpoint peer_b = Endpoint::Create("10.0.0.2:5000");
+  ASSERT_TRUE(peer_a.HasNonzeroIpPort());
+  ASSERT_TRUE(peer_b.HasNonzeroIpPort());
+
+  Status completed_status = Status::kInProgress;
+  ASSERT_TRUE(rt_.Add(
+      kHandle, util::MonoNowUs(),
+      [&](Status s) { completed_status = s; }, TraceContext{}));
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = addr_t(reinterpret_cast<uintptr_t>(buf)),
+       .total_len = sizeof(buf),
+       .op = Op::kRead,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+  ASSERT_TRUE(rt_.AddInitiatorReqs(kHandle, reqs, peer_a));
+
+  // Unrelated peer must not match the initiator entry via fallback.
+  std::shared_ptr<ChunkTracker> tracker;
+  EXPECT_EQ(rt_.GetChunkAddr(kHandle, kReqId, 0, 128, peer_b, &tracker),
+            nullptr);
+  EXPECT_EQ(tracker, nullptr);
+  rt_.OnReqComplete(kHandle, peer_b);
+  EXPECT_EQ(completed_status, Status::kInProgress);
+
+  // Expected peer matches and completes the initiator entry.
+  EXPECT_EQ(rt_.GetChunkAddr(kHandle, kReqId, 0, 128, peer_a, &tracker), buf);
+  ASSERT_NE(tracker, nullptr);
+  rt_.OnReqComplete(kHandle, peer_a);
+  EXPECT_EQ(completed_status, Status::kSuccess);
 }
 }  // namespace
 }  // namespace peregrine::internal::testing

@@ -66,7 +66,7 @@ class TransferManagerTest : public ::testing::Test {
     }};
     ASSERT_TRUE(outgoing_.Add(handle, /*start_mono_us=*/0,
                               std::move(on_complete), TraceContext{}));
-    ASSERT_TRUE(outgoing_.Add(handle, req_infos, /*start_us=*/0));
+    ASSERT_TRUE(outgoing_.AddInitiatorReqs(handle, req_infos));
     tm.Submit(peer,
               Post{
                   .handle = handle,

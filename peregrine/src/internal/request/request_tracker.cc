@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/request/request_tracker.h"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -58,11 +59,48 @@ bool RequestTracker::Add(const Handle handle, const uint64_t start_mono_us,
       .second;
 }
 
+bool RequestTracker::AddInitiatorReqs(const Handle handle,
+                                      absl::Span<const RequestInfo> reqs,
+                                      const Endpoint& peer) {
+  DCHECK(!reqs.empty());
+  if ABSL_PREDICT_FALSE (reqs.empty()) return false;
+  absl::MutexLock _(trackers_mu_);
+  const auto it = trackers_.find({Endpoint{}, handle});
+  if ABSL_PREDICT_FALSE (it == trackers_.end() || !it->second.is_initiator) {
+    return false;
+  }
+  PostTracker& pt = it->second;
+  if (!pt.req_map.empty()) return true;
+  pt.peer = peer;
+  pt.pending_reqs = reqs.size();
+  pt.req_map.reserve(reqs.size());
+  for (const RequestInfo& req : reqs) {
+    DCHECK(req.IsValid());
+    if ABSL_PREDICT_FALSE (!req.IsValid()) {
+      pt.req_map.clear();
+      pt.pending_reqs = 0;
+      pt.peer = {};
+      return false;
+    }
+    auto [req_it, req_inserted] = pt.req_map.try_emplace(
+        req.reqid, std::make_shared<ReqTracker>(req.nchunks, req.raddr,
+                                                req.total_len, req.metadata));
+    if ABSL_PREDICT_FALSE (!req_inserted) {
+      pt.req_map.clear();
+      pt.pending_reqs = 0;
+      pt.peer = {};
+      return false;
+    }
+  }
+  return true;
+}
+
 bool RequestTracker::Add(const Handle handle,
                          absl::Span<const RequestInfo> reqs,
                          const uint64_t start_us, const Metadata& metadata,
                          const Endpoint& peer) {
   DCHECK(!reqs.empty());
+  if ABSL_PREDICT_FALSE (reqs.empty()) return false;
   // True if this is a remote `Op::kRead` request received by the responder.
   bool is_responder_read = false;
   bool resolution_failed = false;
@@ -72,38 +110,58 @@ bool RequestTracker::Add(const Handle handle,
     auto [it, inserted] = trackers_.try_emplace(Key{peer, handle});
     PostTracker& pt = it->second;
     if (pt.failed) return false;
-    if (!pt.req_map.empty()) return true;
-    pt.metadata = metadata;
-    if (!pt.is_initiator && reqs[0].op == Op::kWrite) {
-      pt.start_mono_us = start_us;
+    if (!pt.req_map.empty()) {
+      // Idempotent for duplicate `PostInfoHeader` packets on multi-channel
+      // posts.
+      return true;
     }
-    is_responder_read = reqs[0].op == Op::kRead && !pt.is_initiator;
-    pt.pending_reqs = is_responder_read ? 1 : reqs.size();
-    if (is_responder_read) {
-      resolved_reqs.reserve(reqs.size());
+    if ABSL_PREDICT_FALSE (pt.is_initiator) {
+      return false;
     }
-    pt.req_map.reserve(reqs.size());
-    for (const RequestInfo& req : reqs) {
-      DCHECK(req.IsValid());
-      addr_t raddr = req.raddr;
-      if (raddr.value() == 0 && resolve_addr_callback_ != nullptr) {
-        raddr = addr_t(reinterpret_cast<uintptr_t>(
-            resolve_addr_callback_(metadata, req.metadata)));
+    if ABSL_PREDICT_FALSE (resolve_addr_callback_ == nullptr) {
+      pt.failed = true;
+      resolution_failed = true;
+    } else {
+      pt.metadata = metadata;
+      if (reqs[0].op == Op::kWrite) {
+        pt.start_mono_us = start_us;
       }
-      if (!pt.is_initiator && raddr.value() == 0) {
-        pt.req_map.clear();
-        pt.pending_reqs = 0;
-        pt.start_mono_us = 0;
-        pt.failed = true;
-        resolution_failed = true;
-        break;
-      }
-      pt.req_map[req.reqid] =
-          std::make_unique<ReqTracker>(req.nchunks, raddr, req.metadata);
+      is_responder_read = reqs[0].op == Op::kRead;
+      pt.pending_reqs = is_responder_read ? 1 : reqs.size();
       if (is_responder_read) {
-        RequestInfo resolved = req;
-        resolved.raddr = raddr;
-        resolved_reqs.push_back(resolved);
+        resolved_reqs.reserve(reqs.size());
+      }
+      pt.req_map.reserve(reqs.size());
+      for (const RequestInfo& req : reqs) {
+        DCHECK(req.IsValid());
+        if ABSL_PREDICT_FALSE (!req.IsValid()) {
+          trackers_.erase(it);
+          return false;
+        }
+        const Byte* const resolved =
+            resolve_addr_callback_(metadata, req.metadata);
+        const addr_t raddr(reinterpret_cast<uintptr_t>(resolved));
+        if ABSL_PREDICT_FALSE (raddr.value() == 0) {
+          pt.req_map.clear();
+          pt.pending_reqs = 0;
+          pt.start_mono_us = 0;
+          pt.failed = true;
+          resolution_failed = true;
+          break;
+        }
+        auto [req_it, req_inserted] = pt.req_map.try_emplace(
+            req.reqid, std::make_shared<ReqTracker>(req.nchunks, raddr,
+                                                    req.total_len,
+                                                    req.metadata));
+        if ABSL_PREDICT_FALSE (!req_inserted) {
+          trackers_.erase(it);
+          return false;
+        }
+        if (is_responder_read) {
+          RequestInfo resolved = req;
+          resolved.raddr = raddr;
+          resolved_reqs.push_back(resolved);
+        }
       }
     }
   }
@@ -126,7 +184,7 @@ bool RequestTracker::Add(const Handle handle,
 
 void RequestTracker::Remove(const Handle handle, const Endpoint& peer) {
   absl::MutexLock _(trackers_mu_);
-  auto it = trackers_.find({peer, handle});
+  const auto it = trackers_.find({peer, handle});
   if (it == trackers_.end()) return;
   tracer_.RecordPollReaped(it->second.trace_ctx, handle);
   trackers_.erase(it);
@@ -162,7 +220,15 @@ void RequestTracker::OnReqComplete(const Handle handle, const Endpoint& peer) {
   std::vector<Metadata> req_metas;
   {
     absl::MutexLock _(trackers_mu_);
-    const auto it = trackers_.find({peer, handle});
+    auto it = trackers_.find({peer, handle});
+    if (it == trackers_.end() && peer.HasNonzeroIpPort()) {
+      auto init_it = trackers_.find({Endpoint{}, handle});
+      if (init_it != trackers_.end() && init_it->second.is_initiator &&
+          (!init_it->second.peer.HasNonzeroIpPort() ||
+           init_it->second.peer == peer)) {
+        it = init_it;
+      }
+    }
     if ABSL_PREDICT_FALSE (it == trackers_.end()) return;
 
     PostTracker& pt = it->second;
@@ -214,7 +280,13 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
     if ABSL_PREDICT_FALSE (it == trackers_.end()) return;
 
     PostTracker& pt = it->second;
-    ChunkTracker& tracker = pt.req_map.at(reqid)->chunks;
+    const auto req_it = pt.req_map.find(reqid);
+    if ABSL_PREDICT_FALSE (req_it == pt.req_map.end() ||
+                           req_it->second == nullptr) {
+      return;
+    }
+    ChunkTracker& tracker = req_it->second->chunks;
+    if ABSL_PREDICT_FALSE (!tracker.IsValidChunk(index)) return;
     tracker.Set(index);
     if (!tracker.IsDone()) return;
 
@@ -238,17 +310,54 @@ void RequestTracker::Update(const Handle handle, const ReqId reqid,
   }
 }
 
-Byte* RequestTracker::GetChunkAddr(const Handle handle, const ReqId reqid,
-                                   const uint64_t byte_offset,
-                                   const Endpoint& peer) const {
+Byte* RequestTracker::GetChunkAddr(
+    const Handle handle, const ReqId reqid, const uint64_t byte_offset,
+    const uint64_t chunk_len, const Endpoint& peer,
+    std::shared_ptr<ChunkTracker>* const out_tracker) {
+  if (out_tracker != nullptr) *out_tracker = nullptr;
+  if ABSL_PREDICT_FALSE (chunk_len == 0) return nullptr;
   absl::MutexLock _(trackers_mu_);
-  const auto it = trackers_.find({peer, handle});
+  auto it = trackers_.find({peer, handle});
+  if (it == trackers_.end() && peer.HasNonzeroIpPort()) {
+    // Fallback for locally initiated `Op::kRead` responses arriving on a
+    // peer-identified channel. Only match initiator entries whose expected
+    // peer matches (or was unspecified).
+    auto init_it = trackers_.find({Endpoint{}, handle});
+    if (init_it != trackers_.end() && init_it->second.is_initiator &&
+        (!init_it->second.peer.HasNonzeroIpPort() ||
+         init_it->second.peer == peer)) {
+      it = init_it;
+    }
+  }
   if ABSL_PREDICT_FALSE (it == trackers_.end()) return nullptr;
-  const auto req_it = it->second.req_map.find(reqid);
-  if ABSL_PREDICT_FALSE (req_it == it->second.req_map.end()) return nullptr;
-  const uintptr_t base = req_it->second->raddr.value();
+  auto req_it = it->second.req_map.find(reqid);
+  if ABSL_PREDICT_FALSE (req_it == it->second.req_map.end() ||
+                         req_it->second == nullptr) {
+    return nullptr;
+  }
+  ReqTracker& req = *req_it->second;
+  const uintptr_t base = req.raddr.value();
   if ABSL_PREDICT_FALSE (base == 0) return nullptr;
-  return reinterpret_cast<Byte*>(base + byte_offset);
+  // Assumes contiguous placement (`BufferExtent(total_len) == total_len`);
+  // validate against the recipe's buffer extent if non-contiguous recipes are
+  // enabled.
+  if ABSL_PREDICT_FALSE (byte_offset > req.total_len ||
+                         chunk_len > req.total_len - byte_offset) {
+    return nullptr;
+  }
+  if ABSL_PREDICT_FALSE (base >
+                         std::numeric_limits<uintptr_t>::max() - byte_offset) {
+    return nullptr;
+  }
+  const uintptr_t addr = base + byte_offset;
+  if ABSL_PREDICT_FALSE (addr >
+                         std::numeric_limits<uintptr_t>::max() - chunk_len) {
+    return nullptr;
+  }
+  if (out_tracker != nullptr) {
+    *out_tracker = std::shared_ptr<ChunkTracker>(req_it->second, &req.chunks);
+  }
+  return reinterpret_cast<Byte*>(addr);
 }
 
 ChunkTracker& RequestTracker::Find(const Handle handle, const ReqId reqid,
@@ -263,9 +372,9 @@ ChunkTracker& RequestTracker::FindOrCreate(const Handle handle,
                                            const Endpoint& peer) {
   absl::MutexLock _(trackers_mu_);
   PostTracker& pt = trackers_[{peer, handle}];
-  std::unique_ptr<ReqTracker>& req = pt.req_map[reqid];
+  std::shared_ptr<ReqTracker>& req = pt.req_map[reqid];
   if ABSL_PREDICT_FALSE (req == nullptr) {
-    req = std::make_unique<ReqTracker>(num_chunks);
+    req = std::make_shared<ReqTracker>(num_chunks);
     ++pt.pending_reqs;
   }
   return req->chunks;
