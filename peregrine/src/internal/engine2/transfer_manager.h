@@ -35,11 +35,11 @@ namespace peregrine::internal::engine2 {
 class TransferManager final {
  public:
   // Creates a transfer manager for `self` (which must outlive it) using
-  // `outgoing` to report setup failures. Takes ownership of `channel_manager`
-  // and starts it. Returns nullptr on failure.
+  // `outgoing` and `incoming` to track transfers. Takes ownership of
+  // `channel_manager` and starts it. Returns nullptr on failure.
   static std::unique_ptr<TransferManager> Create(
       const Config& config, const HostInfo& self, RequestTracker& outgoing,
-      GetPeerHostInfoFn get_peer_host_info_fn,
+      RequestTracker& incoming, GetPeerHostInfoFn get_peer_host_info_fn,
       std::unique_ptr<ChannelManager> channel_manager);
 
   DISALLOW_COPY(TransferManager);
@@ -59,7 +59,7 @@ class TransferManager final {
 
  private:
   TransferManager(const Config& config, const HostInfo& self,
-                  RequestTracker& outgoing,
+                  RequestTracker& outgoing, RequestTracker& incoming,
                   GetPeerHostInfoFn get_peer_host_info_fn,
                   std::unique_ptr<ChannelManager> channel_manager);
 
@@ -102,6 +102,7 @@ class TransferManager final {
   const Config config_;
   const HostInfo& self_;
   RequestTracker& outgoing_;
+  RequestTracker& incoming_;
   GetPeerHostInfoFn get_peer_host_info_fn_;
 
   // Per-peer state. Entries are never erased while alive, so pointers stay
