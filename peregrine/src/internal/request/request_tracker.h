@@ -72,17 +72,18 @@ class RequestTracker {
   void Remove(Handle handle, const Endpoint& peer = {})
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Fails the tracker for `handle`. If a completion callback is registered,
-  // invokes `on_complete(status)` and removes the handle; otherwise marks the
-  // handle failed so callers polling `Check()` observe `Status::kFailure`
+  // Fails the tracker for `(peer, handle)`. If a completion callback is
+  // registered, invokes `on_complete(status)` and removes the entry; otherwise
+  // marks it failed so callers polling `Check()` observe `Status::kFailure`
   // until `Remove()` is called.
-  bool Fail(Handle handle, Status status = Status::kFailure)
-      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+  bool Fail(Handle handle, Status status = Status::kFailure,
+            const Endpoint& peer = {}) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Updates pending request count when an incoming request in `(peer, handle)`
   // completes all of its chunks, and invokes `recv_post_callback_` once all
-  // requests in the `Post()` batch have completed.
-  void OnReqComplete(Handle handle, const Endpoint& peer = {})
+  // requests in the `Post()` batch have completed. Returns true iff this call
+  // completed the final pending request of the post.
+  bool OnReqComplete(Handle handle, const Endpoint& peer = {})
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Sets the chunk at `index` as completed for `(peer, handle, reqid)`.
@@ -92,6 +93,20 @@ class RequestTracker {
   // - Otherwise, the handle remains until `Poll()` is called.
   void Update(Handle handle, ReqId reqid, chunk_t index, int worker_id,
               const Endpoint& peer = {}) ABSL_LOCKS_EXCLUDED(trackers_mu_);
+
+  // Destination buffer address and chunk tracker returned by `FindChunk()`.
+  struct ChunkTarget {
+    Byte* dst = nullptr;
+    ChunkTracker* tracker = nullptr;
+  };
+
+  // Looks up `(peer, handle, reqid)` under a single lock, returning the
+  // destination address for `[byte_offset, byte_offset + chunk_len)` and its
+  // `ChunkTracker`, or `{nullptr, nullptr}` if missing, unresolved, or out of
+  // bounds.
+  ChunkTarget FindChunk(Handle handle, ReqId reqid, uint64_t byte_offset,
+                        uint64_t chunk_len, const Endpoint& peer = {})
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Returns the target buffer address for a chunk at `byte_offset` within
   // `(peer, handle, reqid)`, or `nullptr` if not found or unresolved.
@@ -120,11 +135,15 @@ class RequestTracker {
   struct ReqTracker {
     ChunkTracker chunks;
     addr_t raddr = addr_t(0);
+    uint64_t total_len = 0;
     Metadata metadata = {};
 
     explicit ReqTracker(uint32_t num_chunks, addr_t raddr = addr_t(0),
-                        const Metadata& metadata = {})
-        : chunks(num_chunks), raddr(raddr), metadata(metadata) {}
+                        const Metadata& metadata = {}, uint64_t total_len = 0)
+        : chunks(num_chunks),
+          raddr(raddr),
+          total_len(total_len),
+          metadata(metadata) {}
   };
   using ReqMap = absl::flat_hash_map<ReqId, std::unique_ptr<ReqTracker>>;
 
