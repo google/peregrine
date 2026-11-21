@@ -56,14 +56,28 @@ class RequestTracker {
   Status Check(Handle handle, const Endpoint& peer = {}) const
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Adds the tracker for the given `handle`.
+  // Adds the tracker for the given locally initiated `handle`.
   // Returns true iff the handle was not already in the tracker; `on_complete`
   // is only consumed when returning true.
   bool Add(Handle handle, uint64_t start_mono_us, OnComplete&& on_complete,
            const TraceContext& trace_ctx) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
+  // Populates the `RequestInfo` descriptors for a locally initiated `handle`
+  // previously registered via `Add(handle, start_mono_us, ...)` (keyed under
+  // `Endpoint{}`). Kept separate from the remote `Add()` overload because
+  // locally initiated requests (e.g., `Op::kRead`) supply trusted local
+  // destination addresses in `req.raddr` without invoking
+  // `resolve_addr_callback_`; keeping a dedicated entry point prevents remote
+  // `PostInfoHeader` packets from colliding with an initiator handle and
+  // injecting untrusted wire addresses.
+  bool AddInitiatorReqs(Handle handle, absl::Span<const RequestInfo> reqs)
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+
   // Adds the `RequestInfo` descriptors (and optional post-level `metadata`) for
-  // `(peer, handle)` (idempotent if already populated).
+  // an incoming remote `(peer, handle)` (idempotent if already populated).
+  // Rejects locally initiated handles and unconditionally ignores wire
+  // `req.raddr`, resolving and bounds-checking every target buffer via
+  // `resolve_addr_callback_`.
   bool Add(Handle handle, absl::Span<const RequestInfo> reqs, uint64_t start_us,
            const Metadata& metadata = {}, const Endpoint& peer = {})
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
@@ -93,10 +107,14 @@ class RequestTracker {
   void Update(Handle handle, ReqId reqid, chunk_t index, int worker_id,
               const Endpoint& peer = {}) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Returns the target buffer address for a chunk at `byte_offset` within
-  // `(peer, handle, reqid)`, or `nullptr` if not found or unresolved.
+  // Returns the target buffer address for a chunk of `chunk_len` bytes at
+  // `byte_offset` within `(peer, handle, reqid)`, or `nullptr` if not found,
+  // unresolved, or out of bounds of the request's `total_len`. If `out_tracker`
+  // is non-null, `*out_tracker` is set to the request's `ChunkTracker` on
+  // success (or `nullptr` on failure) under the same lock acquisition.
   Byte* GetChunkAddr(Handle handle, ReqId reqid, uint64_t byte_offset,
-                     const Endpoint& peer = {}) const
+                     uint64_t chunk_len, const Endpoint& peer = {},
+                     ChunkTracker** out_tracker = nullptr)
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Returns a reference to the chunk tracker for `(peer, handle, reqid)`.
@@ -120,11 +138,15 @@ class RequestTracker {
   struct ReqTracker {
     ChunkTracker chunks;
     addr_t raddr = addr_t(0);
+    uint64_t total_len = 0;
     Metadata metadata = {};
 
     explicit ReqTracker(uint32_t num_chunks, addr_t raddr = addr_t(0),
-                        const Metadata& metadata = {})
-        : chunks(num_chunks), raddr(raddr), metadata(metadata) {}
+                        uint64_t total_len = 0, const Metadata& metadata = {})
+        : chunks(num_chunks),
+          raddr(raddr),
+          total_len(total_len),
+          metadata(metadata) {}
   };
   using ReqMap = absl::flat_hash_map<ReqId, std::unique_ptr<ReqTracker>>;
 

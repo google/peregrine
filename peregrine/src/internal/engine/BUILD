@@ -136,6 +136,7 @@ cc_test(
         "@abseil-cpp//absl/random",
         "@abseil-cpp//absl/synchronization",
         "@abseil-cpp//absl/time",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )

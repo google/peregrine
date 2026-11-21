@@ -90,10 +90,10 @@ class TransferTest : public ::testing::TestWithParam<Param> {
               });
             },
             [this](const Metadata& post_meta,
-                   const Metadata& req_meta) -> Byte* {
+                   const Metadata& req_meta) -> absl::Span<Byte> {
               return post_meta == kPostMetadata && req_meta == kReqMetadata
-                         ? dst_.data()
-                         : nullptr;
+                         ? absl::MakeSpan(dst_)
+                         : absl::Span<Byte>{};
             }) {
     for (size_t i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
@@ -206,7 +206,7 @@ TEST_P(TransferTest, SendRecv) {
   const TraceContext trace_ctx = a_.tracer.MaybeStartTrace();
   ASSERT_TRUE(a_.outgoing.Add(kHandle, util::MonoNowUs(),
                               std::move(on_complete), trace_ctx));
-  ASSERT_TRUE(a_.outgoing.Add(kHandle, {req}, /*start_us=*/0));
+  ASSERT_TRUE(a_.outgoing.AddInitiatorReqs(kHandle, {req}));
 
   // A sends PostInfoHeader + RequestInfo and DataHeader chunks to B.
   util::Thread a_send([&]() {
@@ -372,5 +372,17 @@ TEST_P(TransferTest, AddressResolutionFailureFailsIncomingTracker) {
   chs.rcvr->Shutdown();
 }
 
+TEST_P(TransferTest, RejectsZeroPeerPostInfo) {
+  if (p_.error_rate > 0) return;
+  const auto chs = CreateTestChannelPair(p_);
+  const RequestInfo req = GenRequestInfo();
+
+  PostInfoHeader bad_info = GenPostInfoHeader();
+  bad_info.peer = Endpoint{};
+  ASSERT_TRUE(Transfer::SendInfo(chs.sndr.get(), bad_info, {req}));
+  EXPECT_FALSE(Transfer::Recv(chs.rcvr.get(), b_.outgoing, b_.incoming,
+                              /*worker_id=*/-1, b_.tracer));
+  EXPECT_FALSE(chs.rcvr->GetPeer().HasNonzeroIpPort());
+}
 }  // namespace
 }  // namespace peregrine::internal::testing
