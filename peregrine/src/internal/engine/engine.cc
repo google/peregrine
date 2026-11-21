@@ -257,7 +257,7 @@ void Engine::process(PostEntry& post) {
                                  post.req_infos[i].reqid, req);
   }
   getRequestTracker(post.reqs[0])
-      .Add(post.handle, post.req_infos, /*start_us=*/0);
+      .AddInitiatorReqs(post.handle, post.req_infos, post.peer);
 
   if (is_initiator) {
     if (!is_write) {

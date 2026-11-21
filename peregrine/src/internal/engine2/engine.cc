@@ -166,8 +166,8 @@ absl::StatusOr<Handle> Engine::Enqueue(const PeerId& peer, Item item) {
   if (ABSL_PREDICT_FALSE(!added_handle)) {
     return absl::ResourceExhaustedError("failed to register handle");
   }
-  if (ABSL_PREDICT_FALSE(!outgoing_.Add(handle, req_infos, item.start_mono_us,
-                                        item.metadata))) {
+  if (ABSL_PREDICT_FALSE(
+          !outgoing_.AddInitiatorReqs(handle, req_infos, peer))) {
     outgoing_.Remove(handle);
     return absl::InternalError("failed to register requests for handle");
   }
