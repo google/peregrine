@@ -708,13 +708,52 @@ TEST_F(RequestTrackerTest, AddPreservesCallbackOnCollision) {
   RequestTracker::OnComplete cb = [&](Status) { called = true; };
   EXPECT_FALSE(
       rt_.Add(kHandle, util::MonoNowUs(), std::move(cb), TraceContext{}));
-  EXPECT_NE(cb, nullptr);
+  // Intentionally verifying `Add` does not consume `cb` on handle collision.
+  EXPECT_NE(cb, nullptr);  // NOLINT(bugprone-use-after-move)
 
   const Handle handle2(kHandle.value() + 1);
-  ASSERT_TRUE(
-      rt_.Add(handle2, util::MonoNowUs(), std::move(cb), TraceContext{}));
+  ASSERT_TRUE(rt_.Add(handle2, util::MonoNowUs(),
+                      std::move(cb),  // NOLINT(bugprone-use-after-move)
+                      TraceContext{}));
   EXPECT_TRUE(rt_.Fail(handle2, Status::kFailure));
   EXPECT_TRUE(called);
+}
+
+TEST_F(RequestTrackerTest, UpdateIgnoresInvalidReqIdAndOutOfRangeIndex) {
+  ASSERT_TRUE(rt_.Add(kHandle, util::MonoNowUs(), /*on_complete=*/nullptr,
+                      TraceContext{}));
+  const std::vector<RequestInfo> reqs = {
+      RequestInfo{.reqid = kReqId,
+                  .nchunks = 2,
+                  .raddr = addr_t(0x1000),
+                  .total_len = 1024,
+                  .op = Op::kWrite,
+                  .recipe = Recipe{.type = RecipeType::kContiguous,
+                                   .params = {}}},
+  };
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, util::MonoNowUs()));
+
+  // Unknown reqid and out-of-range chunk index must be safely ignored.
+  rt_.Update(kHandle, ReqId(999), chunk_t(0), /*worker_id=*/0);
+  rt_.Update(kHandle, kReqId, chunk_t(2), /*worker_id=*/0);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
+}
+
+TEST_F(RequestTrackerTest, FailMatchesPeerKeyedEntry) {
+  const Endpoint peer = Endpoint::Create("127.0.0.1:12345");
+  const std::vector<RequestInfo> reqs = {
+      RequestInfo{.reqid = kReqId,
+                  .nchunks = 1,
+                  .raddr = addr_t(0x1000),
+                  .total_len = 64,
+                  .op = Op::kWrite,
+                  .recipe = Recipe{.type = RecipeType::kContiguous,
+                                   .params = {}}},
+  };
+  ASSERT_TRUE(rt_.Add(kHandle, reqs, /*start_us=*/0, {}, peer));
+  EXPECT_FALSE(rt_.Fail(kHandle, Status::kFailure));
+  EXPECT_TRUE(rt_.Fail(kHandle, Status::kFailure, peer));
+  EXPECT_EQ(rt_.Check(kHandle, peer), Status::kFailure);
 }
 }  // namespace
 }  // namespace peregrine::internal::testing
