@@ -43,14 +43,15 @@ class TransferManagerTest : public ::testing::Test {
  protected:
   TransferManagerTest()
       : tracer_(TraceConfig{.sample_every_n = 0}),
-        outgoing_(metrics_, tracer_) {
+        outgoing_(metrics_, tracer_),
+        incoming_(metrics_, tracer_) {
     self_.control_plane_listener = Endpoint::Create("127.0.0.1:10000");
     self_.tcp_nics = {{.rail_id = 0, .if_name = "lo"}};
   }
 
   std::unique_ptr<TransferManager> CreateTransferManager(
       GetPeerHostInfoFn lookup) {
-    return TransferManager::Create(Config{}, self_, outgoing_,
+    return TransferManager::Create(Config{}, self_, outgoing_, incoming_,
                                    std::move(lookup),
                                    ChannelManager::Create(Config{}, self_));
   }
@@ -81,6 +82,7 @@ class TransferManagerTest : public ::testing::Test {
   EngineMetrics metrics_;
   TraceRecorder tracer_;
   RequestTracker outgoing_;
+  RequestTracker incoming_;
   std::array<Byte, 64> buf_ = {};
 };
 
@@ -88,10 +90,10 @@ TEST_F(TransferManagerTest, CreateRejectsNullArguments) {
   auto dummy = [](const PeerId&) -> absl::StatusOr<HostInfo> {
     return absl::UnavailableError("unused");
   };
-  EXPECT_EQ(TransferManager::Create(Config{}, self_, outgoing_, dummy,
-                                    /*channel_manager=*/nullptr),
+  EXPECT_EQ(TransferManager::Create(Config{}, self_, outgoing_, incoming_,
+                                    dummy, /*channel_manager=*/nullptr),
             nullptr);
-  EXPECT_EQ(TransferManager::Create(Config{}, self_, outgoing_,
+  EXPECT_EQ(TransferManager::Create(Config{}, self_, outgoing_, incoming_,
                                     /*get_peer_host_info_fn=*/nullptr,
                                     ChannelManager::Create(Config{}, self_)),
             nullptr);
@@ -276,7 +278,7 @@ TEST_F(TransferManagerTest, SubmitConnectsUsingActiveListenerRails) {
       [](const PeerId&, uint32_t, uint32_t, absl::Status) {});
 
   auto tm = TransferManager::Create(
-      cfg, local_info, outgoing_,
+      cfg, local_info, outgoing_, incoming_,
       [&](const PeerId&) -> absl::StatusOr<HostInfo> { return peer_info; },
       ChannelManager::Create(cfg, local_info));
   ASSERT_THAT(tm, NotNull());

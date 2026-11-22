@@ -76,7 +76,7 @@ std::vector<uint32_t> RailIds(const HostInfo& host) {
 
 std::unique_ptr<TransferManager> TransferManager::Create(
     const Config& config, const HostInfo& self, RequestTracker& outgoing,
-    GetPeerHostInfoFn get_peer_host_info_fn,
+    RequestTracker& incoming, GetPeerHostInfoFn get_peer_host_info_fn,
     std::unique_ptr<ChannelManager> channel_manager) {
   if (ABSL_PREDICT_FALSE(!config.IsValid())) {
     LOG(ERROR) << "invalid config";
@@ -90,18 +90,19 @@ std::unique_ptr<TransferManager> TransferManager::Create(
     LOG(ERROR) << "null channel manager";
     return nullptr;
   }
-  return absl::WrapUnique(new TransferManager(config, self, outgoing,
+  return absl::WrapUnique(new TransferManager(config, self, outgoing, incoming,
                                               std::move(get_peer_host_info_fn),
                                               std::move(channel_manager)));
 }
 
 TransferManager::TransferManager(
     const Config& config, const HostInfo& self, RequestTracker& outgoing,
-    GetPeerHostInfoFn get_peer_host_info_fn,
+    RequestTracker& incoming, GetPeerHostInfoFn get_peer_host_info_fn,
     std::unique_ptr<ChannelManager> channel_manager)
     : config_(config),
       self_(self),
       outgoing_(outgoing),
+      incoming_(incoming),
       get_peer_host_info_fn_(std::move(get_peer_host_info_fn)),
       channel_manager_(std::move(channel_manager)) {
   const std::vector<uint32_t> rails = RailIds(self_);
@@ -110,7 +111,8 @@ TransferManager::TransferManager(
   workers_.reserve(total_workers);
   for (size_t i = 0; i < total_workers; ++i) {
     const uint32_t rail_id = rails[i % rails.size()];
-    workers_.push_back(std::make_unique<Worker>(rail_id));
+    workers_.push_back(std::make_unique<Worker>(static_cast<int>(i), rail_id,
+                                                self_, outgoing_, incoming_));
     std::unique_ptr<RailWorkers>& pool = rail_workers_[rail_id];
     if (pool == nullptr) pool = std::make_unique<RailWorkers>();
     pool->workers.push_back(workers_.back().get());
@@ -239,8 +241,7 @@ void TransferManager::onChannelReady(const PeerId& peer,
   }
   PeerState& peer_state = getOrCreatePeer(peer);
   peer_state.OnChannelReady(worker);
-  worker->AddChannel(std::move(ch), peer_state.work_queue());
-  worker->Wake();
+  worker->AddChannel(peer, std::move(ch), peer_state.work_queue());
 }
 
 void TransferManager::onConnectFailed(const PeerId& peer,

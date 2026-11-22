@@ -8,12 +8,17 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/worker.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
+#include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal::engine2 {
 namespace {
@@ -39,10 +44,29 @@ std::shared_ptr<QueuedPost> MakePost(Handle handle,
   return qp;
 }
 
-TEST(PeerStateTest, EnqueueTriggersSetupOnceAndWakesAssignedWorkers) {
+class PeerStateTest : public ::testing::Test {
+ protected:
+  PeerStateTest()
+      : tracer_(TraceConfig{.sample_every_n = 0}),
+        outgoing_(metrics_, tracer_),
+        incoming_(metrics_, tracer_) {}
+
+  std::unique_ptr<Worker> MakeWorker(int id) {
+    return std::make_unique<Worker>(id, /*rail_id=*/0, self_, outgoing_,
+                                    incoming_);
+  }
+
+  HostInfo self_;
+  EngineMetrics metrics_;
+  TraceRecorder tracer_;
+  RequestTracker outgoing_;
+  RequestTracker incoming_;
+};
+
+TEST_F(PeerStateTest, EnqueueTriggersSetupOnceAndWakesAssignedWorkers) {
   PeerState state;
-  Worker w1(/*rail_id=*/0);
-  Worker w2(/*rail_id=*/0);
+  auto w1 = MakeWorker(0);
+  auto w2 = MakeWorker(1);
 
   PeerState::WorkerList to_wake;
   EXPECT_TRUE(state.Enqueue(MakePost(Handle(1), {1}), to_wake));
@@ -53,16 +77,16 @@ TEST(PeerStateTest, EnqueueTriggersSetupOnceAndWakesAssignedWorkers) {
   EXPECT_THAT(to_wake, IsEmpty());
 
   // Duplicate worker assignments are deduplicated in `to_wake`.
-  state.OnChannelReady(&w2);
-  state.OnChannelReady(&w1);
-  state.OnChannelReady(&w2);
+  state.OnChannelReady(w2.get());
+  state.OnChannelReady(w1.get());
+  state.OnChannelReady(w2.get());
   EXPECT_TRUE(state.IsReady());
 
   EXPECT_FALSE(state.Enqueue(MakePost(Handle(3), {1}), to_wake));
-  EXPECT_THAT(to_wake, ElementsAre(&w2, &w1));
+  EXPECT_THAT(to_wake, ElementsAre(w2.get(), w1.get()));
 }
 
-TEST(PeerStateTest, AllConnectsFailedAbortsAndResetsToIdle) {
+TEST_F(PeerStateTest, AllConnectsFailedAbortsAndResetsToIdle) {
   PeerState state;
   PeerState::WorkerList to_wake;
   EXPECT_TRUE(state.Enqueue(MakePost(Handle(1), {1}), to_wake));
@@ -77,13 +101,13 @@ TEST(PeerStateTest, AllConnectsFailedAbortsAndResetsToIdle) {
   EXPECT_TRUE(state.Enqueue(MakePost(Handle(3), {1}), to_wake));
 }
 
-TEST(PeerStateTest, ReadyChannelPreventsAbortOnFailedConnectOrLookup) {
+TEST_F(PeerStateTest, ReadyChannelPreventsAbortOnFailedConnectOrLookup) {
   PeerState state;
-  Worker w(/*rail_id=*/0);
+  auto w = MakeWorker(0);
   PeerState::WorkerList to_wake;
   state.Enqueue(MakePost(Handle(1), {1}), to_wake);
   state.OnConnectsStarted(2);
-  state.OnChannelReady(&w);
+  state.OnChannelReady(w.get());
 
   EXPECT_THAT(state.OnConnectFailed(), IsEmpty());
   EXPECT_THAT(state.AbortSetup(), IsEmpty());
