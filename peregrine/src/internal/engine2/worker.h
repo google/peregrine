@@ -30,7 +30,7 @@ class Worker final {
  public:
   // Creates and starts the worker for local rail `rail_id`. `self`, `outgoing`,
   // and `incoming` must outlive the worker.
-  Worker(int id, uint32_t rail_id, const HostInfo& self,
+  Worker(int id, int32_t rail_id, const HostInfo& self,
          RequestTracker& outgoing, RequestTracker& incoming);
 
   DISALLOW_COPY(Worker);
@@ -74,7 +74,7 @@ class Worker final {
 
  private:
   const int id_;
-  const uint32_t rail_id_;
+  const int32_t rail_id_;
   const fd_t wake_fd_;
 
   // Non-owning, thread-safe references; all must outlive the worker.

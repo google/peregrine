@@ -35,7 +35,7 @@ constexpr uint32_t kChannelEvents = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
 
 }  // namespace
 
-Worker::Worker(const int id, const uint32_t rail_id, const HostInfo& self,
+Worker::Worker(const int id, const int32_t rail_id, const HostInfo& self,
                RequestTracker& outgoing, RequestTracker& incoming)
     : id_(id),
       rail_id_(rail_id),

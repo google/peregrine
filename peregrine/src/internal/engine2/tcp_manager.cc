@@ -33,15 +33,14 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel_tcp.h"
 #include "peregrine/src/internal/engine2/assumptions.h"
+#include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/event/poller.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
-#include "peregrine/src/internal/nic/nic_inventory.h"
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_util.h"
 #include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/ipaddr.h"
-#include "peregrine/src/util/nic.h"
 #include "peregrine/src/util/thread.h"
 
 namespace peregrine::internal::engine2 {
@@ -57,7 +56,7 @@ struct Hello {
   uint16_t port;
   uint8_t is_ipv6;
   uint8_t pad;
-  uint32_t rail_id;
+  int32_t rail_id;
 };
 static_assert(sizeof(Hello) == 24);
 
@@ -68,7 +67,7 @@ std::string EvtMsg(std::string_view what, const fd_t fd, const uint32_t flag,
 }
 
 bool WriteHello(const TcpSocket& socket, const PeerId& self,
-                const uint32_t rail_id) {
+                const int32_t rail_id) {
   Hello hello = {};
   const auto [raw, len] = self.GetIpAddr().RawAddrAndLen();
   DCHECK_LE(len, sizeof(hello.ip));
@@ -80,7 +79,7 @@ bool WriteHello(const TcpSocket& socket, const PeerId& self,
   return socket.Send(cursor) == static_cast<ssize_t>(sizeof(hello));
 }
 
-std::optional<std::pair<PeerId, uint32_t>> ParseHello(const char* bytes) {
+std::optional<std::pair<PeerId, int32_t>> ParseHello(const char* bytes) {
   Hello hello;
   std::memcpy(&hello, bytes, sizeof(hello));
   PeerId peer;
@@ -93,59 +92,8 @@ std::optional<std::pair<PeerId, uint32_t>> ParseHello(const char* bytes) {
     std::memcpy(&ip4, hello.ip, sizeof(ip4));
     peer = Endpoint(ip4, port_t(hello.port));
   }
-  if (!peer.HasNonzeroIpPort()) return std::nullopt;
+  if (!peer.HasNonzeroIpPort() || hello.rail_id < kNoRail) return std::nullopt;
   return std::make_pair(peer, hello.rail_id);
-}
-
-std::optional<uint32_t> RailIdForListener(const HostInfo& host,
-                                          std::string_view if_name,
-                                          uint32_t ip_listener_idx) {
-  if (host.tcp_nics.empty()) return ip_listener_idx;
-  for (const nic::TcpNic& nic : host.tcp_nics) {
-    if (nic.if_name == if_name) return nic.rail_id;
-  }
-  return std::nullopt;
-}
-
-std::optional<uint32_t> ResolveLocalRail(const HostInfo& host,
-                                         const Endpoint& target) {
-  uint32_t idx = 0;
-  for (const NicInfo& listener : host.data_plane_listeners) {
-    if (listener.type != util::NicType::kIP || listener.endpoints.empty()) {
-      continue;
-    }
-    for (const Endpoint& ep : listener.endpoints) {
-      if (ep == target) return RailIdForListener(host, listener.name, idx);
-    }
-    ++idx;
-  }
-  return std::nullopt;
-}
-
-const std::vector<Endpoint>* ResolveRailEndpoints(const HostInfo& host,
-                                                  uint32_t rail_id) {
-  uint32_t idx = 0;
-  for (const NicInfo& listener : host.data_plane_listeners) {
-    if (listener.type != util::NicType::kIP || listener.endpoints.empty()) {
-      continue;
-    }
-    if (RailIdForListener(host, listener.name, idx) == rail_id) {
-      return &listener.endpoints;
-    }
-    ++idx;
-  }
-  return nullptr;
-}
-
-Endpoint PickLocalBindEndpoint(const std::vector<Endpoint>& local_endpoints,
-                               const Endpoint& remote) {
-  const int family = remote.GetIpAddr().AddressFamily();
-  for (const Endpoint& ep : local_endpoints) {
-    if (ep.GetIpAddr().AddressFamily() == family) {
-      return Endpoint(ep.GetIpAddr(), port_t(0));
-    }
-  }
-  return Endpoint();
 }
 
 std::unique_ptr<TcpSocket> CreateListener(Endpoint& endpoint, Poller& poller) {
@@ -198,11 +146,13 @@ std::unique_ptr<TcpManager> TcpManager::Create(const Config& config,
   HostInfo host = self;  // only update `self` on success
   absl::flat_hash_map<fd_t, Listener> listeners;
   for (auto& [_, ni] : candidates) {
+    const std::optional<int32_t> rail_id = RailIdForInterface(host, ni.name);
+    if (!rail_id.has_value()) continue;
     NicInfo nic(ni.name, ni.type, {});
     for (auto& e : ni.endpoints) {
       if (auto socket = CreateListener(e, *poller); socket != nullptr) {
         const fd_t fd = socket->fd();
-        listeners.emplace(fd, Listener{std::move(socket), e});
+        listeners.emplace(fd, Listener{std::move(socket), e, *rail_id});
         nic.endpoints.push_back(e);
       }
     }
@@ -259,17 +209,14 @@ void TcpManager::Stop() {
   wake();
 }
 
-void TcpManager::Connect(const HostInfo& peer_info,
-                         const uint32_t local_rail_id,
-                         const uint32_t remote_rail_id) {
+void TcpManager::Connect(const ConnectionSpec& spec) {
   DCHECK(on_channel_ready_ != nullptr) << "Connect() called before Start()";
   bool should_wake = false;
   {
     absl::MutexLock lock(mu_);
     if (ABSL_PREDICT_FALSE(sealed_)) return;
     should_wake = pending_.empty();
-    pending_.push_back(
-        ConnectRequest{peer_info, local_rail_id, remote_rail_id});
+    pending_.push_back(spec);
   }
   if (should_wake) wake();
 }
@@ -280,37 +227,32 @@ void TcpManager::wake() {
 }
 
 void TcpManager::drainPending() {
-  std::vector<ConnectRequest> batch;
+  std::vector<ConnectionSpec> batch;
   {
     absl::MutexLock lock(mu_);
     batch.swap(pending_);
   }
-  for (const ConnectRequest& req : batch) {
+  for (const ConnectionSpec& spec : batch) {
     if (isStopped()) break;
-    startConnect(req);
+    startConnect(spec);
   }
 }
 
-void TcpManager::startConnect(const ConnectRequest& req) {
-  const PeerId& peer = req.peer_info.control_plane_listener;
-  const std::vector<Endpoint>* local_endpoints =
-      ResolveRailEndpoints(self_, req.local_rail_id);
-  const std::vector<Endpoint>* remote_endpoints =
-      ResolveRailEndpoints(req.peer_info, req.remote_rail_id);
-  if (ABSL_PREDICT_FALSE(local_endpoints == nullptr ||
-                         remote_endpoints == nullptr)) {
-    on_connect_failed_(peer, req.local_rail_id, req.remote_rail_id,
-                       absl::FailedPreconditionError("unknown rail"));
+void TcpManager::startConnect(const ConnectionSpec& spec) {
+  if (ABSL_PREDICT_FALSE(
+          !spec.peer.HasNonzeroIpPort() || !spec.remote_ep.HasNonzeroIpPort() ||
+          spec.local_rail_id < kNoRail || spec.remote_rail_id < kNoRail)) {
+    on_connect_failed_(
+        spec.peer, spec.local_rail_id, spec.remote_rail_id,
+        absl::FailedPreconditionError("invalid connection spec"));
     return;
   }
-  const Endpoint& remote_ep = (*remote_endpoints)[0];
-  const Endpoint local_bind =
-      PickLocalBindEndpoint(*local_endpoints, remote_ep);
-  auto socket = TcpSocket::Create(remote_ep.GetIpAddr().AddressFamily(),
+  auto socket = TcpSocket::Create(spec.remote_ep.GetIpAddr().AddressFamily(),
                                   /*blocking=*/false);
-  if (ABSL_PREDICT_FALSE(socket == nullptr || (!local_bind.HasZeroIpAddr() &&
-                                               socket->Bind(local_bind) < 0))) {
-    on_connect_failed_(peer, req.local_rail_id, req.remote_rail_id,
+  if (ABSL_PREDICT_FALSE(socket == nullptr ||
+                         (!spec.local_bind.HasZeroIpAddr() &&
+                          socket->Bind(spec.local_bind) < 0))) {
+    on_connect_failed_(spec.peer, spec.local_rail_id, spec.remote_rail_id,
                        absl::UnavailableError("connect failed"));
     return;
   }
@@ -318,11 +260,11 @@ void TcpManager::startConnect(const ConnectRequest& req) {
   ChannelInit init = {
       .state = ChannelInit::State::kConnecting,
       .socket = std::move(socket),
-      .local_rail_id = req.local_rail_id,
-      .expected = PeerRail{peer, req.remote_rail_id},
+      .local_rail_id = spec.local_rail_id,
+      .expected = PeerRail{spec.peer, spec.remote_rail_id},
       .expiration = util::MonotonicNow() + kInitTimeout,
   };
-  switch (init.socket->Connect(remote_ep)) {
+  switch (init.socket->Connect(spec.remote_ep)) {
     case kConnectSuccess:
       beginHandshake(std::move(init));
       return;
@@ -374,7 +316,7 @@ bool TcpManager::handleAccept(const fd_t fd, const uint32_t flag) {
   if (!(flag & EPOLLIN)) return true;
 
   const TcpSocket& listener = *it->second.socket;
-  const Endpoint local_ep = it->second.endpoint;
+  const int32_t rail_id = it->second.local_rail_id;
   const int family = listener.family();
   while (!isStopped()) {
     const int ret = listener.Accept(/*gen_blocking=*/false);
@@ -392,16 +334,10 @@ bool TcpManager::handleAccept(const fd_t fd, const uint32_t flag) {
     }
     auto socket = TcpSocket::Create(fd_t(ret), family, /*blocking=*/false);
     if (ABSL_PREDICT_FALSE(socket == nullptr)) continue;
-    const std::optional<uint32_t> rail_id = ResolveLocalRail(self_, local_ep);
-    if (ABSL_PREDICT_FALSE(!rail_id.has_value())) {
-      LOG(WARNING) << "dropping inbound channel on unmapped listener "
-                   << local_ep;
-      continue;
-    }
     LOG(INFO) << "accepted " << *socket;
     beginHandshake(ChannelInit{
         .socket = std::move(socket),
-        .local_rail_id = *rail_id,
+        .local_rail_id = rail_id,
     });
   }
   return true;
@@ -463,7 +399,7 @@ void TcpManager::finishInit(ChannelInit init, absl::Status status) {
     }
     if (status.ok() && outbound && *remote != *init.expected) {
       status = absl::FailedPreconditionError(absl::StrFormat(
-          "reached %s rail %u", remote->peer.ToString(), remote->rail_id));
+          "reached %s rail %d", remote->peer.ToString(), remote->rail_id));
     }
   }
   if (status.ok()) {

@@ -5,8 +5,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -22,55 +20,23 @@
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
-#include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/engine2/assumptions.h"
 #include "peregrine/src/internal/engine2/channel_manager.h"
+#include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/engine2/peer_discovery.h"
 #include "peregrine/src/internal/engine2/peer_state.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/worker.h"
-#include "peregrine/src/internal/nic/nic_inventory.h"
 #include "peregrine/src/internal/request/request_tracker.h"
-#include "peregrine/src/util/nic.h"
 #include "peregrine/src/util/thread.h"
 
 namespace peregrine::internal::engine2 {
 namespace {
 
 constexpr int kMaxWorkers = 16;
-
-// Maps a listener interface to its rail ID (matching `TcpManager`).
-std::optional<uint32_t> RailIdForListener(const HostInfo& host,
-                                          std::string_view if_name,
-                                          uint32_t ip_listener_idx) {
-  if (host.tcp_nics.empty()) return ip_listener_idx;
-  for (const nic::TcpNic& nic : host.tcp_nics) {
-    if (nic.if_name == if_name) return nic.rail_id;
-  }
-  return std::nullopt;
-}
-
-// Returns the rail IDs with active IP listeners on `host` (or `{0}` if none).
-std::vector<uint32_t> RailIds(const HostInfo& host) {
-  std::vector<uint32_t> ids;
-  uint32_t idx = 0;
-  for (const NicInfo& listener : host.data_plane_listeners) {
-    if (listener.type != util::NicType::kIP || listener.endpoints.empty()) {
-      continue;
-    }
-    if (const std::optional<uint32_t> rail =
-            RailIdForListener(host, listener.name, idx);
-        rail.has_value()) {
-      ids.push_back(*rail);
-    }
-    ++idx;
-  }
-  if (ids.empty()) return {0};
-  return ids;
-}
 
 }  // namespace
 
@@ -105,12 +71,12 @@ TransferManager::TransferManager(
       incoming_(incoming),
       get_peer_host_info_fn_(std::move(get_peer_host_info_fn)),
       channel_manager_(std::move(channel_manager)) {
-  const std::vector<uint32_t> rails = RailIds(self_);
+  const std::vector<int32_t> rails = ActiveRailIds(self_);
   const size_t total_workers = std::max<size_t>(
       rails.size(), std::clamp(config_.num_conns_per_peer, 1, kMaxWorkers));
   workers_.reserve(total_workers);
   for (size_t i = 0; i < total_workers; ++i) {
-    const uint32_t rail_id = rails[i % rails.size()];
+    const int32_t rail_id = rails[i % rails.size()];
     workers_.push_back(std::make_unique<Worker>(static_cast<int>(i), rail_id,
                                                 self_, outgoing_, incoming_));
     std::unique_ptr<RailWorkers>& pool = rail_workers_[rail_id];
@@ -119,12 +85,12 @@ TransferManager::TransferManager(
   }
 
   channel_manager_->Start(
-      [this](const PeerId& peer, uint32_t local_rail_id,
-             uint32_t /*remote_rail_id*/, std::unique_ptr<Channel> ch) {
+      [this](const PeerId& peer, int32_t local_rail_id,
+             int32_t /*remote_rail_id*/, std::unique_ptr<Channel> ch) {
         onChannelReady(peer, local_rail_id, std::move(ch));
       },
-      [this](const PeerId& peer, uint32_t local_rail_id,
-             uint32_t remote_rail_id, absl::Status status) {
+      [this](const PeerId& peer, int32_t local_rail_id, int32_t remote_rail_id,
+             absl::Status status) {
         onConnectFailed(peer, local_rail_id, remote_rail_id, std::move(status));
       });
 
@@ -219,19 +185,22 @@ void TransferManager::setupPeer(const PeerId& peer) {
   if (peer_state->IsReady())
     return;  // an inbound channel arrived during lookup
 
-  const std::vector<uint32_t> local_rails = RailIds(self_);
-  const std::vector<uint32_t> remote_rails = RailIds(*host_info);
-  const int n = config_.num_conns_per_peer;
-  peer_state->OnConnectsStarted(n);
+  const std::vector<ConnectionSpec> specs =
+      PlanConnections(config_, self_, *host_info);
+  if (specs.empty()) {
+    LOG(WARNING) << "no connection plan for peer " << peer;
+    failHandles(peer_state->AbortSetup());
+    return;
+  }
+  peer_state->OnConnectsStarted(static_cast<int>(specs.size()));
   static_assert(assumptions::kChannelManagerCallbacksMayRunOnAnyThread);
-  for (int i = 0; i < n; ++i) {
-    channel_manager_->Connect(*host_info, local_rails[i % local_rails.size()],
-                              remote_rails[i % remote_rails.size()]);
+  for (const ConnectionSpec& spec : specs) {
+    channel_manager_->Connect(spec);
   }
 }
 
 void TransferManager::onChannelReady(const PeerId& peer,
-                                     const uint32_t local_rail_id,
+                                     const int32_t local_rail_id,
                                      std::unique_ptr<Channel> ch) {
   static_assert(assumptions::kDuplicateChannelsAllowedOnSimultaneousConnect);
   Worker* worker = pickWorker(local_rail_id);
@@ -245,8 +214,8 @@ void TransferManager::onChannelReady(const PeerId& peer,
 }
 
 void TransferManager::onConnectFailed(const PeerId& peer,
-                                      const uint32_t local_rail_id,
-                                      const uint32_t remote_rail_id,
+                                      const int32_t local_rail_id,
+                                      const int32_t remote_rail_id,
                                       absl::Status status) {
   LOG(WARNING) << "failed to connect rail " << local_rail_id << " to rail "
                << remote_rail_id << " of peer " << peer << ": " << status;
@@ -261,7 +230,7 @@ void TransferManager::failHandles(const std::vector<Handle>& handles) {
   }
 }
 
-Worker* TransferManager::pickWorker(const uint32_t local_rail_id) {
+Worker* TransferManager::pickWorker(const int32_t local_rail_id) {
   RailWorkers* pool = nullptr;
   if (const auto it = rail_workers_.find(local_rail_id);
       it != rail_workers_.end() && !it->second->workers.empty()) {

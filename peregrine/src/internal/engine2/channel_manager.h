@@ -10,6 +10,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
+#include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/engine2/tcp_manager.h"
 #include "peregrine/src/util/macro.h"
 
@@ -27,13 +28,13 @@ class ChannelManager final {
   // Called with each ready channel between `local_rail_id` and `peer`'s
   // `remote_rail_id`.
   using OnChannelReadyFn = absl::AnyInvocable<void(
-      const PeerId& peer, uint32_t local_rail_id, uint32_t remote_rail_id,
+      const PeerId& peer, int32_t local_rail_id, int32_t remote_rail_id,
       std::unique_ptr<Channel> ch)>;
 
   // Called once per `Connect()` call that fails to open a channel to `peer`.
   using OnConnectFailedFn =
-      absl::AnyInvocable<void(const PeerId& peer, uint32_t local_rail_id,
-                              uint32_t remote_rail_id, absl::Status status)>;
+      absl::AnyInvocable<void(const PeerId& peer, int32_t local_rail_id,
+                              int32_t remote_rail_id, absl::Status status)>;
 
   // Creates a channel manager for the local host described by `self`, which
   // must outlive it. Sets up the data-plane listeners and records them in
@@ -54,12 +55,10 @@ class ChannelManager final {
   void Start(OnChannelReadyFn on_channel_ready,
              OnConnectFailedFn on_connect_failed);
 
-  // Opens a channel from local rail `local_rail_id` to rail `remote_rail_id`
-  // of the peer described by `peer_info`. Returns without waiting. Reports the
-  // outcome exactly once, to `on_channel_ready` or `on_connect_failed`, unless
-  // the channel manager is destroyed first.
-  void Connect(const HostInfo& peer_info, uint32_t local_rail_id,
-               uint32_t remote_rail_id);
+  // Opens a channel described by `spec` without waiting. Reports the outcome
+  // exactly once, to `on_channel_ready` or `on_connect_failed`, unless the
+  // channel manager is destroyed first.
+  void Connect(const ConnectionSpec& spec);
 
  private:
   explicit ChannelManager(std::unique_ptr<TcpManager> tcp_manager);

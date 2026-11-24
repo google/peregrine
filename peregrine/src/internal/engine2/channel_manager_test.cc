@@ -19,6 +19,7 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
+#include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
@@ -44,27 +45,27 @@ class Recorder {
  public:
   struct Ready {
     PeerId peer;
-    uint32_t local_rail_id;
-    uint32_t remote_rail_id;
+    int32_t local_rail_id;
+    int32_t remote_rail_id;
     std::unique_ptr<Channel> ch;
   };
   struct Failed {
     PeerId peer;
-    uint32_t local_rail_id;
-    uint32_t remote_rail_id;
+    int32_t local_rail_id;
+    int32_t remote_rail_id;
     absl::Status status;
   };
 
   void Start(ChannelManager& channel_manager) {
     channel_manager.Start(
-        [this](const PeerId& peer, uint32_t local_rail_id,
-               uint32_t remote_rail_id, std::unique_ptr<Channel> ch) {
+        [this](const PeerId& peer, int32_t local_rail_id,
+               int32_t remote_rail_id, std::unique_ptr<Channel> ch) {
           absl::MutexLock lock(mu_);
           ready_.push_back(
               {peer, local_rail_id, remote_rail_id, std::move(ch)});
         },
-        [this](const PeerId& peer, uint32_t local_rail_id,
-               uint32_t remote_rail_id, absl::Status status) {
+        [this](const PeerId& peer, int32_t local_rail_id,
+               int32_t remote_rail_id, absl::Status status) {
           absl::MutexLock lock(mu_);
           failed_.push_back(
               {peer, local_rail_id, remote_rail_id, std::move(status)});
@@ -128,8 +129,10 @@ TEST(ChannelManagerTest, BothEndsLearnEachOtherAndRail) {
   b_rec.Start(*b_mgr);
 
   constexpr int kNumChannels = 3;
-  for (int i = 0; i < kNumChannels; ++i) {
-    a_mgr->Connect(b, /*local_rail_id=*/3, /*remote_rail_id=*/5);
+  Config plan_config;
+  plan_config.num_conns_per_peer = kNumChannels;
+  for (const ConnectionSpec& spec : PlanConnections(plan_config, a, b)) {
+    a_mgr->Connect(spec);
   }
 
   std::vector<Recorder::Ready> outbound = a_rec.WaitForReady(kNumChannels);
@@ -166,7 +169,9 @@ TEST(ChannelManagerTest, ReadyChannelCarriesData) {
   a_rec.Start(*a_mgr);
   b_rec.Start(*b_mgr);
 
-  a_mgr->Connect(b, /*local_rail_id=*/0, /*remote_rail_id=*/0);
+  const std::vector<ConnectionSpec> specs = PlanConnections(Config{}, a, b);
+  ASSERT_THAT(specs, Not(IsEmpty()));
+  a_mgr->Connect(specs[0]);
   std::vector<Recorder::Ready> outbound = a_rec.WaitForReady(1);
   std::vector<Recorder::Ready> inbound = b_rec.WaitForReady(1);
   ASSERT_EQ(outbound.size(), 1);
@@ -189,7 +194,7 @@ TEST(ChannelManagerTest, ReadyChannelCarriesData) {
   send_and_receive(*inbound[0].ch, *outbound[0].ch);
 }
 
-TEST(ChannelManagerTest, ConnectUnknownRailFails) {
+TEST(ChannelManagerTest, ConnectInvalidRemoteEndpointFails) {
   // Declared first, so the channel manager reporting to it goes first.
   Recorder rec;
   HostInfo self = LoopbackHost("127.0.0.1:10000");
@@ -198,21 +203,18 @@ TEST(ChannelManagerTest, ConnectUnknownRailFails) {
   rec.Start(*mgr);
 
   const HostInfo peer = LoopbackHost("127.0.0.1:20000");
-  // Unknown local rail, then unknown remote rail (peer has no listeners).
-  mgr->Connect(peer, /*local_rail_id=*/9, /*remote_rail_id=*/0);
-  mgr->Connect(peer, /*local_rail_id=*/0, /*remote_rail_id=*/2);
+  mgr->Connect(ConnectionSpec{
+      .peer = peer.control_plane_listener,
+      .local_rail_id = kNoRail,
+      .remote_rail_id = 2,
+  });
 
-  std::vector<Recorder::Failed> failed = rec.WaitForFailed(2);
-  ASSERT_EQ(failed.size(), 2);
+  std::vector<Recorder::Failed> failed = rec.WaitForFailed(1);
+  ASSERT_EQ(failed.size(), 1);
   EXPECT_EQ(failed[0].peer, peer.control_plane_listener);
-  EXPECT_EQ(failed[0].local_rail_id, 9);
-  EXPECT_EQ(failed[0].remote_rail_id, 0);
+  EXPECT_EQ(failed[0].local_rail_id, kNoRail);
+  EXPECT_EQ(failed[0].remote_rail_id, 2);
   EXPECT_THAT(failed[0].status,
-              StatusIs(absl::StatusCode::kFailedPrecondition));
-  EXPECT_EQ(failed[1].peer, peer.control_plane_listener);
-  EXPECT_EQ(failed[1].local_rail_id, 0);
-  EXPECT_EQ(failed[1].remote_rail_id, 2);
-  EXPECT_THAT(failed[1].status,
               StatusIs(absl::StatusCode::kFailedPrecondition));
 }
 
@@ -227,7 +229,10 @@ TEST(ChannelManagerTest, ConnectToClosedListenerFails) {
   ASSERT_THAT(ChannelManager::Create(Config{}, gone), NotNull());
   rec.Start(*mgr);
 
-  mgr->Connect(gone, /*local_rail_id=*/0, /*remote_rail_id=*/0);
+  const std::vector<ConnectionSpec> specs =
+      PlanConnections(Config{}, self, gone);
+  ASSERT_THAT(specs, Not(IsEmpty()));
+  mgr->Connect(specs[0]);
 
   std::vector<Recorder::Failed> failed = rec.WaitForFailed(1);
   ASSERT_EQ(failed.size(), 1);
@@ -251,7 +256,9 @@ TEST(ChannelManagerTest, ReachingAnotherPeerFails) {
   // Host info naming another peer, but listing `b`'s listeners.
   HostInfo stale = b;
   stale.control_plane_listener = Endpoint::Create("127.0.0.1:10003");
-  a_mgr->Connect(stale, /*local_rail_id=*/0, /*remote_rail_id=*/0);
+  const std::vector<ConnectionSpec> specs = PlanConnections(Config{}, a, stale);
+  ASSERT_THAT(specs, Not(IsEmpty()));
+  a_mgr->Connect(specs[0]);
 
   std::vector<Recorder::Failed> failed = a_rec.WaitForFailed(1);
   ASSERT_EQ(failed.size(), 1);

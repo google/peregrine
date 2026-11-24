@@ -23,6 +23,7 @@
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/engine2/channel_manager.h"
+#include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/engine2/peer_discovery.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
@@ -106,10 +107,10 @@ TEST_F(TransferManagerTest, SubmitGetsHostInfoOncePerPeer) {
   ASSERT_THAT(peer_cm, NotNull());
   absl::Notification peer_accepted;
   peer_cm->Start(
-      [&](const PeerId&, uint32_t, uint32_t, std::unique_ptr<Channel>) {
+      [&](const PeerId&, int32_t, int32_t, std::unique_ptr<Channel>) {
         if (!peer_accepted.HasBeenNotified()) peer_accepted.Notify();
       },
-      [](const PeerId&, uint32_t, uint32_t, absl::Status) {});
+      [](const PeerId&, int32_t, int32_t, absl::Status) {});
 
   absl::Mutex mu;
   std::vector<PeerId> lookups;
@@ -137,10 +138,10 @@ TEST_F(TransferManagerTest, InboundChannelMarksPeerReadyWithoutLookup) {
   ASSERT_THAT(peer_cm, NotNull());
   absl::Notification peer_connected;
   peer_cm->Start(
-      [&](const PeerId&, uint32_t, uint32_t, std::unique_ptr<Channel>) {
+      [&](const PeerId&, int32_t, int32_t, std::unique_ptr<Channel>) {
         if (!peer_connected.HasBeenNotified()) peer_connected.Notify();
       },
-      [](const PeerId&, uint32_t, uint32_t, absl::Status) {});
+      [](const PeerId&, int32_t, int32_t, absl::Status) {});
 
   absl::Mutex mu;
   std::vector<PeerId> lookups;
@@ -153,7 +154,10 @@ TEST_F(TransferManagerTest, InboundChannelMarksPeerReadyWithoutLookup) {
   ASSERT_THAT(tm, NotNull());
 
   // Remote peer connects to us; handshake marks `peer_info` ready locally.
-  peer_cm->Connect(self_, /*local_rail_id=*/0, /*remote_rail_id=*/0);
+  const std::vector<ConnectionSpec> specs =
+      PlanConnections(Config{}, peer_info, self_);
+  ASSERT_FALSE(specs.empty());
+  peer_cm->Connect(specs[0]);
   ASSERT_TRUE(peer_connected.WaitForNotificationWithTimeout(kWaitTimeout));
   // Wait briefly for our local poll thread to finish `onChannelReady`.
   absl::SleepFor(absl::Milliseconds(20));
@@ -266,16 +270,16 @@ TEST_F(TransferManagerTest, SubmitConnectsUsingActiveListenerRails) {
   auto peer_cm = ChannelManager::Create(cfg, peer_info);
   ASSERT_THAT(peer_cm, NotNull());
   absl::Notification peer_accepted;
-  uint32_t accepted_local_rail = 0;
-  uint32_t accepted_remote_rail = 0;
+  int32_t accepted_local_rail = 0;
+  int32_t accepted_remote_rail = 0;
   peer_cm->Start(
-      [&](const PeerId&, uint32_t local_rail, uint32_t remote_rail,
+      [&](const PeerId&, int32_t local_rail, int32_t remote_rail,
           std::unique_ptr<Channel>) {
         accepted_local_rail = local_rail;
         accepted_remote_rail = remote_rail;
         if (!peer_accepted.HasBeenNotified()) peer_accepted.Notify();
       },
-      [](const PeerId&, uint32_t, uint32_t, absl::Status) {});
+      [](const PeerId&, int32_t, int32_t, absl::Status) {});
 
   auto tm = TransferManager::Create(
       cfg, local_info, outgoing_, incoming_,

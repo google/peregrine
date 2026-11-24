@@ -77,12 +77,12 @@ class TransferManager final {
   void setupPeer(const PeerId& peer);
 
   // Marks `peer` ready and hands `ch` to a worker on `local_rail_id`.
-  void onChannelReady(const PeerId& peer, uint32_t local_rail_id,
+  void onChannelReady(const PeerId& peer, int32_t local_rail_id,
                       std::unique_ptr<Channel> ch);
 
   // Records a connect failure and fails queued posts if all connects failed.
-  void onConnectFailed(const PeerId& peer, uint32_t local_rail_id,
-                       uint32_t remote_rail_id, absl::Status status);
+  void onConnectFailed(const PeerId& peer, int32_t local_rail_id,
+                       int32_t remote_rail_id, absl::Status status);
 
   // Marks every handle in `handles` failed in `outgoing_`.
   void failHandles(const std::vector<Handle>& handles);
@@ -90,7 +90,7 @@ class TransferManager final {
   // Picks the next worker for `local_rail_id` (round-robin), falling back to
   // any worker if `local_rail_id` has none. Returns nullptr if there are no
   // workers.
-  Worker* pickWorker(uint32_t local_rail_id);
+  Worker* pickWorker(int32_t local_rail_id);
 
  private:
   // Workers assigned to a single local rail, with a round-robin cursor.
@@ -113,7 +113,7 @@ class TransferManager final {
 
   // Fixed after construction, so read without a lock.
   std::vector<std::unique_ptr<Worker>> workers_;
-  absl::flat_hash_map<uint32_t, std::unique_ptr<RailWorkers>> rail_workers_;
+  absl::flat_hash_map<int32_t, std::unique_ptr<RailWorkers>> rail_workers_;
 
   std::unique_ptr<ChannelManager> channel_manager_;
 

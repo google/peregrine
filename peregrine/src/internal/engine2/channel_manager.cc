@@ -9,6 +9,7 @@
 #include "absl/memory/memory.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/hostinfo.h"
+#include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/engine2/tcp_manager.h"
 
 namespace peregrine::internal::engine2 {
@@ -36,10 +37,8 @@ void ChannelManager::Start(OnChannelReadyFn on_channel_ready,
                       std::move(on_connect_failed));
 }
 
-void ChannelManager::Connect(const HostInfo& peer_info,
-                             const uint32_t local_rail_id,
-                             const uint32_t remote_rail_id) {
-  tcp_manager_->Connect(peer_info, local_rail_id, remote_rail_id);
+void ChannelManager::Connect(const ConnectionSpec& spec) {
+  tcp_manager_->Connect(spec);
 }
 
 }  // namespace peregrine::internal::engine2

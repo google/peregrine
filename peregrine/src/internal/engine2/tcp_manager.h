@@ -20,6 +20,7 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
+#include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/event/poller.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/util/macro.h"
@@ -35,13 +36,13 @@ class TcpManager final {
   // Called with each ready channel between `local_rail_id` and `peer`'s
   // `remote_rail_id`.
   using OnChannelReadyFn = absl::AnyInvocable<void(
-      const PeerId& peer, uint32_t local_rail_id, uint32_t remote_rail_id,
+      const PeerId& peer, int32_t local_rail_id, int32_t remote_rail_id,
       std::unique_ptr<Channel> ch)>;
 
   // Called once per `Connect()` call that fails to open a channel to `peer`.
   using OnConnectFailedFn =
-      absl::AnyInvocable<void(const PeerId& peer, uint32_t local_rail_id,
-                              uint32_t remote_rail_id, absl::Status status)>;
+      absl::AnyInvocable<void(const PeerId& peer, int32_t local_rail_id,
+                              int32_t remote_rail_id, absl::Status status)>;
 
   // Creates a tcp manager with per-NIC non-blocking listening sockets, and
   // fills in `self.data_plane_listeners`. `self` must outlive the manager.
@@ -64,32 +65,25 @@ class TcpManager final {
   // Stops the manager. Idempotent; also called by `~TcpManager()`.
   void Stop() ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Connects `local_rail_id` to `remote_rail_id` of `peer_info` without
-  // blocking. Reports the outcome on the internal poll thread, to
-  // `on_channel_ready` or `on_connect_failed`, unless stopped first.
-  void Connect(const HostInfo& peer_info, uint32_t local_rail_id,
-               uint32_t remote_rail_id) ABSL_LOCKS_EXCLUDED(mu_);
+  // Connects according to `spec` without blocking. Reports the outcome on the
+  // internal poll thread, to `on_channel_ready` or `on_connect_failed`, unless
+  // stopped first.
+  void Connect(const ConnectionSpec& spec) ABSL_LOCKS_EXCLUDED(mu_);
 
  private:
   static constexpr size_t kHelloSize = 24;
 
-  // Non-blocking listening socket and its bound local endpoint.
+  // Non-blocking listening socket, its bound endpoint, and resolved rail ID.
   struct Listener {
     std::unique_ptr<TcpSocket> socket;
     Endpoint endpoint;
-  };
-
-  // Outbound connect request queued by `Connect()` for the poll thread.
-  struct ConnectRequest {
-    HostInfo peer_info;
-    uint32_t local_rail_id = 0;
-    uint32_t remote_rail_id = 0;
+    int32_t local_rail_id = kNoRail;
   };
 
   // Identifies a remote endpoint's peer and rail in the handshake.
   struct PeerRail {
     PeerId peer;
-    uint32_t rail_id = 0;
+    int32_t rail_id = kNoRail;
     bool operator==(const PeerRail&) const = default;
   };
 
@@ -99,7 +93,7 @@ class TcpManager final {
 
     State state = State::kHandshaking;
     std::unique_ptr<TcpSocket> socket;
-    uint32_t local_rail_id = 0;
+    int32_t local_rail_id = kNoRail;
     std::optional<PeerRail> expected;  // set iff outbound
     absl::Duration expiration;
     std::array<char, kHelloSize> hello = {};
@@ -122,9 +116,8 @@ class TcpManager final {
   // Drains `pending_` and starts each queued outbound connect.
   void drainPending() ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Resolves rail endpoints, creates a non-blocking socket, and initiates TCP
-  // connect for `req`.
-  void startConnect(const ConnectRequest& req);
+  // Creates a non-blocking socket and initiates TCP connect for `spec`.
+  void startConnect(const ConnectionSpec& spec);
 
   // Sends our hello on a newly connected/accepted socket and registers it on
   // `poller_` to read the peer's hello.
@@ -154,7 +147,7 @@ class TcpManager final {
   std::atomic<bool> stop_ = false;
   absl::Mutex mu_;
   bool sealed_ ABSL_GUARDED_BY(mu_) = false;
-  std::vector<ConnectRequest> pending_ ABSL_GUARDED_BY(mu_);
+  std::vector<ConnectionSpec> pending_ ABSL_GUARDED_BY(mu_);
 
   // Owned exclusively by `runLoop()` once `Start()` is called.
   absl::flat_hash_map<fd_t, Listener> listeners_;

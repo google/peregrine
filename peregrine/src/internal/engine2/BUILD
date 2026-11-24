@@ -90,6 +90,7 @@ cc_library(
     deps = [
         ":assumptions",
         ":channel_manager",
+        ":connection_planner",
         ":peer_discovery",
         ":peer_state",
         ":peer_work_queue",
@@ -99,13 +100,10 @@ cc_library(
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
-        "//peregrine/src/internal/base:nicinfo",
         "//peregrine/src/internal/channel",
         "//peregrine/src/internal/chunk:header",
-        "//peregrine/src/internal/nic:nic_inventory",
         "//peregrine/src/internal/request:request_tracker",
         "//peregrine/src/util:macro",
-        "//peregrine/src/util:nic",
         "//peregrine/src/util:thread",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -174,6 +172,7 @@ cc_test(
     srcs = ["transfer_manager_test.cc"],
     deps = [
         ":channel_manager",
+        ":connection_planner",
         ":peer_discovery",
         ":post",
         ":transfer_manager",
@@ -272,11 +271,43 @@ cc_test(
 )
 
 cc_library(
+    name = "connection_planner",
+    srcs = ["connection_planner.cc"],
+    hdrs = ["connection_planner.h"],
+    deps = [
+        "//peregrine/src/internal/base:config",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:hostinfo",
+        "//peregrine/src/internal/base:nicinfo",
+        "//peregrine/src/internal/base:types",
+        "//peregrine/src/internal/nic:nic_inventory",
+        "//peregrine/src/util:nic",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "connection_planner_test",
+    srcs = ["connection_planner_test.cc"],
+    deps = [
+        ":connection_planner",
+        "//peregrine/src/internal/base:config",
+        "//peregrine/src/internal/base:endpoint",
+        "//peregrine/src/internal/base:hostinfo",
+        "//peregrine/src/internal/base:nicinfo",
+        "//peregrine/src/util:nic",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
     name = "tcp_manager",
     srcs = ["tcp_manager.cc"],
     hdrs = ["tcp_manager.h"],
     deps = [
         ":assumptions",
+        ":connection_planner",
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:constants",
         "//peregrine/src/internal/base:endpoint",
@@ -287,14 +318,12 @@ cc_library(
         "//peregrine/src/internal/channel:channel_tcp",
         "//peregrine/src/internal/event:poller",
         "//peregrine/src/internal/lib:iovec_cursor",
-        "//peregrine/src/internal/nic:nic_inventory",
         "//peregrine/src/internal/socket:socket_error",
         "//peregrine/src/internal/socket:socket_tcp",
         "//peregrine/src/internal/socket:socket_util",
         "//peregrine/src/util:clock",
         "//peregrine/src/util:ipaddr",
         "//peregrine/src/util:macro",
-        "//peregrine/src/util:nic",
         "//peregrine/src/util:thread",
         "@abseil-cpp//absl/base:core_headers",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -314,6 +343,7 @@ cc_library(
     srcs = ["channel_manager.cc"],
     hdrs = ["channel_manager.h"],
     deps = [
+        ":connection_planner",
         ":tcp_manager",
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
@@ -333,6 +363,7 @@ cc_test(
     srcs = ["channel_manager_test.cc"],
     deps = [
         ":channel_manager",
+        ":connection_planner",
         "//peregrine/src/internal/base:config",
         "//peregrine/src/internal/base:endpoint",
         "//peregrine/src/internal/base:hostinfo",
