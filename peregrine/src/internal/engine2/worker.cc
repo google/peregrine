@@ -2,12 +2,12 @@
 
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -54,7 +54,11 @@ Worker::Worker(const int id, const int32_t rail_id, const HostInfo& self,
 }
 
 Worker::~Worker() {
-  stop_.store(true, std::memory_order_release);
+  {
+    absl::MutexLock lock(inbox_mu_);
+    stop_.store(true, std::memory_order_release);
+    sleeping_ = false;
+  }
   signalWake();
   if (thread_.joinable()) thread_.join();
   sessions_.clear();
@@ -65,6 +69,7 @@ Worker::~Worker() {
 void Worker::AddChannel(const PeerId peer, std::unique_ptr<Channel> ch,
                         PeerWorkQueue& work_queue) {
   if (ABSL_PREDICT_FALSE(ch == nullptr)) return;
+  bool should_signal = false;
   {
     absl::MutexLock lock(inbox_mu_);
     new_channels_.push_back(NewChannel{
@@ -72,38 +77,49 @@ void Worker::AddChannel(const PeerId peer, std::unique_ptr<Channel> ch,
         .channel = std::move(ch),
         .work_queue = &work_queue,
     });
-    has_inbox_work_.store(true, std::memory_order_seq_cst);
+    has_inbox_work_.store(true, std::memory_order_release);
+    should_signal = std::exchange(sleeping_, false);
   }
-  maybeSignalWake();
+  if (should_signal) signalWake();
 }
 
 void Worker::Wake(const PeerId& peer) {
+  bool should_signal = false;
   {
     absl::MutexLock lock(inbox_mu_);
     woken_peers_.insert(peer);
-    has_inbox_work_.store(true, std::memory_order_seq_cst);
+    has_inbox_work_.store(true, std::memory_order_release);
+    should_signal = std::exchange(sleeping_, false);
   }
-  maybeSignalWake();
-}
-
-void Worker::maybeSignalWake() {
-  if (!wake_pending_.exchange(true, std::memory_order_seq_cst)) {
-    signalWake();
-  }
+  if (should_signal) signalWake();
 }
 
 void Worker::signalWake() {
   const uint64_t one = 1;
-  [[maybe_unused]] const ssize_t n =
-      ::write(wake_fd_.value(), &one, sizeof(one));
+  while (ABSL_PREDICT_FALSE(::write(wake_fd_.value(), &one, sizeof(one)) < 0)) {
+    if (errno == EINTR) continue;
+    if (errno != EAGAIN) {
+      LOG_EVERY_N_SEC(WARNING, 1)
+          << "worker #" << id_ << " wake_fd write failed: errno=" << errno;
+    }
+    break;
+  }
 }
 
 void Worker::run() {
   std::array<epoll_event, kMaxEvents> events = {};
 
   while (!stop_.load(std::memory_order_acquire)) {
-    // 1. Wait for socket events; sleep only if no RX/TX work is already queued.
-    const int timeout_ms = (rx_ready_.empty() && tx_ready_.empty()) ? -1 : 0;
+    // 1. Wait for events; sleep only if local queues and inbox are empty.
+    int timeout_ms = 0;
+    if (rx_ready_.empty() && tx_ready_.empty()) {
+      absl::MutexLock lock(inbox_mu_);
+      if (!stop_.load(std::memory_order_relaxed) && new_channels_.empty() &&
+          woken_peers_.empty()) {
+        sleeping_ = true;
+        timeout_ms = -1;
+      }
+    }
     const int n = poller_->BlockingWait(events.data(), kMaxEvents, timeout_ms);
     if (stop_.load(std::memory_order_acquire)) return;
 
@@ -113,12 +129,14 @@ void Worker::run() {
       const uint32_t flags = events[i].events;
 
       if (fd == wake_fd_) {
-        // Drain the eventfd counter so epoll does not keep re-firing, then
-        // re-arm future Wake() calls.
+        // One read resets the eventfd counter so epoll does not keep firing.
         uint64_t val = 0;
-        while (::read(wake_fd_.value(), &val, sizeof(val)) > 0) {
+        if (ABSL_PREDICT_FALSE(::read(wake_fd_.value(), &val, sizeof(val)) <
+                                   0 &&
+                               errno != EAGAIN && errno != EINTR)) {
+          LOG_EVERY_N_SEC(WARNING, 1)
+              << "worker #" << id_ << " wake_fd read failed: errno=" << errno;
         }
-        wake_pending_.store(false, std::memory_order_seq_cst);
         continue;
       }
 
@@ -149,8 +167,8 @@ void Worker::run() {
       }
     }
 
-    // 3. Register newly added channels and enqueue peers woken by Wake().
-    if (has_inbox_work_.load(std::memory_order_seq_cst)) {
+    // 3. Clear sleeping_ (if we slept) and drain new channels / woken peers.
+    if (timeout_ms < 0 || has_inbox_work_.load(std::memory_order_acquire)) {
       drainInbox();
     }
 
@@ -169,9 +187,10 @@ void Worker::drainInbox() {
   absl::flat_hash_set<PeerId> woken_peers;
   {
     absl::MutexLock lock(inbox_mu_);
+    sleeping_ = false;
     new_channels.swap(new_channels_);
     woken_peers.swap(woken_peers_);
-    has_inbox_work_.store(false, std::memory_order_release);
+    has_inbox_work_.store(false, std::memory_order_relaxed);
   }
 
   // 2. Register newly connected channels with epoll and schedule initial TX in

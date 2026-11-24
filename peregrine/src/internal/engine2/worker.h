@@ -66,9 +66,6 @@ class Worker final {
     bool fatal_error = false;
   };
 
-  // Coalesces concurrent wakeups into a single eventfd write.
-  void maybeSignalWake();
-
   // Wakes the event loop immediately.
   void signalWake();
 
@@ -102,13 +99,13 @@ class Worker final {
   // Owned event loop and cross-thread wakeup state.
   std::unique_ptr<Poller> poller_;
   std::atomic<bool> stop_{false};
-  // Coalesces concurrent wakeups into a single eventfd write.
-  std::atomic<bool> wake_pending_{false};
   // Fast-path flag so the busy loop skips `inbox_mu_` when nothing was posted.
   std::atomic<bool> has_inbox_work_{false};
 
-  // Cross-thread inbox for newly added channels and peers with outgoing work.
+  // Cross-thread inbox and sleep state. `Wake()` / `AddChannel()` only write to
+  // `wake_fd_` when they transition `sleeping_` from true to false.
   absl::Mutex inbox_mu_;
+  bool sleeping_ ABSL_GUARDED_BY(inbox_mu_) = false;
   std::vector<NewChannel> new_channels_ ABSL_GUARDED_BY(inbox_mu_);
   absl::flat_hash_set<PeerId> woken_peers_ ABSL_GUARDED_BY(inbox_mu_);
 
