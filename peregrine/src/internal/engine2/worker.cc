@@ -5,8 +5,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -62,13 +64,13 @@ void Worker::AddChannel(const PeerId peer, std::unique_ptr<Channel> ch,
                         PeerWorkQueue& work_queue) {
   if (ABSL_PREDICT_FALSE(ch == nullptr)) return;
   {
-    absl::MutexLock lock(pending_channels_mu_);
-    pending_channels_.push_back(PendingChannel{
+    absl::MutexLock lock(new_channels_mu_);
+    new_channels_.push_back(NewChannel{
         .peer = peer,
         .channel = std::move(ch),
         .work_queue = &work_queue,
     });
-    has_pending_channels_.store(true, std::memory_order_release);
+    has_new_channels_.store(true, std::memory_order_seq_cst);
   }
   Wake();
 }
@@ -87,92 +89,83 @@ void Worker::signalWake() {
 
 void Worker::run() {
   std::array<epoll_event, kMaxEvents> events = {};
-  // True if a session yielded at its write budget and needs another turn.
-  bool tx_pending = false;
 
   while (!stop_.load(std::memory_order_acquire)) {
-    const int timeout_ms = tx_pending ? 0 : -1;
+    // 1. Wait for socket events; sleep only if no RX/TX work is already queued.
+    const int timeout_ms = (rx_ready_.empty() && tx_ready_.empty()) ? -1 : 0;
     const int n = poller_->BlockingWait(events.data(), kMaxEvents, timeout_ms);
     if (stop_.load(std::memory_order_acquire)) return;
 
-    // Sweep all sessions at the end of this turn if woken, new channels arrive,
-    // or the previous turn left pending TX work.
-    bool sweep_tx = tx_pending;
-    tx_pending = false;
-
+    // 2. Enqueue sockets that epoll reported as readable or writable.
+    bool woken = false;
     for (int i = 0; i < n; ++i) {
       const fd_t fd(events[i].data.fd);
       const uint32_t flags = events[i].events;
 
-      // 1. Cross-thread wakeup (new work queued or new channel pending).
       if (fd == wake_fd_) {
+        // Drain the eventfd counter so epoll does not keep re-firing, then
+        // re-arm future Wake() calls.
         uint64_t val = 0;
         while (::read(wake_fd_.value(), &val, sizeof(val)) > 0) {
         }
         wake_pending_.store(false, std::memory_order_seq_cst);
-        sweep_tx = true;
+        woken = true;
         continue;
       }
 
       const auto it = sessions_.find(fd);
       if (it == sessions_.end()) continue;
-      TcpChannelSession& session = *it->second;
+      SessionEntry& entry = it->second;
 
       const bool readable = (flags & EPOLLIN) != 0;
       const bool became_writable = (flags & EPOLLOUT) != 0;
       const bool peer_closed = (flags & (EPOLLRDHUP | EPOLLHUP)) != 0;
       const bool fatal_error = (flags & (EPOLLERR | EPOLLHUP)) != 0;
 
-      // 2. Drain RX before closing on hangup/error so buffered ACKs/data are
-      //    not lost if the peer closed right after sending its final frame.
-      if (readable || peer_closed) {
-        if (!session.DriveRx(peer_closed)) {
-          closeSession(fd);
-          continue;
-        }
-      }
-      if (ABSL_PREDICT_FALSE(fatal_error)) {
+      if (peer_closed) entry.peer_closed = true;
+      if (fatal_error) entry.fatal_error = true;
+
+      // Drain buffered RX (e.g., final ACKs/data) before closing on peer close.
+      if (readable || peer_closed || entry.in_rx_ready) {
+        scheduleRx(fd, entry);
+      } else if (fatal_error) {
         closeSession(fd);
         continue;
       }
 
-      // 3. Resume TX if EPOLLOUT fired, or flush control frames queued by RX.
-      if (became_writable) session.ClearTxBlocked();
-      const bool should_send =
-          became_writable ||
-          (session.HasPendingControl() && !session.IsTxBlocked());
-      if (should_send) {
-        bool yielded = false;
-        if (!session.DriveTx(yielded)) {
-          closeSession(fd);
-          continue;
-        }
-        if (yielded) tx_pending = true;
+      // Socket send buffer has room again; resume paused TX.
+      if (became_writable) {
+        entry.session->ClearTxBlocked();
+        scheduleTx(fd, entry);
       }
     }
 
-    // 4. Admit any newly handed-off channels, then sweep TX if needed.
-    if (has_pending_channels_.load(std::memory_order_acquire) &&
-        admitPendingChannels()) {
-      sweep_tx = true;
+    // 3. Register newly added channels and enqueue TX if woken.
+    if (has_new_channels_.load(std::memory_order_seq_cst)) {
+      registerNewChannels();
     }
-    if (sweep_tx && driveAllTx()) {
-      tx_pending = true;
+    if (woken) {
+      for (auto& [fd, entry] : sessions_) {
+        scheduleTx(fd, entry);
+      }
     }
+
+    // 4. Run one bounded round of reads, then writes, across queued sockets.
+    driveReadyRx();
+    driveReadyTx();
   }
 }
 
-bool Worker::admitPendingChannels() {
+void Worker::registerNewChannels() {
   static_assert(assumptions::kLocalIdentityIsReadOnlyAfterControlPlaneStarts);
   // Swap out queued channels under lock so epoll registration runs lock-free.
-  std::vector<PendingChannel> items;
+  std::vector<NewChannel> items;
   {
-    absl::MutexLock lock(pending_channels_mu_);
-    items.swap(pending_channels_);
-    has_pending_channels_.store(false, std::memory_order_release);
+    absl::MutexLock lock(new_channels_mu_);
+    items.swap(new_channels_);
+    has_new_channels_.store(false, std::memory_order_release);
   }
-  bool added = false;
-  for (PendingChannel& item : items) {
+  for (NewChannel& item : items) {
     const fd_t fd = item.channel->GetFd();
     if (ABSL_PREDICT_FALSE(fd.value() < 0)) {
       LOG(WARNING) << "worker #" << id_ << " rail " << rail_id_
@@ -184,37 +177,103 @@ bool Worker::admitPendingChannels() {
                    << fd.value();
       continue;
     }
-    sessions_.emplace(
-        fd, std::make_unique<TcpChannelSession>(
-                std::move(item.channel), self_.control_plane_listener,
-                item.peer, *item.work_queue, outgoing_, incoming_, id_));
-    added = true;
+    auto [it, inserted] = sessions_.emplace(
+        fd, SessionEntry{
+                .session = std::make_unique<TcpChannelSession>(
+                    std::move(item.channel), self_.control_plane_listener,
+                    item.peer, *item.work_queue, outgoing_, incoming_, id_),
+            });
+    if (inserted) scheduleTx(fd, it->second);
   }
-  return added;
 }
 
-bool Worker::driveAllTx() {
-  // Drive each non-blocked session; defer erasures until after map iteration.
-  bool any_yielded = false;
-  std::vector<fd_t> failed;
-  for (auto& [fd, session] : sessions_) {
-    if (session->IsTxBlocked()) continue;
+void Worker::scheduleTx(const fd_t fd, SessionEntry& entry) {
+  if (!entry.in_tx_ready && !entry.fatal_error &&
+      !entry.session->IsTxBlocked()) {
+    entry.in_tx_ready = true;
+    tx_ready_.push_back(fd);
+  }
+}
+
+void Worker::scheduleRx(const fd_t fd, SessionEntry& entry) {
+  if (!entry.in_rx_ready) {
+    entry.in_rx_ready = true;
+    rx_ready_.push_back(fd);
+  }
+}
+
+void Worker::driveReadyRx() {
+  const size_t count = rx_ready_.size();
+  for (size_t i = 0; i < count; ++i) {
+    const fd_t fd = rx_ready_.front();
+    rx_ready_.pop_front();
+
+    const auto it = sessions_.find(fd);
+    if (it == sessions_.end()) continue;
+    SessionEntry& entry = it->second;
+    entry.in_rx_ready = false;
+
     bool yielded = false;
-    if (!session->DriveTx(yielded)) {
-      failed.push_back(fd);
-    } else if (yielded) {
-      any_yielded = true;
+    if (!entry.session->DriveRx(yielded, entry.peer_closed)) {
+      closeSession(fd);
+      continue;
+    }
+    if (yielded) {
+      // More buffered RX bytes may remain; re-queue behind other ready fds.
+      scheduleRx(fd, entry);
+    } else if (ABSL_PREDICT_FALSE(entry.fatal_error)) {
+      // Buffered RX is now drained; safe to tear down on hangup/error.
+      closeSession(fd);
+      continue;
+    }
+    // Flush ACKs/failure frames generated by RX on this same turn.
+    if (entry.session->HasPendingControl()) {
+      scheduleTx(fd, entry);
     }
   }
-  for (const fd_t fd : failed) {
-    closeSession(fd);
+}
+
+void Worker::driveReadyTx() {
+  const size_t count = tx_ready_.size();
+  for (size_t i = 0; i < count; ++i) {
+    const fd_t fd = tx_ready_.front();
+    tx_ready_.pop_front();
+
+    const auto it = sessions_.find(fd);
+    if (it == sessions_.end()) continue;
+    SessionEntry& entry = it->second;
+    entry.in_tx_ready = false;
+
+    if (entry.fatal_error || entry.session->IsTxBlocked()) continue;
+    bool yielded = false;
+    if (!entry.session->DriveTx(yielded)) {
+      closeSession(fd);
+      continue;
+    }
+    if (yielded) {
+      scheduleTx(fd, entry);
+    }
   }
-  return any_yielded;
 }
 
 void Worker::closeSession(const fd_t fd) {
   poller_->Unregister(fd);
-  sessions_.erase(fd);
+  const auto it = sessions_.find(fd);
+  if (it == sessions_.end()) return;
+
+  // Remove any queued entries so a closed fd cannot collide with a reused fd.
+  // TODO(b/503756862): Avoid linear removal from rx_ready_/tx_ready_ if
+  // mass-disconnect storms become a bottleneck (e.g., tag entries with a
+  // monotonic session ID or use an intrusive list).
+  if (it->second.in_rx_ready) {
+    rx_ready_.erase(std::remove(rx_ready_.begin(), rx_ready_.end(), fd),
+                    rx_ready_.end());
+  }
+  if (it->second.in_tx_ready) {
+    tx_ready_.erase(std::remove(tx_ready_.begin(), tx_ready_.end(), fd),
+                    tx_ready_.end());
+  }
+  sessions_.erase(it);
 }
 
 }  // namespace peregrine::internal::engine2

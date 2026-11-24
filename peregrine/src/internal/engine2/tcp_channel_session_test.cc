@@ -100,14 +100,17 @@ void Pump(TcpChannelSession& a, TcpChannelSession& b, const Pipe& pipe) {
   for (int iter = 0; iter < 100000; ++iter) {
     bool a_more = false;
     bool b_more = false;
+    bool a_rx_more = false;
+    bool b_rx_more = false;
     a.ClearTxBlocked();
     b.ClearTxBlocked();
     ASSERT_TRUE(a.DriveTx(a_more));
-    ASSERT_TRUE(b.DriveRx());
+    ASSERT_TRUE(b.DriveRx(b_rx_more));
     ASSERT_TRUE(b.DriveTx(b_more));
-    ASSERT_TRUE(a.DriveRx());
-    if (!a_more && !b_more && pipe.a_to_b.empty() && pipe.b_to_a.empty() &&
-        !a.HasPendingControl() && !b.HasPendingControl()) {
+    ASSERT_TRUE(a.DriveRx(a_rx_more));
+    if (!a_more && !b_more && !a_rx_more && !b_rx_more && pipe.a_to_b.empty() &&
+        pipe.b_to_a.empty() && !a.HasPendingControl() &&
+        !b.HasPendingControl()) {
       return;
     }
   }
@@ -252,7 +255,8 @@ TEST_F(TcpChannelSessionTest, RejectsInvalidAndOversizedHeaders) {
                                incoming_b_, /*worker_id=*/0);
     // 64 bytes of garbage fail header deserialization.
     pipe->a_to_b.insert(pipe->a_to_b.end(), HeaderUtil::kSize, 0xff);
-    EXPECT_FALSE(receiver.DriveRx());
+    bool has_more = false;
+    EXPECT_FALSE(receiver.DriveRx(has_more));
   }
   {
     auto pipe = std::make_shared<Pipe>();
@@ -267,7 +271,8 @@ TEST_F(TcpChannelSessionTest, RejectsInvalidAndOversizedHeaders) {
     big.peer = peer_a_;
     const std::string raw = HeaderUtil::Serialize(big);
     pipe->a_to_b.insert(pipe->a_to_b.end(), raw.begin(), raw.end());
-    EXPECT_FALSE(receiver.DriveRx());
+    bool has_more = false;
+    EXPECT_FALSE(receiver.DriveRx(has_more));
   }
 }
 
@@ -302,7 +307,9 @@ TEST_F(TcpChannelSessionTest, DrainsChunkExceedingRequestTotalLenSafely) {
   pipe->a_to_b.insert(pipe->a_to_b.end(), hdr.begin(), hdr.end());
   pipe->a_to_b.insert(pipe->a_to_b.end(), 32, 0xEE);
 
-  ASSERT_TRUE(receiver.DriveRx());
+  bool has_more = false;
+  ASSERT_TRUE(receiver.DriveRx(has_more));
+  EXPECT_FALSE(has_more);
   EXPECT_TRUE(pipe->a_to_b.empty());
   EXPECT_FALSE(receiver.HasPendingControl());  // no ACK sent for invalid chunk
   for (const Byte b : dst) EXPECT_EQ(b, 0x5A);
@@ -328,6 +335,49 @@ TEST_F(TcpChannelSessionTest, DestructionFailsActiveOutgoingPost) {
     EXPECT_TRUE(sender.IsTxBlocked());
   }
   EXPECT_EQ(done_status, Status::kFailure);
+}
+
+TEST_F(TcpChannelSessionTest, DriveRxYieldsAtReadBudget) {
+  auto pipe = std::make_shared<Pipe>();
+  TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
+                             peer_b_, peer_a_, queue_b_, outgoing_b_,
+                             incoming_b_, /*worker_id=*/0);
+
+  // Queue 40 valid ACK headers (> kReadBudget = 32).
+  DataHeader ack = {};
+  ack.opcode = Opcode::kData;
+  ack.handle = Handle(77);
+  ack.len = 0;
+  ack.reqid = ReqId(1);
+  ack.index = chunk_t(0);
+  const std::string raw = HeaderUtil::Serialize(ack);
+  for (int i = 0; i < 40; ++i) {
+    pipe->a_to_b.insert(pipe->a_to_b.end(), raw.begin(), raw.end());
+  }
+
+  bool has_more = false;
+  ASSERT_TRUE(receiver.DriveRx(has_more));
+  EXPECT_TRUE(has_more);
+  EXPECT_FALSE(pipe->a_to_b.empty());
+
+  ASSERT_TRUE(receiver.DriveRx(has_more));
+  EXPECT_FALSE(has_more);
+  EXPECT_TRUE(pipe->a_to_b.empty());
+}
+
+TEST_F(TcpChannelSessionTest, DriveRxClosesOnTruncatedFrameBeforePeerClose) {
+  auto pipe = std::make_shared<Pipe>();
+  TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
+                             peer_b_, peer_a_, queue_b_, outgoing_b_,
+                             incoming_b_, /*worker_id=*/0);
+
+  // Peer writes a truncated header (16 of 64 bytes) and closes cleanly (FIN).
+  pipe->a_to_b.assign(16, 0x42);
+
+  bool has_more = false;
+  EXPECT_FALSE(receiver.DriveRx(has_more, /*peer_closed=*/true));
+  EXPECT_FALSE(has_more);
+  EXPECT_TRUE(pipe->a_to_b.empty());
 }
 
 }  // namespace

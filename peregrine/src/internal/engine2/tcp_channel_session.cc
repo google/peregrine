@@ -37,6 +37,10 @@ using ChunkStatus = ChunkTracker::ChunkStatus;
 // Max frames written per `DriveTx()` call before yielding to RX/other channels.
 constexpr int kWriteBudget = 16;
 
+// Max header/payload steps read per `DriveRx()` call before yielding (32 steps
+// = 16 header+payload frames, matching `kWriteBudget`).
+constexpr int kReadBudget = 32;
+
 // Cap on a single `PostInfo` payload (4 MiB = 32,768 RequestInfo entries).
 constexpr size_t kMaxPostInfoPayloadBytes = 4 * 1024 * 1024;
 
@@ -105,8 +109,9 @@ bool TcpChannelSession::DriveTx(bool& has_more) {
   return true;
 }
 
-bool TcpChannelSession::DriveRx(const bool peer_closed) {
-  while (true) {
+bool TcpChannelSession::DriveRx(bool& has_more, const bool peer_closed) {
+  has_more = false;
+  for (int steps = 0; steps < kReadBudget; ++steps) {
     if (!rx_.cursor.has_value()) prepareRxCursor();
 
     const ssize_t n = channel_->Read(*rx_.cursor);
@@ -115,11 +120,16 @@ bool TcpChannelSession::DriveRx(const bool peer_closed) {
                    << *channel_;
       return false;
     }
-    // Partial read / EAGAIN, or clean EOF once no more buffered bytes remain.
+    // Partial read / EAGAIN, or EOF once no more buffered bytes remain.
     if (rx_.cursor->RemainingBytes() > 0) {
-      if (n == 0 && peer_closed) {
-        LOG(INFO) << "worker #" << worker_id_ << " peer closed " << *channel_;
-        return false;
+      if (peer_closed) {
+        if (n == 0) {
+          LOG(INFO) << "worker #" << worker_id_ << " peer closed " << *channel_;
+          return false;
+        }
+        // `TcpSocket::Recv` returns `n > 0` when EOF follows partial bytes;
+        // re-read so EOF is observed instead of stalling under EPOLLET.
+        continue;
       }
       return true;
     }
@@ -132,6 +142,9 @@ bool TcpChannelSession::DriveRx(const bool peer_closed) {
       onPayload();
     }
   }
+  // Hit fairness budget before EAGAIN; caller must re-drive without sleeping.
+  has_more = true;
+  return true;
 }
 
 void TcpChannelSession::abortInFlight() {
@@ -318,8 +331,10 @@ bool TcpChannelSession::onDataHeader(const DataHeader& chunk) {
 }
 
 bool TcpChannelSession::onPostInfoHeader(const PostInfoHeader& info) {
-  if (ABSL_PREDICT_FALSE(info.len > kMaxPostInfoPayloadBytes)) {
-    LOG(WARNING) << "worker #" << worker_id_ << " oversized post info " << info;
+  if (ABSL_PREDICT_FALSE(info.len == 0 ||
+                         info.len > kMaxPostInfoPayloadBytes)) {
+    LOG(WARNING) << "worker #" << worker_id_ << " invalid post info length "
+                 << info;
     return false;
   }
   rx_.phase.emplace<RxState::ReadingPostInfo>(RxState::ReadingPostInfo{

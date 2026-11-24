@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <vector>
 
@@ -43,17 +44,26 @@ class Worker final {
   // worker) to the worker's event loop and wakes it.
   void AddChannel(PeerId peer, std::unique_ptr<Channel> ch,
                   PeerWorkQueue& work_queue)
-      ABSL_LOCKS_EXCLUDED(pending_channels_mu_);
+      ABSL_LOCKS_EXCLUDED(new_channels_mu_);
 
   // Signals the worker that a peer it serves may have new outgoing work.
   void Wake();
 
  private:
-  // Newly connected channel waiting to be admitted on the worker thread.
-  struct PendingChannel {
+  // Newly connected channel waiting to be registered on the worker thread.
+  struct NewChannel {
     PeerId peer;
     std::unique_ptr<Channel> channel;
     PeerWorkQueue* work_queue = nullptr;
+  };
+
+  // Per-channel state owned exclusively by the worker thread.
+  struct SessionEntry {
+    std::unique_ptr<TcpChannelSession> session;
+    bool in_tx_ready = false;
+    bool in_rx_ready = false;
+    bool peer_closed = false;
+    bool fatal_error = false;
   };
 
   // Wakes the event loop immediately.
@@ -62,12 +72,16 @@ class Worker final {
   // Runs the worker's event loop until stopped.
   void run();
 
-  // Admits newly handed-off channels and registers them for I/O events.
-  bool admitPendingChannels() ABSL_LOCKS_EXCLUDED(pending_channels_mu_);
+  // Registers newly handed-off channels and schedules them for TX.
+  void registerNewChannels() ABSL_LOCKS_EXCLUDED(new_channels_mu_);
 
-  // Drives outgoing sends on all writable sessions; returns true if any
-  // session still has more work to send.
-  bool driveAllTx();
+  // Adds `fd` to the TX/RX runnable queue if not already queued.
+  void scheduleTx(fd_t fd, SessionEntry& entry);
+  void scheduleRx(fd_t fd, SessionEntry& entry);
+
+  // Drives one fair round of queued RX / TX sessions.
+  void driveReadyRx();
+  void driveReadyTx();
 
   // Unregisters and destroys the session for `fd`.
   void closeSession(fd_t fd);
@@ -87,15 +101,16 @@ class Worker final {
   std::atomic<bool> stop_{false};
   // Coalesces concurrent `Wake()` calls into a single eventfd write.
   std::atomic<bool> wake_pending_{false};
-  // Fast-path flag avoiding `pending_channels_mu_` when no channels await.
-  std::atomic<bool> has_pending_channels_{false};
+  // Fast-path flag avoiding `new_channels_mu_` when no channels await.
+  std::atomic<bool> has_new_channels_{false};
 
-  absl::Mutex pending_channels_mu_;
-  std::vector<PendingChannel> pending_channels_
-      ABSL_GUARDED_BY(pending_channels_mu_);
+  absl::Mutex new_channels_mu_;
+  std::vector<NewChannel> new_channels_ ABSL_GUARDED_BY(new_channels_mu_);
 
   // Owned and accessed exclusively on the worker thread (torn down after join).
-  absl::flat_hash_map<fd_t, std::unique_ptr<TcpChannelSession>> sessions_;
+  absl::flat_hash_map<fd_t, SessionEntry> sessions_;
+  std::deque<fd_t> tx_ready_;
+  std::deque<fd_t> rx_ready_;
 
   util::Jthread thread_;
 };

@@ -56,10 +56,11 @@ class TcpChannelSession final {
   // returns false on fatal write error.
   bool DriveTx(bool& has_more);
 
-  // Reads and processes all currently available incoming frames. Pass
+  // Reads and processes incoming frames up to the per-call read limit until
+  // backpressure. Sets `has_more` if the limit was reached before EAGAIN. Pass
   // `peer_closed = true` if the peer has closed its write side. Returns false
   // on fatal error, protocol error, or EOF.
-  bool DriveRx(bool peer_closed = false);
+  bool DriveRx(bool& has_more, bool peer_closed = false);
 
  private:
   // Outgoing send queue and active frame state (never moved while `cursor` is
