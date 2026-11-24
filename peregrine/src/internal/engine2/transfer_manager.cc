@@ -124,7 +124,7 @@ void TransferManager::Submit(const PeerId& peer, Post post,
     absl::MutexLock lock(setup_mu_);
     if (!setup_stop_) setup_queue_.push_back(peer);
   }
-  for (Worker* worker : to_wake) worker->Wake();
+  for (Worker* worker : to_wake) worker->Wake(peer);
 }
 
 void TransferManager::Cancel(const PeerId& peer, const Handle handle) {

@@ -149,11 +149,51 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   });
   qp->req_infos = std::move(req_infos);
   queue_a.Enqueue(std::move(qp));
-  worker_a.Wake();
+  worker_a.Wake(host_b.control_plane_listener);
 
   ASSERT_TRUE(done.WaitForNotificationWithTimeout(absl::Seconds(10)));
   EXPECT_EQ(final_status, Status::kSuccess);
   EXPECT_EQ(dst, src);
+
+  // Second targeted wake after the worker has gone idle exercises waking an
+  // already-registered channel by its peer ID.
+  std::vector<Byte> src2(64 * 1024, 0xAB);
+  std::vector<Byte> dst2(src2.size(), 0);
+  const Handle handle2(124);
+  std::vector<RequestInfo> req_infos2 = {RequestInfo{
+      .reqid = ReqId(2),
+      .nchunks = 1,
+      .raddr = addr_t(reinterpret_cast<uintptr_t>(dst2.data())),
+      .total_len = src2.size(),
+      .op = Op::kWrite,
+      .recipe = Recipe{.type = RecipeType::kContiguous, .params = {}},
+  }};
+  absl::Notification done2;
+  Status final_status2 = Status::kInProgress;
+  ASSERT_TRUE(outgoing_a.Add(
+      handle2, /*start_mono_us=*/0,
+      [&](Status s) {
+        final_status2 = s;
+        done2.Notify();
+      },
+      TraceContext{}));
+  ASSERT_TRUE(outgoing_a.Add(handle2, req_infos2, /*start_us=*/0));
+
+  auto qp2 = std::make_shared<QueuedPost>();
+  qp2->post.handle = handle2;
+  qp2->post.requests.push_back(Request{
+      .op = Op::kWrite,
+      .laddr = src2.data(),
+      .raddr = dst2.data(),
+      .len = src2.size(),
+  });
+  qp2->req_infos = std::move(req_infos2);
+  queue_a.Enqueue(std::move(qp2));
+  worker_a.Wake(host_b.control_plane_listener);
+
+  ASSERT_TRUE(done2.WaitForNotificationWithTimeout(absl::Seconds(10)));
+  EXPECT_EQ(final_status2, Status::kSuccess);
+  EXPECT_EQ(dst2, src2);
 }
 
 }  // namespace

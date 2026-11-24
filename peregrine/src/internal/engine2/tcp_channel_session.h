@@ -42,6 +42,9 @@ class TcpChannelSession final {
   // Fails any in-flight outgoing post and releases any acquired incoming chunk.
   ~TcpChannelSession();
 
+  // Returns the remote peer served by this session.
+  const PeerId& remote_peer() const { return remote_peer_; }
+
   // Returns true iff sending is currently paused due to backpressure.
   bool IsTxBlocked() const { return tx_.blocked; }
 

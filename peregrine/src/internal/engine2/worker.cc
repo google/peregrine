@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "absl/base/optimization.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 #include "absl/synchronization/mutex.h"
@@ -57,6 +58,7 @@ Worker::~Worker() {
   signalWake();
   if (thread_.joinable()) thread_.join();
   sessions_.clear();
+  peer_fds_.clear();
   if (wake_fd_.value() >= 0) ::close(wake_fd_.value());
 }
 
@@ -64,18 +66,27 @@ void Worker::AddChannel(const PeerId peer, std::unique_ptr<Channel> ch,
                         PeerWorkQueue& work_queue) {
   if (ABSL_PREDICT_FALSE(ch == nullptr)) return;
   {
-    absl::MutexLock lock(new_channels_mu_);
+    absl::MutexLock lock(inbox_mu_);
     new_channels_.push_back(NewChannel{
         .peer = peer,
         .channel = std::move(ch),
         .work_queue = &work_queue,
     });
-    has_new_channels_.store(true, std::memory_order_seq_cst);
+    has_inbox_work_.store(true, std::memory_order_seq_cst);
   }
-  Wake();
+  maybeSignalWake();
 }
 
-void Worker::Wake() {
+void Worker::Wake(const PeerId& peer) {
+  {
+    absl::MutexLock lock(inbox_mu_);
+    woken_peers_.insert(peer);
+    has_inbox_work_.store(true, std::memory_order_seq_cst);
+  }
+  maybeSignalWake();
+}
+
+void Worker::maybeSignalWake() {
   if (!wake_pending_.exchange(true, std::memory_order_seq_cst)) {
     signalWake();
   }
@@ -97,7 +108,6 @@ void Worker::run() {
     if (stop_.load(std::memory_order_acquire)) return;
 
     // 2. Enqueue sockets that epoll reported as readable or writable.
-    bool woken = false;
     for (int i = 0; i < n; ++i) {
       const fd_t fd(events[i].data.fd);
       const uint32_t flags = events[i].events;
@@ -109,7 +119,6 @@ void Worker::run() {
         while (::read(wake_fd_.value(), &val, sizeof(val)) > 0) {
         }
         wake_pending_.store(false, std::memory_order_seq_cst);
-        woken = true;
         continue;
       }
 
@@ -140,14 +149,9 @@ void Worker::run() {
       }
     }
 
-    // 3. Register newly added channels and enqueue TX if woken.
-    if (has_new_channels_.load(std::memory_order_seq_cst)) {
-      registerNewChannels();
-    }
-    if (woken) {
-      for (auto& [fd, entry] : sessions_) {
-        scheduleTx(fd, entry);
-      }
+    // 3. Register newly added channels and enqueue peers woken by Wake().
+    if (has_inbox_work_.load(std::memory_order_seq_cst)) {
+      drainInbox();
     }
 
     // 4. Run one bounded round of reads, then writes, across queued sockets.
@@ -156,16 +160,23 @@ void Worker::run() {
   }
 }
 
-void Worker::registerNewChannels() {
+void Worker::drainInbox() {
   static_assert(assumptions::kLocalIdentityIsReadOnlyAfterControlPlaneStarts);
-  // Swap out queued channels under lock so epoll registration runs lock-free.
-  std::vector<NewChannel> items;
+
+  // 1. Swap inbox out under lock so epoll registration and lookups don't block
+  //    app threads calling Wake() or AddChannel().
+  std::vector<NewChannel> new_channels;
+  absl::flat_hash_set<PeerId> woken_peers;
   {
-    absl::MutexLock lock(new_channels_mu_);
-    items.swap(new_channels_);
-    has_new_channels_.store(false, std::memory_order_release);
+    absl::MutexLock lock(inbox_mu_);
+    new_channels.swap(new_channels_);
+    woken_peers.swap(woken_peers_);
+    has_inbox_work_.store(false, std::memory_order_release);
   }
-  for (NewChannel& item : items) {
+
+  // 2. Register newly connected channels with epoll and schedule initial TX in
+  //    case work was already queued before the channel became ready.
+  for (NewChannel& item : new_channels) {
     const fd_t fd = item.channel->GetFd();
     if (ABSL_PREDICT_FALSE(fd.value() < 0)) {
       LOG(WARNING) << "worker #" << id_ << " rail " << rail_id_
@@ -183,7 +194,20 @@ void Worker::registerNewChannels() {
                     std::move(item.channel), self_.control_plane_listener,
                     item.peer, *item.work_queue, outgoing_, incoming_, id_),
             });
-    if (inserted) scheduleTx(fd, it->second);
+    if (inserted) {
+      peer_fds_[item.peer].push_back(fd);
+      scheduleTx(fd, it->second);
+    }
+  }
+
+  // 3. Schedule TX only on channels serving peers that received new work.
+  for (const PeerId& peer : woken_peers) {
+    const auto pit = peer_fds_.find(peer);
+    if (pit == peer_fds_.end()) continue;
+    for (const fd_t fd : pit->second) {
+      const auto sit = sessions_.find(fd);
+      if (sit != sessions_.end()) scheduleTx(fd, sit->second);
+    }
   }
 }
 
@@ -272,6 +296,13 @@ void Worker::closeSession(const fd_t fd) {
   if (it->second.in_tx_ready) {
     tx_ready_.erase(std::remove(tx_ready_.begin(), tx_ready_.end(), fd),
                     tx_ready_.end());
+  }
+
+  const auto pit = peer_fds_.find(it->second.session->remote_peer());
+  if (pit != peer_fds_.end()) {
+    auto& fds = pit->second;
+    fds.erase(std::remove(fds.begin(), fds.end(), fd), fds.end());
+    if (fds.empty()) peer_fds_.erase(pit);
   }
   sessions_.erase(it);
 }
