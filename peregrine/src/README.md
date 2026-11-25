@@ -1,6 +1,7 @@
 # Code Organization
 
 - This `/peregrine/src/` folder contains src code and all the unit tests.
+- The `/peregrine/src/lean/` folder contains Lean-based verifications.
 - The integration tests are in the `/peregrine/test/` folder.
 
 | Subdirectory |        Namespace        |         Purpose             |
