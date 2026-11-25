@@ -1,0 +1,17 @@
+name = "lean"
+defaultTargets = ["IoVecCursor", "TcpManagerBase"]
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+warningAsError = true
+
+[[lean_lib]]
+name = "IoVecCursor"
+srcDir = "lib"
+globs = ["iovec_cursor"]
+
+[[lean_lib]]
+name = "TcpManagerBase"
+srcDir = "socket"
+globs = ["tcp_manager_base"]

@@ -80,5 +80,5 @@ jobs:
       - name: Check Lean proofs
         uses: leanprover/lean-action@ba3fdfe5c4476c925da13bf11a005ddb47e47aee # v1.7.1
         with:
-          lake-package-directory: peregrine/src/internal/lib/proof
+          lake-package-directory: peregrine/src/lean
 
