@@ -28,15 +28,16 @@ DatapathHost::DatapathHost(Component c, std::string_view control_ep,
       transport_(CreateTransport(
           control_ep, {.transport_type = TransportType::kTcp,
                        .num_parallel_connections = num_conns,
-                       .resolve_addr_callback =
-                           [this](const Metadata&,
-                                  const Metadata& req_meta) -> Byte* {
+                       .resolve_addr_callback = [this](const Metadata&,
+                                                       const Metadata& req_meta)
+                           -> absl::Span<Byte> {
                          uint64_t offset = 0;
                          std::memcpy(&offset, req_meta.data(), sizeof(offset));
                          if (offset > data_.size()) {
-                           return nullptr;
+                           return {};
                          }
-                         return data_.data() + offset;
+                         return absl::MakeSpan(data_.data() + offset,
+                                               data_.size() - offset);
                        }})) {
   DCHECK_GT(buf_size, 0);
   CHECK_NE(transport_, nullptr);

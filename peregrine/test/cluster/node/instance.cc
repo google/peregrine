@@ -112,14 +112,16 @@ BindTransportWithRetry(int idx, const NodeConfig& config,
         {.transport_type = config.transport_type,
          .num_parallel_connections = config.num_conns,
          .resolve_addr_callback =
-             [target_buf](const Metadata&, const Metadata& req_meta) -> Byte* {
-           if (target_buf == nullptr) return nullptr;
+             [target_buf](const Metadata&,
+                          const Metadata& req_meta) -> absl::Span<Byte> {
+           if (target_buf == nullptr) return {};
            uint64_t offset = 0;
            std::memcpy(&offset, req_meta.data(), sizeof(offset));
            if (offset > target_buf->Size()) {
-             return nullptr;
+             return {};
            }
-           return target_buf->DataPtr() + offset;
+           return absl::MakeSpan(target_buf->DataPtr() + offset,
+                                 target_buf->Size() - offset);
          },
          .allowed_devices = config.allowed_devices});
     if (transport != nullptr) {

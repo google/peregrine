@@ -150,10 +150,15 @@ bool RequestTracker::Add(const Handle handle,
         resolved_reqs.reserve(reqs.size());
       }
       for (const RequestInfo& req : reqs) {
-        const Byte* const resolved =
+        const absl::Span<Byte> buf =
             resolve_addr_callback_(metadata, req.metadata);
-        const addr_t raddr(reinterpret_cast<uintptr_t>(resolved));
-        if ABSL_PREDICT_FALSE (raddr.value() == 0) {
+        const uint64_t extent = req.recipe.BufferExtent(req.total_len);
+        const addr_t raddr(reinterpret_cast<uintptr_t>(buf.data()));
+        if ABSL_PREDICT_FALSE (raddr.value() == 0 || extent == 0 ||
+                               extent > buf.size() ||
+                               raddr.value() >
+                                   std::numeric_limits<uintptr_t>::max() -
+                                       buf.size()) {
           pt.req_map.clear();
           pt.pending_reqs = 0;
           pt.start_mono_us = 0;

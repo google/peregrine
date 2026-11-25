@@ -90,10 +90,10 @@ class TransferTest : public ::testing::TestWithParam<Param> {
               });
             },
             [this](const Metadata& post_meta,
-                   const Metadata& req_meta) -> Byte* {
+                   const Metadata& req_meta) -> absl::Span<Byte> {
               return post_meta == kPostMetadata && req_meta == kReqMetadata
-                         ? dst_.data()
-                         : nullptr;
+                         ? absl::MakeSpan(dst_)
+                         : absl::Span<Byte>{};
             }) {
     for (size_t i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);

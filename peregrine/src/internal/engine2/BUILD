@@ -426,6 +426,7 @@ cc_test(
         "//peregrine/src/internal/request:request_tracker",
         "//peregrine/src/internal/trace:trace_context",
         "//peregrine/src/internal/trace:trace_recorder",
+        "@abseil-cpp//absl/types:span",
         "@googletest//:gtest_main",
     ],
 )

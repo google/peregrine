@@ -1,6 +1,7 @@
 #include "peregrine/src/internal/request/request_tracker.h"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -34,8 +35,9 @@ class RequestTrackerTest : public ::testing::Test {
       : metrics_(),
         tracer_(TraceConfig{.sample_every_n = 0}),
         rt_(metrics_, tracer_, /*recv_post_callback=*/nullptr,
-            [](const Metadata&, const Metadata&) -> Byte* {
-              return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+            [](const Metadata&, const Metadata&) -> absl::Span<Byte> {
+              return absl::MakeSpan(
+                  reinterpret_cast<Byte*>(kBufferBaseAddr.value()), 4096);
             }) {
     CHECK(rt_.IsEmpty());
     CHECK_EQ(rt_.Check(kHandle), Status::kNotFound);
@@ -342,8 +344,9 @@ TEST_F(RequestTrackerTest, RecvPostCallback) {
                 std::vector<Metadata>(req_metas.begin(), req_metas.end()),
         });
       },
-      [](const Metadata&, const Metadata&) -> Byte* {
-        return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+      [](const Metadata&, const Metadata&) -> absl::Span<Byte> {
+        return absl::MakeSpan(reinterpret_cast<Byte*>(kBufferBaseAddr.value()),
+                              4096);
       });
 
   ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
@@ -416,13 +419,63 @@ TEST_F(RequestTrackerTest, ResolveAddrCallback) {
   int resolve_calls = 0;
   RequestTracker rt(metrics_, tracer_, /*recv_post_callback=*/nullptr,
                     [&](const Metadata& post_meta,
-                        const Metadata& req_meta) -> Byte* {
+                        const Metadata& req_meta) -> absl::Span<Byte> {
                       ++resolve_calls;
-                      if (post_meta != kPostMeta) return nullptr;
-                      if (req_meta == kReqMeta1) return buf1;
-                      if (req_meta == kReqMeta2) return buf2;
-                      return nullptr;
+                      if (post_meta != kPostMeta) return {};
+                      if (req_meta == kReqMeta1) return absl::MakeSpan(buf1);
+                      if (req_meta == kReqMeta2) return absl::MakeSpan(buf2);
+                      if (req_meta == Metadata{9, 9, 9}) {
+                        return absl::MakeSpan(buf1, 0);
+                      }
+                      if (req_meta == Metadata{8, 8, 8}) {
+                        return absl::MakeSpan(
+                            reinterpret_cast<Byte*>(
+                                std::numeric_limits<uintptr_t>::max() - 16),
+                            32);
+                      }
+                      return {};
                     });
+
+  // A request whose required extent exceeds the resolved buffer span is
+  // rejected by `RequestTracker::Add` even when the callback returns a non-null
+  // buffer.
+  const RequestInfo oversized_reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = kNumChunks,
+       .raddr = kBufferBaseAddr,
+       .total_len = sizeof(buf1) + 1,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous},
+       .metadata = kReqMeta1},
+  };
+  EXPECT_FALSE(
+      rt.Add(Handle(0x7777), oversized_reqs, util::MonoNowUs(), kPostMeta));
+  EXPECT_EQ(resolve_calls, 1);
+
+  // Zero-size and address-wrapping spans are also rejected.
+  const RequestInfo zero_span_reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = kBufferBaseAddr,
+       .total_len = 1,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous},
+       .metadata = {9, 9, 9}},
+  };
+  EXPECT_FALSE(
+      rt.Add(Handle(0x7778), zero_span_reqs, util::MonoNowUs(), kPostMeta));
+  const RequestInfo wrap_span_reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = kBufferBaseAddr,
+       .total_len = 16,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous},
+       .metadata = {8, 8, 8}},
+  };
+  EXPECT_FALSE(
+      rt.Add(Handle(0x7779), wrap_span_reqs, util::MonoNowUs(), kPostMeta));
+  resolve_calls = 0;
 
   ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), kPostMeta));
   EXPECT_EQ(resolve_calls, 2);
@@ -522,8 +575,11 @@ TEST_F(RequestTrackerTest, ReadResponderOnRecvRead) {
   std::vector<RequestInfo> recv_reqs;
   RequestTracker rt(
       metrics_, tracer_, /*recv_post_callback=*/nullptr,
-      [&](const Metadata& post_meta, const Metadata& req_meta) -> Byte* {
-        return post_meta == kPostMeta && req_meta == kReqMeta ? buf : nullptr;
+      [&](const Metadata& post_meta,
+          const Metadata& req_meta) -> absl::Span<Byte> {
+        return post_meta == kPostMeta && req_meta == kReqMeta
+                   ? absl::MakeSpan(buf)
+                   : absl::Span<Byte>{};
       },
       [&](const Endpoint& peer, Handle h, absl::Span<const RequestInfo> r) {
         ++on_recv_read_calls;
@@ -578,11 +634,14 @@ TEST_F(RequestTrackerTest, SameHandleDifferentPeers) {
         EXPECT_EQ(s, Status::kSuccess);
         completed_posts.push_back(post_meta);
       },
-      [kPostMeta2](const Metadata& post_meta, const Metadata&) -> Byte* {
+      [kPostMeta2](const Metadata& post_meta,
+                   const Metadata&) -> absl::Span<Byte> {
         if (post_meta == kPostMeta2) {
-          return reinterpret_cast<Byte*>(kBufferBaseAddr.value() + 1024);
+          return absl::MakeSpan(
+              reinterpret_cast<Byte*>(kBufferBaseAddr.value() + 1024), 1024);
         }
-        return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+        return absl::MakeSpan(reinterpret_cast<Byte*>(kBufferBaseAddr.value()),
+                              1024);
       });
 
   // Peer 1 registers and completes `kHandle`.
@@ -691,9 +750,10 @@ TEST_F(RequestTrackerTest, AddressResolutionFailureNotifiesCallback) {
     ++recv_post_calls;
     notified_status = s;
   };
-  auto resolve_addr_cb = [&](const Metadata&, const Metadata&) -> Byte* {
+  auto resolve_addr_cb = [&](const Metadata&,
+                             const Metadata&) -> absl::Span<Byte> {
     ++resolve_addr_calls;
-    return nullptr;
+    return {};
   };
 
   RequestTracker rt(metrics_, tracer_, recv_post_cb, resolve_addr_cb);
@@ -875,9 +935,11 @@ TEST_F(RequestTrackerTest, InitiatorFallbackRejectsUnrelatedPeer) {
 TEST_F(RequestTrackerTest, RejectsMixedOpAndDuplicateReqIdBeforeResolve) {
   int resolve_calls = 0;
   RequestTracker rt(metrics_, tracer_, /*recv_post_callback=*/nullptr,
-                    [&](const Metadata&, const Metadata&) -> Byte* {
+                    [&](const Metadata&, const Metadata&) -> absl::Span<Byte> {
                       ++resolve_calls;
-                      return reinterpret_cast<Byte*>(kBufferBaseAddr.value());
+                      return absl::MakeSpan(
+                          reinterpret_cast<Byte*>(kBufferBaseAddr.value()),
+                          4096);
                     });
 
   const Endpoint peer = Endpoint::Create("10.0.0.1:5000");

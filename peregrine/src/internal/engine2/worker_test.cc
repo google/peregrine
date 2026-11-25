@@ -109,10 +109,10 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   RequestTracker outgoing_b(metrics_b, tracer_b);
   RequestTracker incoming_b(
       metrics_b, tracer_b, /*recv_post_callback=*/nullptr,
-      [&](const Metadata&, const Metadata& req_meta) -> Byte* {
-        if (req_meta[0] == 1) return dst.data();
-        if (req_meta[0] == 2) return dst2.data();
-        return nullptr;
+      [&](const Metadata&, const Metadata& req_meta) -> absl::Span<Byte> {
+        if (req_meta[0] == 1) return absl::MakeSpan(dst);
+        if (req_meta[0] == 2) return absl::MakeSpan(dst2);
+        return {};
       });
   PeerWorkQueue queue_a;
   PeerWorkQueue queue_b;

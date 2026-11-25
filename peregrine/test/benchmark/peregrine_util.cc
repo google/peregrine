@@ -79,13 +79,14 @@ void RunServer(std::string_view ip, uint16_t peregrine_control_port,
       self, {.transport_type = transport_type,
              .num_parallel_connections = nconns,
              .resolve_addr_callback =
-                 [&buf](const Metadata&, const Metadata& req_meta) -> Byte* {
+                 [&buf](const Metadata&,
+                        const Metadata& req_meta) -> absl::Span<Byte> {
                uint64_t offset = 0;
                std::memcpy(&offset, req_meta.data(), sizeof(offset));
                if (offset > buf.size()) {
-                 return nullptr;
+                 return {};
                }
-               return buf.data() + offset;
+               return absl::MakeSpan(buf.data() + offset, buf.size() - offset);
              }});
   CHECK(transport != nullptr) << "Failed to create transport";
 

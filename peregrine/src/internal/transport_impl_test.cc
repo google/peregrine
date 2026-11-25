@@ -46,22 +46,26 @@ class TransportImplTest : public ::testing::TestWithParam<Param> {
         size2_(size_ - size1_),
         nconns_(std::get<1>(GetParam())),
         a_(size_, nconns_, /*recv_post_callback=*/nullptr,
-           [this](const Metadata&, const Metadata& req_meta) -> Byte* {
+           [this](const Metadata&,
+                  const Metadata& req_meta) -> absl::Span<Byte> {
              uint64_t offset = 0;
              std::memcpy(&offset, req_meta.data(), sizeof(offset));
              if (offset > a_.DataSize()) {
-               return nullptr;
+               return {};
              }
-             return a_.DataPtr() + offset;
+             return absl::MakeSpan(a_.DataPtr() + offset,
+                                   a_.DataSize() - offset);
            }),
         b_(size_, nconns_, /*recv_post_callback=*/nullptr,
-           [this](const Metadata&, const Metadata& req_meta) -> Byte* {
+           [this](const Metadata&,
+                  const Metadata& req_meta) -> absl::Span<Byte> {
              uint64_t offset = 0;
              std::memcpy(&offset, req_meta.data(), sizeof(offset));
              if (offset > b_.DataSize()) {
-               return nullptr;
+               return {};
              }
-             return b_.DataPtr() + offset;
+             return absl::MakeSpan(b_.DataPtr() + offset,
+                                   b_.DataSize() - offset);
            }) {
     DCHECK_EQ(a_.DataSize(), b_.DataSize());
   }

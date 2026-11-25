@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
@@ -128,7 +129,8 @@ class TcpChannelSessionTest : public ::testing::Test {
         incoming_a_(metrics_a_, tracer_a_),
         outgoing_b_(metrics_b_, tracer_b_),
         incoming_b_(metrics_b_, tracer_b_, /*recv_post_callback=*/nullptr,
-                    [this](const Metadata&, const Metadata&) -> Byte* {
+                    [this](const Metadata&,
+                           const Metadata&) -> absl::Span<Byte> {
                       return resolve_dst_b_;
                     }) {}
 
@@ -161,7 +163,7 @@ class TcpChannelSessionTest : public ::testing::Test {
   EngineMetrics metrics_b_;
   TraceRecorder tracer_a_;
   TraceRecorder tracer_b_;
-  Byte* resolve_dst_b_ = nullptr;
+  absl::Span<Byte> resolve_dst_b_;
   RequestTracker outgoing_a_;
   RequestTracker incoming_a_;
   RequestTracker outgoing_b_;
@@ -183,7 +185,7 @@ TEST_F(TcpChannelSessionTest, MultiChunkWriteTransfersDataAndEvictsIncoming) {
   std::vector<Byte> src(len);
   for (size_t i = 0; i < len; ++i) src[i] = static_cast<Byte>(i * 31 + 7);
   std::vector<Byte> dst(len, 0);
-  resolve_dst_b_ = dst.data();
+  resolve_dst_b_ = absl::MakeSpan(dst);
 
   Status done_status = Status::kInProgress;
   queue_a_.Enqueue(RegisterAndMakePost(outgoing_a_, Handle(42), src.data(),
@@ -213,7 +215,7 @@ TEST_F(TcpChannelSessionTest, PartialWritesAndReadsWithBackpressure) {
   std::vector<Byte> src(1024);
   for (size_t i = 0; i < src.size(); ++i) src[i] = static_cast<Byte>(i & 0xff);
   std::vector<Byte> dst(src.size(), 0);
-  resolve_dst_b_ = dst.data();
+  resolve_dst_b_ = absl::MakeSpan(dst);
 
   Status done_status = Status::kInProgress;
   queue_a_.Enqueue(RegisterAndMakePost(outgoing_a_, Handle(7), src.data(),
@@ -290,7 +292,7 @@ TEST_F(TcpChannelSessionTest, DrainsChunkExceedingRequestTotalLenSafely) {
 
   // Register a 16-byte destination buffer with a sentinel guard byte after it.
   std::vector<Byte> dst(32, 0x5A);
-  resolve_dst_b_ = dst.data();
+  resolve_dst_b_ = absl::MakeSpan(dst);
   const std::vector<RequestInfo> reqs = {RequestInfo{
       .reqid = ReqId(1),
       .nchunks = 1,

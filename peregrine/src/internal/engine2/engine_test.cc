@@ -241,10 +241,10 @@ TEST(EngineEndToEndTest, SingleWriteCallbackAndPolling) {
 
   LoopbackPair pair;
   pair.Init(/*num_conns=*/2, /*recv_b=*/nullptr,
-            [&](const Metadata&, const Metadata& req_meta) -> Byte* {
-              if (req_meta[0] == 1) return dst1.data();
-              if (req_meta[0] == 2) return dst2.data();
-              return nullptr;
+            [&](const Metadata&, const Metadata& req_meta) -> absl::Span<Byte> {
+              if (req_meta[0] == 1) return absl::MakeSpan(dst1);
+              if (req_meta[0] == 2) return absl::MakeSpan(dst2);
+              return {};
             });
 
   // 1. Callback completion.
@@ -309,10 +309,10 @@ TEST(EngineEndToEndTest, MultiRequestMultiChunkOverParallelConnections) {
 
   LoopbackPair pair;
   pair.Init(/*num_conns=*/4, /*recv_b=*/nullptr,
-            [&](const Metadata&, const Metadata& req_meta) -> Byte* {
-              if (req_meta[0] == 1) return dst1.data();
-              if (req_meta[0] == 2) return dst2.data();
-              return nullptr;
+            [&](const Metadata&, const Metadata& req_meta) -> absl::Span<Byte> {
+              if (req_meta[0] == 1) return absl::MakeSpan(dst1);
+              if (req_meta[0] == 2) return absl::MakeSpan(dst2);
+              return {};
             });
 
   absl::Notification done;
@@ -358,11 +358,11 @@ TEST(EngineEndToEndTest, BidirectionalConcurrentWrites) {
 
   LoopbackPair pair;
   pair.Init(/*num_conns=*/2, /*recv_b=*/nullptr,
-            [&](const Metadata&, const Metadata&) -> Byte* {
-              return dst_ab.data();
+            [&](const Metadata&, const Metadata&) -> absl::Span<Byte> {
+              return absl::MakeSpan(dst_ab);
             },
-            [&](const Metadata&, const Metadata&) -> Byte* {
-              return dst_ba.data();
+            [&](const Metadata&, const Metadata&) -> absl::Span<Byte> {
+              return absl::MakeSpan(dst_ba);
             });
 
   absl::Notification done_ab;
@@ -433,7 +433,9 @@ TEST(EngineEndToEndTest, ResolveAddrAndRecvPostCallbacks) {
         recv_done.Notify();
       },
       /*resolve_b=*/
-      [&](const Metadata&, const Metadata&) -> Byte* { return dst.data(); });
+      [&](const Metadata&, const Metadata&) -> absl::Span<Byte> {
+        return absl::MakeSpan(dst);
+      });
 
   absl::Notification send_done;
   Status send_status = Status::kInProgress;

@@ -16,6 +16,7 @@
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -72,8 +73,8 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
         r_(CreateHostInfo()),
         sndr_(5, s_, std::move(chs_.sndr)),
         rcvr_(0, r_, std::move(chs_.rcvr),
-              [this](const Metadata&, const Metadata&) -> Byte* {
-                return dst_.data();
+              [this](const Metadata&, const Metadata&) -> absl::Span<Byte> {
+                return absl::MakeSpan(dst_);
               }) {
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);

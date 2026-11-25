@@ -74,17 +74,23 @@ class TransportTest : public ::testing::TestWithParam<Param> {
               });
             },
             [this](const Metadata& post_meta,
-                   const Metadata& req_meta) -> Byte* {
+                   const Metadata& req_meta) -> absl::Span<Byte> {
               if (post_meta == Metadata{10, 11, 12}) {
                 size_t offset = 0;
                 std::memcpy(&offset, req_meta.data(), sizeof(offset));
-                if (offset >= r_.DataSize()) return nullptr;
-                return r_.DataPtr() + offset;
+                if (offset >= r_.DataSize()) return {};
+                return absl::MakeSpan(r_.DataPtr() + offset,
+                                      r_.DataSize() - offset);
               }
-              if (post_meta != Metadata{7, 8, 9}) return nullptr;
-              if (req_meta == Metadata{1, 2, 3}) return r_.DataPtr();
-              if (req_meta == Metadata{4, 5, 6}) return r_.DataPtr() + partial_;
-              return nullptr;
+              if (post_meta != Metadata{7, 8, 9}) return {};
+              if (req_meta == Metadata{1, 2, 3}) {
+                return absl::MakeSpan(r_.DataPtr(), r_.DataSize());
+              }
+              if (req_meta == Metadata{4, 5, 6}) {
+                return absl::MakeSpan(r_.DataPtr() + partial_,
+                                      r_.DataSize() - partial_);
+              }
+              return {};
             }) {
     CHECK(1 <= partial_ && partial_ < l_.DataSize());
     DCHECK_EQ(l_.DataSize(), r_.DataSize());
