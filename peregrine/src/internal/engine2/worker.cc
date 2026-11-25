@@ -18,6 +18,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/log/check.h"
 #include "absl/log/log.h"
+#include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
@@ -27,6 +28,7 @@
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/engine2/tcp_channel_session.h"
 #include "peregrine/src/internal/event/poller.h"
+#include "peregrine/src/internal/lib/numa.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/thread.h"
@@ -41,9 +43,10 @@ constexpr uint32_t kChannelEvents = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
 
 Worker::Worker(const int id, const int32_t rail_id, const HostInfo& self,
                RequestTracker& outgoing, RequestTracker& incoming,
-               TraceRecorder& tracer)
+               TraceRecorder& tracer, const int cpu_id)
     : id_(id),
       rail_id_(rail_id),
+      cpu_id_(cpu_id),
       wake_fd_(fd_t(::eventfd(/*initval=*/0, EFD_NONBLOCK | EFD_CLOEXEC))),
       self_(self),
       outgoing_(outgoing),
@@ -110,6 +113,14 @@ void Worker::signalWake() {
 }
 
 void Worker::run() {
+  if (cpu_id_ >= 0) {
+    if (const absl::Status status = PinCurrentThreadToCpu(cpu_id_);
+        !status.ok()) {
+      LOG(WARNING) << "worker #" << id_ << " rail " << rail_id_
+                   << " failed to pin to cpu " << cpu_id_ << ": " << status;
+    }
+  }
+
   std::array<epoll_event, kMaxEvents> events = {};
 
   while (!stop_.load(std::memory_order_acquire)) {

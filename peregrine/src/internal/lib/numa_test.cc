@@ -105,5 +105,57 @@ TEST(NumaTest, PinWorkerThreadToAllowedCpusAndRejectInvalidCpu) {
   worker.join();
 }
 
+TEST(NumaTest, AssignerDistributesDistinctCpusRoundRobinPerNodeAndCaches) {
+  int node0_lookups = 0;
+  int node1_lookups = 0;
+  NumaCpuAssigner assigner([&](int node) -> std::vector<int> {
+    if (node == 0) {
+      ++node0_lookups;
+      return {0, 2, 4};
+    }
+    if (node == 1) {
+      ++node1_lookups;
+      return {1, 3};
+    }
+    return {};
+  });
+
+  // Negative and unavailable nodes return the unpinned sentinel.
+  EXPECT_EQ(assigner.NextCpu(kUnknownNumaNode), kUnpinnedCpu);
+  EXPECT_EQ(assigner.NextCpu(99), kUnpinnedCpu);
+
+  // Interleaved requests assign distinct CPUs independently per node and wrap.
+  EXPECT_EQ(assigner.NextCpu(0), 0);
+  EXPECT_EQ(assigner.NextCpu(1), 1);
+  EXPECT_EQ(assigner.NextCpu(0), 2);
+  EXPECT_EQ(assigner.NextCpu(1), 3);
+  EXPECT_EQ(assigner.NextCpu(0), 4);
+  EXPECT_EQ(assigner.NextCpu(0), 0);  // wraps on node 0
+  EXPECT_EQ(assigner.NextCpu(1), 1);  // wraps on node 1
+
+  EXPECT_EQ(node0_lookups, 1);
+  EXPECT_EQ(node1_lookups, 1);
+}
+
+TEST(NumaTest, DefaultAssignerUsesLiveHostTopology) {
+  int live_node = -1;
+  std::vector<int> expected_cpus;
+  for (int node = 0; node < 64; ++node) {
+    expected_cpus = GetNumaCpus(node);
+    if (!expected_cpus.empty()) {
+      live_node = node;
+      break;
+    }
+  }
+  ASSERT_GE(live_node, 0);
+
+  NumaCpuAssigner assigner;
+  EXPECT_EQ(assigner.NextCpu(kUnknownNumaNode), kUnpinnedCpu);
+  EXPECT_EQ(assigner.NextCpu(live_node), expected_cpus[0]);
+  if (expected_cpus.size() >= 2) {
+    EXPECT_EQ(assigner.NextCpu(live_node), expected_cpus[1]);
+  }
+}
+
 }  // namespace
 }  // namespace peregrine::internal

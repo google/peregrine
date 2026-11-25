@@ -12,6 +12,7 @@
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
+#include "peregrine/src/internal/lib/numa.h"
 #include "peregrine/src/util/nic.h"
 
 namespace peregrine::internal::engine2 {
@@ -361,6 +362,23 @@ TEST(ConnectionPlannerTest, PlanDefaultRailedLocalExploresCartesianPairs) {
                       .local_bind = Endpoint::Create("10.0.0.2:0"),
                       .remote_ep = Endpoint::Create("10.0.1.1:6000"),
                   }));
+}
+
+TEST(ConnectionPlannerTest, NumaNodeForRailResolvesKnownAndUnknownRails) {
+  HostInfo host;
+  EXPECT_EQ(NumaNodeForRail(host, kNoRail), kUnknownNumaNode);
+  EXPECT_EQ(NumaNodeForRail(host, 0), kUnknownNumaNode);
+
+  host.tcp_nics = {
+      {.rail_id = 0, .pci = {.numa_node = 0}, .if_name = "eth0"},
+      {.rail_id = 1, .pci = {.numa_node = 1}, .if_name = "eth1"},
+      {.rail_id = 2, .pci = {.numa_node = kUnknownNumaNode}, .if_name = "lo"},
+  };
+  EXPECT_EQ(NumaNodeForRail(host, 0), 0);
+  EXPECT_EQ(NumaNodeForRail(host, 1), 1);
+  EXPECT_EQ(NumaNodeForRail(host, 2), kUnknownNumaNode);
+  EXPECT_EQ(NumaNodeForRail(host, 3), kUnknownNumaNode);
+  EXPECT_EQ(NumaNodeForRail(host, kNoRail), kUnknownNumaNode);
 }
 
 }  // namespace

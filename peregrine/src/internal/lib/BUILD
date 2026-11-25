@@ -160,6 +160,8 @@ cc_library(
     srcs = ["numa.cc"],
     hdrs = ["numa.h"],
     deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/functional:any_invocable",
         "@abseil-cpp//absl/status",
         "@abseil-cpp//absl/strings",
     ],

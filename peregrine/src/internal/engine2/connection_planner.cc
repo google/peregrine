@@ -16,6 +16,7 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/nicinfo.h"
 #include "peregrine/src/internal/base/types.h"
+#include "peregrine/src/internal/lib/numa.h"
 #include "peregrine/src/internal/nic/nic_inventory.h"
 #include "peregrine/src/util/nic.h"
 
@@ -211,6 +212,16 @@ std::vector<int32_t> ActiveRailIds(const HostInfo& host) {
     ids.push_back(entry.rail_id);
   }
   return ids;
+}
+
+int NumaNodeForRail(const HostInfo& host, const int32_t rail_id) {
+  if (rail_id < 0) return kUnknownNumaNode;
+  for (const nic::TcpNic& nic : host.tcp_nics) {
+    if (nic.rail_id == static_cast<uint32_t>(rail_id)) {
+      return nic.pci.numa_node >= 0 ? nic.pci.numa_node : kUnknownNumaNode;
+    }
+  }
+  return kUnknownNumaNode;
 }
 
 std::vector<ConnectionSpec> PlanConnections(

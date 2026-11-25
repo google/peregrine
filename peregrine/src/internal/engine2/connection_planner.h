@@ -36,6 +36,10 @@ std::optional<int32_t> RailIdForInterface(const HostInfo& host,
 // `host.tcp_nics` is empty or no listeners match.
 std::vector<int32_t> ActiveRailIds(const HostInfo& host);
 
+// Returns the NUMA node for the given rail on the host, or the unknown-NUMA
+// sentinel if the rail is negative, unknown, or has no known NUMA node.
+int NumaNodeForRail(const HostInfo& host, int32_t rail_id);
+
 // Computes the additional outbound connections (with resolved local bind and
 // remote listener endpoints) needed to reach `config.num_conns_per_peer`
 // between `self` and `peer`. When both hosts advertise overlapping rail

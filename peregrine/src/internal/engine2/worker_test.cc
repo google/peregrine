@@ -1,5 +1,6 @@
 #include "peregrine/src/internal/engine2/worker.h"
 
+#include <sched.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/uio.h>
@@ -28,6 +29,7 @@
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
+#include "peregrine/src/internal/lib/numa.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
@@ -210,6 +212,105 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   ASSERT_TRUE(done2.WaitForNotificationWithTimeout(absl::Seconds(10)));
   EXPECT_EQ(final_status2, Status::kSuccess);
   EXPECT_EQ(dst2, src2);
+}
+
+TEST(WorkerTest, PinsWorkerThreadToConfiguredCpu) {
+  int target_cpu = -1;
+  for (int node = 0; node < 64; ++node) {
+    const std::vector<int> cpus = GetNumaCpus(node);
+    if (!cpus.empty()) {
+      target_cpu = cpus.front();
+      break;
+    }
+  }
+  ASSERT_GE(target_cpu, 0);
+
+  int fds[2] = {-1, -1};
+  ASSERT_EQ(
+      ::socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, fds),
+      0);
+
+  HostInfo host_a;
+  host_a.control_plane_listener = Endpoint::Create("127.0.0.1:10011");
+  HostInfo host_b;
+  host_b.control_plane_listener = Endpoint::Create("127.0.0.1:10012");
+
+  std::vector<Byte> src(1024, 0x42);
+  std::vector<Byte> dst(src.size(), 0);
+
+  EngineMetrics metrics_a;
+  EngineMetrics metrics_b;
+  TraceRecorder tracer_a(TraceConfig{.sample_every_n = 0});
+  TraceRecorder tracer_b(TraceConfig{.sample_every_n = 0});
+  RequestTracker outgoing_a(metrics_a, tracer_a);
+  RequestTracker incoming_a(metrics_a, tracer_a);
+  RequestTracker outgoing_b(metrics_b, tracer_b);
+  RequestTracker incoming_b(
+      metrics_b, tracer_b, /*recv_post_callback=*/nullptr,
+      [&](const Metadata&, const Metadata&) -> absl::Span<Byte> {
+        return absl::MakeSpan(dst);
+      });
+  PeerWorkQueue queue_a;
+  PeerWorkQueue queue_b;
+
+  // Sender worker pins to the chosen CPU; receiver worker exercises graceful
+  // fallback on an out-of-range CPU ID.
+  Worker worker_a(/*id=*/0, /*rail_id=*/0, host_a, outgoing_a, incoming_a,
+                  tracer_a, target_cpu);
+  Worker worker_b(/*id=*/1, /*rail_id=*/0, host_b, outgoing_b, incoming_b,
+                  tracer_b, /*cpu_id=*/65535);
+
+  worker_a.AddChannel(host_b.control_plane_listener,
+                      std::make_unique<SocketPairChannel>(fds[0]), queue_a);
+  worker_b.AddChannel(host_a.control_plane_listener,
+                      std::make_unique<SocketPairChannel>(fds[1]), queue_b);
+
+  const Handle handle(200);
+  std::vector<RequestInfo> req_infos = {RequestInfo{
+      .reqid = ReqId(1),
+      .nchunks = 1,
+      .raddr = addr_t(reinterpret_cast<uintptr_t>(dst.data())),
+      .total_len = src.size(),
+      .op = Op::kWrite,
+      .recipe = Recipe{.type = RecipeType::kContiguous, .params = {}},
+  }};
+
+  absl::Notification done;
+  int running_cpu = -1;
+  std::vector<int> worker_cpus;
+  ASSERT_TRUE(outgoing_a.Add(
+      handle, /*start_mono_us=*/0,
+      [&](Status) {
+        // Completion callback runs on the sender worker's epoll thread on ACK.
+        running_cpu = ::sched_getcpu();
+        cpu_set_t set;
+        CPU_ZERO(&set);
+        if (::sched_getaffinity(0, sizeof(set), &set) == 0) {
+          for (int c = 0; c < CPU_SETSIZE; ++c) {
+            if (CPU_ISSET(c, &set)) worker_cpus.push_back(c);
+          }
+        }
+        done.Notify();
+      },
+      TraceContext{}));
+  ASSERT_TRUE(outgoing_a.AddInitiatorReqs(handle, req_infos));
+
+  auto qp = std::make_shared<QueuedPost>();
+  qp->post.handle = handle;
+  qp->post.requests.push_back(Request{
+      .op = Op::kWrite,
+      .laddr = src.data(),
+      .raddr = dst.data(),
+      .len = src.size(),
+  });
+  qp->req_infos = std::move(req_infos);
+  queue_a.Enqueue(std::move(qp));
+  worker_a.Wake(host_b.control_plane_listener);
+
+  ASSERT_TRUE(done.WaitForNotificationWithTimeout(absl::Seconds(10)));
+  EXPECT_EQ(dst, src);
+  EXPECT_EQ(running_cpu, target_cpu);
+  EXPECT_EQ(worker_cpus, std::vector<int>{target_cpu});
 }
 
 }  // namespace

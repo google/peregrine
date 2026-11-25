@@ -18,6 +18,7 @@
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/engine2/tcp_channel_session.h"
 #include "peregrine/src/internal/event/poller.h"
+#include "peregrine/src/internal/lib/numa.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
@@ -31,11 +32,13 @@ namespace peregrine::internal::engine2 {
 // Thread-safety: This class is thread-safe.
 class Worker final {
  public:
-  // Creates and starts the worker for local rail `rail_id`. `self`, `outgoing`,
-  // `incoming`, and `tracer` must outlive the worker.
+  // Creates and starts a worker for a local rail. When a non-negative CPU core
+  // is specified, the worker thread pins itself to that core; otherwise it
+  // stays unpinned and inherits the process affinity. The host info, trackers,
+  // and tracer must outlive the worker.
   Worker(int id, int32_t rail_id, const HostInfo& self,
          RequestTracker& outgoing, RequestTracker& incoming,
-         TraceRecorder& tracer);
+         TraceRecorder& tracer, int cpu_id = kUnpinnedCpu);
 
   DISALLOW_COPY(Worker);
   DISALLOW_MOVE(Worker);
@@ -91,6 +94,7 @@ class Worker final {
  private:
   const int id_;
   const int32_t rail_id_;
+  const int cpu_id_;
   const fd_t wake_fd_;
 
   // Non-owning, thread-safe references; all must outlive the worker.

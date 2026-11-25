@@ -31,6 +31,7 @@
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/worker.h"
+#include "peregrine/src/internal/lib/numa.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
@@ -77,14 +78,17 @@ TransferManager::TransferManager(
       tracer_(tracer),
       get_peer_host_info_fn_(std::move(get_peer_host_info_fn)),
       channel_manager_(std::move(channel_manager)) {
+  NumaCpuAssigner cpu_assigner;
   const std::vector<int32_t> rails = ActiveRailIds(self_);
   const size_t total_workers = std::max<size_t>(
       rails.size(), std::clamp(config_.num_conns_per_peer, 1, kMaxWorkers));
   workers_.reserve(total_workers);
   for (size_t i = 0; i < total_workers; ++i) {
     const int32_t rail_id = rails[i % rails.size()];
-    workers_.push_back(std::make_unique<Worker>(
-        static_cast<int>(i), rail_id, self_, outgoing_, incoming_, tracer_));
+    const int cpu_id = cpu_assigner.NextCpu(NumaNodeForRail(self_, rail_id));
+    workers_.push_back(std::make_unique<Worker>(static_cast<int>(i), rail_id,
+                                                self_, outgoing_, incoming_,
+                                                tracer_, cpu_id));
     std::unique_ptr<RailWorkers>& pool = rail_workers_[rail_id];
     if (pool == nullptr) pool = std::make_unique<RailWorkers>();
     pool->workers.push_back(workers_.back().get());
