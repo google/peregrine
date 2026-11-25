@@ -19,6 +19,7 @@
 #include "peregrine/src/internal/engine2/tcp_channel_session.h"
 #include "peregrine/src/internal/event/poller.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
 
@@ -31,9 +32,10 @@ namespace peregrine::internal::engine2 {
 class Worker final {
  public:
   // Creates and starts the worker for local rail `rail_id`. `self`, `outgoing`,
-  // and `incoming` must outlive the worker.
+  // `incoming`, and `tracer` must outlive the worker.
   Worker(int id, int32_t rail_id, const HostInfo& self,
-         RequestTracker& outgoing, RequestTracker& incoming);
+         RequestTracker& outgoing, RequestTracker& incoming,
+         TraceRecorder& tracer);
 
   DISALLOW_COPY(Worker);
   DISALLOW_MOVE(Worker);
@@ -95,6 +97,7 @@ class Worker final {
   const HostInfo& self_;
   RequestTracker& outgoing_;
   RequestTracker& incoming_;
+  TraceRecorder& tracer_;
 
   // Owned event loop and cross-thread wakeup state.
   std::unique_ptr<Poller> poller_;

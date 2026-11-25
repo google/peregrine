@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -31,6 +32,8 @@
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/worker.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/thread.h"
 
 namespace peregrine::internal::engine2 {
@@ -42,7 +45,8 @@ constexpr int kMaxWorkers = 16;
 
 std::unique_ptr<TransferManager> TransferManager::Create(
     const Config& config, const HostInfo& self, RequestTracker& outgoing,
-    RequestTracker& incoming, GetPeerHostInfoFn get_peer_host_info_fn,
+    RequestTracker& incoming, TraceRecorder& tracer,
+    GetPeerHostInfoFn get_peer_host_info_fn,
     std::unique_ptr<ChannelManager> channel_manager) {
   if (ABSL_PREDICT_FALSE(!config.IsValid())) {
     LOG(ERROR) << "invalid config";
@@ -56,19 +60,21 @@ std::unique_ptr<TransferManager> TransferManager::Create(
     LOG(ERROR) << "null channel manager";
     return nullptr;
   }
-  return absl::WrapUnique(new TransferManager(config, self, outgoing, incoming,
-                                              std::move(get_peer_host_info_fn),
-                                              std::move(channel_manager)));
+  return absl::WrapUnique(new TransferManager(
+      config, self, outgoing, incoming, tracer,
+      std::move(get_peer_host_info_fn), std::move(channel_manager)));
 }
 
 TransferManager::TransferManager(
     const Config& config, const HostInfo& self, RequestTracker& outgoing,
-    RequestTracker& incoming, GetPeerHostInfoFn get_peer_host_info_fn,
+    RequestTracker& incoming, TraceRecorder& tracer,
+    GetPeerHostInfoFn get_peer_host_info_fn,
     std::unique_ptr<ChannelManager> channel_manager)
     : config_(config),
       self_(self),
       outgoing_(outgoing),
       incoming_(incoming),
+      tracer_(tracer),
       get_peer_host_info_fn_(std::move(get_peer_host_info_fn)),
       channel_manager_(std::move(channel_manager)) {
   const std::vector<int32_t> rails = ActiveRailIds(self_);
@@ -77,8 +83,8 @@ TransferManager::TransferManager(
   workers_.reserve(total_workers);
   for (size_t i = 0; i < total_workers; ++i) {
     const int32_t rail_id = rails[i % rails.size()];
-    workers_.push_back(std::make_unique<Worker>(static_cast<int>(i), rail_id,
-                                                self_, outgoing_, incoming_));
+    workers_.push_back(std::make_unique<Worker>(
+        static_cast<int>(i), rail_id, self_, outgoing_, incoming_, tracer_));
     std::unique_ptr<RailWorkers>& pool = rail_workers_[rail_id];
     if (pool == nullptr) pool = std::make_unique<RailWorkers>();
     pool->workers.push_back(workers_.back().get());
@@ -115,6 +121,8 @@ TransferManager::~TransferManager() {
 
 void TransferManager::Submit(const PeerId& peer, Post post,
                              std::vector<RequestInfo> req_infos) {
+  const Handle handle = post.handle;
+  const TraceContext trace_ctx = post.trace_ctx;
   auto queued = std::make_shared<QueuedPost>(
       QueuedPost{.post = std::move(post), .req_infos = std::move(req_infos)});
   PeerState& peer_state = getOrCreatePeer(peer);
@@ -122,7 +130,13 @@ void TransferManager::Submit(const PeerId& peer, Post post,
   PeerState::WorkerList to_wake;
   if (peer_state.Enqueue(std::move(queued), to_wake)) {
     absl::MutexLock lock(setup_mu_);
-    if (!setup_stop_) setup_queue_.push_back(peer);
+    if (!setup_stop_) {
+      setup_queue_.push_back(SetupRequest{
+          .peer = peer,
+          .handle = handle,
+          .trace_ctx = trace_ctx,
+      });
+    }
   }
   for (Worker* worker : to_wake) worker->Wake(peer);
 }
@@ -149,7 +163,7 @@ PeerState* TransferManager::findPeer(const PeerId& peer) {
 void TransferManager::setupLoop() {
   static_assert(assumptions::kPeerHostInfoLookupRunsOnSetupThread);
   while (true) {
-    PeerId peer;
+    SetupRequest req;
     {
       absl::MutexLock lock(setup_mu_);
       const auto ready = [this]() ABSL_EXCLUSIVE_LOCKS_REQUIRED(setup_mu_) {
@@ -157,38 +171,45 @@ void TransferManager::setupLoop() {
       };
       setup_mu_.Await(absl::Condition(&ready));
       if (setup_stop_) return;
-      peer = setup_queue_.front();
+      req = setup_queue_.front();
       setup_queue_.pop_front();
     }
-    setupPeer(peer);
+    setupPeer(req);
   }
 }
 
-void TransferManager::setupPeer(const PeerId& peer) {
-  PeerState* peer_state = findPeer(peer);
+void TransferManager::setupPeer(const SetupRequest& req) {
+  PeerState* peer_state = findPeer(req.peer);
   if (ABSL_PREDICT_FALSE(peer_state == nullptr)) return;
-  if (peer_state->IsReady()) return;  // an inbound channel arrived first
+  if (!peer_state->TryBeginSetup(PeerState::SetupTrace{
+          .handle = req.handle, .trace_ctx = req.trace_ctx})) {
+    return;  // an inbound channel arrived first
+  }
+  tracer_.RecordConnSetupStart(req.trace_ctx, req.handle,
+                               config_.num_conns_per_peer);
 
-  absl::StatusOr<HostInfo> host_info = get_peer_host_info_fn_(peer);
+  absl::StatusOr<HostInfo> host_info = get_peer_host_info_fn_(req.peer);
   if (!host_info.ok()) {
-    LOG(WARNING) << "failed to get host info of peer " << peer << ": "
+    LOG(WARNING) << "failed to get host info of peer " << req.peer << ": "
                  << host_info.status();
     failHandles(peer_state->AbortSetup());
     return;
   }
-  if (host_info->control_plane_listener != peer) {
-    LOG(WARNING) << "host info for peer " << peer << " names "
+  if (host_info->control_plane_listener != req.peer) {
+    LOG(WARNING) << "host info for peer " << req.peer << " names "
                  << host_info->control_plane_listener;
     failHandles(peer_state->AbortSetup());
     return;
   }
-  if (peer_state->IsReady())
+  if (peer_state->IsReady()) {
     return;  // an inbound channel arrived during lookup
+  }
+  tracer_.RecordGetPeerHostInfoDone(req.trace_ctx, req.handle);
 
   const std::vector<ConnectionSpec> specs =
       PlanConnections(config_, self_, *host_info);
   if (specs.empty()) {
-    LOG(WARNING) << "no connection plan for peer " << peer;
+    LOG(WARNING) << "no connection plan for peer " << req.peer;
     failHandles(peer_state->AbortSetup());
     return;
   }
@@ -209,7 +230,12 @@ void TransferManager::onChannelReady(const PeerId& peer,
     return;
   }
   PeerState& peer_state = getOrCreatePeer(peer);
-  peer_state.OnChannelReady(worker);
+  if (std::optional<PeerState::SetupTrace> setup =
+          peer_state.OnChannelReady(worker);
+      setup.has_value()) {
+    tracer_.RecordConnSetupDone(setup->trace_ctx, setup->handle,
+                                /*num_workers=*/1);
+  }
   worker->AddChannel(peer, std::move(ch), peer_state.work_queue());
 }
 

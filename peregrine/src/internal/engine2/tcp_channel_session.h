@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <optional>
@@ -19,6 +20,7 @@
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal::engine2 {
@@ -30,11 +32,12 @@ namespace peregrine::internal::engine2 {
 class TcpChannelSession final {
  public:
   // Creates a session over `channel` between `self_peer` and `remote_peer`.
-  // `work_queue`, `outgoing`, and `incoming` must outlive the session.
+  // `work_queue`, `outgoing`, `incoming`, and `tracer` must outlive the
+  // session.
   TcpChannelSession(std::unique_ptr<Channel> channel, PeerId self_peer,
                     PeerId remote_peer, PeerWorkQueue& work_queue,
                     RequestTracker& outgoing, RequestTracker& incoming,
-                    int worker_id);
+                    TraceRecorder& tracer, int worker_id);
 
   DISALLOW_COPY(TcpChannelSession);
   DISALLOW_MOVE(TcpChannelSession);
@@ -81,12 +84,15 @@ class TcpChannelSession final {
     std::string post_info;
     std::string header;
     std::optional<IoVecCursor> cursor;
+    // Set only for traced data chunks so `DriveTx` can record `kTxWriteDone`.
+    std::optional<DataHeader> traced_chunk;
 
     void ResetFrame() {
       cursor.reset();
       post.reset();
       post_info.clear();
       header.clear();
+      traced_chunk.reset();
     }
   };
 
@@ -104,6 +110,9 @@ class TcpChannelSession final {
       Byte* dst = nullptr;
       // Acquired chunk slot; must be released on completion or abort.
       ChunkTracker* tracker = nullptr;
+      // Receiver timestamps (0 when untraced) piggybacked onto the ACK.
+      uint64_t t_start_us = 0;
+      uint64_t t_acquired_us = 0;
     };
     // Discards bytes of unknown, duplicate, or invalid chunks safely.
     struct Draining {
@@ -111,6 +120,9 @@ class TcpChannelSession final {
       size_t remaining = 0;
       // True when draining an already-completed duplicate chunk to re-ACK it.
       bool ack_after = false;
+      // Receiver timestamps (0 when untraced) piggybacked onto a re-ACK.
+      uint64_t t_start_us = 0;
+      uint64_t t_acquired_us = 0;
     };
 
     std::variant<ReadingHeader, ReadingPostInfo, ReadingData, Draining> phase;
@@ -143,6 +155,11 @@ class TcpChannelSession final {
   // Fails any in-flight outgoing post and releases any acquired incoming chunk.
   void abortInFlight();
 
+  // `TraceRecorder` / `ChromeTraceExporter` identify sender tracks by positive
+  // 1-based worker IDs and remote receiver tracks by negative 1-based IDs.
+  int traceTxWorkerId() const { return worker_id_ + 1; }
+  int traceRxWorkerId() const { return -(worker_id_ + 1); }
+
  private:
   const int worker_id_;
   const PeerId self_peer_;
@@ -152,6 +169,7 @@ class TcpChannelSession final {
   PeerWorkQueue& work_queue_;
   RequestTracker& outgoing_;
   RequestTracker& incoming_;
+  TraceRecorder& tracer_;
 
   // Owned, single-threaded per-channel state.
   std::unique_ptr<Channel> channel_;

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -27,19 +28,27 @@ bool PeerState::Enqueue(std::shared_ptr<QueuedPost> post, WorkerList& to_wake) {
   return false;
 }
 
+bool PeerState::TryBeginSetup(const SetupTrace& trace) {
+  absl::MutexLock lock(mu_);
+  if (state_ != SetupState::kSettingUp) return false;
+  if (trace.trace_ctx.is_traced) setup_trace_ = trace;
+  return true;
+}
+
 void PeerState::OnConnectsStarted(const int count) {
   DCHECK_GE(count, 0);
   absl::MutexLock lock(mu_);
   pending_connects_ += count;
 }
 
-void PeerState::OnChannelReady(Worker* worker) {
+std::optional<PeerState::SetupTrace> PeerState::OnChannelReady(Worker* worker) {
   DCHECK(worker != nullptr);
   absl::MutexLock lock(mu_);
   state_ = SetupState::kReady;
   if (std::find(workers_.begin(), workers_.end(), worker) == workers_.end()) {
     workers_.push_back(worker);
   }
+  return std::exchange(setup_trace_, std::nullopt);
 }
 
 std::vector<Handle> PeerState::OnConnectFailed() {
@@ -69,6 +78,7 @@ bool PeerState::IsReady() const {
 std::vector<Handle> PeerState::drainAndResetLocked() {
   state_ = SetupState::kIdle;
   pending_connects_ = 0;
+  setup_trace_.reset();
   return work_queue_.DrainHandles();
 }
 

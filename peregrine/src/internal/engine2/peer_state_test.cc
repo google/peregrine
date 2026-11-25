@@ -18,6 +18,7 @@
 #include "peregrine/src/internal/engine2/worker.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal::engine2 {
@@ -53,7 +54,7 @@ class PeerStateTest : public ::testing::Test {
 
   std::unique_ptr<Worker> MakeWorker(int id) {
     return std::make_unique<Worker>(id, /*rail_id=*/0, self_, outgoing_,
-                                    incoming_);
+                                    incoming_, tracer_);
   }
 
   HostInfo self_;
@@ -113,6 +114,33 @@ TEST_F(PeerStateTest, ReadyChannelPreventsAbortOnFailedConnectOrLookup) {
   EXPECT_THAT(state.AbortSetup(), IsEmpty());
   EXPECT_TRUE(state.IsReady());
   EXPECT_TRUE(state.work_queue().TryPull().has_value());
+}
+
+TEST_F(PeerStateTest, SetupTraceDeliveredOnceAndClearedOnAbort) {
+  PeerState state;
+  auto w1 = MakeWorker(0);
+  auto w2 = MakeWorker(1);
+  PeerState::WorkerList to_wake;
+
+  // Aborted setup clears any saved setup trace.
+  ASSERT_TRUE(state.Enqueue(MakePost(Handle(1), {1}), to_wake));
+  EXPECT_TRUE(state.TryBeginSetup(PeerState::SetupTrace{
+      .handle = Handle(1), .trace_ctx = TraceContext(/*is_traced=*/true)}));
+  EXPECT_THAT(state.AbortSetup(), ElementsAre(Handle(1)));
+
+  // Subsequent traced setup delivers its trace on the first ready channel only.
+  ASSERT_TRUE(state.Enqueue(MakePost(Handle(2), {1}), to_wake));
+  EXPECT_TRUE(state.TryBeginSetup(PeerState::SetupTrace{
+      .handle = Handle(2), .trace_ctx = TraceContext(/*is_traced=*/true)}));
+  const std::optional<PeerState::SetupTrace> first =
+      state.OnChannelReady(w1.get());
+  ASSERT_TRUE(first.has_value());
+  EXPECT_EQ(first->handle, Handle(2));
+  EXPECT_TRUE(first->trace_ctx.is_traced);
+
+  EXPECT_EQ(state.OnChannelReady(w2.get()), std::nullopt);
+  EXPECT_FALSE(state.TryBeginSetup(PeerState::SetupTrace{
+      .handle = Handle(3), .trace_ctx = TraceContext(/*is_traced=*/true)}));
 }
 
 }  // namespace

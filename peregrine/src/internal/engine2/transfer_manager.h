@@ -24,6 +24,8 @@
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/worker.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
 
@@ -35,11 +37,12 @@ namespace peregrine::internal::engine2 {
 class TransferManager final {
  public:
   // Creates a transfer manager for `self` (which must outlive it) using
-  // `outgoing` and `incoming` to track transfers. Takes ownership of
-  // `channel_manager` and starts it. Returns nullptr on failure.
+  // `outgoing`, `incoming`, and `tracer` to track and trace transfers. Takes
+  // ownership of `channel_manager` and starts it. Returns nullptr on failure.
   static std::unique_ptr<TransferManager> Create(
       const Config& config, const HostInfo& self, RequestTracker& outgoing,
-      RequestTracker& incoming, GetPeerHostInfoFn get_peer_host_info_fn,
+      RequestTracker& incoming, TraceRecorder& tracer,
+      GetPeerHostInfoFn get_peer_host_info_fn,
       std::unique_ptr<ChannelManager> channel_manager);
 
   DISALLOW_COPY(TransferManager);
@@ -58,8 +61,16 @@ class TransferManager final {
   void Cancel(const PeerId& peer, Handle handle);
 
  private:
+  // Queued cold-start setup request along with the triggering post's trace.
+  struct SetupRequest {
+    PeerId peer;
+    Handle handle = kInvalidHandle;
+    TraceContext trace_ctx;
+  };
+
   TransferManager(const Config& config, const HostInfo& self,
                   RequestTracker& outgoing, RequestTracker& incoming,
+                  TraceRecorder& tracer,
                   GetPeerHostInfoFn get_peer_host_info_fn,
                   std::unique_ptr<ChannelManager> channel_manager);
 
@@ -74,7 +85,7 @@ class TransferManager final {
 
   // Performs a blocking host info lookup and starts async connects for one
   // peer. Runs on `setup_thread_`.
-  void setupPeer(const PeerId& peer);
+  void setupPeer(const SetupRequest& req);
 
   // Marks `peer` ready and hands `ch` to a worker on `local_rail_id`.
   void onChannelReady(const PeerId& peer, int32_t local_rail_id,
@@ -103,6 +114,7 @@ class TransferManager final {
   const HostInfo& self_;
   RequestTracker& outgoing_;
   RequestTracker& incoming_;
+  TraceRecorder& tracer_;
   GetPeerHostInfoFn get_peer_host_info_fn_;
 
   // Per-peer state. Entries are never erased while alive, so pointers stay
@@ -119,7 +131,7 @@ class TransferManager final {
 
   absl::Mutex setup_mu_;
   bool setup_stop_ ABSL_GUARDED_BY(setup_mu_) = false;
-  std::deque<PeerId> setup_queue_ ABSL_GUARDED_BY(setup_mu_);
+  std::deque<SetupRequest> setup_queue_ ABSL_GUARDED_BY(setup_mu_);
   util::Jthread setup_thread_;
 };
 

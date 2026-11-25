@@ -28,6 +28,7 @@
 #include "peregrine/src/internal/engine2/tcp_channel_session.h"
 #include "peregrine/src/internal/event/poller.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/thread.h"
 
 namespace peregrine::internal::engine2 {
@@ -39,13 +40,15 @@ constexpr uint32_t kChannelEvents = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
 }  // namespace
 
 Worker::Worker(const int id, const int32_t rail_id, const HostInfo& self,
-               RequestTracker& outgoing, RequestTracker& incoming)
+               RequestTracker& outgoing, RequestTracker& incoming,
+               TraceRecorder& tracer)
     : id_(id),
       rail_id_(rail_id),
       wake_fd_(fd_t(::eventfd(/*initval=*/0, EFD_NONBLOCK | EFD_CLOEXEC))),
       self_(self),
       outgoing_(outgoing),
       incoming_(incoming),
+      tracer_(tracer),
       poller_(Poller::Create()) {
   CHECK(poller_ != nullptr);
   CHECK_GE(wake_fd_.value(), 0);
@@ -211,7 +214,8 @@ void Worker::drainInbox() {
         fd, SessionEntry{
                 .session = std::make_unique<TcpChannelSession>(
                     std::move(item.channel), self_.control_plane_listener,
-                    item.peer, *item.work_queue, outgoing_, incoming_, id_),
+                    item.peer, *item.work_queue, outgoing_, incoming_, tracer_,
+                    id_),
             });
     if (inserted) {
       peer_fds_[item.peer].push_back(fd);

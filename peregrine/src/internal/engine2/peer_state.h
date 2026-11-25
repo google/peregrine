@@ -2,6 +2,7 @@
 #define PEREGRINE_SRC_INTERNAL_ENGINE2_PEER_STATE_H_
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
@@ -10,6 +11,7 @@
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/engine2/worker.h"
+#include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal::engine2 {
@@ -20,6 +22,12 @@ namespace peregrine::internal::engine2 {
 class PeerState final {
  public:
   using WorkerList = absl::InlinedVector<Worker*, 16>;
+
+  // Trace metadata of the post that triggered cold-start peer setup.
+  struct SetupTrace {
+    Handle handle = kInvalidHandle;
+    TraceContext trace_ctx;
+  };
 
   PeerState() = default;
 
@@ -38,12 +46,19 @@ class PeerState final {
   bool Enqueue(std::shared_ptr<QueuedPost> post, WorkerList& to_wake)
       ABSL_LOCKS_EXCLUDED(mu_);
 
+  // Begins cold-start setup if the peer is still setting up (not yet ready),
+  // saving `trace` (when traced) so the first `OnChannelReady()` can finish it.
+  // Returns false if a channel is already ready or setup is not active.
+  bool TryBeginSetup(const SetupTrace& trace) ABSL_LOCKS_EXCLUDED(mu_);
+
   // Records `count` outbound connect attempts started for this peer.
   void OnConnectsStarted(int count) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Marks the peer ready (covers both outbound and inbound channels) and
-  // records `worker` as serving a channel to this peer.
-  void OnChannelReady(Worker* worker) ABSL_LOCKS_EXCLUDED(mu_);
+  // records `worker` as serving a channel to this peer. Returns the active
+  // `SetupTrace` once if a traced cold-start setup was in progress.
+  std::optional<SetupTrace> OnChannelReady(Worker* worker)
+      ABSL_LOCKS_EXCLUDED(mu_);
 
   // Records one failed outbound connect. If no connects remain in flight and
   // the peer has no ready channels, resets to idle, drops queued posts, and
@@ -73,6 +88,7 @@ class PeerState final {
   mutable absl::Mutex mu_;
   SetupState state_ ABSL_GUARDED_BY(mu_) = SetupState::kIdle;
   int pending_connects_ ABSL_GUARDED_BY(mu_) = 0;
+  std::optional<SetupTrace> setup_trace_ ABSL_GUARDED_BY(mu_);
   WorkerList workers_ ABSL_GUARDED_BY(mu_);
 };
 

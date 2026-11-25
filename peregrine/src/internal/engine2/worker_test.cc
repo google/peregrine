@@ -117,8 +117,10 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   PeerWorkQueue queue_a;
   PeerWorkQueue queue_b;
 
-  Worker worker_a(/*id=*/0, /*rail_id=*/0, host_a, outgoing_a, incoming_a);
-  Worker worker_b(/*id=*/1, /*rail_id=*/0, host_b, outgoing_b, incoming_b);
+  Worker worker_a(/*id=*/0, /*rail_id=*/0, host_a, outgoing_a, incoming_a,
+                  tracer_a);
+  Worker worker_b(/*id=*/1, /*rail_id=*/0, host_b, outgoing_b, incoming_b,
+                  tracer_b);
 
   worker_a.AddChannel(host_b.control_plane_listener,
                       std::make_unique<SocketPairChannel>(fds[0]), queue_a);

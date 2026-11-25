@@ -29,6 +29,7 @@
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_event.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal::engine2 {
@@ -53,12 +54,13 @@ class TransferManagerTest : public ::testing::Test {
   std::unique_ptr<TransferManager> CreateTransferManager(
       GetPeerHostInfoFn lookup) {
     return TransferManager::Create(Config{}, self_, outgoing_, incoming_,
-                                   std::move(lookup),
+                                   tracer_, std::move(lookup),
                                    ChannelManager::Create(Config{}, self_));
   }
 
   void SubmitWrite(TransferManager& tm, const PeerId& peer, Handle handle,
-                   RequestTracker::OnComplete on_complete = nullptr) {
+                   RequestTracker::OnComplete on_complete = nullptr,
+                   TraceContext trace_ctx = {}) {
     std::vector<RequestInfo> req_infos = {RequestInfo{
         .reqid = ReqId(1),
         .nchunks = 1,
@@ -67,7 +69,7 @@ class TransferManagerTest : public ::testing::Test {
         .recipe = Recipe{.type = RecipeType::kContiguous, .params = {}},
     }};
     ASSERT_TRUE(outgoing_.Add(handle, /*start_mono_us=*/0,
-                              std::move(on_complete), TraceContext{}));
+                              std::move(on_complete), trace_ctx));
     ASSERT_TRUE(outgoing_.AddInitiatorReqs(handle, req_infos));
     tm.Submit(peer,
               Post{
@@ -75,6 +77,7 @@ class TransferManagerTest : public ::testing::Test {
                   .requests = {{.op = Op::kWrite,
                                 .laddr = buf_.data(),
                                 .len = buf_.size()}},
+                  .trace_ctx = trace_ctx,
               },
               std::move(req_infos));
   }
@@ -92,10 +95,11 @@ TEST_F(TransferManagerTest, CreateRejectsNullArguments) {
     return absl::UnavailableError("unused");
   };
   EXPECT_EQ(TransferManager::Create(Config{}, self_, outgoing_, incoming_,
-                                    dummy, /*channel_manager=*/nullptr),
+                                    tracer_, dummy,
+                                    /*channel_manager=*/nullptr),
             nullptr);
   EXPECT_EQ(TransferManager::Create(Config{}, self_, outgoing_, incoming_,
-                                    /*get_peer_host_info_fn=*/nullptr,
+                                    tracer_, /*get_peer_host_info_fn=*/nullptr,
                                     ChannelManager::Create(Config{}, self_)),
             nullptr);
 }
@@ -282,7 +286,7 @@ TEST_F(TransferManagerTest, SubmitConnectsUsingActiveListenerRails) {
       [](const PeerId&, int32_t, int32_t, absl::Status) {});
 
   auto tm = TransferManager::Create(
-      cfg, local_info, outgoing_, incoming_,
+      cfg, local_info, outgoing_, incoming_, tracer_,
       [&](const PeerId&) -> absl::StatusOr<HostInfo> { return peer_info; },
       ChannelManager::Create(cfg, local_info));
   ASSERT_THAT(tm, NotNull());
@@ -291,6 +295,58 @@ TEST_F(TransferManagerTest, SubmitConnectsUsingActiveListenerRails) {
   ASSERT_TRUE(peer_accepted.WaitForNotificationWithTimeout(kWaitTimeout));
   EXPECT_EQ(accepted_local_rail, 1);
   EXPECT_EQ(accepted_remote_rail, 1);
+}
+
+TEST_F(TransferManagerTest, ColdStartTracedSubmitRecordsConnSetupStages) {
+  Config cfg;
+  cfg.num_conns_per_peer = 2;
+  cfg.allowed_devices = {"lo"};
+
+  HostInfo peer_info;
+  peer_info.control_plane_listener = Endpoint::Create("127.0.0.1:20011");
+  auto peer_cm = ChannelManager::Create(cfg, peer_info);
+  ASSERT_THAT(peer_cm, NotNull());
+  absl::Mutex accepted_mu;
+  int accepted_count = 0;
+  peer_cm->Start(
+      [&](const PeerId&, int32_t, int32_t, std::unique_ptr<Channel>) {
+        absl::MutexLock lock(accepted_mu);
+        ++accepted_count;
+      },
+      [](const PeerId&, int32_t, int32_t, absl::Status) {});
+
+  auto tm = TransferManager::Create(
+      cfg, self_, outgoing_, incoming_, tracer_,
+      [&](const PeerId&) -> absl::StatusOr<HostInfo> { return peer_info; },
+      ChannelManager::Create(cfg, self_));
+  ASSERT_THAT(tm, NotNull());
+
+  SubmitWrite(*tm, peer_info.control_plane_listener, Handle(42),
+              /*on_complete=*/nullptr, TraceContext(/*is_traced=*/true));
+
+  // Wait for both connections to be accepted and for kConnSetupDone locally.
+  const absl::Time deadline = absl::Now() + kWaitTimeout;
+  std::vector<TraceStage> setup_stages;
+  while (absl::Now() < deadline) {
+    setup_stages.clear();
+    for (const TraceEvent& ev : tracer_.Buffer().Snapshot()) {
+      if (ev.handle == 42 && (ev.stage == TraceStage::kConnSetupStart ||
+                              ev.stage == TraceStage::kGetPeerHostInfoDone ||
+                              ev.stage == TraceStage::kConnSetupDone)) {
+        setup_stages.push_back(ev.stage);
+      }
+    }
+    int count = 0;
+    {
+      absl::MutexLock lock(accepted_mu);
+      count = accepted_count;
+    }
+    if (count == 2 && setup_stages.size() >= 3) break;
+    absl::SleepFor(absl::Milliseconds(5));
+  }
+  EXPECT_THAT(setup_stages, ElementsAre(TraceStage::kConnSetupStart,
+                                        TraceStage::kGetPeerHostInfoDone,
+                                        TraceStage::kConnSetupDone));
 }
 
 }  // namespace

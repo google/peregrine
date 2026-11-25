@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_trace.h"
@@ -19,6 +20,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
+#include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
@@ -27,10 +29,14 @@
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
+#include "peregrine/src/internal/trace/trace_event.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 
 namespace peregrine::internal::engine2 {
 namespace {
+
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 
 // In-memory bidirectional byte pipe backing a pair of `FakeStreamChannel`s.
 struct Pipe {
@@ -136,7 +142,8 @@ class TcpChannelSessionTest : public ::testing::Test {
 
   std::shared_ptr<QueuedPost> RegisterAndMakePost(
       RequestTracker& outgoing, Handle handle, Byte* src, Byte* dst, size_t len,
-      RequestTracker::OnComplete on_complete = nullptr) {
+      RequestTracker::OnComplete on_complete = nullptr,
+      TraceContext trace_ctx = {}) {
     const uint32_t nchunks = static_cast<uint32_t>((len - 1) / kChunkSize + 1);
     std::vector<RequestInfo> req_infos = {RequestInfo{
         .reqid = ReqId(1),
@@ -147,10 +154,11 @@ class TcpChannelSessionTest : public ::testing::Test {
         .recipe = Recipe{.type = RecipeType::kContiguous, .params = {}},
     }};
     EXPECT_TRUE(outgoing.Add(handle, /*start_mono_us=*/0,
-                             std::move(on_complete), TraceContext{}));
+                             std::move(on_complete), trace_ctx));
     EXPECT_TRUE(outgoing.AddInitiatorReqs(handle, req_infos));
     auto qp = std::make_shared<QueuedPost>();
     qp->post.handle = handle;
+    qp->post.trace_ctx = trace_ctx;
     qp->post.requests.push_back(
         Request{.op = Op::kWrite, .laddr = src, .raddr = dst, .len = len});
     qp->req_infos = std::move(req_infos);
@@ -176,10 +184,10 @@ TEST_F(TcpChannelSessionTest, MultiChunkWriteTransfersDataAndEvictsIncoming) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
                            peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
-                           /*worker_id=*/0);
+                           tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
                              peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, /*worker_id=*/1);
+                             incoming_b_, tracer_b_, /*worker_id=*/1);
 
   const size_t len = kChunkSize + 1234;
   std::vector<Byte> src(len);
@@ -198,6 +206,7 @@ TEST_F(TcpChannelSessionTest, MultiChunkWriteTransfersDataAndEvictsIncoming) {
   EXPECT_EQ(dst, src);
   // Completed incoming tracker entry must be evicted.
   EXPECT_EQ(incoming_b_.Check(Handle(42), peer_a_), Status::kNotFound);
+  EXPECT_THAT(tracer_a_.Buffer().Snapshot(), IsEmpty());
 }
 
 TEST_F(TcpChannelSessionTest, PartialWritesAndReadsWithBackpressure) {
@@ -207,10 +216,10 @@ TEST_F(TcpChannelSessionTest, PartialWritesAndReadsWithBackpressure) {
 
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
                            peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
-                           /*worker_id=*/0);
+                           tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
                              peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, /*worker_id=*/1);
+                             incoming_b_, tracer_b_, /*worker_id=*/1);
 
   std::vector<Byte> src(1024);
   for (size_t i = 0; i < src.size(); ++i) src[i] = static_cast<Byte>(i & 0xff);
@@ -238,10 +247,10 @@ TEST_F(TcpChannelSessionTest, UnresolvedDestinationFailsSender) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
                            peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
-                           /*worker_id=*/0);
+                           tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
                              peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, /*worker_id=*/1);
+                             incoming_b_, tracer_b_, /*worker_id=*/1);
 
   std::vector<Byte> src(256, 0xAB);
   Status done_status = Status::kInProgress;
@@ -260,7 +269,7 @@ TEST_F(TcpChannelSessionTest, RejectsInvalidAndOversizedHeaders) {
     auto pipe = std::make_shared<Pipe>();
     TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
                                peer_b_, peer_a_, queue_b_, outgoing_b_,
-                               incoming_b_, /*worker_id=*/0);
+                               incoming_b_, tracer_b_, /*worker_id=*/0);
     // 64 bytes of garbage fail header deserialization.
     pipe->a_to_b.insert(pipe->a_to_b.end(), HeaderUtil::kSize, 0xff);
     bool has_more = false;
@@ -270,7 +279,7 @@ TEST_F(TcpChannelSessionTest, RejectsInvalidAndOversizedHeaders) {
     auto pipe = std::make_shared<Pipe>();
     TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
                                peer_b_, peer_a_, queue_b_, outgoing_b_,
-                               incoming_b_, /*worker_id=*/0);
+                               incoming_b_, tracer_b_, /*worker_id=*/0);
     // Oversized PostInfoHeader (> 4 MiB) is rejected before allocating.
     PostInfoHeader big = {};
     big.opcode = Opcode::kPostInfo;
@@ -288,7 +297,7 @@ TEST_F(TcpChannelSessionTest, DrainsChunkExceedingRequestTotalLenSafely) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
                              peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, /*worker_id=*/0);
+                             incoming_b_, tracer_b_, /*worker_id=*/0);
 
   // Register a 16-byte destination buffer with a sentinel guard byte after it.
   std::vector<Byte> dst(32, 0x5A);
@@ -338,7 +347,7 @@ TEST_F(TcpChannelSessionTest, DestructionFailsActiveOutgoingPost) {
   {
     TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
                              peer_a_, peer_b_, queue_a_, outgoing_a_,
-                             incoming_a_, /*worker_id=*/0);
+                             incoming_a_, tracer_a_, /*worker_id=*/0);
     bool has_more = false;
     ASSERT_TRUE(sender.DriveTx(has_more));
     EXPECT_TRUE(sender.IsTxBlocked());
@@ -350,7 +359,7 @@ TEST_F(TcpChannelSessionTest, DriveRxYieldsAtReadBudget) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
                              peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, /*worker_id=*/0);
+                             incoming_b_, tracer_b_, /*worker_id=*/0);
 
   // Queue 40 valid ACK headers (> kReadBudget = 32).
   DataHeader ack = {};
@@ -378,7 +387,7 @@ TEST_F(TcpChannelSessionTest, DriveRxClosesOnTruncatedFrameBeforePeerClose) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
                              peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, /*worker_id=*/0);
+                             incoming_b_, tracer_b_, /*worker_id=*/0);
 
   // Peer writes a truncated header (16 of 64 bytes) and closes cleanly (FIN).
   pipe->a_to_b.assign(16, 0x42);
@@ -387,6 +396,104 @@ TEST_F(TcpChannelSessionTest, DriveRxClosesOnTruncatedFrameBeforePeerClose) {
   EXPECT_FALSE(receiver.DriveRx(has_more, /*peer_closed=*/true));
   EXPECT_FALSE(has_more);
   EXPECT_TRUE(pipe->a_to_b.empty());
+}
+
+TEST_F(TcpChannelSessionTest, TracedChunkRecordsTxRxAndAckStages) {
+  auto pipe = std::make_shared<Pipe>();
+  TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
+                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           tracer_a_, /*worker_id=*/0);
+  TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
+                             peer_b_, peer_a_, queue_b_, outgoing_b_,
+                             incoming_b_, tracer_b_, /*worker_id=*/1);
+
+  std::vector<Byte> src(1024, 0x5C);
+  std::vector<Byte> dst(src.size(), 0);
+  resolve_dst_b_ = absl::MakeSpan(dst);
+  Status done_status = Status::kInProgress;
+  queue_a_.Enqueue(RegisterAndMakePost(
+      outgoing_a_, Handle(55), src.data(), dst.data(), src.size(),
+      [&](Status s) { done_status = s; }, TraceContext(/*is_traced=*/true)));
+
+  Pump(sender, receiver, *pipe);
+  EXPECT_EQ(done_status, Status::kSuccess);
+  EXPECT_EQ(dst, src);
+
+  const std::vector<TraceEvent> events = tracer_a_.Buffer().Snapshot();
+  std::vector<TraceStage> stages;
+  stages.reserve(events.size());
+  for (const TraceEvent& ev : events) {
+    EXPECT_EQ(ev.handle, 55);
+    stages.push_back(ev.stage);
+    if (ev.stage == TraceStage::kWorkerDequeued ||
+        ev.stage == TraceStage::kTxWriteDone) {
+      EXPECT_EQ(ev.worker_id, 1);  // 1-based TX worker ID for worker_id=0
+    } else if (ev.stage == TraceStage::kTxAckRcvd) {
+      EXPECT_EQ(ev.worker_id, -2);  // negative 1-based RX ID for worker_id=1
+      EXPECT_EQ(ev.metadata,
+                static_cast<uint8_t>(ChunkTracker::ChunkStatus::kEmpty));
+    } else if (ev.stage == TraceStage::kRequestDone ||
+               ev.stage == TraceStage::kAllRequestsDone ||
+               ev.stage == TraceStage::kCallbackDone) {
+      EXPECT_EQ(ev.worker_id, 1);
+    }
+  }
+  EXPECT_THAT(
+      stages,
+      ElementsAre(TraceStage::kWorkerDequeued, TraceStage::kTxWriteDone,
+                  TraceStage::kTxAckRcvd, TraceStage::kRequestDone,
+                  TraceStage::kAllRequestsDone, TraceStage::kCallbackDone));
+}
+
+TEST_F(TcpChannelSessionTest, TracedDuplicateChunkStampsDoneStatusInReAck) {
+  auto pipe = std::make_shared<Pipe>();
+  TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
+                             peer_b_, peer_a_, queue_b_, outgoing_b_,
+                             incoming_b_, tracer_b_, /*worker_id=*/2);
+
+  // Register a 2-chunk request so chunk 0 completion does not evict the entry.
+  std::vector<Byte> dst(kChunkSize + 64, 0);
+  resolve_dst_b_ = absl::MakeSpan(dst);
+  const std::vector<RequestInfo> reqs = {RequestInfo{
+      .reqid = ReqId(1),
+      .nchunks = 2,
+      .raddr = addr_t(reinterpret_cast<uintptr_t>(dst.data())),
+      .total_len = dst.size(),
+      .op = Op::kWrite,
+      .recipe = Recipe{.type = RecipeType::kContiguous, .params = {}},
+  }};
+  ASSERT_TRUE(incoming_b_.Add(Handle(66), reqs, /*start_us=*/0, {}, peer_a_));
+  // Mark chunk 0 already completed so an incoming chunk 0 is a duplicate.
+  ChunkTracker& tracker = incoming_b_.Find(Handle(66), ReqId(1), peer_a_);
+  ASSERT_EQ(tracker.Acquire(chunk_t(0)), ChunkTracker::ChunkStatus::kEmpty);
+  ASSERT_FALSE(tracker.Release(chunk_t(0), /*success=*/true));
+
+  DataHeader dup = {};
+  dup.opcode = Opcode::kData;
+  dup.handle = Handle(66);
+  dup.len = 64;
+  dup.reqid = ReqId(1);
+  dup.index = chunk_t(0);
+  dup.byte_offset = 0;
+  dup.trace.SetTraced();
+  const std::string hdr = HeaderUtil::Serialize(dup);
+  pipe->a_to_b.insert(pipe->a_to_b.end(), hdr.begin(), hdr.end());
+  pipe->a_to_b.insert(pipe->a_to_b.end(), 64, 0x33);
+
+  bool has_more = false;
+  ASSERT_TRUE(receiver.DriveRx(has_more));
+  ASSERT_TRUE(receiver.HasPendingControl());
+  ASSERT_TRUE(receiver.DriveTx(has_more));
+  ASSERT_EQ(pipe->b_to_a.size(), HeaderUtil::kSize);
+
+  const std::string raw_ack(pipe->b_to_a.begin(), pipe->b_to_a.end());
+  DataHeader ack = {};
+  ASSERT_TRUE(HeaderUtil::Deserialize(raw_ack, ack));
+  EXPECT_TRUE(ack.IsAck());
+  EXPECT_TRUE(ack.trace.IsTraced());
+  EXPECT_EQ(ack.trace.rx_worker_id, -3);  // negative 1-based for worker_id=2
+  EXPECT_EQ(ack.trace.rx_chunk_status,
+            static_cast<uint8_t>(ChunkTracker::ChunkStatus::kDone));
 }
 
 }  // namespace

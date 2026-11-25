@@ -27,6 +27,8 @@
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
 #include "peregrine/src/internal/request/request_tracker.h"
+#include "peregrine/src/internal/trace/chunk_trace_wire.h"
+#include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/clock.h"
 
 namespace peregrine::internal::engine2 {
@@ -63,21 +65,32 @@ std::string SerializeFailure(Handle handle) {
   return HeaderUtil::Serialize(failure);
 }
 
+// Stamps receiver timings into `chunk.trace` before ACK serialization.
+void StampRxTrace(DataHeader& chunk, int rx_worker_id, ChunkStatus status,
+                  uint64_t t_start_us, uint64_t t_acquired_us) {
+  if (ABSL_PREDICT_TRUE(!chunk.trace.IsTraced())) return;
+  chunk.trace.SetRx(rx_worker_id, status, t_start_us, t_acquired_us,
+                    util::MonoNowUs());
+}
+
 }  // namespace
 
 TcpChannelSession::TcpChannelSession(std::unique_ptr<Channel> channel,
                                      PeerId self_peer, PeerId remote_peer,
                                      PeerWorkQueue& work_queue,
                                      RequestTracker& outgoing,
-                                     RequestTracker& incoming, int worker_id)
+                                     RequestTracker& incoming,
+                                     TraceRecorder& tracer, int worker_id)
     : worker_id_(worker_id),
       self_peer_(self_peer),
       remote_peer_(remote_peer),
       work_queue_(work_queue),
       outgoing_(outgoing),
       incoming_(incoming),
+      tracer_(tracer),
       channel_(std::move(channel)) {
   DCHECK(channel_ != nullptr);
+  DCHECK_GE(worker_id_, 0);
 }
 
 TcpChannelSession::~TcpChannelSession() { abortInFlight(); }
@@ -101,6 +114,9 @@ bool TcpChannelSession::DriveTx(bool& has_more) {
     if (tx_.cursor->RemainingBytes() > 0) {
       tx_.blocked = true;
       return true;
+    }
+    if (ABSL_PREDICT_FALSE(tx_.traced_chunk.has_value())) {
+      tracer_.RecordTxWriteDone(*tx_.traced_chunk, traceTxWorkerId());
     }
     tx_.ResetFrame();
   }
@@ -201,6 +217,11 @@ void TcpChannelSession::prepareChunkTx(const ChunkClaim& claim,
   chunk.byte_offset = offset;
   chunk.raddr =
       info.raddr.value() == 0 ? addr_t(0) : addr_t(info.raddr.value() + offset);
+  if (ABSL_PREDICT_FALSE(post.post.trace_ctx.is_traced)) {
+    chunk.trace.SetTraced();
+    tracer_.RecordWorkerDequeued(chunk, traceTxWorkerId());
+    tx_.traced_chunk = chunk;
+  }
   tx_.header = HeaderUtil::Serialize(chunk);
   tx_.post = claim.post;
 
@@ -282,7 +303,8 @@ bool TcpChannelSession::onHeader(const RxState::ReadingHeader& hdr) {
 bool TcpChannelSession::onDataHeader(const DataHeader& chunk) {
   // Zero-length DataHeader is an ACK for one of our outgoing chunks.
   if (chunk.IsAck()) {
-    outgoing_.Update(chunk.handle, chunk.reqid, chunk.index, worker_id_);
+    tracer_.RecordTxAckRcvd(chunk);
+    outgoing_.Update(chunk.handle, chunk.reqid, chunk.index, traceTxWorkerId());
     return true;
   }
 
@@ -297,6 +319,9 @@ bool TcpChannelSession::onDataHeader(const DataHeader& chunk) {
                  << chunk;
     return false;
   }
+
+  const bool is_traced = chunk.trace.IsTraced();
+  const uint64_t t_start_us = is_traced ? util::MonoNowUs() : 0;
 
   // Resolve destination buffer and tracker in one lookup; drain if unknown/OOB.
   const RequestTracker::ChunkTarget target = incoming_.FindChunk(
@@ -317,14 +342,22 @@ bool TcpChannelSession::onDataHeader(const DataHeader& chunk) {
   }
 
   const ChunkStatus status = tracker.Acquire(chunk.index);
+  const uint64_t t_acquired_us = is_traced ? util::MonoNowUs() : 0;
   if (ABSL_PREDICT_TRUE(status == ChunkStatus::kEmpty)) {
     rx_.phase.emplace<RxState::ReadingData>(RxState::ReadingData{
-        .header = chunk, .dst = target.dst, .tracker = &tracker});
+        .header = chunk,
+        .dst = target.dst,
+        .tracker = &tracker,
+        .t_start_us = t_start_us,
+        .t_acquired_us = t_acquired_us,
+    });
   } else {
     rx_.phase.emplace<RxState::Draining>(RxState::Draining{
         .header = chunk,
         .remaining = chunk.len,
         .ack_after = status == ChunkStatus::kDone,
+        .t_start_us = t_start_us,
+        .t_acquired_us = t_acquired_us,
     });
   }
   return true;
@@ -357,14 +390,18 @@ void TcpChannelSession::onPayload() {
     }
   } else if (auto* data = std::get_if<RxState::ReadingData>(&rx_.phase)) {
     // Release chunk slot, evict completed incoming entry, and queue ACK.
-    const DataHeader chunk = data->header;
+    DataHeader chunk = data->header;
     ChunkTracker* const tracker = data->tracker;
+    const uint64_t t_start_us = data->t_start_us;
+    const uint64_t t_acquired_us = data->t_acquired_us;
     rx_.phase.emplace<RxState::ReadingHeader>();
     if (tracker->Release(chunk.index, /*success=*/true)) {
       if (incoming_.OnReqComplete(chunk.handle, remote_peer_)) {
         incoming_.Remove(chunk.handle, remote_peer_);
       }
     }
+    StampRxTrace(chunk, traceRxWorkerId(), ChunkStatus::kEmpty, t_start_us,
+                 t_acquired_us);
     tx_.control_queue.push_back(SerializeAck(chunk));
     return;
   } else if (auto* drain = std::get_if<RxState::Draining>(&rx_.phase)) {
@@ -372,6 +409,8 @@ void TcpChannelSession::onPayload() {
     drain->remaining -= std::min(drain->remaining, kDrainBufSize);
     if (drain->remaining > 0) return;
     if (drain->ack_after) {
+      StampRxTrace(drain->header, traceRxWorkerId(), ChunkStatus::kDone,
+                   drain->t_start_us, drain->t_acquired_us);
       tx_.control_queue.push_back(SerializeAck(drain->header));
     }
   }

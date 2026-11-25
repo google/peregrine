@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -12,6 +13,7 @@
 #include "absl/status/status.h"
 #include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/match.h"
 #include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -31,6 +33,7 @@ namespace {
 using ::absl_testing::IsOk;
 using ::absl_testing::IsOkAndHolds;
 using ::absl_testing::StatusIs;
+using ::testing::HasSubstr;
 using ::testing::IsEmpty;
 using ::testing::Not;
 using ::testing::NotNull;
@@ -463,6 +466,111 @@ TEST(EngineEndToEndTest, ResolveAddrAndRecvPostCallbacks) {
   EXPECT_EQ(got_post_meta, expected_post_meta);
   EXPECT_EQ(got_req_meta, expected_req_meta);
   EXPECT_EQ(dst, src);
+}
+
+TEST(EngineEndToEndTest, TracedTransfersExportChromeTraceAndUntracedIsEmpty) {
+  std::vector<Byte> src1(kChunkSize + 256, 0x3A);
+  std::vector<Byte> dst1(src1.size(), 0);
+  std::vector<Byte> src2(1024, 0x7B);
+  std::vector<Byte> dst2(src2.size(), 0);
+
+  LoopbackPair pair;
+  pair.Init(/*num_conns=*/2, /*recv_b=*/nullptr,
+            [&](const Metadata&, const Metadata& req_meta) -> absl::Span<Byte> {
+              if (req_meta[0] == 1) return absl::MakeSpan(dst1);
+              if (req_meta[0] == 2) return absl::MakeSpan(dst2);
+              return {};
+            });
+
+  // 1. Cold-start traced write with callback exports full lifecycle JSON.
+  pair.engine_a->ConfigureTrace(TraceConfig{.sample_every_n = 1});
+  absl::Notification done1;
+  Status status1 = Status::kInProgress;
+  Metadata meta1 = {};
+  meta1[0] = 1;
+  const std::vector<Request> reqs1 = {{.op = Op::kWrite,
+                                       .laddr = src1.data(),
+                                       .raddr = dst1.data(),
+                                       .len = src1.size(),
+                                       .metadata = meta1}};
+  ASSERT_THAT(pair.engine_a->Enqueue(
+                  pair.host_b.control_plane_listener,
+                  Engine::Item{
+                      .requests = reqs1,
+                      .on_complete =
+                          [&](Status s) {
+                            status1 = s;
+                            done1.Notify();
+                          },
+                      .trace_ctx = pair.engine_a->Tracer().MaybeStartTrace(),
+                  }),
+              IsOk());
+  ASSERT_TRUE(done1.WaitForNotificationWithTimeout(absl::Seconds(10)));
+  EXPECT_EQ(status1, Status::kSuccess);
+  EXPECT_EQ(dst1, src1);
+
+  // Callback completion trace is recorded right after `on_complete` returns.
+  std::string json;
+  const absl::Time trace_deadline = absl::Now() + absl::Seconds(5);
+  while (absl::Now() < trace_deadline) {
+    json = pair.engine_a->ExportChromeTraceJson();
+    if (absl::StrContains(json, "[kCallbackDone]")) break;
+    absl::SleepFor(absl::Milliseconds(2));
+  }
+  EXPECT_THAT(json, HasSubstr("TransportImpl::Post("));
+  EXPECT_THAT(json, HasSubstr("Engine::createSendWorkers [Cold-Start]"));
+  EXPECT_THAT(json, HasSubstr("Engine::processWrite("));
+  EXPECT_THAT(json, HasSubstr("SendChunk("));
+  EXPECT_THAT(json, HasSubstr("RecvChunk("));
+  EXPECT_THAT(json, HasSubstr("ChunkTracker::Acquire"));
+  EXPECT_THAT(json, HasSubstr("Channel::Read(Payload -> DstAddr)"));
+  EXPECT_THAT(json, HasSubstr("RecvAck & Update("));
+  EXPECT_THAT(json, HasSubstr("kRequestDone"));
+  EXPECT_THAT(json, HasSubstr("kAllRequestsDone"));
+  EXPECT_THAT(json, HasSubstr("[kCallbackDone]"));
+
+  // 2. Warm polled traced write exports kPollReaped without cold-start setup.
+  pair.engine_a->ClearTrace();
+  Metadata meta2 = {};
+  meta2[0] = 2;
+  const std::vector<Request> reqs2 = {{.op = Op::kWrite,
+                                       .laddr = src2.data(),
+                                       .raddr = dst2.data(),
+                                       .len = src2.size(),
+                                       .metadata = meta2}};
+  const absl::StatusOr<Handle> h2 = pair.engine_a->Enqueue(
+      pair.host_b.control_plane_listener,
+      Engine::Item{
+          .requests = reqs2,
+          .trace_ctx = pair.engine_a->Tracer().MaybeStartTrace(),
+      });
+  ASSERT_THAT(h2, IsOk());
+  absl::StatusOr<Status> polled = Status::kInProgress;
+  const absl::Time poll_deadline = absl::Now() + absl::Seconds(10);
+  while (absl::Now() < poll_deadline) {
+    polled = pair.engine_a->QueryUpdate(*h2);
+    if (!polled.ok() || *polled != Status::kInProgress) break;
+    absl::SleepFor(absl::Milliseconds(2));
+  }
+  EXPECT_THAT(polled, IsOkAndHolds(Status::kSuccess));
+  const std::string warm_json = pair.engine_a->ExportChromeTraceJson();
+  EXPECT_THAT(warm_json, HasSubstr("[kPollReaped]"));
+  EXPECT_THAT(warm_json, Not(HasSubstr("[Cold-Start]")));
+
+  // 3. Untraced transfer records no trace events.
+  pair.engine_a->ClearTrace();
+  pair.engine_a->ConfigureTrace(TraceConfig{.sample_every_n = 0});
+  absl::Notification done3;
+  ASSERT_THAT(pair.engine_a->Enqueue(
+                  pair.host_b.control_plane_listener,
+                  Engine::Item{
+                      .requests = reqs2,
+                      .on_complete = [&](Status) { done3.Notify(); },
+                      .trace_ctx = pair.engine_a->Tracer().MaybeStartTrace(),
+                  }),
+              IsOk());
+  ASSERT_TRUE(done3.WaitForNotificationWithTimeout(absl::Seconds(10)));
+  EXPECT_THAT(pair.engine_a->Tracer().Buffer().Snapshot(), IsEmpty());
 }
 
 }  // namespace

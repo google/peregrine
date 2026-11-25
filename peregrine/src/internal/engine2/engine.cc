@@ -31,6 +31,7 @@
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/transfer_manager.h"
 #include "peregrine/src/internal/trace/chrome_trace_exporter.h"
+#include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/util.h"
 
 namespace peregrine::internal::engine2 {
@@ -101,7 +102,7 @@ std::unique_ptr<Engine> Engine::Create(
       absl::WrapUnique(new Engine(config, self, std::move(recv_post_callback),
                                   std::move(resolve_addr_callback)));
   engine->transfer_manager_ = TransferManager::Create(
-      config, self, engine->outgoing_, engine->incoming_,
+      config, self, engine->outgoing_, engine->incoming_, engine->tracer_,
       std::move(get_peer_host_info_fn), std::move(channel_manager));
   if (ABSL_PREDICT_FALSE(engine->transfer_manager_ == nullptr)) {
     LOG(ERROR) << "failed to create transfer manager";
@@ -151,12 +152,15 @@ absl::StatusOr<Handle> Engine::Enqueue(const PeerId& peer, Item item) {
     });
   }
 
+  const uint64_t start_mono_us =
+      item.start_mono_us != 0 ? item.start_mono_us : util::MonoNowUs();
+
   constexpr int kMaxHandleAttempts = 16;
   Handle handle = kInvalidHandle;
   bool added_handle = false;
   for (int attempt = 0; attempt < kMaxHandleAttempts; ++attempt) {
     handle = GenNextHandle(next_handle_);
-    if (outgoing_.Add(handle, item.start_mono_us, std::move(item.on_complete),
+    if (outgoing_.Add(handle, start_mono_us, std::move(item.on_complete),
                       item.trace_ctx)) {
       added_handle = true;
       break;
@@ -170,6 +174,9 @@ absl::StatusOr<Handle> Engine::Enqueue(const PeerId& peer, Item item) {
     outgoing_.Remove(handle);
     return absl::InternalError("failed to register requests for handle");
   }
+
+  tracer_.RecordEngineEnqueued(item.trace_ctx, handle, start_mono_us,
+                               item.requests.size(), item.requests[0].op);
 
   transfer_manager_->Submit(peer,
                             Post{
