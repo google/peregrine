@@ -201,6 +201,28 @@ TEST_F(EngineTest, MemoryRegistrationAndMetrics) {
   EXPECT_THAT(engine->ExportChromeTraceJson(), Not(IsEmpty()));
 }
 
+TEST_F(EngineTest, CreatePopulatesNicInventoryAndPreservesCallerTopology) {
+  Config cfg;
+  cfg.allowed_devices = {"lo"};
+  const std::unique_ptr<Engine> engine =
+      Engine::Create(cfg, self_, StaticPeerLookup());
+  ASSERT_THAT(engine, NotNull());
+  ASSERT_EQ(self_.tcp_nics.size(), 1);
+  EXPECT_EQ(self_.tcp_nics[0].if_name, "lo");
+  EXPECT_EQ(self_.tcp_nics[0].pci.numa_node, -1);
+  EXPECT_THAT(self_.rdma_nics, IsEmpty());
+
+  HostInfo custom;
+  custom.control_plane_listener = Endpoint::Create("127.0.0.1:10001");
+  custom.tcp_nics = {{.rail_id = 7, .pci = {.numa_node = -1}, .if_name = "lo"}};
+  const std::unique_ptr<Engine> custom_engine =
+      Engine::Create(cfg, custom, StaticPeerLookup());
+  ASSERT_THAT(custom_engine, NotNull());
+  ASSERT_EQ(custom.tcp_nics.size(), 1);
+  EXPECT_EQ(custom.tcp_nics[0].rail_id, 7u);
+  EXPECT_EQ(custom.tcp_nics[0].if_name, "lo");
+}
+
 // Helper owning two loopback `Engine` instances and their `HostInfo`s.
 struct LoopbackPair {
   HostInfo host_a;

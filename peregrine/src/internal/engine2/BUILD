@@ -41,6 +41,7 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:header",
         "//peregrine/src/internal/metrics:engine_metrics",
+        "//peregrine/src/internal/nic:nic_inventory",
         "//peregrine/src/internal/request:request_tracker",
         "//peregrine/src/internal/trace:chrome_trace_exporter",
         "//peregrine/src/internal/trace:trace_context",

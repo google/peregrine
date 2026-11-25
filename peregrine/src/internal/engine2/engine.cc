@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -16,6 +17,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/assumptions.h"
@@ -30,6 +32,7 @@
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/transfer_manager.h"
+#include "peregrine/src/internal/nic/nic_inventory.h"
 #include "peregrine/src/internal/trace/chrome_trace_exporter.h"
 #include "peregrine/src/util/clock.h"
 #include "peregrine/src/util/util.h"
@@ -61,6 +64,47 @@ ReqId GenNextReqId(std::atomic<ReqId::ValueType>& next_req_id) {
   return ReqId(id);
 }
 
+// Returns true if no device allowlist is set or the device name is permitted.
+bool IsDeviceAllowed(absl::Span<const std::string> allowed_devices,
+                     std::string_view name) {
+  return allowed_devices.empty() ||
+         (!name.empty() &&
+          std::find(allowed_devices.begin(), allowed_devices.end(), name) !=
+              allowed_devices.end());
+}
+
+// Copies allowed NICs from the discovered inventory into empty host fields.
+void ApplyNicInventory(const Config& config, const nic::NicInventory& inv,
+                       HostInfo& self) {
+  if (self.tcp_nics.empty()) {
+    for (const nic::TcpNic& nic : inv.GetTcpNics()) {
+      if (IsDeviceAllowed(config.allowed_devices, nic.if_name)) {
+        self.tcp_nics.push_back(nic);
+      }
+    }
+  }
+  if (self.rdma_nics.empty()) {
+    for (const nic::RdmaNic& nic : inv.GetRdmaNics()) {
+      if (IsDeviceAllowed(config.allowed_devices, nic.ib_dev_name) ||
+          IsDeviceAllowed(config.allowed_devices, nic.netdev_name)) {
+        self.rdma_nics.push_back(nic);
+      }
+    }
+  }
+}
+
+// Populates missing local NIC topology from cached or loopback discovery.
+void PopulateNicInventory(const Config& config, HostInfo& self) {
+  if (!self.tcp_nics.empty() && !self.rdma_nics.empty()) return;
+  if (self.control_plane_listener.GetIpAddr().IsLoopback()) {
+    const nic::NicInventory inv =
+        nic::NicInventory::Discover(/*allow_loopback=*/true);
+    ApplyNicInventory(config, inv, self);
+  } else {
+    ApplyNicInventory(config, nic::NicInventory::Instance(), self);
+  }
+}
+
 }  // namespace
 
 bool Engine::Item::IsValid() const {
@@ -90,6 +134,8 @@ std::unique_ptr<Engine> Engine::Create(
     LOG(ERROR) << "null peer host info lookup";
     return nullptr;
   }
+
+  PopulateNicInventory(config, self);
 
   std::unique_ptr<ChannelManager> channel_manager =
       ChannelManager::Create(config, self);

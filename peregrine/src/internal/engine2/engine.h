@@ -45,9 +45,10 @@ class Engine final {
     bool IsValid() const;
   };
 
-  // Creates an engine for `self` (which must outlive it). Populates
-  // `self.data_plane_listeners`. Fails closed if `config` requests unsupported
-  // features (such as dataplane encryption). Returns nullptr on failure.
+  // Creates an engine for the local host (which must outlive it), populating
+  // data-plane listeners and, when empty, TCP and RDMA NIC inventories. Fails
+  // closed if the config requests unsupported features (such as dataplane
+  // encryption). Returns nullptr on failure.
   static std::unique_ptr<Engine> Create(
       const Config& config, HostInfo& self,
       GetPeerHostInfoFn get_peer_host_info_fn,
