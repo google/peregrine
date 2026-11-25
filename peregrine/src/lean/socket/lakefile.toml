@@ -1,0 +1,11 @@
+name = "socket"
+defaultTargets = ["TcpManagerBase"]
+
+[leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+warningAsError = true
+
+[[lean_lib]]
+name = "TcpManagerBase"
+globs = ["tcp_manager_base"]
