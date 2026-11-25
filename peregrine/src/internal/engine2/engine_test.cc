@@ -206,7 +206,8 @@ struct LoopbackPair {
   std::unique_ptr<Engine> engine_b;
 
   void Init(int num_conns, RecvPostCallback recv_b = nullptr,
-            ResolveAddrCallback resolve_b = nullptr) {
+            ResolveAddrCallback resolve_b = nullptr,
+            ResolveAddrCallback resolve_a = nullptr) {
     Config cfg;
     cfg.num_conns_per_peer = num_conns;
     cfg.allowed_devices = {"lo"};
@@ -221,7 +222,9 @@ struct LoopbackPair {
       if (p == host_a.control_plane_listener) return host_a;
       return absl::NotFoundError("unknown peer");
     };
-    engine_a = Engine::Create(cfg, host_a, std::move(lookup_a));
+    engine_a = Engine::Create(cfg, host_a, std::move(lookup_a),
+                              /*recv_post_callback=*/nullptr,
+                              std::move(resolve_a));
     engine_b = Engine::Create(cfg, host_b, std::move(lookup_b),
                               std::move(recv_b), std::move(resolve_b));
     ASSERT_THAT(engine_a, NotNull());
@@ -230,19 +233,30 @@ struct LoopbackPair {
 };
 
 TEST(EngineEndToEndTest, SingleWriteCallbackAndPolling) {
-  LoopbackPair pair;
-  pair.Init(/*num_conns=*/2);
-
-  // 1. Callback completion.
   std::vector<Byte> src1(4096);
   for (size_t i = 0; i < src1.size(); ++i) src1[i] = static_cast<Byte>(i + 1);
   std::vector<Byte> dst1(src1.size(), 0);
+  std::vector<Byte> src2(4096, 0xCC);
+  std::vector<Byte> dst2(src2.size(), 0);
+
+  LoopbackPair pair;
+  pair.Init(/*num_conns=*/2, /*recv_b=*/nullptr,
+            [&](const Metadata&, const Metadata& req_meta) -> Byte* {
+              if (req_meta[0] == 1) return dst1.data();
+              if (req_meta[0] == 2) return dst2.data();
+              return nullptr;
+            });
+
+  // 1. Callback completion.
   absl::Notification done1;
   Status status1 = Status::kInProgress;
+  Metadata meta1 = {};
+  meta1[0] = 1;
   const std::vector<Request> reqs1 = {{.op = Op::kWrite,
                                        .laddr = src1.data(),
                                        .raddr = dst1.data(),
-                                       .len = src1.size()}};
+                                       .len = src1.size(),
+                                       .metadata = meta1}};
   ASSERT_THAT(pair.engine_a->Enqueue(pair.host_b.control_plane_listener,
                                      Engine::Item{
                                          .requests = reqs1,
@@ -258,12 +272,13 @@ TEST(EngineEndToEndTest, SingleWriteCallbackAndPolling) {
   EXPECT_EQ(dst1, src1);
 
   // 2. Polling completion via QueryUpdate.
-  std::vector<Byte> src2(4096, 0xCC);
-  std::vector<Byte> dst2(src2.size(), 0);
+  Metadata meta2 = {};
+  meta2[0] = 2;
   const std::vector<Request> reqs2 = {{.op = Op::kWrite,
                                        .laddr = src2.data(),
                                        .raddr = dst2.data(),
-                                       .len = src2.size()}};
+                                       .len = src2.size(),
+                                       .metadata = meta2}};
   const absl::StatusOr<Handle> h2 = pair.engine_a->Enqueue(
       pair.host_b.control_plane_listener, Engine::Item{.requests = reqs2});
   ASSERT_THAT(h2, IsOk());
@@ -282,9 +297,6 @@ TEST(EngineEndToEndTest, SingleWriteCallbackAndPolling) {
 }
 
 TEST(EngineEndToEndTest, MultiRequestMultiChunkOverParallelConnections) {
-  LoopbackPair pair;
-  pair.Init(/*num_conns=*/4);
-
   const size_t len1 = kChunkSize * 3 + 123;
   const size_t len2 = kChunkSize * 2 + 456;
   std::vector<Byte> src1(len1);
@@ -295,17 +307,31 @@ TEST(EngineEndToEndTest, MultiRequestMultiChunkOverParallelConnections) {
   std::vector<Byte> dst1(len1, 0);
   std::vector<Byte> dst2(len2, 0);
 
+  LoopbackPair pair;
+  pair.Init(/*num_conns=*/4, /*recv_b=*/nullptr,
+            [&](const Metadata&, const Metadata& req_meta) -> Byte* {
+              if (req_meta[0] == 1) return dst1.data();
+              if (req_meta[0] == 2) return dst2.data();
+              return nullptr;
+            });
+
   absl::Notification done;
   Status final_status = Status::kInProgress;
+  Metadata meta1 = {};
+  meta1[0] = 1;
+  Metadata meta2 = {};
+  meta2[0] = 2;
   const std::vector<Request> reqs = {
       {.op = Op::kWrite,
        .laddr = src1.data(),
        .raddr = dst1.data(),
-       .len = len1},
+       .len = len1,
+       .metadata = meta1},
       {.op = Op::kWrite,
        .laddr = src2.data(),
        .raddr = dst2.data(),
-       .len = len2},
+       .len = len2,
+       .metadata = meta2},
   };
   ASSERT_THAT(pair.engine_a->Enqueue(pair.host_b.control_plane_listener,
                                      Engine::Item{
@@ -324,14 +350,20 @@ TEST(EngineEndToEndTest, MultiRequestMultiChunkOverParallelConnections) {
 }
 
 TEST(EngineEndToEndTest, BidirectionalConcurrentWrites) {
-  LoopbackPair pair;
-  pair.Init(/*num_conns=*/2);
-
   const size_t len = kChunkSize + 512;
   std::vector<Byte> src_ab(len, 0x11);
   std::vector<Byte> dst_ab(len, 0);
   std::vector<Byte> src_ba(len, 0x22);
   std::vector<Byte> dst_ba(len, 0);
+
+  LoopbackPair pair;
+  pair.Init(/*num_conns=*/2, /*recv_b=*/nullptr,
+            [&](const Metadata&, const Metadata&) -> Byte* {
+              return dst_ab.data();
+            },
+            [&](const Metadata&, const Metadata&) -> Byte* {
+              return dst_ba.data();
+            });
 
   absl::Notification done_ab;
   absl::Notification done_ba;

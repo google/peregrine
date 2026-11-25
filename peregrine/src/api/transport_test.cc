@@ -75,6 +75,12 @@ class TransportTest : public ::testing::TestWithParam<Param> {
             },
             [this](const Metadata& post_meta,
                    const Metadata& req_meta) -> Byte* {
+              if (post_meta == Metadata{10, 11, 12}) {
+                size_t offset = 0;
+                std::memcpy(&offset, req_meta.data(), sizeof(offset));
+                if (offset >= r_.DataSize()) return nullptr;
+                return r_.DataPtr() + offset;
+              }
               if (post_meta != Metadata{7, 8, 9}) return nullptr;
               if (req_meta == Metadata{1, 2, 3}) return r_.DataPtr();
               if (req_meta == Metadata{4, 5, 6}) return r_.DataPtr() + partial_;
@@ -264,18 +270,23 @@ TEST_P(TransportTest, SmallWriteRequestsRoundRobinAcrossSendWorkers) {
   const Transport& rt = r_.GetTransport();
   const std::string peer = rt.GetControlEndpoint();
 
+  constexpr Metadata kOffsetPostMeta = {10, 11, 12};
   std::array<Request, kNumReqs> reqs;
   for (size_t i = 0; i < kNumReqs; ++i) {
     const size_t offset = i * kReqSize;
+    Metadata req_meta = {};
+    std::memcpy(req_meta.data(), &offset, sizeof(offset));
     reqs[i] = Request{
         .op = Op::kWrite,
         .laddr = l_.DataPtr() + offset,
         .raddr = r_.DataPtr() + offset,
         .len = kReqSize,
+        .metadata = req_meta,
     };
   }
   auto callback = GetCompletionCallback();
-  const absl::StatusOr<Handle> h = lt.Post(peer, reqs, std::move(callback));
+  const absl::StatusOr<Handle> h =
+      lt.Post(peer, reqs, std::move(callback), kOffsetPostMeta);
   ASSERT_TRUE(h.ok()) << h.status();
 
   WaitForCompletion(lt, *h);
@@ -304,6 +315,7 @@ TEST_P(TransportTest, ConsecutiveSmallPostsRoundRobinAcrossSendWorkers) {
   const Transport& rt = r_.GetTransport();
   const std::string peer = rt.GetControlEndpoint();
 
+  constexpr Metadata kOffsetPostMeta = {10, 11, 12};
   auto post_and_wait = [&](absl::Span<const Request> reqs) {
     Status status = Status::kNotFound;
     absl::Notification done;
@@ -314,7 +326,8 @@ TEST_P(TransportTest, ConsecutiveSmallPostsRoundRobinAcrossSendWorkers) {
         done.Notify();
       };
     }
-    const absl::StatusOr<Handle> h = lt.Post(peer, reqs, std::move(cb));
+    const absl::StatusOr<Handle> h =
+        lt.Post(peer, reqs, std::move(cb), kOffsetPostMeta);
     ASSERT_TRUE(h.ok()) << h.status();
     const absl::Duration timeout = absl::Seconds(10);
     if (completion_callback_) {
@@ -336,11 +349,14 @@ TEST_P(TransportTest, ConsecutiveSmallPostsRoundRobinAcrossSendWorkers) {
 
   for (int i = 0; i < kNumConns; ++i) {
     const size_t offset = static_cast<size_t>(i) * kSmallSize;
+    Metadata req_meta = {};
+    std::memcpy(req_meta.data(), &offset, sizeof(offset));
     const std::array<Request, 1> req = {Request{
         .op = Op::kWrite,
         .laddr = l_.DataPtr() + offset,
         .raddr = r_.DataPtr() + offset,
         .len = kSmallSize,
+        .metadata = req_meta,
     }};
     post_and_wait(req);
   }

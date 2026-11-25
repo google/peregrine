@@ -93,6 +93,13 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   HostInfo host_b;
   host_b.control_plane_listener = Endpoint::Create("127.0.0.1:10002");
 
+  const size_t len = kChunkSize * 2 + 777;
+  std::vector<Byte> src(len);
+  for (size_t i = 0; i < len; ++i) src[i] = static_cast<Byte>((i * 17) & 0xff);
+  std::vector<Byte> dst(len, 0);
+  std::vector<Byte> src2(64 * 1024, 0xAB);
+  std::vector<Byte> dst2(src2.size(), 0);
+
   EngineMetrics metrics_a;
   EngineMetrics metrics_b;
   TraceRecorder tracer_a(TraceConfig{.sample_every_n = 0});
@@ -100,7 +107,13 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   RequestTracker outgoing_a(metrics_a, tracer_a);
   RequestTracker incoming_a(metrics_a, tracer_a);
   RequestTracker outgoing_b(metrics_b, tracer_b);
-  RequestTracker incoming_b(metrics_b, tracer_b);
+  RequestTracker incoming_b(
+      metrics_b, tracer_b, /*recv_post_callback=*/nullptr,
+      [&](const Metadata&, const Metadata& req_meta) -> Byte* {
+        if (req_meta[0] == 1) return dst.data();
+        if (req_meta[0] == 2) return dst2.data();
+        return nullptr;
+      });
   PeerWorkQueue queue_a;
   PeerWorkQueue queue_b;
 
@@ -112,13 +125,10 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   worker_b.AddChannel(host_a.control_plane_listener,
                       std::make_unique<SocketPairChannel>(fds[1]), queue_b);
 
-  const size_t len = kChunkSize * 2 + 777;
-  std::vector<Byte> src(len);
-  for (size_t i = 0; i < len; ++i) src[i] = static_cast<Byte>((i * 17) & 0xff);
-  std::vector<Byte> dst(len, 0);
-
   const Handle handle(123);
   const uint32_t nchunks = static_cast<uint32_t>((len - 1) / kChunkSize + 1);
+  Metadata meta1 = {};
+  meta1[0] = 1;
   std::vector<RequestInfo> req_infos = {RequestInfo{
       .reqid = ReqId(1),
       .nchunks = nchunks,
@@ -126,6 +136,7 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
       .total_len = len,
       .op = Op::kWrite,
       .recipe = Recipe{.type = RecipeType::kContiguous, .params = {}},
+      .metadata = meta1,
   }};
 
   absl::Notification done;
@@ -137,7 +148,7 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
         done.Notify();
       },
       TraceContext{}));
-  ASSERT_TRUE(outgoing_a.Add(handle, req_infos, /*start_us=*/0));
+  ASSERT_TRUE(outgoing_a.AddInitiatorReqs(handle, req_infos));
 
   auto qp = std::make_shared<QueuedPost>();
   qp->post.handle = handle;
@@ -146,6 +157,7 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
       .laddr = src.data(),
       .raddr = dst.data(),
       .len = len,
+      .metadata = meta1,
   });
   qp->req_infos = std::move(req_infos);
   queue_a.Enqueue(std::move(qp));
@@ -157,9 +169,9 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
 
   // Second targeted wake after the worker has gone idle exercises waking an
   // already-registered channel by its peer ID.
-  std::vector<Byte> src2(64 * 1024, 0xAB);
-  std::vector<Byte> dst2(src2.size(), 0);
   const Handle handle2(124);
+  Metadata meta2 = {};
+  meta2[0] = 2;
   std::vector<RequestInfo> req_infos2 = {RequestInfo{
       .reqid = ReqId(2),
       .nchunks = 1,
@@ -167,6 +179,7 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
       .total_len = src2.size(),
       .op = Op::kWrite,
       .recipe = Recipe{.type = RecipeType::kContiguous, .params = {}},
+      .metadata = meta2,
   }};
   absl::Notification done2;
   Status final_status2 = Status::kInProgress;
@@ -177,7 +190,7 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
         done2.Notify();
       },
       TraceContext{}));
-  ASSERT_TRUE(outgoing_a.Add(handle2, req_infos2, /*start_us=*/0));
+  ASSERT_TRUE(outgoing_a.AddInitiatorReqs(handle2, req_infos2));
 
   auto qp2 = std::make_shared<QueuedPost>();
   qp2->post.handle = handle2;
@@ -186,6 +199,7 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
       .laddr = src2.data(),
       .raddr = dst2.data(),
       .len = src2.size(),
+      .metadata = meta2,
   });
   qp2->req_infos = std::move(req_infos2);
   queue_a.Enqueue(std::move(qp2));

@@ -71,7 +71,10 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
         s_(CreateHostInfo()),
         r_(CreateHostInfo()),
         sndr_(5, s_, std::move(chs_.sndr)),
-        rcvr_(0, r_, std::move(chs_.rcvr)) {
+        rcvr_(0, r_, std::move(chs_.rcvr),
+              [this](const Metadata&, const Metadata&) -> Byte* {
+                return dst_.data();
+              }) {
     for (int i = 0; i < kBufSize; ++i) {
       src_[i] = util::Random<Byte>(bitgen_, 0x01, 0xff);
       dst_[i] = Byte(0);
@@ -94,6 +97,7 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
     info.opcode = Opcode::kPostInfo;
     info.handle = kHandle;
     info.len = kSerializedRequestInfoSize;
+    info.peer = Endpoint::Create("127.0.0.1:8080");
     return info;
   }
 
@@ -132,11 +136,13 @@ class WorkerTest : public ::testing::TestWithParam<Param> {
     RequestTracker incoming;
     Worker worker;
     explicit Host(int id, const HostInfo& self,
-                  std::unique_ptr<Channel> channel)
+                  std::unique_ptr<Channel> channel,
+                  ResolveAddrCallback resolve_addr_callback = nullptr)
         : metrics(),
           tracer(TraceConfig{.sample_every_n = 0}),
           outgoing(metrics, tracer),
-          incoming(metrics, tracer),
+          incoming(metrics, tracer, /*recv_post_callback=*/nullptr,
+                   std::move(resolve_addr_callback)),
           worker(id, self, outgoing, incoming, metrics, tracer,
                  std::move(channel)) {}
   };
@@ -172,7 +178,7 @@ TEST_P(WorkerTest, SendRecv) {
   const RequestInfo req_info = GenRequestInfo();
   ASSERT_TRUE(sndr_.outgoing.Add(kHandle, util::MonoNowUs(),
                                  /*on_complete=*/nullptr, TraceContext{}));
-  ASSERT_TRUE(sndr_.outgoing.Add(kHandle, {req_info}, /*start_us=*/0));
+  ASSERT_TRUE(sndr_.outgoing.AddInitiatorReqs(kHandle, {req_info}));
   absl::Notification done;
   util::Thread s([&]() {
     while (sndr_.outgoing.Check(kHandle) != Status::kSuccess) {

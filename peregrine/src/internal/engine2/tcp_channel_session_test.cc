@@ -127,7 +127,10 @@ class TcpChannelSessionTest : public ::testing::Test {
         outgoing_a_(metrics_a_, tracer_a_),
         incoming_a_(metrics_a_, tracer_a_),
         outgoing_b_(metrics_b_, tracer_b_),
-        incoming_b_(metrics_b_, tracer_b_) {}
+        incoming_b_(metrics_b_, tracer_b_, /*recv_post_callback=*/nullptr,
+                    [this](const Metadata&, const Metadata&) -> Byte* {
+                      return resolve_dst_b_;
+                    }) {}
 
   std::shared_ptr<QueuedPost> RegisterAndMakePost(
       RequestTracker& outgoing, Handle handle, Byte* src, Byte* dst, size_t len,
@@ -143,7 +146,7 @@ class TcpChannelSessionTest : public ::testing::Test {
     }};
     EXPECT_TRUE(outgoing.Add(handle, /*start_mono_us=*/0,
                              std::move(on_complete), TraceContext{}));
-    EXPECT_TRUE(outgoing.Add(handle, req_infos, /*start_us=*/0));
+    EXPECT_TRUE(outgoing.AddInitiatorReqs(handle, req_infos));
     auto qp = std::make_shared<QueuedPost>();
     qp->post.handle = handle;
     qp->post.requests.push_back(
@@ -158,6 +161,7 @@ class TcpChannelSessionTest : public ::testing::Test {
   EngineMetrics metrics_b_;
   TraceRecorder tracer_a_;
   TraceRecorder tracer_b_;
+  Byte* resolve_dst_b_ = nullptr;
   RequestTracker outgoing_a_;
   RequestTracker incoming_a_;
   RequestTracker outgoing_b_;
@@ -179,6 +183,7 @@ TEST_F(TcpChannelSessionTest, MultiChunkWriteTransfersDataAndEvictsIncoming) {
   std::vector<Byte> src(len);
   for (size_t i = 0; i < len; ++i) src[i] = static_cast<Byte>(i * 31 + 7);
   std::vector<Byte> dst(len, 0);
+  resolve_dst_b_ = dst.data();
 
   Status done_status = Status::kInProgress;
   queue_a_.Enqueue(RegisterAndMakePost(outgoing_a_, Handle(42), src.data(),
@@ -208,6 +213,7 @@ TEST_F(TcpChannelSessionTest, PartialWritesAndReadsWithBackpressure) {
   std::vector<Byte> src(1024);
   for (size_t i = 0; i < src.size(); ++i) src[i] = static_cast<Byte>(i & 0xff);
   std::vector<Byte> dst(src.size(), 0);
+  resolve_dst_b_ = dst.data();
 
   Status done_status = Status::kInProgress;
   queue_a_.Enqueue(RegisterAndMakePost(outgoing_a_, Handle(7), src.data(),
@@ -284,6 +290,7 @@ TEST_F(TcpChannelSessionTest, DrainsChunkExceedingRequestTotalLenSafely) {
 
   // Register a 16-byte destination buffer with a sentinel guard byte after it.
   std::vector<Byte> dst(32, 0x5A);
+  resolve_dst_b_ = dst.data();
   const std::vector<RequestInfo> reqs = {RequestInfo{
       .reqid = ReqId(1),
       .nchunks = 1,
