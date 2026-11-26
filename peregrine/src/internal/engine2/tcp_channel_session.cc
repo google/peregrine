@@ -185,13 +185,11 @@ void TcpChannelSession::abortInFlight() {
 }
 
 bool TcpChannelSession::prepareNextTx() {
-  // 1. Control frames (ACKs and failures) always go ahead of bulk data.
-  if (!tx_.control_queue.empty()) {
-    tx_.header = std::move(tx_.control_queue.front());
-    tx_.control_queue.pop_front();
-    const std::array<IoVec, 1> iov = {
-        IoVec{tx_.header.data(), tx_.header.size()}};
-    tx_.cursor.emplace(iov);
+  // 1. Flush all queued control frames together ahead of bulk data chunks.
+  if (const std::optional<IoVec> iov = tx_.control.TakeBatch();
+      iov.has_value()) {
+    const std::array<IoVec, 1> iovs = {*iov};
+    tx_.cursor.emplace(iovs);
     return true;
   }
   // 2. Pull the next chunk from the peer's queue; prepend PostInfo once/post.
@@ -392,10 +390,10 @@ void TcpChannelSession::onPayload() {
     std::vector<RequestInfo> reqs;
     if (ABSL_PREDICT_FALSE(!HeaderUtil::Deserialize(info->payload, reqs))) {
       LOG(WARNING) << "worker #" << worker_id_ << " invalid post info payload";
-      tx_.control_queue.push_back(SerializeFailure(info->header.handle));
+      tx_.control.Append(SerializeFailure(info->header.handle));
     } else if (!incoming_.Add(info->header.handle, reqs, util::MonoNowUs(),
                               info->header.metadata, remote_peer_)) {
-      tx_.control_queue.push_back(SerializeFailure(info->header.handle));
+      tx_.control.Append(SerializeFailure(info->header.handle));
     }
   } else if (auto* data = std::get_if<RxState::ReadingData>(&rx_.phase)) {
     // Release chunk slot, evict completed incoming entry, and queue ACK.
@@ -411,7 +409,7 @@ void TcpChannelSession::onPayload() {
     }
     StampRxTrace(chunk, traceRxWorkerId(), ChunkStatus::kEmpty, t_start_us,
                  t_acquired_us);
-    tx_.control_queue.push_back(SerializeAck(chunk));
+    tx_.control.Append(SerializeAck(chunk));
     return;
   } else if (auto* drain = std::get_if<RxState::Draining>(&rx_.phase)) {
     // Advance drain counter; re-ACK if this was a completed duplicate chunk.
@@ -420,7 +418,7 @@ void TcpChannelSession::onPayload() {
     if (drain->ack_after) {
       StampRxTrace(drain->header, traceRxWorkerId(), ChunkStatus::kDone,
                    drain->t_start_us, drain->t_acquired_us);
-      tx_.control_queue.push_back(SerializeAck(drain->header));
+      tx_.control.Append(SerializeAck(drain->header));
     }
   }
   rx_.phase.emplace<RxState::ReadingHeader>();

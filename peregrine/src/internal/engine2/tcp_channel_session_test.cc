@@ -42,6 +42,8 @@ using ::testing::IsEmpty;
 struct Pipe {
   std::deque<Byte> a_to_b;
   std::deque<Byte> b_to_a;
+  size_t a_to_b_writes = 0;
+  size_t b_to_a_writes = 0;
   size_t max_write = 1024 * 1024;
   size_t max_read = 1024 * 1024;
   bool fail_write = false;
@@ -70,6 +72,9 @@ class FakeStreamChannel final : public Channel {
       iovecs.Advance(n);
       budget -= n;
       written += n;
+    }
+    if (written > 0) {
+      ++(is_a_ ? pipe_->a_to_b_writes : pipe_->b_to_a_writes);
     }
     return static_cast<ssize_t>(written);
   }
@@ -132,13 +137,17 @@ class TcpChannelSessionTest : public ::testing::Test {
         tracer_a_(TraceConfig{.sample_every_n = 0}),
         tracer_b_(TraceConfig{.sample_every_n = 0}),
         outgoing_a_(metrics_a_, tracer_a_),
-        incoming_a_(metrics_a_, tracer_a_),
+        incoming_a_(
+            metrics_a_, tracer_a_, /*recv_post_callback=*/nullptr,
+            [this](const Metadata&, const Metadata&) -> absl::Span<Byte> {
+              return resolve_dst_a_;
+            }),
         outgoing_b_(metrics_b_, tracer_b_),
-        incoming_b_(metrics_b_, tracer_b_, /*recv_post_callback=*/nullptr,
-                    [this](const Metadata&,
-                           const Metadata&) -> absl::Span<Byte> {
-                      return resolve_dst_b_;
-                    }) {}
+        incoming_b_(
+            metrics_b_, tracer_b_, /*recv_post_callback=*/nullptr,
+            [this](const Metadata&, const Metadata&) -> absl::Span<Byte> {
+              return resolve_dst_b_;
+            }) {}
 
   std::shared_ptr<QueuedPost> RegisterAndMakePost(
       RequestTracker& outgoing, Handle handle, Byte* src, Byte* dst, size_t len,
@@ -171,6 +180,7 @@ class TcpChannelSessionTest : public ::testing::Test {
   EngineMetrics metrics_b_;
   TraceRecorder tracer_a_;
   TraceRecorder tracer_b_;
+  absl::Span<Byte> resolve_dst_a_;
   absl::Span<Byte> resolve_dst_b_;
   RequestTracker outgoing_a_;
   RequestTracker incoming_a_;
@@ -509,6 +519,162 @@ TEST_F(TcpChannelSessionTest, TracedDuplicateChunkStampsDoneStatusInReAck) {
   EXPECT_EQ(ack.trace.rx_worker_id, -3);  // negative 1-based for worker_id=2
   EXPECT_EQ(ack.trace.rx_chunk_status,
             static_cast<uint8_t>(ChunkTracker::ChunkStatus::kDone));
+}
+
+TEST_F(TcpChannelSessionTest, CoalescesMultipleAcksIntoSingleWrite) {
+  auto pipe = std::make_shared<Pipe>();
+  TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
+                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           metrics_a_, tracer_a_, /*worker_id=*/0);
+  TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
+                             peer_b_, peer_a_, queue_b_, outgoing_b_,
+                             incoming_b_, metrics_b_, tracer_b_,
+                             /*worker_id=*/1);
+
+  constexpr size_t kNumChunks = 8;
+  const size_t len = kNumChunks * kChunkSize;
+  std::vector<Byte> src(len);
+  for (size_t i = 0; i < len; ++i) src[i] = static_cast<Byte>(i * 17 + 3);
+  std::vector<Byte> dst(len, 0);
+  resolve_dst_b_ = absl::MakeSpan(dst);
+
+  Status done_status = Status::kInProgress;
+  queue_a_.Enqueue(RegisterAndMakePost(outgoing_a_, Handle(101), src.data(),
+                                       dst.data(), len,
+                                       [&](Status s) { done_status = s; }));
+
+  bool has_more = false;
+  ASSERT_TRUE(sender.DriveTx(has_more));
+  EXPECT_FALSE(has_more);
+  ASSERT_TRUE(receiver.DriveRx(has_more));
+  EXPECT_FALSE(has_more);
+  ASSERT_TRUE(receiver.HasPendingControl());
+
+  // All 8 queued ACKs must flush together in a single write call.
+  ASSERT_TRUE(receiver.DriveTx(has_more));
+  EXPECT_FALSE(has_more);
+  EXPECT_FALSE(receiver.HasPendingControl());
+  EXPECT_EQ(pipe->b_to_a_writes, 1);
+  EXPECT_EQ(pipe->b_to_a.size(), kNumChunks * HeaderUtil::kSize);
+
+  ASSERT_TRUE(sender.DriveRx(has_more));
+  EXPECT_FALSE(has_more);
+  EXPECT_EQ(done_status, Status::kSuccess);
+  EXPECT_EQ(dst, src);
+}
+
+TEST_F(TcpChannelSessionTest,
+       PartialControlWritePreservesInFlightBatchWhileQueueingMore) {
+  auto pipe = std::make_shared<Pipe>();
+  TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
+                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           metrics_a_, tracer_a_, /*worker_id=*/0);
+  TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
+                             peer_b_, peer_a_, queue_b_, outgoing_b_,
+                             incoming_b_, metrics_b_, tracer_b_,
+                             /*worker_id=*/1);
+
+  constexpr size_t kBatchChunks = 4;
+  const size_t batch_len = kBatchChunks * kChunkSize;
+  std::vector<Byte> src1(batch_len, 0x7A);
+  std::vector<Byte> dst1(batch_len, 0);
+  std::vector<Byte> src2(batch_len, 0x3C);
+  std::vector<Byte> dst2(batch_len, 0);
+  resolve_dst_b_ = absl::MakeSpan(dst1);
+
+  Status status1 = Status::kInProgress;
+  Status status2 = Status::kInProgress;
+  queue_a_.Enqueue(RegisterAndMakePost(outgoing_a_, Handle(102), src1.data(),
+                                       dst1.data(), src1.size(),
+                                       [&](Status s) { status1 = s; }));
+
+  // Deliver the first 4 chunks and stall mid-way through the 4-ACK batch.
+  bool has_more = false;
+  ASSERT_TRUE(sender.DriveTx(has_more));
+  ASSERT_TRUE(receiver.DriveRx(has_more));
+  ASSERT_TRUE(receiver.HasPendingControl());
+
+  pipe->max_write = 100;
+  ASSERT_TRUE(receiver.DriveTx(has_more));
+  EXPECT_TRUE(receiver.IsTxBlocked());
+  EXPECT_TRUE(receiver.HasPendingControl());
+  EXPECT_EQ(pipe->b_to_a.size(), 100);
+  EXPECT_EQ(pipe->b_to_a_writes, 1);
+
+  // Send and receive 4 more chunks while the first control batch is blocked.
+  pipe->max_write = 1024 * 1024;
+  resolve_dst_b_ = absl::MakeSpan(dst2);
+  queue_a_.Enqueue(RegisterAndMakePost(outgoing_a_, Handle(103), src2.data(),
+                                       dst2.data(), src2.size(),
+                                       [&](Status s) { status2 = s; }));
+  ASSERT_TRUE(sender.DriveTx(has_more));
+  ASSERT_TRUE(receiver.DriveRx(has_more));
+  EXPECT_FALSE(has_more);
+
+  // Unblock TX: finishes the in-flight batch and flushes the queued batch.
+  receiver.ClearTxBlocked();
+  ASSERT_TRUE(receiver.DriveTx(has_more));
+  EXPECT_FALSE(has_more);
+  EXPECT_FALSE(receiver.HasPendingControl());
+  EXPECT_EQ(pipe->b_to_a.size(), 2 * kBatchChunks * HeaderUtil::kSize);
+  // 1 partial write + 1 completion write for batch 1 + 1 coalesced write for
+  // batch 2.
+  EXPECT_EQ(pipe->b_to_a_writes, 3);
+
+  ASSERT_TRUE(sender.DriveRx(has_more));
+  EXPECT_EQ(status1, Status::kSuccess);
+  EXPECT_EQ(status2, Status::kSuccess);
+  EXPECT_EQ(dst1, src1);
+  EXPECT_EQ(dst2, src2);
+}
+
+TEST_F(TcpChannelSessionTest,
+       CoalescesControlBatchAheadOfOutgoingDataInSameTurn) {
+  auto pipe = std::make_shared<Pipe>();
+  TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
+                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           metrics_a_, tracer_a_, /*worker_id=*/0);
+  TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
+                             peer_b_, peer_a_, queue_b_, outgoing_b_,
+                             incoming_b_, metrics_b_, tracer_b_,
+                             /*worker_id=*/1);
+
+  constexpr size_t kNumChunks = 4;
+  const size_t len_ab = kNumChunks * kChunkSize;
+  std::vector<Byte> src_ab(len_ab, 0x11);
+  std::vector<Byte> dst_ab(len_ab, 0);
+  resolve_dst_b_ = absl::MakeSpan(dst_ab);
+
+  std::vector<Byte> src_ba(1024, 0x22);
+  std::vector<Byte> dst_ba(src_ba.size(), 0);
+  resolve_dst_a_ = absl::MakeSpan(dst_ba);
+
+  Status status_ab = Status::kInProgress;
+  Status status_ba = Status::kInProgress;
+  queue_a_.Enqueue(RegisterAndMakePost(outgoing_a_, Handle(103), src_ab.data(),
+                                       dst_ab.data(), src_ab.size(),
+                                       [&](Status s) { status_ab = s; }));
+  queue_b_.Enqueue(RegisterAndMakePost(outgoing_b_, Handle(104), src_ba.data(),
+                                       dst_ba.data(), src_ba.size(),
+                                       [&](Status s) { status_ba = s; }));
+
+  bool has_more = false;
+  ASSERT_TRUE(sender.DriveTx(has_more));
+  ASSERT_TRUE(receiver.DriveRx(has_more));
+  ASSERT_TRUE(receiver.HasPendingControl());
+
+  // One DriveTx turn flushes all 4 ACKs in one write, then sends the outgoing
+  // data chunk immediately in the second write.
+  ASSERT_TRUE(receiver.DriveTx(has_more));
+  EXPECT_FALSE(has_more);
+  EXPECT_FALSE(receiver.HasPendingControl());
+  EXPECT_EQ(pipe->b_to_a_writes, 2);
+
+  Pump(sender, receiver, *pipe);
+  EXPECT_EQ(status_ab, Status::kSuccess);
+  EXPECT_EQ(status_ba, Status::kSuccess);
+  EXPECT_EQ(dst_ab, src_ab);
+  EXPECT_EQ(dst_ba, src_ba);
 }
 
 }  // namespace

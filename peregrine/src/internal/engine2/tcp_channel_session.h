@@ -4,15 +4,17 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <deque>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
+#include "absl/log/check.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
+#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
@@ -57,7 +59,7 @@ class TcpChannelSession final {
   void ClearTxBlocked() { tx_.blocked = false; }
 
   // Returns true iff control frames (ACK or failure) are waiting to be sent.
-  bool HasPendingControl() const { return !tx_.control_queue.empty(); }
+  bool HasPendingControl() const { return !tx_.control.Empty(); }
 
   // Sends pending control frames and outgoing chunks until backpressure or the
   // per-call write limit is reached. Sets `has_more` if more work remains;
@@ -71,13 +73,47 @@ class TcpChannelSession final {
   bool DriveRx(bool& has_more, bool peer_closed = false);
 
  private:
-  // Outgoing send queue and active frame state (never moved while `cursor` is
-  // live).
+  // Coalesces outgoing 64-byte control frames (ACKs and failures) so all frames
+  // queued during a receive round flush in a single write call.
+  //
+  // Uses two buffers — one accumulating newly queued frames and one backing the
+  // active transmit cursor — swapped in O(1) when staging the next batch. Two
+  // buffers keep the in-flight buffer's memory stable across partial writes
+  // while new frames continue appending, and preserve allocated capacity across
+  // steady-state sends without extra allocations or copies.
+  class ControlBuffer {
+   public:
+    bool Empty() const { return pending_.empty() && inflight_.empty(); }
+
+    void Append(std::string_view frame) { pending_.append(frame); }
+
+    std::optional<IoVec> TakeBatch() {
+      if (pending_.empty()) return std::nullopt;
+      DCHECK(inflight_.empty());
+      inflight_.swap(pending_);
+      return IoVec{inflight_.data(), inflight_.size()};
+    }
+
+    void ReleaseBatch() {
+      inflight_.clear();
+      if (inflight_.capacity() > kMaxRetainedBytes) {
+        std::string().swap(inflight_);
+      }
+    }
+
+   private:
+    // Upper bound on retained buffer capacity after a transient burst.
+    static constexpr size_t kMaxRetainedBytes = 64 * 1024;
+
+    std::string pending_;
+    std::string inflight_;
+  };
+
+  // Outgoing send queue and active frame state (never moved while active).
   struct TxState {
     bool blocked = false;
-    // Serialized 64B ACK/failure frames, sent ahead of data chunks.
-    std::deque<std::string> control_queue;
-    // Most recent post handle whose `PostInfo` was sent on this channel.
+    ControlBuffer control;
+    // Most recent post handle whose PostInfo was sent on this channel.
     Handle last_post_info_handle = kInvalidHandle;
 
     // Keeps caller's payload buffer alive while `cursor` points into it.
@@ -96,6 +132,7 @@ class TcpChannelSession final {
       post.reset();
       post_info.clear();
       header.clear();
+      control.ReleaseBatch();
       payload_len = 0;
       traced_chunk.reset();
     }
