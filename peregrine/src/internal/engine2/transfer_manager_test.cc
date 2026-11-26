@@ -53,9 +53,9 @@ class TransferManagerTest : public ::testing::Test {
 
   std::unique_ptr<TransferManager> CreateTransferManager(
       GetPeerHostInfoFn lookup) {
-    return TransferManager::Create(Config{}, self_, outgoing_, incoming_,
-                                   tracer_, std::move(lookup),
-                                   ChannelManager::Create(Config{}, self_));
+    return TransferManager::Create(
+        Config{}, self_, outgoing_, incoming_, metrics_, tracer_,
+        std::move(lookup), ChannelManager::Create(Config{}, self_, metrics_));
   }
 
   void SubmitWrite(TransferManager& tm, const PeerId& peer, Handle handle,
@@ -84,6 +84,7 @@ class TransferManagerTest : public ::testing::Test {
 
   HostInfo self_;
   EngineMetrics metrics_;
+  EngineMetrics peer_metrics_;
   TraceRecorder tracer_;
   RequestTracker outgoing_;
   RequestTracker incoming_;
@@ -95,19 +96,20 @@ TEST_F(TransferManagerTest, CreateRejectsNullArguments) {
     return absl::UnavailableError("unused");
   };
   EXPECT_EQ(TransferManager::Create(Config{}, self_, outgoing_, incoming_,
-                                    tracer_, dummy,
+                                    metrics_, tracer_, dummy,
                                     /*channel_manager=*/nullptr),
             nullptr);
-  EXPECT_EQ(TransferManager::Create(Config{}, self_, outgoing_, incoming_,
-                                    tracer_, /*get_peer_host_info_fn=*/nullptr,
-                                    ChannelManager::Create(Config{}, self_)),
+  EXPECT_EQ(TransferManager::Create(
+                Config{}, self_, outgoing_, incoming_, metrics_, tracer_,
+                /*get_peer_host_info_fn=*/nullptr,
+                ChannelManager::Create(Config{}, self_, metrics_)),
             nullptr);
 }
 
 TEST_F(TransferManagerTest, SubmitGetsHostInfoOncePerPeer) {
   HostInfo peer_info;
   peer_info.control_plane_listener = Endpoint::Create("127.0.0.1:20000");
-  auto peer_cm = ChannelManager::Create(Config{}, peer_info);
+  auto peer_cm = ChannelManager::Create(Config{}, peer_info, peer_metrics_);
   ASSERT_THAT(peer_cm, NotNull());
   absl::Notification peer_accepted;
   peer_cm->Start(
@@ -138,7 +140,7 @@ TEST_F(TransferManagerTest, SubmitGetsHostInfoOncePerPeer) {
 TEST_F(TransferManagerTest, InboundChannelMarksPeerReadyWithoutLookup) {
   HostInfo peer_info;
   peer_info.control_plane_listener = Endpoint::Create("127.0.0.1:20001");
-  auto peer_cm = ChannelManager::Create(Config{}, peer_info);
+  auto peer_cm = ChannelManager::Create(Config{}, peer_info, peer_metrics_);
   ASSERT_THAT(peer_cm, NotNull());
   absl::Notification peer_connected;
   peer_cm->Start(
@@ -201,6 +203,7 @@ TEST_F(TransferManagerTest, LookupFailureFailsQueuedPostsAndRetries) {
 
   absl::MutexLock lock(mu);
   EXPECT_EQ(calls, 2);
+  EXPECT_EQ(metrics_.write.errors.Value(), 2);
 }
 
 TEST_F(TransferManagerTest, ConnectFailureFailsQueuedPostsAndRetries) {
@@ -233,6 +236,7 @@ TEST_F(TransferManagerTest, ConnectFailureFailsQueuedPostsAndRetries) {
 
   absl::MutexLock lock(mu);
   EXPECT_EQ(calls, 2);
+  EXPECT_EQ(metrics_.write.errors.Value(), 2);
 }
 
 TEST_F(TransferManagerTest, DestroyDuringBlockedLookupIsSafe) {
@@ -271,7 +275,7 @@ TEST_F(TransferManagerTest, SubmitConnectsUsingActiveListenerRails) {
       {.rail_id = 0, .if_name = "filtered_out0"},
       {.rail_id = 1, .if_name = "lo"},
   };
-  auto peer_cm = ChannelManager::Create(cfg, peer_info);
+  auto peer_cm = ChannelManager::Create(cfg, peer_info, peer_metrics_);
   ASSERT_THAT(peer_cm, NotNull());
   absl::Notification peer_accepted;
   int32_t accepted_local_rail = 0;
@@ -286,9 +290,9 @@ TEST_F(TransferManagerTest, SubmitConnectsUsingActiveListenerRails) {
       [](const PeerId&, int32_t, int32_t, absl::Status) {});
 
   auto tm = TransferManager::Create(
-      cfg, local_info, outgoing_, incoming_, tracer_,
+      cfg, local_info, outgoing_, incoming_, metrics_, tracer_,
       [&](const PeerId&) -> absl::StatusOr<HostInfo> { return peer_info; },
-      ChannelManager::Create(cfg, local_info));
+      ChannelManager::Create(cfg, local_info, metrics_));
   ASSERT_THAT(tm, NotNull());
 
   SubmitWrite(*tm, peer_info.control_plane_listener, Handle(1));
@@ -304,7 +308,7 @@ TEST_F(TransferManagerTest, ColdStartTracedSubmitRecordsConnSetupStages) {
 
   HostInfo peer_info;
   peer_info.control_plane_listener = Endpoint::Create("127.0.0.1:20011");
-  auto peer_cm = ChannelManager::Create(cfg, peer_info);
+  auto peer_cm = ChannelManager::Create(cfg, peer_info, peer_metrics_);
   ASSERT_THAT(peer_cm, NotNull());
   absl::Mutex accepted_mu;
   int accepted_count = 0;
@@ -316,9 +320,9 @@ TEST_F(TransferManagerTest, ColdStartTracedSubmitRecordsConnSetupStages) {
       [](const PeerId&, int32_t, int32_t, absl::Status) {});
 
   auto tm = TransferManager::Create(
-      cfg, self_, outgoing_, incoming_, tracer_,
+      cfg, self_, outgoing_, incoming_, metrics_, tracer_,
       [&](const PeerId&) -> absl::StatusOr<HostInfo> { return peer_info; },
-      ChannelManager::Create(cfg, self_));
+      ChannelManager::Create(cfg, self_, metrics_));
   ASSERT_THAT(tm, NotNull());
 
   SubmitWrite(*tm, peer_info.control_plane_listener, Handle(42),
@@ -347,6 +351,39 @@ TEST_F(TransferManagerTest, ColdStartTracedSubmitRecordsConnSetupStages) {
   EXPECT_THAT(setup_stages, ElementsAre(TraceStage::kConnSetupStart,
                                         TraceStage::kGetPeerHostInfoDone,
                                         TraceStage::kConnSetupDone));
+}
+
+TEST_F(TransferManagerTest, TcpConnectFailureRecordsConnectAndWriteErrors) {
+  Config cfg;
+  cfg.allowed_devices = {"lo"};
+
+  // Obtain a loopback listener address and immediately close it so outbound
+  // connects are refused.
+  HostInfo closed_peer;
+  closed_peer.control_plane_listener = Endpoint::Create("127.0.0.1:20012");
+  {
+    auto temp_cm = ChannelManager::Create(cfg, closed_peer, peer_metrics_);
+    ASSERT_THAT(temp_cm, NotNull());
+  }
+  ASSERT_FALSE(closed_peer.data_plane_listeners.empty());
+
+  auto tm = TransferManager::Create(
+      cfg, self_, outgoing_, incoming_, metrics_, tracer_,
+      [&](const PeerId&) -> absl::StatusOr<HostInfo> { return closed_peer; },
+      ChannelManager::Create(cfg, self_, metrics_));
+  ASSERT_THAT(tm, NotNull());
+
+  absl::Notification failed;
+  Status status = Status::kInProgress;
+  SubmitWrite(*tm, closed_peer.control_plane_listener, Handle(77),
+              [&](Status s) {
+                status = s;
+                failed.Notify();
+              });
+  ASSERT_TRUE(failed.WaitForNotificationWithTimeout(kWaitTimeout));
+  EXPECT_EQ(status, Status::kFailure);
+  EXPECT_EQ(metrics_.tcp_connect_failures.Value(), 1);
+  EXPECT_EQ(metrics_.write.errors.Value(), 1);
 }
 
 }  // namespace

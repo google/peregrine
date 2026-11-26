@@ -23,6 +23,7 @@
 #include "peregrine/src/internal/engine2/peer_state.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/worker.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
@@ -36,12 +37,13 @@ namespace peregrine::internal::engine2 {
 // Thread-safety: This class is thread-safe.
 class TransferManager final {
  public:
-  // Creates a transfer manager for `self` (which must outlive it) using
-  // `outgoing`, `incoming`, and `tracer` to track and trace transfers. Takes
-  // ownership of `channel_manager` and starts it. Returns nullptr on failure.
+  // Creates a transfer manager for the local host (which must outlive it),
+  // using the supplied trackers, metrics, and tracer to record transfer state.
+  // Takes ownership of the channel manager and starts it. Returns nullptr on
+  // failure.
   static std::unique_ptr<TransferManager> Create(
       const Config& config, const HostInfo& self, RequestTracker& outgoing,
-      RequestTracker& incoming, TraceRecorder& tracer,
+      RequestTracker& incoming, EngineMetrics& metrics, TraceRecorder& tracer,
       GetPeerHostInfoFn get_peer_host_info_fn,
       std::unique_ptr<ChannelManager> channel_manager);
 
@@ -70,7 +72,7 @@ class TransferManager final {
 
   TransferManager(const Config& config, const HostInfo& self,
                   RequestTracker& outgoing, RequestTracker& incoming,
-                  TraceRecorder& tracer,
+                  EngineMetrics& metrics, TraceRecorder& tracer,
                   GetPeerHostInfoFn get_peer_host_info_fn,
                   std::unique_ptr<ChannelManager> channel_manager);
 
@@ -114,6 +116,7 @@ class TransferManager final {
   const HostInfo& self_;
   RequestTracker& outgoing_;
   RequestTracker& incoming_;
+  EngineMetrics& metrics_;
   TraceRecorder& tracer_;
   GetPeerHostInfoFn get_peer_host_info_fn_;
 

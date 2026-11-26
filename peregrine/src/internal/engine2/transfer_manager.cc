@@ -32,6 +32,7 @@
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/engine2/worker.h"
 #include "peregrine/src/internal/lib/numa.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
@@ -46,7 +47,7 @@ constexpr int kMaxWorkers = 16;
 
 std::unique_ptr<TransferManager> TransferManager::Create(
     const Config& config, const HostInfo& self, RequestTracker& outgoing,
-    RequestTracker& incoming, TraceRecorder& tracer,
+    RequestTracker& incoming, EngineMetrics& metrics, TraceRecorder& tracer,
     GetPeerHostInfoFn get_peer_host_info_fn,
     std::unique_ptr<ChannelManager> channel_manager) {
   if (ABSL_PREDICT_FALSE(!config.IsValid())) {
@@ -62,19 +63,20 @@ std::unique_ptr<TransferManager> TransferManager::Create(
     return nullptr;
   }
   return absl::WrapUnique(new TransferManager(
-      config, self, outgoing, incoming, tracer,
+      config, self, outgoing, incoming, metrics, tracer,
       std::move(get_peer_host_info_fn), std::move(channel_manager)));
 }
 
 TransferManager::TransferManager(
     const Config& config, const HostInfo& self, RequestTracker& outgoing,
-    RequestTracker& incoming, TraceRecorder& tracer,
+    RequestTracker& incoming, EngineMetrics& metrics, TraceRecorder& tracer,
     GetPeerHostInfoFn get_peer_host_info_fn,
     std::unique_ptr<ChannelManager> channel_manager)
     : config_(config),
       self_(self),
       outgoing_(outgoing),
       incoming_(incoming),
+      metrics_(metrics),
       tracer_(tracer),
       get_peer_host_info_fn_(std::move(get_peer_host_info_fn)),
       channel_manager_(std::move(channel_manager)) {
@@ -88,7 +90,7 @@ TransferManager::TransferManager(
     const int cpu_id = cpu_assigner.NextCpu(NumaNodeForRail(self_, rail_id));
     workers_.push_back(std::make_unique<Worker>(static_cast<int>(i), rail_id,
                                                 self_, outgoing_, incoming_,
-                                                tracer_, cpu_id));
+                                                metrics_, tracer_, cpu_id));
     std::unique_ptr<RailWorkers>& pool = rail_workers_[rail_id];
     if (pool == nullptr) pool = std::make_unique<RailWorkers>();
     pool->workers.push_back(workers_.back().get());
@@ -256,7 +258,7 @@ void TransferManager::onConnectFailed(const PeerId& peer,
 
 void TransferManager::failHandles(const std::vector<Handle>& handles) {
   for (const Handle handle : handles) {
-    outgoing_.Fail(handle, Status::kFailure);
+    outgoing_.Fail(handle, Status::kFailure, {}, &metrics_.write.errors);
   }
 }
 

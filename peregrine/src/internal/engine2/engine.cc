@@ -137,19 +137,20 @@ std::unique_ptr<Engine> Engine::Create(
 
   PopulateNicInventory(config, self);
 
+  auto engine =
+      absl::WrapUnique(new Engine(config, self, std::move(recv_post_callback),
+                                  std::move(resolve_addr_callback)));
   std::unique_ptr<ChannelManager> channel_manager =
-      ChannelManager::Create(config, self);
+      ChannelManager::Create(config, self, engine->metrics_);
   if (ABSL_PREDICT_FALSE(channel_manager == nullptr)) {
     LOG(ERROR) << "failed to create channel manager";
     return nullptr;
   }
 
-  auto engine =
-      absl::WrapUnique(new Engine(config, self, std::move(recv_post_callback),
-                                  std::move(resolve_addr_callback)));
   engine->transfer_manager_ = TransferManager::Create(
-      config, self, engine->outgoing_, engine->incoming_, engine->tracer_,
-      std::move(get_peer_host_info_fn), std::move(channel_manager));
+      config, self, engine->outgoing_, engine->incoming_, engine->metrics_,
+      engine->tracer_, std::move(get_peer_host_info_fn),
+      std::move(channel_manager));
   if (ABSL_PREDICT_FALSE(engine->transfer_manager_ == nullptr)) {
     LOG(ERROR) << "failed to create transfer manager";
     return nullptr;
@@ -221,6 +222,9 @@ absl::StatusOr<Handle> Engine::Enqueue(const PeerId& peer, Item item) {
     return absl::InternalError("failed to register requests for handle");
   }
 
+  for (const Request& req : item.requests) {
+    metrics_.write.request_size_bytes.Record(req.len);
+  }
   tracer_.RecordEngineEnqueued(item.trace_ctx, handle, start_mono_us,
                                item.requests.size(), item.requests[0].op);
 

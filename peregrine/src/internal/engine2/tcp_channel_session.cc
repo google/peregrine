@@ -26,6 +26,7 @@
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
@@ -80,6 +81,7 @@ TcpChannelSession::TcpChannelSession(std::unique_ptr<Channel> channel,
                                      PeerWorkQueue& work_queue,
                                      RequestTracker& outgoing,
                                      RequestTracker& incoming,
+                                     EngineMetrics& metrics,
                                      TraceRecorder& tracer, int worker_id)
     : worker_id_(worker_id),
       self_peer_(self_peer),
@@ -87,6 +89,7 @@ TcpChannelSession::TcpChannelSession(std::unique_ptr<Channel> channel,
       work_queue_(work_queue),
       outgoing_(outgoing),
       incoming_(incoming),
+      metrics_(metrics),
       tracer_(tracer),
       channel_(std::move(channel)) {
   DCHECK(channel_ != nullptr);
@@ -114,6 +117,9 @@ bool TcpChannelSession::DriveTx(bool& has_more) {
     if (tx_.cursor->RemainingBytes() > 0) {
       tx_.blocked = true;
       return true;
+    }
+    if (tx_.payload_len > 0) {
+      metrics_.write.bytes.Add(tx_.payload_len);
     }
     if (ABSL_PREDICT_FALSE(tx_.traced_chunk.has_value())) {
       tracer_.RecordTxWriteDone(*tx_.traced_chunk, traceTxWorkerId());
@@ -172,7 +178,8 @@ void TcpChannelSession::abortInFlight() {
   }
   // Fail any in-flight outgoing post so callers do not hang in kInProgress.
   if (tx_.post != nullptr) {
-    outgoing_.Fail(tx_.post->post.handle, Status::kFailure);
+    outgoing_.Fail(tx_.post->post.handle, Status::kFailure, {},
+                   &metrics_.write.errors);
     tx_.ResetFrame();
   }
 }
@@ -224,6 +231,7 @@ void TcpChannelSession::prepareChunkTx(const ChunkClaim& claim,
   }
   tx_.header = HeaderUtil::Serialize(chunk);
   tx_.post = claim.post;
+  tx_.payload_len = len;
 
   // Coalesce [PostInfo, DataHeader, payload] into one writev on a new post.
   if (include_post_info) {
@@ -290,7 +298,8 @@ bool TcpChannelSession::onHeader(const RxState::ReadingHeader& hdr) {
     return onPostInfoHeader(info);
   }
   if (FailureHeader failure; HeaderUtil::Deserialize(raw, failure)) {
-    if (!outgoing_.Fail(failure.handle, Status::kFailure)) {
+    if (!outgoing_.Fail(failure.handle, Status::kFailure, {},
+                        &metrics_.write.errors)) {
       incoming_.Fail(failure.handle, Status::kFailure, remote_peer_);
     }
     return true;

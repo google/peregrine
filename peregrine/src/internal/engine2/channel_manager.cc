@@ -11,16 +11,19 @@
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/engine2/tcp_manager.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 
 namespace peregrine::internal::engine2 {
 
 std::unique_ptr<ChannelManager> ChannelManager::Create(const Config& config,
-                                                       HostInfo& self) {
+                                                       HostInfo& self,
+                                                       EngineMetrics& metrics) {
   if (ABSL_PREDICT_FALSE(!config.IsValid())) {
     LOG(ERROR) << "invalid config";
     return nullptr;
   }
-  std::unique_ptr<TcpManager> tcp_manager = TcpManager::Create(config, self);
+  std::unique_ptr<TcpManager> tcp_manager =
+      TcpManager::Create(config, self, metrics);
   if (ABSL_PREDICT_FALSE(tcp_manager == nullptr)) {
     LOG(ERROR) << "failed to create tcp manager for " << self;
     return nullptr;

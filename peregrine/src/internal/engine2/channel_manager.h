@@ -12,6 +12,7 @@
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/engine2/tcp_manager.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/util/macro.h"
 
 namespace peregrine::internal::engine2 {
@@ -36,11 +37,12 @@ class ChannelManager final {
       absl::AnyInvocable<void(const PeerId& peer, int32_t local_rail_id,
                               int32_t remote_rail_id, absl::Status status)>;
 
-  // Creates a channel manager for the local host described by `self`, which
-  // must outlive it. Sets up the data-plane listeners and records them in
-  // `self.data_plane_listeners`. Returns nullptr on failure.
+  // Creates a channel manager for the local host, setting up data-plane
+  // listeners and recording them on the host info. Both host info and metrics
+  // must outlive the manager. Returns nullptr on failure.
   static std::unique_ptr<ChannelManager> Create(const Config& config,
-                                                HostInfo& self);
+                                                HostInfo& self,
+                                                EngineMetrics& metrics);
 
   DISALLOW_COPY(ChannelManager);
   DISALLOW_MOVE(ChannelManager);

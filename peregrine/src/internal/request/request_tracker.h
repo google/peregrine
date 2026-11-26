@@ -16,6 +16,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/lib/metric_counter.h"
 #include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
@@ -88,12 +89,15 @@ class RequestTracker {
   void Remove(Handle handle, const Endpoint& peer = {})
       ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Fails the tracker for `(peer, handle)`. If a completion callback is
-  // registered, invokes `on_complete(status)` and removes the entry; otherwise
-  // marks it failed so callers polling `Check()` observe `Status::kFailure`
-  // until `Remove()` is called.
+  // Fails the tracker for the given peer and handle. If a completion callback
+  // is registered, invokes it with the failure status and removes the entry;
+  // otherwise marks it failed so polling callers observe failure until removed.
+  // When an error counter is provided, increments it atomically before making
+  // the failure visible to callbacks or polling callers.
   bool Fail(Handle handle, Status status = Status::kFailure,
-            const Endpoint& peer = {}) ABSL_LOCKS_EXCLUDED(trackers_mu_);
+            const Endpoint& peer = {},
+            MetricCounter<uint64_t>* error_counter = nullptr)
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
   // Updates pending request count when an incoming request in `(peer, handle)`
   // completes all of its chunks, and invokes `recv_post_callback_` once all

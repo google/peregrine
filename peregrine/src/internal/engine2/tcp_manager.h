@@ -22,6 +22,7 @@
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/event/poller.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/util/macro.h"
 #include "peregrine/src/util/thread.h"
@@ -44,11 +45,12 @@ class TcpManager final {
       absl::AnyInvocable<void(const PeerId& peer, int32_t local_rail_id,
                               int32_t remote_rail_id, absl::Status status)>;
 
-  // Creates a tcp manager with per-NIC non-blocking listening sockets, and
-  // fills in `self.data_plane_listeners`. `self` must outlive the manager.
-  // Returns nullptr on failure.
+  // Creates a TCP manager with per-NIC non-blocking listening sockets and
+  // populates the local host's data-plane listeners. The host info and metrics
+  // must outlive the manager. Returns nullptr on failure.
   static std::unique_ptr<TcpManager> Create(const Config& config,
-                                            HostInfo& self);
+                                            HostInfo& self,
+                                            EngineMetrics& metrics);
 
   DISALLOW_COPY(TcpManager);
   DISALLOW_MOVE(TcpManager);
@@ -100,8 +102,9 @@ class TcpManager final {
     size_t received = 0;
   };
 
-  TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
-             fd_t event_fd, absl::flat_hash_map<fd_t, Listener> listeners);
+  TcpManager(const HostInfo& self, EngineMetrics& metrics,
+             std::unique_ptr<Poller> poller, fd_t event_fd,
+             absl::flat_hash_map<fd_t, Listener> listeners);
 
   // Returns true iff `Stop()` has been called.
   bool isStopped() const { return stop_.load(std::memory_order_acquire); }
@@ -133,11 +136,16 @@ class TcpManager final {
   // `on_connect_failed_`.
   void finishInit(ChannelInit init, absl::Status status);
 
+  // Records a TCP connect failure metric and notifies the failure callback.
+  void reportConnectFailed(const PeerId& peer, int32_t local_rail_id,
+                           int32_t remote_rail_id, absl::Status status);
+
   // Fails any in-flight `ChannelInit` past its deadline.
   void expireInits();
 
  private:
   const HostInfo& self_;
+  EngineMetrics& metrics_;
   const std::unique_ptr<Poller> poller_;
   const fd_t event_fd_;
 

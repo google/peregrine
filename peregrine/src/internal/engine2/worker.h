@@ -19,6 +19,7 @@
 #include "peregrine/src/internal/engine2/tcp_channel_session.h"
 #include "peregrine/src/internal/event/poller.h"
 #include "peregrine/src/internal/lib/numa.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
@@ -35,10 +36,11 @@ class Worker final {
   // Creates and starts a worker for a local rail. When a non-negative CPU core
   // is specified, the worker thread pins itself to that core; otherwise it
   // stays unpinned and inherits the process affinity. The host info, trackers,
-  // and tracer must outlive the worker.
+  // metrics, and tracer must outlive the worker.
   Worker(int id, int32_t rail_id, const HostInfo& self,
          RequestTracker& outgoing, RequestTracker& incoming,
-         TraceRecorder& tracer, int cpu_id = kUnpinnedCpu);
+         EngineMetrics& metrics, TraceRecorder& tracer,
+         int cpu_id = kUnpinnedCpu);
 
   DISALLOW_COPY(Worker);
   DISALLOW_MOVE(Worker);
@@ -101,6 +103,7 @@ class Worker final {
   const HostInfo& self_;
   RequestTracker& outgoing_;
   RequestTracker& incoming_;
+  EngineMetrics& metrics_;
   TraceRecorder& tracer_;
 
   // Owned event loop and cross-thread wakeup state.

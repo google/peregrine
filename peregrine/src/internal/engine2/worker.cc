@@ -29,6 +29,7 @@
 #include "peregrine/src/internal/engine2/tcp_channel_session.h"
 #include "peregrine/src/internal/event/poller.h"
 #include "peregrine/src/internal/lib/numa.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/thread.h"
@@ -43,7 +44,7 @@ constexpr uint32_t kChannelEvents = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
 
 Worker::Worker(const int id, const int32_t rail_id, const HostInfo& self,
                RequestTracker& outgoing, RequestTracker& incoming,
-               TraceRecorder& tracer, const int cpu_id)
+               EngineMetrics& metrics, TraceRecorder& tracer, const int cpu_id)
     : id_(id),
       rail_id_(rail_id),
       cpu_id_(cpu_id),
@@ -51,6 +52,7 @@ Worker::Worker(const int id, const int32_t rail_id, const HostInfo& self,
       self_(self),
       outgoing_(outgoing),
       incoming_(incoming),
+      metrics_(metrics),
       tracer_(tracer),
       poller_(Poller::Create()) {
   CHECK(poller_ != nullptr);
@@ -225,8 +227,8 @@ void Worker::drainInbox() {
         fd, SessionEntry{
                 .session = std::make_unique<TcpChannelSession>(
                     std::move(item.channel), self_.control_plane_listener,
-                    item.peer, *item.work_queue, outgoing_, incoming_, tracer_,
-                    id_),
+                    item.peer, *item.work_queue, outgoing_, incoming_, metrics_,
+                    tracer_, id_),
             });
     if (inserted) {
       peer_fds_[item.peer].push_back(fd);

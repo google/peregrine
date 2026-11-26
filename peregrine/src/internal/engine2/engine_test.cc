@@ -185,6 +185,11 @@ TEST_F(EngineTest, SetupFailureReportedByQueryUpdateForPolledPost) {
   EXPECT_THAT(status, IsOkAndHolds(Status::kFailure));
   // Reaped once observed by QueryUpdate.
   EXPECT_THAT(engine->QueryUpdate(*h), StatusIs(absl::StatusCode::kNotFound));
+
+  TransportMetrics metrics;
+  engine->GetMetrics(metrics);
+  EXPECT_EQ(metrics.write.request_size_bytes.Count(), 1);
+  EXPECT_EQ(metrics.write.errors, 1);
 }
 
 TEST_F(EngineTest, MemoryRegistrationAndMetrics) {
@@ -319,6 +324,13 @@ TEST(EngineEndToEndTest, SingleWriteCallbackAndPolling) {
   EXPECT_EQ(dst2, src2);
   EXPECT_THAT(pair.engine_a->QueryUpdate(*h2),
               StatusIs(absl::StatusCode::kNotFound));
+
+  TransportMetrics metrics;
+  pair.engine_a->GetMetrics(metrics);
+  EXPECT_EQ(metrics.write.bytes, src1.size() + src2.size());
+  EXPECT_EQ(metrics.write.request_size_bytes.Count(), 2);
+  EXPECT_EQ(metrics.write.e2e_latency_us.Count(), 2);
+  EXPECT_EQ(metrics.write.errors, 0);
 }
 
 TEST(EngineEndToEndTest, MultiRequestMultiChunkOverParallelConnections) {

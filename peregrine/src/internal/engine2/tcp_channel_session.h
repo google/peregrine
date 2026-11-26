@@ -19,6 +19,7 @@
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/request/request_tracker.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/macro.h"
@@ -31,13 +32,14 @@ namespace peregrine::internal::engine2 {
 // Thread-safety: Thread-compatible; owned and driven by a single worker thread.
 class TcpChannelSession final {
  public:
-  // Creates a session over `channel` between `self_peer` and `remote_peer`.
-  // `work_queue`, `outgoing`, `incoming`, and `tracer` must outlive the
+  // Creates a session over the given channel between the local and remote
+  // peers. The work queue, trackers, metrics, and tracer must outlive the
   // session.
   TcpChannelSession(std::unique_ptr<Channel> channel, PeerId self_peer,
                     PeerId remote_peer, PeerWorkQueue& work_queue,
                     RequestTracker& outgoing, RequestTracker& incoming,
-                    TraceRecorder& tracer, int worker_id);
+                    EngineMetrics& metrics, TraceRecorder& tracer,
+                    int worker_id);
 
   DISALLOW_COPY(TcpChannelSession);
   DISALLOW_MOVE(TcpChannelSession);
@@ -84,6 +86,8 @@ class TcpChannelSession final {
     std::string post_info;
     std::string header;
     std::optional<IoVecCursor> cursor;
+    // Payload bytes carried by the active data chunk frame (0 for control).
+    size_t payload_len = 0;
     // Set only for traced data chunks so `DriveTx` can record `kTxWriteDone`.
     std::optional<DataHeader> traced_chunk;
 
@@ -92,6 +96,7 @@ class TcpChannelSession final {
       post.reset();
       post_info.clear();
       header.clear();
+      payload_len = 0;
       traced_chunk.reset();
     }
   };
@@ -169,6 +174,7 @@ class TcpChannelSession final {
   PeerWorkQueue& work_queue_;
   RequestTracker& outgoing_;
   RequestTracker& incoming_;
+  EngineMetrics& metrics_;
   TraceRecorder& tracer_;
 
   // Owned, single-threaded per-channel state.

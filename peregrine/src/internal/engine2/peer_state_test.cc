@@ -54,7 +54,7 @@ class PeerStateTest : public ::testing::Test {
 
   std::unique_ptr<Worker> MakeWorker(int id) {
     return std::make_unique<Worker>(id, /*rail_id=*/0, self_, outgoing_,
-                                    incoming_, tracer_);
+                                    incoming_, metrics_, tracer_);
   }
 
   HostInfo self_;

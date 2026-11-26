@@ -13,6 +13,7 @@ cc_library(
         "//peregrine/src/internal/base:types",
         "//peregrine/src/internal/chunk:chunk_tracker",
         "//peregrine/src/internal/chunk:header",
+        "//peregrine/src/internal/lib:metric_counter",
         "//peregrine/src/internal/metrics:engine_metrics",
         "//peregrine/src/internal/trace:trace_context",
         "//peregrine/src/internal/trace:trace_recorder",

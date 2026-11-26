@@ -21,6 +21,7 @@
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/tcp_manager.h"
 
@@ -102,14 +103,16 @@ class Recorder {
 
 TEST(ChannelManagerTest, CreateRejectsInvalidConfig) {
   HostInfo self = LoopbackHost("127.0.0.1:10000");
+  EngineMetrics metrics;
   Config config;
   config.num_conns_per_peer = 0;
-  EXPECT_EQ(ChannelManager::Create(config, self), nullptr);
+  EXPECT_EQ(ChannelManager::Create(config, self, metrics), nullptr);
 }
 
 TEST(ChannelManagerTest, CreateRecordsListeners) {
   HostInfo self = LoopbackHost("127.0.0.1:10000");
-  EXPECT_THAT(ChannelManager::Create(Config{}, self), NotNull());
+  EngineMetrics metrics;
+  EXPECT_THAT(ChannelManager::Create(Config{}, self, metrics), NotNull());
   EXPECT_THAT(self.data_plane_listeners, Not(IsEmpty()));
 }
 
@@ -117,12 +120,16 @@ TEST(ChannelManagerTest, BothEndsLearnEachOtherAndRail) {
   // Declared first, so the channel managers reporting to them go first.
   Recorder a_rec;
   Recorder b_rec;
+  EngineMetrics a_metrics;
+  EngineMetrics b_metrics;
   HostInfo a = LoopbackHost("127.0.0.1:10001");
   HostInfo b = LoopbackHost("127.0.0.1:10002");
   a.tcp_nics = {{.rail_id = 3, .if_name = "lo"}};
   b.tcp_nics = {{.rail_id = 5, .if_name = "lo"}};
-  std::unique_ptr<ChannelManager> a_mgr = ChannelManager::Create(Config{}, a);
-  std::unique_ptr<ChannelManager> b_mgr = ChannelManager::Create(Config{}, b);
+  std::unique_ptr<ChannelManager> a_mgr =
+      ChannelManager::Create(Config{}, a, a_metrics);
+  std::unique_ptr<ChannelManager> b_mgr =
+      ChannelManager::Create(Config{}, b, b_metrics);
   ASSERT_THAT(a_mgr, NotNull());
   ASSERT_THAT(b_mgr, NotNull());
   a_rec.Start(*a_mgr);
@@ -154,16 +161,21 @@ TEST(ChannelManagerTest, BothEndsLearnEachOtherAndRail) {
     EXPECT_FALSE(r.ch->IsBlocking());
   }
   EXPECT_THAT(a_rec.WaitForFailed(0), IsEmpty());
+  EXPECT_EQ(a_metrics.tcp_connect_failures.Value(), 0);
 }
 
 TEST(ChannelManagerTest, ReadyChannelCarriesData) {
   // Declared first, so the channel managers reporting to them go first.
   Recorder a_rec;
   Recorder b_rec;
+  EngineMetrics a_metrics;
+  EngineMetrics b_metrics;
   HostInfo a = LoopbackHost("127.0.0.1:10001");
   HostInfo b = LoopbackHost("127.0.0.1:10002");
-  std::unique_ptr<ChannelManager> a_mgr = ChannelManager::Create(Config{}, a);
-  std::unique_ptr<ChannelManager> b_mgr = ChannelManager::Create(Config{}, b);
+  std::unique_ptr<ChannelManager> a_mgr =
+      ChannelManager::Create(Config{}, a, a_metrics);
+  std::unique_ptr<ChannelManager> b_mgr =
+      ChannelManager::Create(Config{}, b, b_metrics);
   ASSERT_THAT(a_mgr, NotNull());
   ASSERT_THAT(b_mgr, NotNull());
   a_rec.Start(*a_mgr);
@@ -197,8 +209,10 @@ TEST(ChannelManagerTest, ReadyChannelCarriesData) {
 TEST(ChannelManagerTest, ConnectInvalidRemoteEndpointFails) {
   // Declared first, so the channel manager reporting to it goes first.
   Recorder rec;
+  EngineMetrics metrics;
   HostInfo self = LoopbackHost("127.0.0.1:10000");
-  std::unique_ptr<ChannelManager> mgr = ChannelManager::Create(Config{}, self);
+  std::unique_ptr<ChannelManager> mgr =
+      ChannelManager::Create(Config{}, self, metrics);
   ASSERT_THAT(mgr, NotNull());
   rec.Start(*mgr);
 
@@ -216,17 +230,21 @@ TEST(ChannelManagerTest, ConnectInvalidRemoteEndpointFails) {
   EXPECT_EQ(failed[0].remote_rail_id, 2);
   EXPECT_THAT(failed[0].status,
               StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_EQ(metrics.tcp_connect_failures.Value(), 1);
 }
 
 TEST(ChannelManagerTest, ConnectToClosedListenerFails) {
   // Declared first, so the channel manager reporting to it goes first.
   Recorder rec;
+  EngineMetrics metrics;
+  EngineMetrics gone_metrics;
   HostInfo self = LoopbackHost("127.0.0.1:10001");
   HostInfo gone = LoopbackHost("127.0.0.1:10002");
-  std::unique_ptr<ChannelManager> mgr = ChannelManager::Create(Config{}, self);
+  std::unique_ptr<ChannelManager> mgr =
+      ChannelManager::Create(Config{}, self, metrics);
   ASSERT_THAT(mgr, NotNull());
   // Takes listener ports, then frees them.
-  ASSERT_THAT(ChannelManager::Create(Config{}, gone), NotNull());
+  ASSERT_THAT(ChannelManager::Create(Config{}, gone, gone_metrics), NotNull());
   rec.Start(*mgr);
 
   const std::vector<ConnectionSpec> specs =
@@ -238,16 +256,21 @@ TEST(ChannelManagerTest, ConnectToClosedListenerFails) {
   ASSERT_EQ(failed.size(), 1);
   EXPECT_EQ(failed[0].peer, gone.control_plane_listener);
   EXPECT_THAT(failed[0].status, StatusIs(absl::StatusCode::kUnavailable));
+  EXPECT_EQ(metrics.tcp_connect_failures.Value(), 1);
 }
 
 TEST(ChannelManagerTest, ReachingAnotherPeerFails) {
   // Declared first, so the channel managers reporting to them go first.
   Recorder a_rec;
   Recorder b_rec;
+  EngineMetrics a_metrics;
+  EngineMetrics b_metrics;
   HostInfo a = LoopbackHost("127.0.0.1:10001");
   HostInfo b = LoopbackHost("127.0.0.1:10002");
-  std::unique_ptr<ChannelManager> a_mgr = ChannelManager::Create(Config{}, a);
-  std::unique_ptr<ChannelManager> b_mgr = ChannelManager::Create(Config{}, b);
+  std::unique_ptr<ChannelManager> a_mgr =
+      ChannelManager::Create(Config{}, a, a_metrics);
+  std::unique_ptr<ChannelManager> b_mgr =
+      ChannelManager::Create(Config{}, b, b_metrics);
   ASSERT_THAT(a_mgr, NotNull());
   ASSERT_THAT(b_mgr, NotNull());
   a_rec.Start(*a_mgr);
@@ -265,13 +288,16 @@ TEST(ChannelManagerTest, ReachingAnotherPeerFails) {
   EXPECT_EQ(failed[0].peer, stale.control_plane_listener);
   EXPECT_THAT(failed[0].status,
               StatusIs(absl::StatusCode::kFailedPrecondition));
+  EXPECT_EQ(a_metrics.tcp_connect_failures.Value(), 1);
 }
 
 TEST(ChannelManagerTest, DestroyWithPendingHandshake) {
   // Declared first, so the channel manager reporting to it goes first.
   Recorder rec;
+  EngineMetrics metrics;
   HostInfo self = LoopbackHost("127.0.0.1:10001");
-  std::unique_ptr<ChannelManager> mgr = ChannelManager::Create(Config{}, self);
+  std::unique_ptr<ChannelManager> mgr =
+      ChannelManager::Create(Config{}, self, metrics);
   ASSERT_THAT(mgr, NotNull());
   rec.Start(*mgr);
 
@@ -282,6 +308,7 @@ TEST(ChannelManagerTest, DestroyWithPendingHandshake) {
   absl::SleepFor(absl::Milliseconds(100));
   mgr.reset();
   EXPECT_THAT(rec.WaitForReady(0), IsEmpty());
+  EXPECT_EQ(metrics.tcp_connect_failures.Value(), 0);
 }
 
 }  // namespace

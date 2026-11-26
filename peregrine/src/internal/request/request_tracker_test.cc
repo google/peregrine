@@ -979,5 +979,34 @@ TEST_F(RequestTrackerTest, RejectsMixedOpAndDuplicateReqIdBeforeResolve) {
   EXPECT_EQ(resolve_calls, 0);
   EXPECT_EQ(rt.Check(kHandle, peer), Status::kNotFound);
 }
+
+TEST_F(RequestTrackerTest, FailIncrementsErrorCounterOnceBeforeCallback) {
+  uint64_t errors_in_callback = 0;
+  ASSERT_TRUE(rt_.Add(
+      kHandle, util::MonoNowUs(),
+      [&](Status s) {
+        EXPECT_EQ(s, Status::kFailure);
+        errors_in_callback = metrics_.write.errors.Value();
+      },
+      TraceContext{}));
+
+  EXPECT_TRUE(rt_.Fail(kHandle, Status::kFailure, {}, &metrics_.write.errors));
+  EXPECT_EQ(errors_in_callback, 1);
+  EXPECT_EQ(metrics_.write.errors.Value(), 1);
+
+  // Repeated failures on an already-failed entry must not double-count.
+  EXPECT_FALSE(rt_.Fail(kHandle, Status::kFailure, {}, &metrics_.write.errors));
+  EXPECT_EQ(metrics_.write.errors.Value(), 1);
+
+  // Polling handles also increment once across repeated failure calls.
+  const Handle poll_handle(kHandle.value() + 1);
+  ASSERT_TRUE(rt_.Add(poll_handle, util::MonoNowUs(), nullptr, TraceContext{}));
+  EXPECT_TRUE(
+      rt_.Fail(poll_handle, Status::kFailure, {}, &metrics_.write.errors));
+  EXPECT_FALSE(
+      rt_.Fail(poll_handle, Status::kFailure, {}, &metrics_.write.errors));
+  EXPECT_EQ(metrics_.write.errors.Value(), 2);
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

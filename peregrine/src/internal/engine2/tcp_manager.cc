@@ -36,6 +36,7 @@
 #include "peregrine/src/internal/engine2/connection_planner.h"
 #include "peregrine/src/internal/event/poller.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
+#include "peregrine/src/internal/metrics/engine_metrics.h"
 #include "peregrine/src/internal/socket/socket_error.h"
 #include "peregrine/src/internal/socket/socket_tcp.h"
 #include "peregrine/src/internal/socket/socket_util.h"
@@ -115,7 +116,8 @@ std::unique_ptr<TcpSocket> CreateListener(Endpoint& endpoint, Poller& poller) {
 }  // namespace
 
 std::unique_ptr<TcpManager> TcpManager::Create(const Config& config,
-                                               HostInfo& self) {
+                                               HostInfo& self,
+                                               EngineMetrics& metrics) {
   if (ABSL_PREDICT_FALSE(!config.IsValid())) {
     LOG(ERROR) << "invalid config";
     return nullptr;
@@ -166,14 +168,15 @@ std::unique_ptr<TcpManager> TcpManager::Create(const Config& config,
   }
 
   self = std::move(host);
-  return absl::WrapUnique(
-      new TcpManager(self, std::move(poller), event_fd, std::move(listeners)));
+  return absl::WrapUnique(new TcpManager(self, metrics, std::move(poller),
+                                         event_fd, std::move(listeners)));
 }
 
-TcpManager::TcpManager(const HostInfo& self, std::unique_ptr<Poller> poller,
-                       const fd_t event_fd,
+TcpManager::TcpManager(const HostInfo& self, EngineMetrics& metrics,
+                       std::unique_ptr<Poller> poller, const fd_t event_fd,
                        absl::flat_hash_map<fd_t, Listener> listeners)
     : self_(self),
+      metrics_(metrics),
       poller_(std::move(poller)),
       event_fd_(event_fd),
       listeners_(std::move(listeners)) {
@@ -242,7 +245,7 @@ void TcpManager::startConnect(const ConnectionSpec& spec) {
   if (ABSL_PREDICT_FALSE(
           !spec.peer.HasNonzeroIpPort() || !spec.remote_ep.HasNonzeroIpPort() ||
           spec.local_rail_id < kNoRail || spec.remote_rail_id < kNoRail)) {
-    on_connect_failed_(
+    reportConnectFailed(
         spec.peer, spec.local_rail_id, spec.remote_rail_id,
         absl::FailedPreconditionError("invalid connection spec"));
     return;
@@ -252,8 +255,8 @@ void TcpManager::startConnect(const ConnectionSpec& spec) {
   if (ABSL_PREDICT_FALSE(socket == nullptr ||
                          (!spec.local_bind.HasZeroIpAddr() &&
                           socket->Bind(spec.local_bind) < 0))) {
-    on_connect_failed_(spec.peer, spec.local_rail_id, spec.remote_rail_id,
-                       absl::UnavailableError("connect failed"));
+    reportConnectFailed(spec.peer, spec.local_rail_id, spec.remote_rail_id,
+                        absl::UnavailableError("connect failed"));
     return;
   }
 
@@ -410,11 +413,19 @@ void TcpManager::finishInit(ChannelInit init, absl::Status status) {
   } else if (outbound) {
     LOG(WARNING) << "channel init to " << init.expected->peer
                  << " failed: " << status;
-    on_connect_failed_(init.expected->peer, init.local_rail_id,
-                       init.expected->rail_id, std::move(status));
+    reportConnectFailed(init.expected->peer, init.local_rail_id,
+                        init.expected->rail_id, std::move(status));
   } else {
     LOG(WARNING) << "dropping inbound channel: " << status;
   }
+}
+
+void TcpManager::reportConnectFailed(const PeerId& peer,
+                                     const int32_t local_rail_id,
+                                     const int32_t remote_rail_id,
+                                     absl::Status status) {
+  metrics_.tcp_connect_failures.Add(1);
+  on_connect_failed_(peer, local_rail_id, remote_rail_id, std::move(status));
 }
 
 void TcpManager::expireInits() {

@@ -15,6 +15,7 @@
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk_tracker.h"
 #include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/lib/metric_counter.h"
 #include "peregrine/src/internal/trace/trace_context.h"
 #include "peregrine/src/internal/trace/trace_recorder.h"
 #include "peregrine/src/util/clock.h"
@@ -202,7 +203,8 @@ void RequestTracker::Remove(const Handle handle, const Endpoint& peer) {
 }
 
 bool RequestTracker::Fail(const Handle handle, const Status status,
-                          const Endpoint& peer) {
+                          const Endpoint& peer,
+                          MetricCounter<uint64_t>* const error_counter) {
   OnComplete callback = nullptr;
   {
     absl::MutexLock _(trackers_mu_);
@@ -216,6 +218,9 @@ bool RequestTracker::Fail(const Handle handle, const Status status,
     } else {
       if (pt.failed) return false;
       pt.failed = true;
+    }
+    if (error_counter != nullptr) {
+      error_counter->Add(1);
     }
   }
   if (callback != nullptr) {

@@ -120,9 +120,9 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   PeerWorkQueue queue_b;
 
   Worker worker_a(/*id=*/0, /*rail_id=*/0, host_a, outgoing_a, incoming_a,
-                  tracer_a);
+                  metrics_a, tracer_a);
   Worker worker_b(/*id=*/1, /*rail_id=*/0, host_b, outgoing_b, incoming_b,
-                  tracer_b);
+                  metrics_b, tracer_b);
 
   worker_a.AddChannel(host_b.control_plane_listener,
                       std::make_unique<SocketPairChannel>(fds[0]), queue_a);
@@ -212,6 +212,8 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   ASSERT_TRUE(done2.WaitForNotificationWithTimeout(absl::Seconds(10)));
   EXPECT_EQ(final_status2, Status::kSuccess);
   EXPECT_EQ(dst2, src2);
+  EXPECT_EQ(metrics_a.write.bytes.Value(), len + src2.size());
+  EXPECT_EQ(metrics_a.write.errors.Value(), 0);
 }
 
 TEST(WorkerTest, PinsWorkerThreadToConfiguredCpu) {
@@ -256,9 +258,9 @@ TEST(WorkerTest, PinsWorkerThreadToConfiguredCpu) {
   // Sender worker pins to the chosen CPU; receiver worker exercises graceful
   // fallback on an out-of-range CPU ID.
   Worker worker_a(/*id=*/0, /*rail_id=*/0, host_a, outgoing_a, incoming_a,
-                  tracer_a, target_cpu);
+                  metrics_a, tracer_a, target_cpu);
   Worker worker_b(/*id=*/1, /*rail_id=*/0, host_b, outgoing_b, incoming_b,
-                  tracer_b, /*cpu_id=*/65535);
+                  metrics_b, tracer_b, /*cpu_id=*/65535);
 
   worker_a.AddChannel(host_b.control_plane_listener,
                       std::make_unique<SocketPairChannel>(fds[0]), queue_a);
