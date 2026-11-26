@@ -12,7 +12,6 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/endpoint.h"
-#include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
@@ -35,12 +34,11 @@ class Worker final {
  public:
   // Creates and starts a worker for a local rail. When a non-negative CPU core
   // is specified, the worker thread pins itself to that core; otherwise it
-  // stays unpinned and inherits the process affinity. The host info, trackers,
-  // metrics, and tracer must outlive the worker.
-  Worker(int id, int32_t rail_id, const HostInfo& self,
-         RequestTracker& outgoing, RequestTracker& incoming,
-         EngineMetrics& metrics, TraceRecorder& tracer,
-         int cpu_id = kUnpinnedCpu);
+  // stays unpinned and inherits the process affinity. The trackers, metrics,
+  // and tracer must outlive the worker.
+  Worker(int id, int32_t rail_id, RequestTracker& outgoing,
+         RequestTracker& incoming, EngineMetrics& metrics,
+         TraceRecorder& tracer, int cpu_id = kUnpinnedCpu);
 
   DISALLOW_COPY(Worker);
   DISALLOW_MOVE(Worker);
@@ -100,7 +98,6 @@ class Worker final {
   const fd_t wake_fd_;
 
   // Non-owning, thread-safe references; all must outlive the worker.
-  const HostInfo& self_;
   RequestTracker& outgoing_;
   RequestTracker& incoming_;
   EngineMetrics& metrics_;

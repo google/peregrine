@@ -9,9 +9,12 @@
 #include <vector>
 
 #include "absl/base/thread_annotations.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/api/transport_types.h"
+#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/util/macro.h"
 
@@ -24,6 +27,11 @@ inline constexpr size_t kChunkSize = 512 * 1024;
 struct QueuedPost {
   Post post;
   std::vector<RequestInfo> req_infos;
+  // Pre-serialized post-info frame shared read-only across channels; inline
+  // capacity covers up to 4-request posts without extra heap allocation.
+  static constexpr size_t kInlinePostInfoBytes =
+      HeaderUtil::kSize + 4 * HeaderUtil::kRequestInfoSize;
+  absl::InlinedVector<Byte, kInlinePostInfoBytes> post_info;
 };
 
 // One chunk of one request, claimed by a worker to send.

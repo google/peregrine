@@ -17,12 +17,14 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/engine2/assumptions.h"
 #include "peregrine/src/internal/engine2/channel_manager.h"
 #include "peregrine/src/internal/engine2/connection_planner.h"
@@ -89,8 +91,8 @@ TransferManager::TransferManager(
     const int32_t rail_id = rails[i % rails.size()];
     const int cpu_id = cpu_assigner.NextCpu(NumaNodeForRail(self_, rail_id));
     workers_.push_back(std::make_unique<Worker>(static_cast<int>(i), rail_id,
-                                                self_, outgoing_, incoming_,
-                                                metrics_, tracer_, cpu_id));
+                                                outgoing_, incoming_, metrics_,
+                                                tracer_, cpu_id));
     std::unique_ptr<RailWorkers>& pool = rail_workers_[rail_id];
     if (pool == nullptr) pool = std::make_unique<RailWorkers>();
     pool->workers.push_back(workers_.back().get());
@@ -131,6 +133,20 @@ void TransferManager::Submit(const PeerId& peer, Post post,
   const TraceContext trace_ctx = post.trace_ctx;
   auto queued = std::make_shared<QueuedPost>(
       QueuedPost{.post = std::move(post), .req_infos = std::move(req_infos)});
+  const std::optional<size_t> frame_size =
+      HeaderUtil::PostInfoFrameSize(queued->req_infos.size());
+  if (ABSL_PREDICT_FALSE(!frame_size.has_value())) {
+    outgoing_.Fail(handle, Status::kFailure, {}, &metrics_.write.errors);
+    return;
+  }
+  queued->post_info.resize(*frame_size);
+  if (ABSL_PREDICT_FALSE(!HeaderUtil::SerializePostInfo(
+          queued->post.handle, self_.control_plane_listener,
+          queued->post.metadata, queued->req_infos,
+          absl::MakeSpan(queued->post_info)))) {
+    outgoing_.Fail(handle, Status::kFailure, {}, &metrics_.write.errors);
+    return;
+  }
   PeerState& peer_state = getOrCreatePeer(peer);
 
   PeerState::WorkerList to_wake;

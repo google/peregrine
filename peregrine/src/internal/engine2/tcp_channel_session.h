@@ -7,7 +7,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -34,14 +33,12 @@ namespace peregrine::internal::engine2 {
 // Thread-safety: Thread-compatible; owned and driven by a single worker thread.
 class TcpChannelSession final {
  public:
-  // Creates a session over the given channel between the local and remote
-  // peers. The work queue, trackers, metrics, and tracer must outlive the
-  // session.
-  TcpChannelSession(std::unique_ptr<Channel> channel, PeerId self_peer,
-                    PeerId remote_peer, PeerWorkQueue& work_queue,
-                    RequestTracker& outgoing, RequestTracker& incoming,
-                    EngineMetrics& metrics, TraceRecorder& tracer,
-                    int worker_id);
+  // Creates a session over the given channel to the remote peer. The work
+  // queue, trackers, metrics, and tracer must outlive the session.
+  TcpChannelSession(std::unique_ptr<Channel> channel, PeerId remote_peer,
+                    PeerWorkQueue& work_queue, RequestTracker& outgoing,
+                    RequestTracker& incoming, EngineMetrics& metrics,
+                    TraceRecorder& tracer, int worker_id);
 
   DISALLOW_COPY(TcpChannelSession);
   DISALLOW_MOVE(TcpChannelSession);
@@ -79,13 +76,30 @@ class TcpChannelSession final {
   // Uses two buffers — one accumulating newly queued frames and one backing the
   // active transmit cursor — swapped in O(1) when staging the next batch. Two
   // buffers keep the in-flight buffer's memory stable across partial writes
-  // while new frames continue appending, and preserve allocated capacity across
-  // steady-state sends without extra allocations or copies.
+  // while new frames continue appending, serialize directly into the pending
+  // buffer without per-frame allocations, and preserve allocated capacity
+  // across steady-state sends.
   class ControlBuffer {
    public:
     bool Empty() const { return pending_.empty() && inflight_.empty(); }
 
-    void Append(std::string_view frame) { pending_.append(frame); }
+    void AppendAck(DataHeader chunk) {
+      chunk.len = 0;
+      DCHECK(chunk.IsAck());
+      std::array<Byte, HeaderUtil::kSize> buf;
+      HeaderUtil::Serialize(chunk, buf);
+      pending_.insert(pending_.end(), buf.begin(), buf.end());
+    }
+
+    void AppendFailure(Handle handle) {
+      FailureHeader failure = {};
+      failure.opcode = Opcode::kFailure;
+      failure.handle = handle;
+      failure.len = 0;
+      std::array<Byte, HeaderUtil::kSize> buf;
+      HeaderUtil::Serialize(failure, buf);
+      pending_.insert(pending_.end(), buf.begin(), buf.end());
+    }
 
     std::optional<IoVec> TakeBatch() {
       if (pending_.empty()) return std::nullopt;
@@ -95,9 +109,11 @@ class TcpChannelSession final {
     }
 
     void ReleaseBatch() {
+      // Retain steady-state capacity, but force-free oversized heap memory
+      // after a transient backpressure burst.
       inflight_.clear();
       if (inflight_.capacity() > kMaxRetainedBytes) {
-        std::string().swap(inflight_);
+        std::vector<Byte>().swap(inflight_);
       }
     }
 
@@ -105,8 +121,8 @@ class TcpChannelSession final {
     // Upper bound on retained buffer capacity after a transient burst.
     static constexpr size_t kMaxRetainedBytes = 64 * 1024;
 
-    std::string pending_;
-    std::string inflight_;
+    std::vector<Byte> pending_;
+    std::vector<Byte> inflight_;
   };
 
   // Outgoing send queue and active frame state (never moved while active).
@@ -116,11 +132,11 @@ class TcpChannelSession final {
     // Most recent post handle whose PostInfo was sent on this channel.
     Handle last_post_info_handle = kInvalidHandle;
 
-    // Keeps caller's payload buffer alive while `cursor` points into it.
+    // Keeps caller's payload buffer and pre-serialized post info alive while
+    // the transmit cursor points into them.
     std::shared_ptr<const QueuedPost> post;
-    // Leading `PostInfoHeader` + `RequestInfo` bytes when starting a new post.
-    std::string post_info;
-    std::string header;
+    // Inline storage for the active data chunk header (avoids heap allocation).
+    std::array<Byte, HeaderUtil::kSize> header = {};
     std::optional<IoVecCursor> cursor;
     // Payload bytes carried by the active data chunk frame (0 for control).
     size_t payload_len = 0;
@@ -130,8 +146,6 @@ class TcpChannelSession final {
     void ResetFrame() {
       cursor.reset();
       post.reset();
-      post_info.clear();
-      header.clear();
       control.ReleaseBatch();
       payload_len = 0;
       traced_chunk.reset();
@@ -204,7 +218,6 @@ class TcpChannelSession final {
 
  private:
   const int worker_id_;
-  const PeerId self_peer_;
   const PeerId remote_peer_;
 
   // Non-owning, thread-safe references; all must outlive this session.

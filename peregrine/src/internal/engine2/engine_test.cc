@@ -24,6 +24,7 @@
 #include "peregrine/src/internal/base/config.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/hostinfo.h"
+#include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/engine2/peer_discovery.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 
@@ -110,6 +111,10 @@ TEST_F(EngineTest, EnqueueRejectsReadsAndInvalidInputs) {
   EXPECT_THAT(engine->Enqueue(Endpoint(), Engine::Item{.requests = write_req}),
               StatusIs(absl::StatusCode::kInvalidArgument));
   EXPECT_THAT(engine->Enqueue(peer, Engine::Item{}),
+              StatusIs(absl::StatusCode::kInvalidArgument));
+  const absl::Span<const Request> oversized(write_req.data(),
+                                            PostInfoHeader::kMaxRequests + 1);
+  EXPECT_THAT(engine->Enqueue(peer, Engine::Item{.requests = oversized}),
               StatusIs(absl::StatusCode::kInvalidArgument));
 }
 

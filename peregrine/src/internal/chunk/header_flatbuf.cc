@@ -4,6 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,6 +15,7 @@
 #include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
+#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk_trace_wire_generated.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/chunk/header_generated.h"
@@ -21,25 +24,40 @@
 
 namespace peregrine::internal {
 
-std::string HeaderUtil::Serialize(const PostInfoHeader& header, uint8_t ver) {
+void HeaderUtil::Serialize(const PostInfoHeader& header,
+                           std::array<Byte, kSize>& out, uint8_t ver) {
   DCHECK_EQ(ver, 1);
-  const std::string s = serializeV1(header);
-  DCHECK_EQ(s.size(), kSize);
-  return s;
+  serializeV1(header, out);
+}
+
+void HeaderUtil::Serialize(const DataHeader& header,
+                           std::array<Byte, kSize>& out, uint8_t ver) {
+  DCHECK_EQ(ver, 1);
+  serializeV1(header, out);
+}
+
+void HeaderUtil::Serialize(const FailureHeader& header,
+                           std::array<Byte, kSize>& out, uint8_t ver) {
+  DCHECK_EQ(ver, 1);
+  serializeV1(header, out);
+}
+
+std::string HeaderUtil::Serialize(const PostInfoHeader& header, uint8_t ver) {
+  std::array<Byte, kSize> buf;
+  Serialize(header, buf, ver);
+  return std::string(reinterpret_cast<const char*>(buf.data()), buf.size());
 }
 
 std::string HeaderUtil::Serialize(const DataHeader& header, uint8_t ver) {
-  DCHECK_EQ(ver, 1);
-  const std::string s = serializeV1(header);
-  DCHECK_EQ(s.size(), kSize);
-  return s;
+  std::array<Byte, kSize> buf;
+  Serialize(header, buf, ver);
+  return std::string(reinterpret_cast<const char*>(buf.data()), buf.size());
 }
 
 std::string HeaderUtil::Serialize(const FailureHeader& header, uint8_t ver) {
-  DCHECK_EQ(ver, 1);
-  const std::string s = serializeV1(header);
-  DCHECK_EQ(s.size(), kSize);
-  return s;
+  std::array<Byte, kSize> buf;
+  Serialize(header, buf, ver);
+  return std::string(reinterpret_cast<const char*>(buf.data()), buf.size());
 }
 
 bool HeaderUtil::Deserialize(std::string_view s, HeaderBase& base) {
@@ -178,10 +196,13 @@ bool HeaderUtil::Deserialize(std::string_view s, RequestInfo& req_info) {
   return true;
 }
 
-std::string HeaderUtil::Serialize(absl::Span<const RequestInfo> requests) {
-  DCHECK(!requests.empty());
-  std::string out;
-  out.reserve(requests.size() * kRequestInfoSize);
+bool HeaderUtil::Serialize(absl::Span<const RequestInfo> requests,
+                           absl::Span<Byte> out) {
+  if (requests.empty() || requests.size() > PostInfoHeader::kMaxRequests ||
+      out.size() != requests.size() * kRequestInfoSize) {
+    return false;
+  }
+  Byte* dst = out.data();
   for (const RequestInfo& req : requests) {
     DCHECK(req.IsValid());
     const flatbuf::Recipe fb_recipe(
@@ -191,10 +212,52 @@ std::string HeaderUtil::Serialize(absl::Span<const RequestInfo> requests) {
         req.reqid.value(), req.nchunks, req.raddr.value(), req.total_len,
         static_cast<uint8_t>(req.op),
         /*paddings=*/0, 0, 0, fb_recipe, req.metadata, /*paddings=*/0, 0, 0);
-    out.append(reinterpret_cast<const char*>(&fb_req), sizeof(fb_req));
+    std::memcpy(dst, &fb_req, sizeof(fb_req));
+    dst += sizeof(fb_req);
   }
-  DCHECK_EQ(out.size(), requests.size() * kRequestInfoSize);
+  return true;
+}
+
+std::string HeaderUtil::Serialize(absl::Span<const RequestInfo> requests) {
+  DCHECK(!requests.empty());
+  if (requests.empty() || requests.size() > PostInfoHeader::kMaxRequests) {
+    return {};
+  }
+  std::string out(requests.size() * kRequestInfoSize, '\0');
+  Serialize(requests,
+            absl::MakeSpan(reinterpret_cast<Byte*>(out.data()), out.size()));
   return out;
+}
+
+std::optional<size_t> HeaderUtil::PostInfoFrameSize(const size_t num_reqs) {
+  static_assert(PostInfoHeader::kMaxRequests <=
+                (std::numeric_limits<uint32_t>::max() - kSize) /
+                    kRequestInfoSize);
+  if (num_reqs == 0 || num_reqs > PostInfoHeader::kMaxRequests) {
+    return std::nullopt;
+  }
+  return kSize + num_reqs * kRequestInfoSize;
+}
+
+bool HeaderUtil::SerializePostInfo(const Handle handle, const Endpoint& peer,
+                                   const Metadata& metadata,
+                                   absl::Span<const RequestInfo> requests,
+                                   absl::Span<Byte> out, const uint8_t ver) {
+  const std::optional<size_t> frame_size = PostInfoFrameSize(requests.size());
+  if (!frame_size.has_value() || out.size() != *frame_size) {
+    return false;
+  }
+  const size_t payload_bytes = requests.size() * kRequestInfoSize;
+  PostInfoHeader hdr = {};
+  hdr.opcode = Opcode::kPostInfo;
+  hdr.handle = handle;
+  hdr.len = static_cast<uint32_t>(payload_bytes);
+  hdr.peer = peer;
+  hdr.metadata = metadata;
+  std::array<Byte, kSize> hdr_buf;
+  Serialize(hdr, hdr_buf, ver);
+  std::memcpy(out.data(), hdr_buf.data(), kSize);
+  return Serialize(requests, out.subspan(kSize, payload_bytes));
 }
 
 bool HeaderUtil::Deserialize(std::string_view s,
@@ -214,7 +277,8 @@ bool HeaderUtil::Deserialize(std::string_view s,
   return true;
 }
 
-std::string HeaderUtil::serializeV1(const PostInfoHeader& header) {
+void HeaderUtil::serializeV1(const PostInfoHeader& header,
+                             std::array<Byte, kSize>& out) {
   DCHECK(header.IsValid());
   constexpr uint8_t kVer = 1;
   const flatbuf::HeaderBase base(kMagic, kVer,
@@ -228,10 +292,11 @@ std::string HeaderUtil::serializeV1(const PostInfoHeader& header) {
                                /*padding0=*/0);
   const flatbuf::PostInfoHeader h(base, peer, header.metadata);
   DCHECK_EQ(sizeof(h), kSize);
-  return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
+  std::memcpy(out.data(), &h, sizeof(h));
 }
 
-std::string HeaderUtil::serializeV1(const DataHeader& header) {
+void HeaderUtil::serializeV1(const DataHeader& header,
+                             std::array<Byte, kSize>& out) {
   DCHECK(header.IsValid());
   constexpr uint8_t kVer = 1;
   const flatbuf::HeaderBase base(kMagic, kVer,
@@ -246,10 +311,11 @@ std::string HeaderUtil::serializeV1(const DataHeader& header) {
                               header.raddr.value(), trace,
                               /*padding1=*/0);
   DCHECK_EQ(sizeof(h), kSize);
-  return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
+  std::memcpy(out.data(), &h, sizeof(h));
 }
 
-std::string HeaderUtil::serializeV1(const FailureHeader& header) {
+void HeaderUtil::serializeV1(const FailureHeader& header,
+                             std::array<Byte, kSize>& out) {
   DCHECK(header.IsValid());
   constexpr uint8_t kVer = 1;
   const flatbuf::HeaderBase base(kMagic, kVer,
@@ -258,7 +324,7 @@ std::string HeaderUtil::serializeV1(const FailureHeader& header) {
   std::array<uint8_t, 52> padding = {};
   const flatbuf::FailureHeader h(base, padding);
   DCHECK_EQ(sizeof(h), kSize);
-  return std::string(reinterpret_cast<const char*>(&h), sizeof(h));
+  std::memcpy(out.data(), &h, sizeof(h));
 }
 
 bool HeaderUtil::deserializeV1(const flatbuf::HeaderBase& fb_base,

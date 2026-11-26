@@ -1,12 +1,18 @@
 #include "peregrine/src/internal/chunk/header_flatbuf.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/types/span.h"
 #include "peregrine/src/api/transport_types.h"
 #include "peregrine/src/internal/base/endpoint.h"
+#include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/chunk_test_util.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/trace/chunk_trace_wire.h"
@@ -244,6 +250,114 @@ TEST(RequestInfoSerializationTest, EmptyAndCorruptedPayload) {
   EXPECT_FALSE(HeaderUtil::Deserialize("abc", batch_out));
   EXPECT_FALSE(HeaderUtil::Deserialize(
       std::string(HeaderUtil::kRequestInfoSize, '\0'), batch_out));
+}
+
+TEST(HeaderSerializationTest, SerializeIntoSpanMatchesStringOverloads) {
+  std::array<Byte, HeaderUtil::kSize> buf = {};
+  const auto as_view = [&buf]() {
+    return std::string_view(reinterpret_cast<const char*>(buf.data()),
+                            buf.size());
+  };
+
+  PostInfoHeader info = {};
+  info.opcode = Opcode::kPostInfo;
+  info.handle = kHandle;
+  info.len = 256;
+  info.peer = Endpoint::Create("192.168.1.42:5678");
+  info.metadata = {1, 2, 3, 4, 5};
+  HeaderUtil::Serialize(info, buf);
+  EXPECT_EQ(as_view(), HeaderUtil::Serialize(info));
+
+  DataHeader data = {};
+  data.opcode = Opcode::kData;
+  data.handle = kHandle;
+  data.len = kChunkSize;
+  data.reqid = kReqId;
+  data.index = kChunkIndex;
+  data.byte_offset = 16384;
+  data.raddr = kBufferBaseAddr;
+  HeaderUtil::Serialize(data, buf);
+  EXPECT_EQ(as_view(), HeaderUtil::Serialize(data));
+
+  DataHeader ack = data;
+  ack.len = 0;
+  HeaderUtil::Serialize(ack, buf);
+  EXPECT_EQ(as_view(), HeaderUtil::Serialize(ack));
+
+  FailureHeader failure = {};
+  failure.opcode = Opcode::kFailure;
+  failure.handle = kHandle;
+  failure.len = 0;
+  HeaderUtil::Serialize(failure, buf);
+  EXPECT_EQ(as_view(), HeaderUtil::Serialize(failure));
+
+  RequestInfo req = {};
+  req.reqid = kReqId;
+  req.nchunks = 4;
+  req.raddr = kBufferBaseAddr;
+  req.total_len = 4096;
+  req.op = Op::kWrite;
+  req.recipe.type = RecipeType::kContiguous;
+  req.metadata = {'a', 'b', 'c'};
+  const std::vector<RequestInfo> reqs = {req, req};
+  std::vector<Byte> req_buf(reqs.size() * HeaderUtil::kRequestInfoSize);
+  ASSERT_TRUE(HeaderUtil::Serialize(reqs, absl::MakeSpan(req_buf)));
+  EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(req_buf.data()),
+                             req_buf.size()),
+            HeaderUtil::Serialize(reqs));
+
+  info.len = static_cast<uint32_t>(req_buf.size());
+  const std::optional<size_t> frame_size =
+      HeaderUtil::PostInfoFrameSize(reqs.size());
+  ASSERT_TRUE(frame_size.has_value());
+  std::vector<Byte> post_frame(*frame_size);
+  ASSERT_TRUE(HeaderUtil::SerializePostInfo(
+      info.handle, info.peer, info.metadata, reqs, absl::MakeSpan(post_frame)));
+  EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(post_frame.data()),
+                             post_frame.size()),
+            HeaderUtil::Serialize(info) + HeaderUtil::Serialize(reqs));
+}
+
+TEST(HeaderSerializationTest, RejectsInvalidPostInfoBoundsAndBufferSizes) {
+  PostInfoHeader info = {};
+  info.opcode = Opcode::kPostInfo;
+  info.handle = kHandle;
+  info.len = HeaderUtil::kRequestInfoSize;
+
+  RequestInfo req = {};
+  req.reqid = kReqId;
+  req.nchunks = 1;
+  req.total_len = 64;
+  req.op = Op::kWrite;
+  req.recipe.type = RecipeType::kContiguous;
+  const std::vector<RequestInfo> reqs = {req};
+
+  std::vector<Byte> short_reqs(HeaderUtil::kRequestInfoSize - 1);
+  EXPECT_FALSE(HeaderUtil::Serialize(reqs, absl::MakeSpan(short_reqs)));
+  EXPECT_FALSE(HeaderUtil::Serialize(absl::Span<const RequestInfo>(),
+                                     absl::MakeSpan(short_reqs)));
+
+  const std::optional<size_t> one_req_frame = HeaderUtil::PostInfoFrameSize(1);
+  ASSERT_TRUE(one_req_frame.has_value());
+  std::vector<Byte> short_frame(*one_req_frame - 1);
+  EXPECT_FALSE(HeaderUtil::SerializePostInfo(info.handle, info.peer,
+                                             info.metadata, reqs,
+                                             absl::MakeSpan(short_frame)));
+  EXPECT_FALSE(HeaderUtil::SerializePostInfo(
+      info.handle, info.peer, info.metadata, absl::Span<const RequestInfo>(),
+      absl::MakeSpan(short_frame)));
+
+  const size_t max_reqs = PostInfoHeader::kMaxRequests;
+  EXPECT_EQ(HeaderUtil::PostInfoFrameSize(0), std::nullopt);
+  EXPECT_EQ(HeaderUtil::PostInfoFrameSize(max_reqs),
+            HeaderUtil::kSize + max_reqs * HeaderUtil::kRequestInfoSize);
+  EXPECT_EQ(HeaderUtil::PostInfoFrameSize(max_reqs + 1), std::nullopt);
+
+  const absl::Span<const RequestInfo> oversized(&req, max_reqs + 1);
+  EXPECT_FALSE(HeaderUtil::Serialize(oversized, absl::MakeSpan(short_reqs)));
+  EXPECT_FALSE(HeaderUtil::SerializePostInfo(info.handle, info.peer,
+                                             info.metadata, oversized,
+                                             absl::MakeSpan(short_frame)));
 }
 
 }  // namespace

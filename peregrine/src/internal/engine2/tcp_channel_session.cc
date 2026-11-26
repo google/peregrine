@@ -44,27 +44,8 @@ constexpr int kWriteBudget = 16;
 // = 16 header+payload frames, matching `kWriteBudget`).
 constexpr int kReadBudget = 32;
 
-// Cap on a single `PostInfo` payload (4 MiB = 32,768 RequestInfo entries).
-constexpr size_t kMaxPostInfoPayloadBytes = 4 * 1024 * 1024;
-
 // Scratch buffer size used when discarding unwanted chunk payloads.
 constexpr size_t kDrainBufSize = 64 * 1024;
-
-// Serializes an ACK header for `chunk`.
-std::string SerializeAck(DataHeader chunk) {
-  chunk.len = 0;
-  DCHECK(chunk.IsAck());
-  return HeaderUtil::Serialize(chunk);
-}
-
-// Serializes a failure header for `handle`.
-std::string SerializeFailure(Handle handle) {
-  FailureHeader failure = {};
-  failure.opcode = Opcode::kFailure;
-  failure.handle = handle;
-  failure.len = 0;
-  return HeaderUtil::Serialize(failure);
-}
 
 // Stamps receiver timings into `chunk.trace` before ACK serialization.
 void StampRxTrace(DataHeader& chunk, int rx_worker_id, ChunkStatus status,
@@ -77,14 +58,13 @@ void StampRxTrace(DataHeader& chunk, int rx_worker_id, ChunkStatus status,
 }  // namespace
 
 TcpChannelSession::TcpChannelSession(std::unique_ptr<Channel> channel,
-                                     PeerId self_peer, PeerId remote_peer,
+                                     PeerId remote_peer,
                                      PeerWorkQueue& work_queue,
                                      RequestTracker& outgoing,
                                      RequestTracker& incoming,
                                      EngineMetrics& metrics,
                                      TraceRecorder& tracer, int worker_id)
     : worker_id_(worker_id),
-      self_peer_(self_peer),
       remote_peer_(remote_peer),
       work_queue_(work_queue),
       outgoing_(outgoing),
@@ -227,23 +207,15 @@ void TcpChannelSession::prepareChunkTx(const ChunkClaim& claim,
     tracer_.RecordWorkerDequeued(chunk, traceTxWorkerId());
     tx_.traced_chunk = chunk;
   }
-  tx_.header = HeaderUtil::Serialize(chunk);
+  HeaderUtil::Serialize(chunk, tx_.header);
   tx_.post = claim.post;
   tx_.payload_len = len;
 
   // Coalesce [PostInfo, DataHeader, payload] into one writev on a new post.
   if (include_post_info) {
-    const std::string req_payload = HeaderUtil::Serialize(post.req_infos);
-    PostInfoHeader post_hdr = {};
-    post_hdr.opcode = Opcode::kPostInfo;
-    post_hdr.handle = post.post.handle;
-    post_hdr.len = static_cast<uint32_t>(req_payload.size());
-    post_hdr.peer = self_peer_;
-    post_hdr.metadata = post.post.metadata;
-    tx_.post_info = HeaderUtil::Serialize(post_hdr);
-    tx_.post_info.append(req_payload);
+    DCHECK(!post.post_info.empty());
     const std::array<IoVec, 3> iovs = {
-        IoVec{tx_.post_info.data(), tx_.post_info.size()},
+        IoVec{const_cast<Byte*>(post.post_info.data()), post.post_info.size()},
         IoVec{tx_.header.data(), tx_.header.size()},
         IoVec{const_cast<Byte*>(req.laddr + offset), len},
     };
@@ -372,7 +344,7 @@ bool TcpChannelSession::onDataHeader(const DataHeader& chunk) {
 
 bool TcpChannelSession::onPostInfoHeader(const PostInfoHeader& info) {
   if (ABSL_PREDICT_FALSE(info.len == 0 ||
-                         info.len > kMaxPostInfoPayloadBytes)) {
+                         info.len > PostInfoHeader::kMaxPayloadBytes)) {
     LOG(WARNING) << "worker #" << worker_id_ << " invalid post info length "
                  << info;
     return false;
@@ -390,10 +362,10 @@ void TcpChannelSession::onPayload() {
     std::vector<RequestInfo> reqs;
     if (ABSL_PREDICT_FALSE(!HeaderUtil::Deserialize(info->payload, reqs))) {
       LOG(WARNING) << "worker #" << worker_id_ << " invalid post info payload";
-      tx_.control.Append(SerializeFailure(info->header.handle));
+      tx_.control.AppendFailure(info->header.handle);
     } else if (!incoming_.Add(info->header.handle, reqs, util::MonoNowUs(),
                               info->header.metadata, remote_peer_)) {
-      tx_.control.Append(SerializeFailure(info->header.handle));
+      tx_.control.AppendFailure(info->header.handle);
     }
   } else if (auto* data = std::get_if<RxState::ReadingData>(&rx_.phase)) {
     // Release chunk slot, evict completed incoming entry, and queue ACK.
@@ -409,7 +381,7 @@ void TcpChannelSession::onPayload() {
     }
     StampRxTrace(chunk, traceRxWorkerId(), ChunkStatus::kEmpty, t_start_us,
                  t_acquired_us);
-    tx_.control.Append(SerializeAck(chunk));
+    tx_.control.AppendAck(chunk);
     return;
   } else if (auto* drain = std::get_if<RxState::Draining>(&rx_.phase)) {
     // Advance drain counter; re-ACK if this was a completed duplicate chunk.
@@ -418,7 +390,7 @@ void TcpChannelSession::onPayload() {
     if (drain->ack_after) {
       StampRxTrace(drain->header, traceRxWorkerId(), ChunkStatus::kDone,
                    drain->t_start_us, drain->t_acquired_us);
-      tx_.control.Append(SerializeAck(drain->header));
+      tx_.control.AppendAck(drain->header);
     }
   }
   rx_.phase.emplace<RxState::ReadingHeader>();

@@ -10,7 +10,6 @@
 #include "gtest/gtest.h"
 #include "peregrine/src/api/transport_trace.h"
 #include "peregrine/src/api/transport_types.h"
-#include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/chunk/header.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
@@ -53,11 +52,10 @@ class PeerStateTest : public ::testing::Test {
         incoming_(metrics_, tracer_) {}
 
   std::unique_ptr<Worker> MakeWorker(int id) {
-    return std::make_unique<Worker>(id, /*rail_id=*/0, self_, outgoing_,
-                                    incoming_, metrics_, tracer_);
+    return std::make_unique<Worker>(id, /*rail_id=*/0, outgoing_, incoming_,
+                                    metrics_, tracer_);
   }
 
-  HostInfo self_;
   EngineMetrics metrics_;
   TraceRecorder tracer_;
   RequestTracker outgoing_;

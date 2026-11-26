@@ -21,7 +21,6 @@
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/endpoint.h"
-#include "peregrine/src/internal/base/hostinfo.h"
 #include "peregrine/src/internal/base/types.h"
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/engine2/assumptions.h"
@@ -42,14 +41,13 @@ constexpr uint32_t kChannelEvents = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
 
 }  // namespace
 
-Worker::Worker(const int id, const int32_t rail_id, const HostInfo& self,
-               RequestTracker& outgoing, RequestTracker& incoming,
-               EngineMetrics& metrics, TraceRecorder& tracer, const int cpu_id)
+Worker::Worker(const int id, const int32_t rail_id, RequestTracker& outgoing,
+               RequestTracker& incoming, EngineMetrics& metrics,
+               TraceRecorder& tracer, const int cpu_id)
     : id_(id),
       rail_id_(rail_id),
       cpu_id_(cpu_id),
       wake_fd_(fd_t(::eventfd(/*initval=*/0, EFD_NONBLOCK | EFD_CLOEXEC))),
-      self_(self),
       outgoing_(outgoing),
       incoming_(incoming),
       metrics_(metrics),
@@ -226,9 +224,8 @@ void Worker::drainInbox() {
     auto [it, inserted] = sessions_.emplace(
         fd, SessionEntry{
                 .session = std::make_unique<TcpChannelSession>(
-                    std::move(item.channel), self_.control_plane_listener,
-                    item.peer, *item.work_queue, outgoing_, incoming_, metrics_,
-                    tracer_, id_),
+                    std::move(item.channel), item.peer, *item.work_queue,
+                    outgoing_, incoming_, metrics_, tracer_, id_),
             });
     if (inserted) {
       peer_fds_[item.peer].push_back(fd);

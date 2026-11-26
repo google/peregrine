@@ -26,6 +26,7 @@
 #include "peregrine/src/internal/channel/channel.h"
 #include "peregrine/src/internal/channel/channel_type.h"
 #include "peregrine/src/internal/chunk/header.h"
+#include "peregrine/src/internal/chunk/header_flatbuf.h"
 #include "peregrine/src/internal/engine2/peer_work_queue.h"
 #include "peregrine/src/internal/engine2/post.h"
 #include "peregrine/src/internal/lib/iovec_cursor.h"
@@ -119,10 +120,10 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
   PeerWorkQueue queue_a;
   PeerWorkQueue queue_b;
 
-  Worker worker_a(/*id=*/0, /*rail_id=*/0, host_a, outgoing_a, incoming_a,
-                  metrics_a, tracer_a);
-  Worker worker_b(/*id=*/1, /*rail_id=*/0, host_b, outgoing_b, incoming_b,
-                  metrics_b, tracer_b);
+  Worker worker_a(/*id=*/0, /*rail_id=*/0, outgoing_a, incoming_a, metrics_a,
+                  tracer_a);
+  Worker worker_b(/*id=*/1, /*rail_id=*/0, outgoing_b, incoming_b, metrics_b,
+                  tracer_b);
 
   worker_a.AddChannel(host_b.control_plane_listener,
                       std::make_unique<SocketPairChannel>(fds[0]), queue_a);
@@ -164,6 +165,11 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
       .metadata = meta1,
   });
   qp->req_infos = std::move(req_infos);
+  qp->post_info.resize(
+      HeaderUtil::PostInfoFrameSize(qp->req_infos.size()).value());
+  ASSERT_TRUE(HeaderUtil::SerializePostInfo(
+      qp->post.handle, host_a.control_plane_listener, qp->post.metadata,
+      qp->req_infos, absl::MakeSpan(qp->post_info)));
   queue_a.Enqueue(std::move(qp));
   worker_a.Wake(host_b.control_plane_listener);
 
@@ -206,6 +212,11 @@ TEST(WorkerTest, TransfersMultiChunkPostOverSocketPair) {
       .metadata = meta2,
   });
   qp2->req_infos = std::move(req_infos2);
+  qp2->post_info.resize(
+      HeaderUtil::PostInfoFrameSize(qp2->req_infos.size()).value());
+  ASSERT_TRUE(HeaderUtil::SerializePostInfo(
+      qp2->post.handle, host_a.control_plane_listener, qp2->post.metadata,
+      qp2->req_infos, absl::MakeSpan(qp2->post_info)));
   queue_a.Enqueue(std::move(qp2));
   worker_a.Wake(host_b.control_plane_listener);
 
@@ -257,10 +268,10 @@ TEST(WorkerTest, PinsWorkerThreadToConfiguredCpu) {
 
   // Sender worker pins to the chosen CPU; receiver worker exercises graceful
   // fallback on an out-of-range CPU ID.
-  Worker worker_a(/*id=*/0, /*rail_id=*/0, host_a, outgoing_a, incoming_a,
-                  metrics_a, tracer_a, target_cpu);
-  Worker worker_b(/*id=*/1, /*rail_id=*/0, host_b, outgoing_b, incoming_b,
-                  metrics_b, tracer_b, /*cpu_id=*/65535);
+  Worker worker_a(/*id=*/0, /*rail_id=*/0, outgoing_a, incoming_a, metrics_a,
+                  tracer_a, target_cpu);
+  Worker worker_b(/*id=*/1, /*rail_id=*/0, outgoing_b, incoming_b, metrics_b,
+                  tracer_b, /*cpu_id=*/65535);
 
   worker_a.AddChannel(host_b.control_plane_listener,
                       std::make_unique<SocketPairChannel>(fds[0]), queue_a);
@@ -306,6 +317,11 @@ TEST(WorkerTest, PinsWorkerThreadToConfiguredCpu) {
       .len = src.size(),
   });
   qp->req_infos = std::move(req_infos);
+  qp->post_info.resize(
+      HeaderUtil::PostInfoFrameSize(qp->req_infos.size()).value());
+  ASSERT_TRUE(HeaderUtil::SerializePostInfo(
+      qp->post.handle, host_a.control_plane_listener, qp->post.metadata,
+      qp->req_infos, absl::MakeSpan(qp->post_info)));
   queue_a.Enqueue(std::move(qp));
   worker_a.Wake(host_b.control_plane_listener);
 

@@ -84,6 +84,10 @@ inline std::ostream& operator<<(std::ostream& os, const HeaderBase& base) {
 // sequence of serialized 128-byte `RequestInfo` structs (`len` bytes total).
 struct alignas(8) PostInfoHeader final : public HeaderBase {
   static constexpr size_t kMetadataSize = 32;
+  static constexpr uint32_t kMaxPayloadBytes = 4 * 1024 * 1024;
+  static constexpr size_t kMaxRequests =
+      kMaxPayloadBytes / kSerializedRequestInfoSize;
+  static_assert(kMaxPayloadBytes % kSerializedRequestInfoSize == 0);
 
   // LINT.IfChange(post_info_header)
   // Control plane endpoint of the sending peer process.

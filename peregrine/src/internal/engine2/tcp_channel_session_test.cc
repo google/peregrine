@@ -171,6 +171,11 @@ class TcpChannelSessionTest : public ::testing::Test {
     qp->post.requests.push_back(
         Request{.op = Op::kWrite, .laddr = src, .raddr = dst, .len = len});
     qp->req_infos = std::move(req_infos);
+    qp->post_info.resize(
+        HeaderUtil::PostInfoFrameSize(qp->req_infos.size()).value());
+    EXPECT_TRUE(HeaderUtil::SerializePostInfo(
+        qp->post.handle, &outgoing == &outgoing_a_ ? peer_a_ : peer_b_,
+        qp->post.metadata, qp->req_infos, absl::MakeSpan(qp->post_info)));
     return qp;
   }
 
@@ -193,11 +198,11 @@ class TcpChannelSessionTest : public ::testing::Test {
 TEST_F(TcpChannelSessionTest, MultiChunkWriteTransfersDataAndEvictsIncoming) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
-                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           peer_b_, queue_a_, outgoing_a_, incoming_a_,
                            metrics_a_, tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/1);
 
   const size_t len = kChunkSize + 1234;
@@ -228,11 +233,11 @@ TEST_F(TcpChannelSessionTest, PartialWritesAndReadsWithBackpressure) {
   pipe->max_read = 13;
 
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
-                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           peer_b_, queue_a_, outgoing_a_, incoming_a_,
                            metrics_a_, tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/1);
 
   std::vector<Byte> src(1024);
@@ -260,11 +265,11 @@ TEST_F(TcpChannelSessionTest, PartialWritesAndReadsWithBackpressure) {
 TEST_F(TcpChannelSessionTest, UnresolvedDestinationFailsSender) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
-                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           peer_b_, queue_a_, outgoing_a_, incoming_a_,
                            metrics_a_, tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/1);
 
   std::vector<Byte> src(256, 0xAB);
@@ -284,8 +289,8 @@ TEST_F(TcpChannelSessionTest, RejectsInvalidAndOversizedHeaders) {
   {
     auto pipe = std::make_shared<Pipe>();
     TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                               peer_b_, peer_a_, queue_b_, outgoing_b_,
-                               incoming_b_, metrics_b_, tracer_b_,
+                               peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                               metrics_b_, tracer_b_,
                                /*worker_id=*/0);
     // 64 bytes of garbage fail header deserialization.
     pipe->a_to_b.insert(pipe->a_to_b.end(), HeaderUtil::kSize, 0xff);
@@ -295,8 +300,8 @@ TEST_F(TcpChannelSessionTest, RejectsInvalidAndOversizedHeaders) {
   {
     auto pipe = std::make_shared<Pipe>();
     TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                               peer_b_, peer_a_, queue_b_, outgoing_b_,
-                               incoming_b_, metrics_b_, tracer_b_,
+                               peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                               metrics_b_, tracer_b_,
                                /*worker_id=*/0);
     // Oversized PostInfoHeader (> 4 MiB) is rejected before allocating.
     PostInfoHeader big = {};
@@ -314,8 +319,8 @@ TEST_F(TcpChannelSessionTest, RejectsInvalidAndOversizedHeaders) {
 TEST_F(TcpChannelSessionTest, DrainsChunkExceedingRequestTotalLenSafely) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/0);
 
   // Register a 16-byte destination buffer with a sentinel guard byte after it.
@@ -365,9 +370,8 @@ TEST_F(TcpChannelSessionTest, DestructionFailsActiveOutgoingPost) {
 
   {
     TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
-                             peer_a_, peer_b_, queue_a_, outgoing_a_,
-                             incoming_a_, metrics_a_, tracer_a_,
-                             /*worker_id=*/0);
+                             peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                             metrics_a_, tracer_a_, /*worker_id=*/0);
     bool has_more = false;
     ASSERT_TRUE(sender.DriveTx(has_more));
     EXPECT_TRUE(sender.IsTxBlocked());
@@ -379,8 +383,8 @@ TEST_F(TcpChannelSessionTest, DestructionFailsActiveOutgoingPost) {
 TEST_F(TcpChannelSessionTest, DriveRxYieldsAtReadBudget) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/0);
 
   // Queue 40 valid ACK headers (> kReadBudget = 32).
@@ -408,8 +412,8 @@ TEST_F(TcpChannelSessionTest, DriveRxYieldsAtReadBudget) {
 TEST_F(TcpChannelSessionTest, DriveRxClosesOnTruncatedFrameBeforePeerClose) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/0);
 
   // Peer writes a truncated header (16 of 64 bytes) and closes cleanly (FIN).
@@ -424,11 +428,11 @@ TEST_F(TcpChannelSessionTest, DriveRxClosesOnTruncatedFrameBeforePeerClose) {
 TEST_F(TcpChannelSessionTest, TracedChunkRecordsTxRxAndAckStages) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
-                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           peer_b_, queue_a_, outgoing_a_, incoming_a_,
                            metrics_a_, tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/1);
 
   std::vector<Byte> src(1024, 0x5C);
@@ -472,8 +476,8 @@ TEST_F(TcpChannelSessionTest, TracedChunkRecordsTxRxAndAckStages) {
 TEST_F(TcpChannelSessionTest, TracedDuplicateChunkStampsDoneStatusInReAck) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/2);
 
   // Register a 2-chunk request so chunk 0 completion does not evict the entry.
@@ -524,11 +528,11 @@ TEST_F(TcpChannelSessionTest, TracedDuplicateChunkStampsDoneStatusInReAck) {
 TEST_F(TcpChannelSessionTest, CoalescesMultipleAcksIntoSingleWrite) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
-                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           peer_b_, queue_a_, outgoing_a_, incoming_a_,
                            metrics_a_, tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/1);
 
   constexpr size_t kNumChunks = 8;
@@ -567,11 +571,11 @@ TEST_F(TcpChannelSessionTest,
        PartialControlWritePreservesInFlightBatchWhileQueueingMore) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
-                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           peer_b_, queue_a_, outgoing_a_, incoming_a_,
                            metrics_a_, tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/1);
 
   constexpr size_t kBatchChunks = 4;
@@ -632,11 +636,11 @@ TEST_F(TcpChannelSessionTest,
        CoalescesControlBatchAheadOfOutgoingDataInSameTurn) {
   auto pipe = std::make_shared<Pipe>();
   TcpChannelSession sender(std::make_unique<FakeStreamChannel>(pipe, true),
-                           peer_a_, peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                           peer_b_, queue_a_, outgoing_a_, incoming_a_,
                            metrics_a_, tracer_a_, /*worker_id=*/0);
   TcpChannelSession receiver(std::make_unique<FakeStreamChannel>(pipe, false),
-                             peer_b_, peer_a_, queue_b_, outgoing_b_,
-                             incoming_b_, metrics_b_, tracer_b_,
+                             peer_a_, queue_b_, outgoing_b_, incoming_b_,
+                             metrics_b_, tracer_b_,
                              /*worker_id=*/1);
 
   constexpr size_t kNumChunks = 4;

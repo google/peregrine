@@ -174,6 +174,9 @@ absl::StatusOr<Handle> Engine::Enqueue(const PeerId& peer, Item item) {
   if (ABSL_PREDICT_FALSE(!peer.HasNonzeroIpPort())) {
     return absl::InvalidArgumentError("invalid peer endpoint");
   }
+  if (ABSL_PREDICT_FALSE(item.requests.size() > PostInfoHeader::kMaxRequests)) {
+    return absl::InvalidArgumentError("post exceeds max request count");
+  }
   if (ABSL_PREDICT_FALSE(!item.IsValid())) {
     return absl::InvalidArgumentError("invalid post item");
   }
