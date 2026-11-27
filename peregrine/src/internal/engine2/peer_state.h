@@ -51,14 +51,23 @@ class PeerState final {
   // Returns false if a channel is already ready or setup is not active.
   bool TryBeginSetup(const SetupTrace& trace) ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Records `count` outbound connect attempts started for this peer.
-  void OnConnectsStarted(int count) ABSL_LOCKS_EXCLUDED(mu_);
+  // Records outbound connect attempts started for this peer while setup is in
+  // progress. Returns false if setup is no longer active.
+  bool OnConnectsStarted(int count) ABSL_LOCKS_EXCLUDED(mu_);
 
-  // Marks the peer ready (covers both outbound and inbound channels) and
-  // records `worker` as serving a channel to this peer. Returns the active
-  // `SetupTrace` once if a traced cold-start setup was in progress.
-  std::optional<SetupTrace> OnChannelReady(Worker* worker)
+  // Marks the peer ready (covers both outbound and inbound channels), updates
+  // pending outbound connect accounting, and records the worker as serving a
+  // channel to this peer. Returns the active setup trace once if a traced
+  // cold-start setup was in progress.
+  std::optional<SetupTrace> OnChannelReady(Worker* worker,
+                                           bool is_outbound = false)
       ABSL_LOCKS_EXCLUDED(mu_);
+
+  // Records a closed channel on the given worker. Removes the worker once it no
+  // longer serves any channel to this peer. When the last active channel closes
+  // and no outbound connects remain in flight, resets to idle, drops queued
+  // posts, and returns their handles to fail.
+  std::vector<Handle> OnChannelClosed(Worker* worker) ABSL_LOCKS_EXCLUDED(mu_);
 
   // Records one failed outbound connect. If no connects remain in flight and
   // the peer has no ready channels, resets to idle, drops queued posts, and
@@ -66,8 +75,8 @@ class PeerState final {
   std::vector<Handle> OnConnectFailed() ABSL_LOCKS_EXCLUDED(mu_);
 
   // Aborts an in-flight setup (e.g., host info lookup failure). No-op if the
-  // peer already has a ready channel; otherwise resets to idle, drops queued
-  // posts, and returns their handles to fail.
+  // peer is not actively setting up without pending connects; otherwise resets
+  // to idle, drops queued posts, and returns their handles to fail.
   std::vector<Handle> AbortSetup() ABSL_LOCKS_EXCLUDED(mu_);
 
   // Drops all queued posts matching `handle`. Already-claimed chunks are not
@@ -80,6 +89,12 @@ class PeerState final {
  private:
   enum class SetupState { kIdle, kSettingUp, kReady };
 
+  // Tracks how many active channels to this peer are assigned to a worker.
+  struct WorkerEntry {
+    Worker* worker = nullptr;
+    int count = 0;
+  };
+
   // Resets setup state to idle and drains queued post handles.
   std::vector<Handle> drainAndResetLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_);
 
@@ -88,8 +103,9 @@ class PeerState final {
   mutable absl::Mutex mu_;
   SetupState state_ ABSL_GUARDED_BY(mu_) = SetupState::kIdle;
   int pending_connects_ ABSL_GUARDED_BY(mu_) = 0;
+  int active_channels_ ABSL_GUARDED_BY(mu_) = 0;
   std::optional<SetupTrace> setup_trace_ ABSL_GUARDED_BY(mu_);
-  WorkerList workers_ ABSL_GUARDED_BY(mu_);
+  absl::InlinedVector<WorkerEntry, 16> workers_ ABSL_GUARDED_BY(mu_);
 };
 
 }  // namespace peregrine::internal::engine2

@@ -10,6 +10,7 @@
 #include "absl/base/thread_annotations.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/functional/any_invocable.h"
 #include "absl/synchronization/mutex.h"
 #include "peregrine/src/internal/base/endpoint.h"
 #include "peregrine/src/internal/base/types.h"
@@ -32,13 +33,19 @@ namespace peregrine::internal::engine2 {
 // Thread-safety: This class is thread-safe.
 class Worker final {
  public:
+  // Called on the worker thread after a channel is closed or fails to register.
+  // Not invoked during worker destruction.
+  using OnChannelClosedFn =
+      absl::AnyInvocable<void(const PeerId& peer, Worker* worker)>;
+
   // Creates and starts a worker for a local rail. When a non-negative CPU core
   // is specified, the worker thread pins itself to that core; otherwise it
   // stays unpinned and inherits the process affinity. The trackers, metrics,
   // and tracer must outlive the worker.
   Worker(int id, int32_t rail_id, RequestTracker& outgoing,
          RequestTracker& incoming, EngineMetrics& metrics,
-         TraceRecorder& tracer, int cpu_id = kUnpinnedCpu);
+         TraceRecorder& tracer, int cpu_id = kUnpinnedCpu,
+         OnChannelClosedFn on_channel_closed = nullptr);
 
   DISALLOW_COPY(Worker);
   DISALLOW_MOVE(Worker);
@@ -102,6 +109,7 @@ class Worker final {
   RequestTracker& incoming_;
   EngineMetrics& metrics_;
   TraceRecorder& tracer_;
+  OnChannelClosedFn on_channel_closed_;
 
   // Owned event loop and cross-thread wakeup state.
   std::unique_ptr<Poller> poller_;

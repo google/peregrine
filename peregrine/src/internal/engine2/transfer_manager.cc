@@ -90,9 +90,11 @@ TransferManager::TransferManager(
   for (size_t i = 0; i < total_workers; ++i) {
     const int32_t rail_id = rails[i % rails.size()];
     const int cpu_id = cpu_assigner.NextCpu(NumaNodeForRail(self_, rail_id));
-    workers_.push_back(std::make_unique<Worker>(static_cast<int>(i), rail_id,
-                                                outgoing_, incoming_, metrics_,
-                                                tracer_, cpu_id));
+    workers_.push_back(std::make_unique<Worker>(
+        static_cast<int>(i), rail_id, outgoing_, incoming_, metrics_, tracer_,
+        cpu_id, [this](const PeerId& peer, Worker* worker) {
+          onChannelClosed(peer, worker);
+        }));
     std::unique_ptr<RailWorkers>& pool = rail_workers_[rail_id];
     if (pool == nullptr) pool = std::make_unique<RailWorkers>();
     pool->workers.push_back(workers_.back().get());
@@ -100,8 +102,9 @@ TransferManager::TransferManager(
 
   channel_manager_->Start(
       [this](const PeerId& peer, int32_t local_rail_id,
-             int32_t /*remote_rail_id*/, std::unique_ptr<Channel> ch) {
-        onChannelReady(peer, local_rail_id, std::move(ch));
+             int32_t /*remote_rail_id*/, bool is_outbound,
+             std::unique_ptr<Channel> ch) {
+        onChannelReady(peer, local_rail_id, is_outbound, std::move(ch));
       },
       [this](const PeerId& peer, int32_t local_rail_id, int32_t remote_rail_id,
              absl::Status status) {
@@ -241,7 +244,9 @@ void TransferManager::setupPeer(const SetupRequest& req) {
     failHandles(peer_state->AbortSetup());
     return;
   }
-  peer_state->OnConnectsStarted(static_cast<int>(specs.size()));
+  if (!peer_state->OnConnectsStarted(static_cast<int>(specs.size()))) {
+    return;  // setup was superseded before connects began
+  }
   static_assert(assumptions::kChannelManagerCallbacksMayRunOnAnyThread);
   for (const ConnectionSpec& spec : specs) {
     channel_manager_->Connect(spec);
@@ -250,8 +255,10 @@ void TransferManager::setupPeer(const SetupRequest& req) {
 
 void TransferManager::onChannelReady(const PeerId& peer,
                                      const int32_t local_rail_id,
+                                     const bool is_outbound,
                                      std::unique_ptr<Channel> ch) {
   static_assert(assumptions::kDuplicateChannelsAllowedOnSimultaneousConnect);
+  if (ABSL_PREDICT_FALSE(ch == nullptr)) return;
   Worker* worker = pickWorker(local_rail_id);
   if (ABSL_PREDICT_FALSE(worker == nullptr)) {
     LOG(ERROR) << "dropping channel to peer " << peer << ": no workers";
@@ -259,12 +266,20 @@ void TransferManager::onChannelReady(const PeerId& peer,
   }
   PeerState& peer_state = getOrCreatePeer(peer);
   if (std::optional<PeerState::SetupTrace> setup =
-          peer_state.OnChannelReady(worker);
+          peer_state.OnChannelReady(worker, is_outbound);
       setup.has_value()) {
     tracer_.RecordConnSetupDone(setup->trace_ctx, setup->handle,
                                 /*num_workers=*/1);
   }
   worker->AddChannel(peer, std::move(ch), peer_state.work_queue());
+}
+
+void TransferManager::onChannelClosed(const PeerId& peer, Worker* worker) {
+  if (PeerState* peer_state = findPeer(peer); peer_state != nullptr) {
+    // TODO(b/503756862): Also fail already-sent, unacked outgoing posts for
+    // this peer when its last channel closes and no connects remain in flight.
+    failHandles(peer_state->OnChannelClosed(worker));
+  }
 }
 
 void TransferManager::onConnectFailed(const PeerId& peer,

@@ -107,13 +107,17 @@ TEST_F(TransferManagerTest, CreateRejectsNullArguments) {
 }
 
 TEST_F(TransferManagerTest, SubmitGetsHostInfoOncePerPeer) {
+  absl::Mutex peer_mu;
+  std::vector<std::unique_ptr<Channel>> peer_channels;
+  absl::Notification peer_accepted;
   HostInfo peer_info;
   peer_info.control_plane_listener = Endpoint::Create("127.0.0.1:20000");
   auto peer_cm = ChannelManager::Create(Config{}, peer_info, peer_metrics_);
   ASSERT_THAT(peer_cm, NotNull());
-  absl::Notification peer_accepted;
   peer_cm->Start(
-      [&](const PeerId&, int32_t, int32_t, std::unique_ptr<Channel>) {
+      [&](const PeerId&, int32_t, int32_t, bool, std::unique_ptr<Channel> ch) {
+        absl::MutexLock lock(peer_mu);
+        peer_channels.push_back(std::move(ch));
         if (!peer_accepted.HasBeenNotified()) peer_accepted.Notify();
       },
       [](const PeerId&, int32_t, int32_t, absl::Status) {});
@@ -133,18 +137,23 @@ TEST_F(TransferManagerTest, SubmitGetsHostInfoOncePerPeer) {
   ASSERT_TRUE(peer_accepted.WaitForNotificationWithTimeout(kWaitTimeout));
   SubmitWrite(*tm, peer_info.control_plane_listener, Handle(3));
 
+  tm.reset();
   absl::MutexLock lock(mu);
   EXPECT_THAT(lookups, ElementsAre(peer_info.control_plane_listener));
 }
 
 TEST_F(TransferManagerTest, InboundChannelMarksPeerReadyWithoutLookup) {
+  absl::Mutex peer_mu;
+  std::vector<std::unique_ptr<Channel>> peer_channels;
+  absl::Notification peer_connected;
   HostInfo peer_info;
   peer_info.control_plane_listener = Endpoint::Create("127.0.0.1:20001");
   auto peer_cm = ChannelManager::Create(Config{}, peer_info, peer_metrics_);
   ASSERT_THAT(peer_cm, NotNull());
-  absl::Notification peer_connected;
   peer_cm->Start(
-      [&](const PeerId&, int32_t, int32_t, std::unique_ptr<Channel>) {
+      [&](const PeerId&, int32_t, int32_t, bool, std::unique_ptr<Channel> ch) {
+        absl::MutexLock lock(peer_mu);
+        peer_channels.push_back(std::move(ch));
         if (!peer_connected.HasBeenNotified()) peer_connected.Notify();
       },
       [](const PeerId&, int32_t, int32_t, absl::Status) {});
@@ -171,6 +180,7 @@ TEST_F(TransferManagerTest, InboundChannelMarksPeerReadyWithoutLookup) {
   SubmitWrite(*tm, peer_info.control_plane_listener, Handle(1));
   absl::SleepFor(absl::Milliseconds(20));
 
+  tm.reset();
   absl::MutexLock lock(mu);
   EXPECT_THAT(lookups, IsEmpty());
 }
@@ -281,7 +291,7 @@ TEST_F(TransferManagerTest, SubmitConnectsUsingActiveListenerRails) {
   int32_t accepted_local_rail = 0;
   int32_t accepted_remote_rail = 0;
   peer_cm->Start(
-      [&](const PeerId&, int32_t local_rail, int32_t remote_rail,
+      [&](const PeerId&, int32_t local_rail, int32_t remote_rail, bool,
           std::unique_ptr<Channel>) {
         accepted_local_rail = local_rail;
         accepted_remote_rail = remote_rail;
@@ -306,15 +316,17 @@ TEST_F(TransferManagerTest, ColdStartTracedSubmitRecordsConnSetupStages) {
   cfg.num_conns_per_peer = 2;
   cfg.allowed_devices = {"lo"};
 
+  absl::Mutex accepted_mu;
+  std::vector<std::unique_ptr<Channel>> peer_channels;
+  int accepted_count = 0;
   HostInfo peer_info;
   peer_info.control_plane_listener = Endpoint::Create("127.0.0.1:20011");
   auto peer_cm = ChannelManager::Create(cfg, peer_info, peer_metrics_);
   ASSERT_THAT(peer_cm, NotNull());
-  absl::Mutex accepted_mu;
-  int accepted_count = 0;
   peer_cm->Start(
-      [&](const PeerId&, int32_t, int32_t, std::unique_ptr<Channel>) {
+      [&](const PeerId&, int32_t, int32_t, bool, std::unique_ptr<Channel> ch) {
         absl::MutexLock lock(accepted_mu);
+        peer_channels.push_back(std::move(ch));
         ++accepted_count;
       },
       [](const PeerId&, int32_t, int32_t, absl::Status) {});
@@ -384,6 +396,74 @@ TEST_F(TransferManagerTest, TcpConnectFailureRecordsConnectAndWriteErrors) {
   EXPECT_EQ(status, Status::kFailure);
   EXPECT_EQ(metrics_.tcp_connect_failures.Value(), 1);
   EXPECT_EQ(metrics_.write.errors.Value(), 1);
+}
+
+TEST_F(TransferManagerTest, ReconnectsAfterAllChannelsClose) {
+  Config cfg;
+  cfg.num_conns_per_peer = 1;
+  cfg.allowed_devices = {"lo"};
+
+  absl::Mutex peer_mu;
+  std::vector<std::unique_ptr<Channel>> peer_channels;
+  int accepted_count = 0;
+  HostInfo peer_info;
+  peer_info.control_plane_listener = Endpoint::Create("127.0.0.1:20013");
+  auto peer_cm = ChannelManager::Create(cfg, peer_info, peer_metrics_);
+  ASSERT_THAT(peer_cm, NotNull());
+  peer_cm->Start(
+      [&](const PeerId&, int32_t, int32_t, bool, std::unique_ptr<Channel> ch) {
+        absl::MutexLock lock(peer_mu);
+        peer_channels.push_back(std::move(ch));
+        ++accepted_count;
+      },
+      [](const PeerId&, int32_t, int32_t, absl::Status) {});
+
+  absl::Mutex lookup_mu;
+  int lookup_count = 0;
+  auto tm = TransferManager::Create(
+      cfg, self_, outgoing_, incoming_, metrics_, tracer_,
+      [&](const PeerId&) -> absl::StatusOr<HostInfo> {
+        absl::MutexLock lock(lookup_mu);
+        ++lookup_count;
+        return peer_info;
+      },
+      ChannelManager::Create(cfg, self_, metrics_));
+  ASSERT_THAT(tm, NotNull());
+
+  // First submit establishes the initial channel.
+  SubmitWrite(*tm, peer_info.control_plane_listener, Handle(1));
+  {
+    absl::MutexLock lock(peer_mu);
+    const auto has_first = [&]() {
+      peer_mu.AssertHeld();
+      return accepted_count >= 1;
+    };
+    ASSERT_TRUE(
+        peer_mu.AwaitWithTimeout(absl::Condition(&has_first), kWaitTimeout));
+    // Close the peer's channel to trigger channel-close notification locally.
+    peer_channels.clear();
+  }
+
+  // Once the local worker observes the closed channel and resets peer state to
+  // idle, a subsequent submit re-runs peer setup and opens a fresh channel.
+  const absl::Time deadline = absl::Now() + kWaitTimeout;
+  uint64_t next_handle = 2;
+  bool reconnected = false;
+  while (!reconnected && absl::Now() < deadline) {
+    SubmitWrite(*tm, peer_info.control_plane_listener, Handle(next_handle++));
+    absl::MutexLock lock(peer_mu);
+    const auto has_second = [&]() {
+      peer_mu.AssertHeld();
+      return accepted_count >= 2;
+    };
+    reconnected = peer_mu.AwaitWithTimeout(absl::Condition(&has_second),
+                                           absl::Milliseconds(50));
+  }
+  ASSERT_TRUE(reconnected);
+
+  tm.reset();
+  absl::MutexLock lock(lookup_mu);
+  EXPECT_EQ(lookup_count, 2);
 }
 
 }  // namespace

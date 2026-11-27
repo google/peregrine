@@ -26,11 +26,11 @@ namespace peregrine::internal::engine2 {
 // Thread-safety: This class is thread-safe.
 class ChannelManager final {
  public:
-  // Called with each ready channel between `local_rail_id` and `peer`'s
-  // `remote_rail_id`.
+  // Called with each ready channel between a local rail and a remote peer rail,
+  // indicating whether this side initiated the connection.
   using OnChannelReadyFn = absl::AnyInvocable<void(
       const PeerId& peer, int32_t local_rail_id, int32_t remote_rail_id,
-      std::unique_ptr<Channel> ch)>;
+      bool is_outbound, std::unique_ptr<Channel> ch)>;
 
   // Called once per `Connect()` call that fails to open a channel to `peer`.
   using OnConnectFailedFn =

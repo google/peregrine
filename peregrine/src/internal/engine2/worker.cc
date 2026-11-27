@@ -43,7 +43,8 @@ constexpr uint32_t kChannelEvents = EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET;
 
 Worker::Worker(const int id, const int32_t rail_id, RequestTracker& outgoing,
                RequestTracker& incoming, EngineMetrics& metrics,
-               TraceRecorder& tracer, const int cpu_id)
+               TraceRecorder& tracer, const int cpu_id,
+               OnChannelClosedFn on_channel_closed)
     : id_(id),
       rail_id_(rail_id),
       cpu_id_(cpu_id),
@@ -52,6 +53,7 @@ Worker::Worker(const int id, const int32_t rail_id, RequestTracker& outgoing,
       incoming_(incoming),
       metrics_(metrics),
       tracer_(tracer),
+      on_channel_closed_(std::move(on_channel_closed)),
       poller_(Poller::Create()) {
   CHECK(poller_ != nullptr);
   CHECK_GE(wake_fd_.value(), 0);
@@ -214,11 +216,15 @@ void Worker::drainInbox() {
     if (ABSL_PREDICT_FALSE(fd.value() < 0)) {
       LOG(WARNING) << "worker #" << id_ << " rail " << rail_id_
                    << " ignoring channel without fd: " << *item.channel;
+      item.channel.reset();
+      if (on_channel_closed_ != nullptr) on_channel_closed_(item.peer, this);
       continue;
     }
     if (ABSL_PREDICT_FALSE(poller_->Register(fd, kChannelEvents) < 0)) {
       LOG(WARNING) << "worker #" << id_ << " failed to register fd "
                    << fd.value();
+      item.channel.reset();
+      if (on_channel_closed_ != nullptr) on_channel_closed_(item.peer, this);
       continue;
     }
     auto [it, inserted] = sessions_.emplace(
@@ -230,6 +236,8 @@ void Worker::drainInbox() {
     if (inserted) {
       peer_fds_[item.peer].push_back(fd);
       scheduleTx(fd, it->second);
+    } else if (on_channel_closed_ != nullptr) {
+      on_channel_closed_(item.peer, this);
     }
   }
 
@@ -331,13 +339,15 @@ void Worker::closeSession(const fd_t fd) {
                     tx_ready_.end());
   }
 
-  const auto pit = peer_fds_.find(it->second.session->remote_peer());
+  const PeerId peer = it->second.session->remote_peer();
+  const auto pit = peer_fds_.find(peer);
   if (pit != peer_fds_.end()) {
     auto& fds = pit->second;
     fds.erase(std::remove(fds.begin(), fds.end(), fd), fds.end());
     if (fds.empty()) peer_fds_.erase(pit);
   }
   sessions_.erase(it);
+  if (on_channel_closed_ != nullptr) on_channel_closed_(peer, this);
 }
 
 }  // namespace peregrine::internal::engine2

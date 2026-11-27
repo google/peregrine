@@ -6,6 +6,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -329,6 +330,63 @@ TEST(WorkerTest, PinsWorkerThreadToConfiguredCpu) {
   EXPECT_EQ(dst, src);
   EXPECT_EQ(running_cpu, target_cpu);
   EXPECT_EQ(worker_cpus, std::vector<int>{target_cpu});
+}
+
+TEST(WorkerTest, NotifiesOnChannelClosedWhenPeerDisconnects) {
+  int fds[2] = {-1, -1};
+  ASSERT_EQ(
+      ::socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, fds),
+      0);
+
+  const PeerId peer = Endpoint::Create("127.0.0.1:10021");
+  EngineMetrics metrics;
+  TraceRecorder tracer(TraceConfig{.sample_every_n = 0});
+  RequestTracker outgoing(metrics, tracer);
+  RequestTracker incoming(metrics, tracer);
+  PeerWorkQueue queue;
+
+  absl::Notification closed;
+  PeerId closed_peer;
+  Worker* closed_worker = nullptr;
+  Worker worker(/*id=*/0, /*rail_id=*/0, outgoing, incoming, metrics, tracer,
+                kUnpinnedCpu, [&](const PeerId& p, Worker* w) {
+                  closed_peer = p;
+                  closed_worker = w;
+                  closed.Notify();
+                });
+
+  worker.AddChannel(peer, std::make_unique<SocketPairChannel>(fds[0]), queue);
+  ASSERT_EQ(::close(fds[1]), 0);
+
+  ASSERT_TRUE(closed.WaitForNotificationWithTimeout(absl::Seconds(10)));
+  EXPECT_EQ(closed_peer, peer);
+  EXPECT_EQ(closed_worker, &worker);
+}
+
+TEST(WorkerTest, DestructorDoesNotInvokeOnChannelClosed) {
+  int fds[2] = {-1, -1};
+  ASSERT_EQ(
+      ::socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, fds),
+      0);
+
+  const PeerId peer = Endpoint::Create("127.0.0.1:10022");
+  EngineMetrics metrics;
+  TraceRecorder tracer(TraceConfig{.sample_every_n = 0});
+  RequestTracker outgoing(metrics, tracer);
+  RequestTracker incoming(metrics, tracer);
+  PeerWorkQueue queue;
+
+  std::atomic<int> close_count{0};
+  {
+    Worker worker(/*id=*/0, /*rail_id=*/0, outgoing, incoming, metrics, tracer,
+                  kUnpinnedCpu, [&](const PeerId&, Worker*) {
+                    close_count.fetch_add(1, std::memory_order_relaxed);
+                  });
+    worker.AddChannel(peer, std::make_unique<SocketPairChannel>(fds[0]), queue);
+    worker.Wake(peer);
+  }
+  ASSERT_EQ(::close(fds[1]), 0);
+  EXPECT_EQ(close_count.load(std::memory_order_relaxed), 0);
 }
 
 }  // namespace

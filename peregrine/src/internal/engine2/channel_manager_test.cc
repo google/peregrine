@@ -48,6 +48,7 @@ class Recorder {
     PeerId peer;
     int32_t local_rail_id;
     int32_t remote_rail_id;
+    bool is_outbound;
     std::unique_ptr<Channel> ch;
   };
   struct Failed {
@@ -60,10 +61,11 @@ class Recorder {
   void Start(ChannelManager& channel_manager) {
     channel_manager.Start(
         [this](const PeerId& peer, int32_t local_rail_id,
-               int32_t remote_rail_id, std::unique_ptr<Channel> ch) {
+               int32_t remote_rail_id, bool is_outbound,
+               std::unique_ptr<Channel> ch) {
           absl::MutexLock lock(mu_);
-          ready_.push_back(
-              {peer, local_rail_id, remote_rail_id, std::move(ch)});
+          ready_.push_back({peer, local_rail_id, remote_rail_id, is_outbound,
+                            std::move(ch)});
         },
         [this](const PeerId& peer, int32_t local_rail_id,
                int32_t remote_rail_id, absl::Status status) {
@@ -151,6 +153,7 @@ TEST(ChannelManagerTest, BothEndsLearnEachOtherAndRail) {
     EXPECT_EQ(r.ch->GetPeer(), b.control_plane_listener);
     EXPECT_EQ(r.local_rail_id, 3);
     EXPECT_EQ(r.remote_rail_id, 5);
+    EXPECT_TRUE(r.is_outbound);
     EXPECT_FALSE(r.ch->IsBlocking());
   }
   for (const Recorder::Ready& r : inbound) {
@@ -158,6 +161,7 @@ TEST(ChannelManagerTest, BothEndsLearnEachOtherAndRail) {
     EXPECT_EQ(r.ch->GetPeer(), a.control_plane_listener);
     EXPECT_EQ(r.local_rail_id, 5);
     EXPECT_EQ(r.remote_rail_id, 3);
+    EXPECT_FALSE(r.is_outbound);
     EXPECT_FALSE(r.ch->IsBlocking());
   }
   EXPECT_THAT(a_rec.WaitForFailed(0), IsEmpty());

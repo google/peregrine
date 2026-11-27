@@ -89,9 +89,13 @@ class TransferManager final {
   // peer. Runs on `setup_thread_`.
   void setupPeer(const SetupRequest& req);
 
-  // Marks `peer` ready and hands `ch` to a worker on `local_rail_id`.
+  // Marks the peer ready and hands the channel to a worker on the local rail.
   void onChannelReady(const PeerId& peer, int32_t local_rail_id,
-                      std::unique_ptr<Channel> ch);
+                      bool is_outbound, std::unique_ptr<Channel> ch);
+
+  // Records a closed channel on a worker and fails queued posts if no channels
+  // or pending connects remain for the peer.
+  void onChannelClosed(const PeerId& peer, Worker* worker);
 
   // Records a connect failure and fails queued posts if all connects failed.
   void onConnectFailed(const PeerId& peer, int32_t local_rail_id,

@@ -409,7 +409,7 @@ void TcpManager::finishInit(ChannelInit init, absl::Status status) {
     auto ch = std::make_unique<TcpChannel>(std::move(init.socket));
     ch->SetPeer(remote->peer);
     on_channel_ready_(remote->peer, init.local_rail_id, remote->rail_id,
-                      std::move(ch));
+                      outbound, std::move(ch));
   } else if (outbound) {
     LOG(WARNING) << "channel init to " << init.expected->peer
                  << " failed: " << status;
