@@ -114,10 +114,20 @@ class RequestTracker {
   void Update(Handle handle, ReqId reqid, chunk_t index, int worker_id,
               const Endpoint& peer = {}) ABSL_LOCKS_EXCLUDED(trackers_mu_);
 
-  // Destination buffer address and chunk tracker returned by `FindChunk()`.
+  // Pins the tracker entry so completions and failures defer callback delivery
+  // and erasure until unpinned.
+  void Pin(Handle handle, const Endpoint& peer = {})
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+
+  // Releases a pin on the tracker entry and surfaces any deferred failure or
+  // completion.
+  void Unpin(Handle handle, const Endpoint& peer = {})
+      ABSL_LOCKS_EXCLUDED(trackers_mu_);
+
+  // Destination buffer address and chunk tracker returned by lookup.
   struct ChunkTarget {
     Byte* dst = nullptr;
-    ChunkTracker* tracker = nullptr;
+    std::shared_ptr<ChunkTracker> tracker;
   };
 
   // Looks up `(peer, handle, reqid)` under a single lock, returning the
@@ -191,6 +201,8 @@ class RequestTracker {
     bool is_responder_read = false;
     // True if address resolution failed on a received `PostInfoHeader`.
     bool failed = false;
+    // True while a sender pins this entry against early finalization.
+    bool pinned = false;
 
     // Default constructor.
     PostTracker() = default;

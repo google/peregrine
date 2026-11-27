@@ -165,7 +165,7 @@ class TcpChannelSession final {
       DataHeader header = {};
       Byte* dst = nullptr;
       // Acquired chunk slot; must be released on completion or abort.
-      ChunkTracker* tracker = nullptr;
+      std::shared_ptr<ChunkTracker> tracker;
       // Receiver timestamps (0 when untraced) piggybacked onto the ACK.
       uint64_t t_start_us = 0;
       uint64_t t_acquired_us = 0;

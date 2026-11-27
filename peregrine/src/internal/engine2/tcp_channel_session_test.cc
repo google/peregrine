@@ -681,5 +681,59 @@ TEST_F(TcpChannelSessionTest,
   EXPECT_EQ(dst_ba, src_ba);
 }
 
+TEST_F(TcpChannelSessionTest,
+       PartialFailureDefersCallbackUntilSiblingSessionReleasesPost) {
+  auto pipe1 = std::make_shared<Pipe>();
+  auto pipe2 = std::make_shared<Pipe>();
+  // Force both channels to pause mid-write so both hold references to the post.
+  pipe1->max_write = 64;
+  pipe2->max_write = 64;
+
+  auto sender1 = std::make_unique<TcpChannelSession>(
+      std::make_unique<FakeStreamChannel>(pipe1, true), peer_b_, queue_a_,
+      outgoing_a_, incoming_a_, metrics_a_, tracer_a_, /*worker_id=*/0);
+  TcpChannelSession sender2(std::make_unique<FakeStreamChannel>(pipe2, true),
+                            peer_b_, queue_a_, outgoing_a_, incoming_a_,
+                            metrics_a_, tracer_a_, /*worker_id=*/1);
+
+  std::vector<Byte> src(2 * kChunkSize, 0x5A);
+  std::vector<Byte> dst(src.size(), 0);
+  Status final_status = Status::kInProgress;
+  int callbacks = 0;
+  auto raw_qp = RegisterAndMakePost(outgoing_a_, Handle(105), src.data(),
+                                    dst.data(), src.size(), [&](Status s) {
+                                      final_status = s;
+                                      ++callbacks;
+                                    });
+  outgoing_a_.Pin(Handle(105));
+  std::shared_ptr<QueuedPost> qp(new QueuedPost(std::move(*raw_qp)),
+                                 [&outgoing = outgoing_a_](QueuedPost* p) {
+                                   delete p;
+                                   outgoing.Unpin(Handle(105));
+                                 });
+  queue_a_.Enqueue(std::move(qp));
+
+  bool has_more = false;
+  ASSERT_TRUE(sender1->DriveTx(has_more));
+  ASSERT_TRUE(sender1->IsTxBlocked());
+  ASSERT_TRUE(sender2.DriveTx(has_more));
+  ASSERT_TRUE(sender2.IsTxBlocked());
+
+  // Channel 1 fails and is destroyed while channel 2 still holds the post.
+  sender1.reset();
+  EXPECT_EQ(callbacks, 0);
+  EXPECT_EQ(outgoing_a_.Check(Handle(105)), Status::kInProgress);
+  EXPECT_EQ(metrics_a_.write.errors.Value(), 1);
+
+  // Once channel 2 finishes writing its chunk and releases the post, the
+  // deferred failure callback fires.
+  pipe2->max_write = 1024 * 1024;
+  sender2.ClearTxBlocked();
+  ASSERT_TRUE(sender2.DriveTx(has_more));
+  EXPECT_EQ(callbacks, 1);
+  EXPECT_EQ(final_status, Status::kFailure);
+  EXPECT_EQ(metrics_a_.write.errors.Value(), 1);
+}
+
 }  // namespace
 }  // namespace peregrine::internal::engine2

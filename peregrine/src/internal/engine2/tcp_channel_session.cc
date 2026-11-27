@@ -156,10 +156,12 @@ void TcpChannelSession::abortInFlight() {
     rx_.phase.emplace<RxState::ReadingHeader>();
     rx_.cursor.reset();
   }
-  // Fail any in-flight outgoing post so callers do not hang in kInProgress.
+  // Purge remaining queued chunks and fail any in-flight outgoing post so
+  // callers do not hang; the pin releases once every worker drops this post.
   if (tx_.post != nullptr) {
-    outgoing_.Fail(tx_.post->post.handle, Status::kFailure, {},
-                   &metrics_.write.errors);
+    const Handle handle = tx_.post->post.handle;
+    work_queue_.Purge(handle);
+    outgoing_.Fail(handle, Status::kFailure, {}, &metrics_.write.errors);
     tx_.ResetFrame();
   }
 }
@@ -268,6 +270,7 @@ bool TcpChannelSession::onHeader(const RxState::ReadingHeader& hdr) {
     return onPostInfoHeader(info);
   }
   if (FailureHeader failure; HeaderUtil::Deserialize(raw, failure)) {
+    work_queue_.Purge(failure.handle);
     if (!outgoing_.Fail(failure.handle, Status::kFailure, {},
                         &metrics_.write.errors)) {
       incoming_.Fail(failure.handle, Status::kFailure, remote_peer_);
@@ -303,9 +306,9 @@ bool TcpChannelSession::onDataHeader(const DataHeader& chunk) {
   const uint64_t t_start_us = is_traced ? util::MonoNowUs() : 0;
 
   // Resolve destination buffer and tracker in one lookup; drain if unknown/OOB.
-  const RequestTracker::ChunkTarget target = incoming_.FindChunk(
+  RequestTracker::ChunkTarget target = incoming_.FindChunk(
       chunk.handle, chunk.reqid, chunk.byte_offset, chunk.len, remote_peer_);
-  if (ABSL_PREDICT_FALSE(target.dst == nullptr)) {
+  if (ABSL_PREDICT_FALSE(target.dst == nullptr || target.tracker == nullptr)) {
     LOG(WARNING) << "worker #" << worker_id_ << " unknown chunk " << chunk;
     rx_.phase.emplace<RxState::Draining>(
         RxState::Draining{.header = chunk, .remaining = chunk.len});
@@ -326,7 +329,7 @@ bool TcpChannelSession::onDataHeader(const DataHeader& chunk) {
     rx_.phase.emplace<RxState::ReadingData>(RxState::ReadingData{
         .header = chunk,
         .dst = target.dst,
-        .tracker = &tracker,
+        .tracker = std::move(target.tracker),
         .t_start_us = t_start_us,
         .t_acquired_us = t_acquired_us,
     });
@@ -370,7 +373,7 @@ void TcpChannelSession::onPayload() {
   } else if (auto* data = std::get_if<RxState::ReadingData>(&rx_.phase)) {
     // Release chunk slot, evict completed incoming entry, and queue ACK.
     DataHeader chunk = data->header;
-    ChunkTracker* const tracker = data->tracker;
+    std::shared_ptr<ChunkTracker> tracker = std::move(data->tracker);
     const uint64_t t_start_us = data->t_start_us;
     const uint64_t t_acquired_us = data->t_acquired_us;
     rx_.phase.emplace<RxState::ReadingHeader>();

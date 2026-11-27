@@ -443,7 +443,8 @@ void TcpManager::expireInits() {
 }
 
 void TcpManager::runLoop() {
-  LOG(INFO) << "starting, " << self_;
+  LOG(INFO) << "tcp manager starting with " << listeners_.size()
+            << " listeners";
   epoll_event events[kEpollMaxNumEvents];
   while (!isStopped()) {
     drainPending();
@@ -471,7 +472,7 @@ void TcpManager::runLoop() {
   }
   listeners_.clear();
   inits_.clear();
-  LOG(INFO) << "stopped, " << self_;
+  LOG(INFO) << "tcp manager stopped";
 }
 
 }  // namespace peregrine::internal::engine2

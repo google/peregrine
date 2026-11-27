@@ -1008,5 +1008,105 @@ TEST_F(RequestTrackerTest, FailIncrementsErrorCounterOnceBeforeCallback) {
   EXPECT_EQ(metrics_.write.errors.Value(), 2);
 }
 
+TEST_F(RequestTrackerTest, FindChunkTrackerSurvivesPostRemoval) {
+  Byte buf[256] = {};
+  const Endpoint peer = Endpoint::Create("10.0.0.1:5000");
+  RequestTracker rt(metrics_, tracer_, /*recv_post_callback=*/nullptr,
+                    [&](const Metadata&, const Metadata&) {
+                      return absl::MakeSpan(buf, sizeof(buf));
+                    });
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 2,
+       .raddr = addr_t(0),
+       .total_len = sizeof(buf),
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+  ASSERT_TRUE(rt.Add(kHandle, reqs, util::MonoNowUs(), {}, peer));
+
+  const RequestTracker::ChunkTarget target =
+      rt.FindChunk(kHandle, kReqId, 0, 128, peer);
+  ASSERT_EQ(target.dst, buf);
+  ASSERT_NE(target.tracker, nullptr);
+
+  rt.Remove(kHandle, peer);
+  EXPECT_EQ(rt.Check(kHandle, peer), Status::kNotFound);
+
+  EXPECT_EQ(target.tracker->Acquire(chunk_t(0)),
+            ChunkTracker::ChunkStatus::kEmpty);
+  EXPECT_FALSE(target.tracker->Release(chunk_t(0), /*success=*/true));
+}
+
+TEST_F(RequestTrackerTest, PinDefersFailUntilUnpin) {
+  Status callback_status = Status::kInProgress;
+  int callback_calls = 0;
+  ASSERT_TRUE(rt_.Add(
+      kHandle, util::MonoNowUs(),
+      [&](Status s) {
+        callback_status = s;
+        ++callback_calls;
+      },
+      TraceContext{}));
+
+  rt_.Pin(kHandle);
+  EXPECT_TRUE(rt_.Fail(kHandle, Status::kFailure, {}, &metrics_.write.errors));
+  EXPECT_FALSE(rt_.Fail(kHandle, Status::kFailure, {}, &metrics_.write.errors));
+  EXPECT_EQ(metrics_.write.errors.Value(), 1);
+  EXPECT_EQ(callback_calls, 0);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
+
+  rt_.Unpin(kHandle);
+  EXPECT_EQ(callback_calls, 1);
+  EXPECT_EQ(callback_status, Status::kFailure);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
+
+  // Polled entry also stays in progress until unpinned.
+  const Handle poll_handle(kHandle.value() + 1);
+  ASSERT_TRUE(rt_.Add(poll_handle, util::MonoNowUs(), nullptr, TraceContext{}));
+  rt_.Pin(poll_handle);
+  EXPECT_TRUE(
+      rt_.Fail(poll_handle, Status::kFailure, {}, &metrics_.write.errors));
+  EXPECT_EQ(rt_.Check(poll_handle), Status::kInProgress);
+
+  rt_.Unpin(poll_handle);
+  EXPECT_EQ(rt_.Check(poll_handle), Status::kFailure);
+  EXPECT_EQ(metrics_.write.errors.Value(), 2);
+}
+
+TEST_F(RequestTrackerTest, PinDefersCompletionUntilUnpin) {
+  Status callback_status = Status::kInProgress;
+  int callback_calls = 0;
+  ASSERT_TRUE(rt_.Add(
+      kHandle, util::MonoNowUs(),
+      [&](Status s) {
+        callback_status = s;
+        ++callback_calls;
+      },
+      TraceContext{}));
+  const RequestInfo reqs[] = {
+      {.reqid = kReqId,
+       .nchunks = 1,
+       .raddr = addr_t(0x1000),
+       .total_len = 64,
+       .op = Op::kWrite,
+       .recipe = {.type = RecipeType::kContiguous}},
+  };
+  ASSERT_TRUE(rt_.AddInitiatorReqs(kHandle, reqs));
+
+  rt_.Pin(kHandle);
+  rt_.Update(kHandle, kReqId, chunk_t(0), /*worker_id=*/0);
+  EXPECT_EQ(callback_calls, 0);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kInProgress);
+  // Late failure after all chunks were acknowledged must not override success.
+  EXPECT_FALSE(rt_.Fail(kHandle, Status::kFailure, {}, &metrics_.write.errors));
+  EXPECT_EQ(metrics_.write.errors.Value(), 0);
+
+  rt_.Unpin(kHandle);
+  EXPECT_EQ(callback_calls, 1);
+  EXPECT_EQ(callback_status, Status::kSuccess);
+  EXPECT_EQ(rt_.Check(kHandle), Status::kNotFound);
+}
+
 }  // namespace
 }  // namespace peregrine::internal::testing

@@ -131,14 +131,20 @@ void TransferManager::Submit(const PeerId& peer, Post post,
                              std::vector<RequestInfo> req_infos) {
   const Handle handle = post.handle;
   const TraceContext trace_ctx = post.trace_ctx;
-  auto queued = std::make_shared<QueuedPost>(
-      QueuedPost{.post = std::move(post), .req_infos = std::move(req_infos)});
   const std::optional<size_t> frame_size =
-      HeaderUtil::PostInfoFrameSize(queued->req_infos.size());
+      HeaderUtil::PostInfoFrameSize(req_infos.size());
   if (ABSL_PREDICT_FALSE(!frame_size.has_value())) {
     outgoing_.Fail(handle, Status::kFailure, {}, &metrics_.write.errors);
     return;
   }
+  outgoing_.Pin(handle);
+  std::shared_ptr<QueuedPost> queued(
+      new QueuedPost{.post = std::move(post),
+                     .req_infos = std::move(req_infos)},
+      [&outgoing = outgoing_, handle](QueuedPost* p) {
+        delete p;
+        outgoing.Unpin(handle);
+      });
   queued->post_info.resize(*frame_size);
   if (ABSL_PREDICT_FALSE(!HeaderUtil::SerializePostInfo(
           queued->post.handle, self_.control_plane_listener,
